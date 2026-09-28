@@ -1,0 +1,244 @@
+intro: |
+  Netflix's "Because you watched…", Shopee's "Similar items" and Spotify's early playlists all started as neighbourhood
+  collaborative filtering. Here you run both flavours on a barkada's movie ratings, add yourself, check which one
+  ranks better with NDCG, and hit the cold-start wall.
+case:
+  id: movie-night
+  title: Barkada movie night
+  story: |
+    Six friends keep a shared sheet of 1–5 ratings for Filipino films. Friday is movie night at Faye's and the group
+    wants the app to suggest what **each** person hasn't seen yet. There's also an empty row for **you**.
+  data: [barkada]
+  state:
+    ratings:
+      - [5, 4, 5, 2, null, 2, null, 4]
+      - [2, null, 2, 5, 5, 4, 5, 3]
+      - [5, 5, 4, null, 2, null, 1, 5]
+      - [1, 2, null, 4, 5, 5, 4, null]
+      - [4, 4, 5, 3, 2, 3, null, null]
+      - [null, 1, 2, 5, 4, null, 5, 2]
+      - [null, null, null, null, null, null, null, null]
+    user: Faye
+    mode: user
+    k: 2
+  derive:
+    - { fn: center, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' } }, out: c }
+    - { fn: simMatrix, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, mode: user }, out: sm }
+    - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: '@user', k: '@k', mode: '@mode', n: 3 }, out: rec }
+    - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: Faye, k: 2, mode: user, n: 3 }, out: fayeUB }
+    - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: Faye, k: 2, mode: item, n: 3 }, out: fayeIB }
+    - { fn: holdout, in: { matrix: '@barkada', user: Bea, hide: [HLuna, FourSis, KitaKita, Rewind], k: 2, mode: user }, out: hUB }
+    - { fn: holdout, in: { matrix: '@barkada', user: Bea, hide: [HLuna, FourSis, KitaKita, Rewind], k: 2, mode: item }, out: hIB }
+    - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: You, k: 2, mode: user, n: 3 }, out: youRec }
+  cells:
+    - id: the-sheet
+      title: The ratings sheet
+      say: |
+        Blank cells are films someone hasn't watched. Click any cell to edit it. The row means on the right are each
+        friend's personal "average generosity". Migs and Carlo love the historical epics; Bea, Dana and Faye love the romances.
+      stage:
+        - id: sheet
+          widget: Matrix
+          props: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings', showRowMeans: true, format: 2, editable: { min: 1, max: 5, step: 1 }, heatmap: seq, emptyLabel: '·' }
+          bind: { values: ratings }
+    - id: taste-camps
+      title: Who's whose taste twin?
+      say: |
+        User–user similarities (centered cosine over co-rated films). Two camps show up clearly, and **You** is all zeros
+        until you rate something.
+      stage:
+        - id: sims
+          widget: Matrix
+          props: { rows: '@sm.rows', cols: '@sm.cols', values: '@sm.values', format: 2, heatmap: div, title: User similarity }
+    - id: recommend
+      title: Recommend for one friend
+      say: |
+        Pick a friend, the flavour of CF, and k. The table lists that friend's unseen films ranked by predicted rating
+        (ŝ + μᵤ). Top pick for **{=user}**: {=rec.text}.
+      stage:
+        - id: who
+          widget: Choice
+          props:
+            label: For
+            style: dropdown
+            options:
+              - { value: Migs, label: Migs }
+              - { value: Bea, label: Bea }
+              - { value: Carlo, label: Carlo }
+              - { value: Dana, label: Dana }
+              - { value: Enzo, label: Enzo }
+              - { value: Faye, label: Faye }
+              - { value: You, label: You }
+          bind: { value: user }
+        - id: how
+          widget: Choice
+          props:
+            label: Method
+            options:
+              - { value: user, label: User-based }
+              - { value: item, label: Item-based }
+          bind: { value: mode }
+        - id: kk
+          widget: Slider
+          props: { label: k, min: 1, max: 5, step: 1 }
+          bind: { value: k }
+        - id: recs
+          widget: Matrix
+          props: { data: '@rec.table', format: 2, heatmap: seq, rowHeader: unseen film }
+      decision:
+        prompt: |
+          For Faye, user-based CF (k = 2) ranks {=fayeUB.text}; item-based ranks {=fayeIB.text}. Why can the two flavours disagree?
+        type: mcq
+        options:
+          - One of them must have a bug
+          - They borrow different evidence; user-based uses similar people's ratings of the film, item-based uses Faye's own ratings of similar films
+          - Item-based ignores mean-centering
+          - User-based only works for users with many ratings, item-based never needs ratings
+        answer: 1
+        model: |
+          They answer the same question from different evidence. **User-based** asks "what did people like Faye think of this film?".
+          **Item-based** asks "how did Faye rate films like this one?". With a tiny, sparse matrix the neighbourhoods differ, and so can the predictions.
+    - id: offline-test
+      title: Which flavour ranks better?
+      say: |
+        Offline evaluation: hide four of Bea's known ratings, predict them from the rest, rank the four films by prediction,
+        and score that ranking with **NDCG** against Bea's true ratings.
+      stage:
+        - id: ub
+          widget: Matrix
+          props: { data: '@hUB.table', format: 2, title: 'User-based: predicted vs actual', rowHeader: film }
+        - id: ib
+          widget: Matrix
+          props: { data: '@hIB.table', format: 2, title: 'Item-based: predicted vs actual', rowHeader: film }
+        - id: nd
+          widget: Readout
+          props:
+            items:
+              - { label: 'NDCG user-based', value: '@hUB.ndcg', format: 3, tone: accent }
+              - { label: 'NDCG item-based', value: '@hIB.ndcg', format: 3, tone: good }
+              - { label: 'RMSE user-based', value: '@hUB.rmse', format: 2 }
+              - { label: 'RMSE item-based', value: '@hIB.rmse', format: 2 }
+      decision:
+        prompt: Based on this test, which recommender would you ship for Bea, and is four hidden ratings enough to decide?
+        type: mcq
+        options:
+          - Item-based; it ranks better here, but four ratings from one user is far too little evidence to decide in general
+          - User-based, because user-based is always better
+          - Item-based, and the test proves it is better for everyone
+          - Neither; NDCG can't compare two recommenders
+        answer: 0
+        model: |
+          Item-based wins this tiny test (NDCG {=hIB.ndcg|3} vs {=hUB.ndcg|3}). But it's one user and four films: noise can flip it.
+          Real evaluations hide ratings from many users (or a time-based split) and average NDCG@k across all of them.
+    - id: add-yourself
+      title: Add yourself
+      say: |
+        Scroll back up and rate at least three films in the **You** row of the sheet, then pick "You" in the recommender.
+        Current suggestions for you: {=youRec.text}.
+      stage:
+        - id: youbox
+          widget: Readout
+          props:
+            items:
+              - { label: 'your average rating (μ)', value: '@c.means.6', format: 2 }
+      decision:
+        prompt: 'With your row empty, every prediction for you is blank. What is this problem called, and what could the app show you instead?'
+        type: open
+        model: |
+          **Cold start.** With no ratings you have no mean and zero similarity to everyone, so there are no neighbours.
+          Practical fallbacks: show the most popular or highest-rated films, ask for a few quick ratings at signup
+          (like Netflix's onboarding), or use content (genre, cast) until enough ratings exist.
+    - id: cold-start
+      title: Sparsity and cold start
+      say: |
+        Neighbourhood CF needs overlap. New users (the empty row), new films nobody rated, and pairs of users who share a single film
+        (the one-overlap trap) all break it. The same sparsity is why many item-based predictions on the lecture's HP matrix stayed blank.
+      stage:
+        - id: tips
+          widget: Callout
+          props:
+            kind: tip
+            title: What practitioners do
+            body: |
+              - Precompute **item–item** similarities offline; items change less than users.
+              - **Shrink** similarities by overlap size (significance weighting).
+              - Blend with a **popularity** baseline for cold users.
+              - Move to **latent factors** (next module), which generalize across sparse data.
+      decision:
+        prompt: A new film is added to the sheet and nobody has rated it. Which method can recommend it?
+        type: mcq
+        options:
+          - User-based CF
+          - Item-based CF
+          - Neither, until someone rates it (or you use content features)
+          - Both, because similarities are symmetric
+        answer: 2
+        model: |
+          Neither. User-based needs neighbours who rated the film; item-based needs the film's similarities to other films,
+          which need common raters. This **item cold start** needs content information or a first rating.
+atScale:
+  title: How it's done at scale
+  body: |
+    With m users and n items, all-pairs user similarity costs O(m²·n). For millions of users that's out of reach, which is one
+    reason Amazon's 2003 recommender used **item-based** CF: n ≪ m, and item similarities change slowly, so they can be precomputed
+    offline and looked up at request time.
+
+    On Spark, `RowMatrix.columnSimilarities()` computes cosine similarities between columns (items) of a sparse matrix, with an
+    optional sampling threshold (DIMSUM) that skips pairs that can't be similar. Center the ratings first to get the lecture's
+    adjusted cosine. For single-machine work, the `surprise` library's `KNNWithMeans` implements the user- and item-based
+    neighbourhood predictors; its `pearson` similarity is close to the lecture's centered cosine.
+
+    For evaluation at scale, hold out ratings per user (or the latest ratings in time) and report the mean NDCG@k over users.
+  code:
+    - lang: python
+      title: Item–item similarities with PySpark
+      source: |
+        from pyspark.sql import SparkSession, functions as F
+        from pyspark.mllib.linalg.distributed import CoordinateMatrix, MatrixEntry
+
+        spark = SparkSession.builder.appName("item-cf").getOrCreate()
+        ratings = spark.read.csv("ratings.csv", header=True, inferSchema=True)   # user, item, rating (int ids)
+
+        # center by each user's mean (the lecture's adjusted cosine)
+        means = ratings.groupBy("user").agg(F.avg("rating").alias("mu"))
+        centered = ratings.join(means, "user").withColumn("s", F.col("rating") - F.col("mu"))
+
+        entries = centered.rdd.map(lambda r: MatrixEntry(r.user, r.item, r.s))
+        R = CoordinateMatrix(entries).toRowMatrix()        # rows = users, columns = items
+        sims = R.columnSimilarities(threshold=0.1)         # DIMSUM sampling for speed
+        sims.entries.filter(lambda e: e.value > 0.5).take(10)
+    - lang: python
+      title: surprise (single machine)
+      source: |
+        from surprise import Dataset, KNNWithMeans
+        from surprise.model_selection import train_test_split
+
+        data = Dataset.load_builtin("ml-100k")
+        train, test = train_test_split(data, test_size=0.2)
+        algo = KNNWithMeans(k=20, sim_options={"name": "pearson", "user_based": False})  # item-based
+        algo.fit(train)
+        print(algo.predict(uid="196", iid="302").est)   # predicted rating = mean + weighted deviations
+tradeoffs:
+  title: User-based vs item-based neighbourhoods
+  columns: [Aspect, User-based CF, Item-based CF]
+  rows:
+    - ['Similarity between', 'users (rows)', 'items (columns), adjusted cosine']
+    - ['Prediction uses', 'similar users'' ratings of the target item', 'the target user''s ratings of similar items']
+    - ['Cost of similarities', 'O(m²·n): huge when users ≫ items', 'O(n²·m): usually smaller; can be precomputed offline']
+    - ['Stability', 'user tastes drift; similarities go stale', 'item relations are stable']
+    - ['Explanation', '"people like you liked…"', '"because you liked X…" (easy to explain)']
+    - ['Cold start', 'new users have no neighbours', 'new items have no similarities']
+connections:
+  - module: fim
+    note: 'Association rules ({pandesal} → {kape}) are a count-based cousin of item-based CF: both recommend items that co-occur with what you already have.'
+  - module: lf-cf
+    note: 'Latent-factor CF predicts the same missing cells without neighbours. Compare its predictions on this barkada matrix with NDCG in that module.'
+explainBack:
+  prompt: |
+    Explain to a friend how the app decided what Faye should watch next, using user-based CF, in plain language, and say one thing that could make the suggestion wrong.
+  rubric:
+    - Mentions adjusting for how generously each person rates (mean-centering)
+    - Compares Faye only on films both people rated
+    - Uses the few most similar friends who saw the film, ignoring dissimilar ones
+    - Adds Faye's own average back to get a rating
+    - Names a weakness (tiny overlaps, sparsity, cold start, or predictions outside the scale)

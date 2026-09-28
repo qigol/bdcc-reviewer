@@ -1,0 +1,228 @@
+intro: |
+  Matrix factorization won the Netflix Prize and still powers large recommenders: Spark's ALS, YouTube's candidate
+  generation and many e-commerce "for you" feeds. Here you factor the barkada's movie ratings, look inside the learned
+  factors, and compare the recommendations with neighbourhood CF using NDCG.
+case:
+  id: barkada-factors
+  title: The barkada, factorized
+  story: |
+    Same six friends and eight films as in the NB-CF module. This time we don't look for taste twins. We learn two hidden
+    taste dimensions for every friend and every film, then read predictions off P = UV.
+  data: [barkada]
+  state: { lambda: 0.1, d: 2, user: Faye, iters: 15 }
+  derive:
+    - { fn: trainRecommend, in: { R: '@barkada', d: '@d', lambda: '@lambda', iters: '@iters', seed: 3, user: '@user' }, out: tr }
+    - { fn: factorVectors, in: { V: '@tr.V', which: items }, out: iv }
+    - { fn: factorVectors, in: { U: '@tr.U', V: '@tr.V', which: users }, out: uv }
+    - { fn: holdoutCompare, in: { R: '@barkada', user: Bea, hide: [HLuna, FourSis, KitaKita, Rewind], d: 2, lambda: '@lambda', seed: 3 }, out: cmp }
+    - { fn: paramCount, in: { m: 6, n: 8, d: '@d' }, out: pc }
+  cells:
+    - id: train
+      title: Train
+      say: |
+        ALS with a **random** start (to avoid the symmetry trap), d latent factors and a little regularization λ.
+        {=pc.params} numbers describe {=pc.cells} cells. Watch the training error as you change d and λ.
+      stage:
+        - id: ds
+          widget: Slider
+          props: { label: 'd (latent factors)', min: 1, max: 4, step: 1 }
+          bind: { value: d }
+        - id: ls
+          widget: Slider
+          props: { label: 'λ (regularization)', min: 0, max: 3, step: 0.1, format: 1 }
+          bind: { value: lambda }
+        - id: curve
+          widget: Chart
+          props: { kind: line, series: '@tr.series', xLabel: 'ALS half-steps / 2', yLabel: 'SSE (observed)' }
+        - id: fit
+          widget: Readout
+          props:
+            items:
+              - { label: training SSE, value: '@tr.sse', format: 2 }
+              - { label: RMSE, value: '@tr.rmse', format: 2, tone: accent }
+              - { label: parameters, value: '@pc.params' }
+    - id: look-inside
+      title: Look inside the factors
+      say: |
+        With d = 2 every film is a point in "taste space". Films that attract the same people land close together.
+        Nobody told the model what the axes mean, but the historical epics and the romances separate on their own.
+      stage:
+        - id: films
+          widget: VectorPlot
+          props: { vectors: '@iv.vectors', domain: '@iv.domain' }
+        - id: people
+          widget: Matrix
+          props: { data: '@tr.factors', format: 2, heatmap: div, title: 'User factors U (rows = friends)' }
+      decision:
+        prompt: The two learned axes are called "f1" and "f2". What are they?
+        type: mcq
+        options:
+          - Whatever combination of tastes best explains the ratings; we may interpret them afterwards, but they aren't defined in advance
+          - Always "action" and "romance"
+          - The average rating and the number of ratings
+          - Random numbers with no meaning
+        answer: 0
+        model: |
+          **Latent** means learned, not labelled. Here the axes roughly line up with epic vs. romance because that's the biggest
+          pattern in the data, but with more data or a larger d the factors can capture subtler tastes, sometimes ones without
+          a neat name. The signs and order of the factors are arbitrary too.
+    - id: predictions
+      title: Filled matrix and recommendations
+      say: |
+        P = UV fills every blank. Pick a friend to see their unseen films ranked by predicted rating.
+        For **{=user}**: {=tr.text}.
+      stage:
+        - id: who
+          widget: Choice
+          props:
+            label: For
+            style: dropdown
+            options:
+              - { value: Migs, label: Migs }
+              - { value: Bea, label: Bea }
+              - { value: Carlo, label: Carlo }
+              - { value: Dana, label: Dana }
+              - { value: Enzo, label: Enzo }
+              - { value: Faye, label: Faye }
+          bind: { value: user }
+        - id: filled
+          widget: Matrix
+          props: { data: '@tr.filled', format: 1, heatmap: seq, title: 'Ratings with predictions filled in' }
+        - id: recs
+          widget: Matrix
+          props: { data: '@tr.table', format: 2, rowHeader: unseen film }
+      decision:
+        prompt: 'Set λ = 0 and d = 4. The training error drops almost to zero. Is this a better model?'
+        type: mcq
+        options:
+          - Not necessarily; with 56 parameters for 37 ratings it can memorize the data and predict blanks badly (over-fitting)
+          - Yes, lower training error always means better recommendations
+          - Yes, because more factors always capture more taste
+          - It makes no difference which d you choose
+        answer: 0
+        model: |
+          Training error measures fit to ratings we already know. The goal is predicting the **unknown** ones. Choose d and λ
+          by hiding some known ratings (a validation set) and picking the values that predict them best.
+    - id: versus-neighbours
+      title: Latent factors vs neighbours
+      say: |
+        Hide four of Bea's ratings, train both methods on the rest, and score each ranking of the hidden films with NDCG.
+        (The neighbourhood method here is the NB-CF module's user-based CF, k = 2.)
+      stage:
+        - id: tbl
+          widget: Matrix
+          props: { data: '@cmp.table', format: 2, rowHeader: hidden film, title: 'Bea: actual vs predicted' }
+        - id: nd
+          widget: Readout
+          props:
+            items:
+              - { label: 'NDCG, ALS', value: '@cmp.ndcgALS', format: 3, tone: good }
+              - { label: 'NDCG, user-based CF', value: '@cmp.ndcgNB', format: 3, tone: accent }
+      decision:
+        prompt: On a matrix this small both methods rank Bea's films about equally well. Where would you expect latent factors to pull ahead?
+        type: open
+        model: |
+          On **large, sparse** data. Neighbourhood CF needs users who co-rated the same items; with millions of items most
+          overlaps are tiny (the one-overlap trap). Latent factors share strength across everything: two users who never rated
+          the same film can still get similar factors through the films they each rated. Factorization is also cheaper to serve,
+          since a prediction is a d-dimensional dot product.
+    - id: cold-users
+      title: New friends and new films
+      say: |
+        A new friend with no ratings has no row of U that the data can pin down, so latent factors have a cold-start problem too.
+        With regularization, an empty row shrinks to zero and every prediction for that friend collapses to 0.
+      stage:
+        - id: cs
+          widget: Callout
+          props:
+            kind: tip
+            title: Common fixes
+            body: |
+              - Ask for a few ratings at signup; one ALS U-step then gives the new user a factor row.
+              - Fold in **side information** (genre, cast, age group), as hybrid models do.
+              - Serve popular items until enough ratings exist. Spark's ALS has `coldStartStrategy="drop"` so evaluation ignores such cases.
+      decision:
+        prompt: A new friend rates three films. What is the cheapest way to get their recommendations without retraining everything?
+        type: mcq
+        options:
+          - Keep V fixed and solve one least-squares problem for their row of U (a single ALS U-step)
+          - Retrain U and V from scratch
+          - Copy the factors of the friend with the most ratings
+          - Average all the columns of V
+        answer: 0
+        model: |
+          With V frozen, the new user's row of U is an ordinary least-squares (or ridge) problem over the films they rated.
+          That's exactly one half-step of ALS and takes milliseconds ("folding in" a user).
+atScale:
+  title: ALS on Spark
+  body: |
+    Spark MLlib ships a distributed ALS. Users and items are partitioned into blocks; each half-step solves many small ridge
+    regressions in parallel. Only factor blocks travel over the network, never the full matrix. Key parameters:
+    `rank` (d), `regParam` (λ), `maxIter`, and `coldStartStrategy="drop"` for evaluation.
+    For clicks, plays or purchases instead of star ratings, use `implicitPrefs=True` (confidence-weighted ALS).
+
+    Tune rank and regParam with `CrossValidator` or a time-based split, and evaluate with RMSE for rating prediction or
+    ranking metrics like NDCG@k for top-k recommendation. That's the same NDCG as in the NB-CF module.
+  code:
+    - lang: python
+      title: PySpark MLlib ALS
+      source: |
+        from pyspark.sql import SparkSession
+        from pyspark.ml.recommendation import ALS
+        from pyspark.ml.evaluation import RegressionEvaluator
+
+        spark = SparkSession.builder.appName("barkada-als").getOrCreate()
+        ratings = spark.read.csv("ratings.csv", header=True, inferSchema=True)  # userId, movieId, rating
+        train, test = ratings.randomSplit([0.8, 0.2], seed=42)
+
+        als = ALS(rank=10, regParam=0.1, maxIter=15,
+                  userCol="userId", itemCol="movieId", ratingCol="rating",
+                  coldStartStrategy="drop", nonnegative=False, seed=42)
+        model = als.fit(train)
+
+        rmse = RegressionEvaluator(metricName="rmse", labelCol="rating").evaluate(model.transform(test))
+        print("test RMSE", rmse)
+        model.recommendForAllUsers(5).show(truncate=False)   # top-5 per user
+    - lang: python
+      title: NumPy ALS (the lecture's algorithm, with λ)
+      source: |
+        import numpy as np
+
+        def als(R, d=2, lam=0.1, iters=15, seed=0):
+            m, n = R.shape
+            rng = np.random.default_rng(seed)
+            U, V = 0.5 + rng.random((m, d)), 0.5 + rng.random((d, n))
+            obs = ~np.isnan(R)
+            for _ in range(iters):
+                for j in range(n):                       # V-step
+                    Uo = U[obs[:, j]]
+                    V[:, j] = np.linalg.solve(Uo.T @ Uo + lam * np.eye(d), Uo.T @ R[obs[:, j], j])
+                for i in range(m):                       # U-step
+                    Vo = V[:, obs[i]]
+                    U[i] = np.linalg.solve(Vo @ Vo.T + lam * np.eye(d), Vo @ R[i, obs[i]])
+            return U, V
+tradeoffs:
+  title: Neighbourhood vs latent-factor CF
+  columns: [Aspect, Neighbourhood (NB-CF), Latent factors (LF-CF)]
+  rows:
+    - ['Model', 'none: similarities computed from the data', 'U (m×d) and V (d×n) learned by minimizing SSE']
+    - ['Sparse data', 'suffers: needs co-rated overlaps', 'shares strength across all ratings']
+    - ['Prediction cost', 'find neighbours, weighted average', 'one d-dimensional dot product']
+    - ['Explainability', '"people like you liked X"', 'factors are abstract (harder to explain)']
+    - ['Training', 'none (or precomputed similarities)', 'ALS / coordinate descent iterations']
+    - ['Tuning knobs', 'k, similarity, shrinkage', 'd, λ, iterations, initialization']
+    - ['Cold start', 'yes (no overlaps)', 'yes (no data to fit a row); fold-in after a few ratings']
+connections:
+  - module: nb-cf
+    note: 'Same barkada matrix, same NDCG. Compare the "versus neighbours" cell here with the NB-CF Application tab.'
+  - module: fim
+    note: 'Association rules work on co-occurrence counts; latent factors on ratings. Implicit-feedback ALS brings the two worlds together (clicks and purchases as weak ratings).'
+explainBack:
+  prompt: |
+    Explain to a classmate what U and V are, what ALS does in each half-step, and why the lecture's U ends up with two identical columns.
+  rubric:
+    - U holds a few taste numbers per user; V holds a few trait numbers per film; a rating ≈ their dot product
+    - Only observed ratings enter the error (SSE)
+    - ALS freezes one matrix and solves an ordinary least-squares problem for the other, then swaps
+    - Starting from all ones makes both factors identical, and the updates keep them identical (the symmetry trap)
+    - Random initialization and regularization fix it

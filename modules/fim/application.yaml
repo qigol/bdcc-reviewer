@@ -1,0 +1,238 @@
+intro: |
+  Association rules are how stores decide bundles, shelf layouts and promos, and how "frequently bought together"
+  boxes get filled. Here you mine one morning of receipts from a neighborhood sari-sari store, then make
+  three business calls with support, confidence and lift.
+case:
+  id: sari-sari
+  title: Aling Nena's sari-sari store
+  story: |
+    Aling Nena runs a sari-sari store near a jeepney terminal. Her nephew typed up 30 receipts from one morning
+    (6 to 11 am) into a spreadsheet. She wants to know: **what should I bundle, what should I put side by side,
+    and which "rules" a sales rep shows me should I ignore?**
+  data: [sarisari]
+  state: { minsup: 0.15, minconf: 0.6, sortBy: lift }
+  derive:
+    - { fn: itemSupports, in: { transactions: '@sarisari' }, out: sup }
+    - { fn: frequentItemsets, in: { transactions: '@sarisari', minsup: '@minsup' }, out: fi }
+    - { fn: rules, in: { transactions: '@sarisari', minsup: '@minsup', minconf: '@minconf', sortBy: '@sortBy', top: 10 }, out: rs }
+    - { fn: lift, in: { transactions: '@sarisari', A: [pandesal], B: [kape] }, out: pk }
+    - { fn: lift, in: { transactions: '@sarisari', A: [kape], B: [load] }, out: kl }
+    - { fn: lift, in: { transactions: '@sarisari', A: [lucky-me], B: [load] }, out: ll }
+    - { fn: lift, in: { transactions: '@sarisari', A: [coke], B: [yelo] }, out: cy }
+    - { fn: vennCounts, in: { transactions: '@sarisari', A: [coke], B: [yelo] }, out: cyv }
+    - { fn: aprioriRun, in: { transactions: '@sarisari', minsup: '@minsup' }, out: ap }
+    - { fn: fpGrowthRun, in: { transactions: '@sarisari', minsup: '@minsup' }, out: fp }
+  cells:
+    - id: look-at-data
+      title: Look at the receipts
+      say: |
+        Thirty baskets, nine products. Before any algorithm, eyeball it: prepaid **load** is in almost every basket
+        (people top up while waiting for a jeep), and pandesal and kape show up a lot in the early rows.
+      stage:
+        - id: tx
+          widget: TransactionTable
+          props: { transactions: '@sarisari', title: '30 morning baskets' }
+        - id: bars
+          widget: Chart
+          props: { kind: bar, series: '@sup.series', yLabel: baskets, title: How many baskets contain each item }
+    - id: frequent
+      title: Frequent itemsets
+      say: |
+        Set a relative **minsup**. At {=minsup|pct} an itemset must appear in at least {=fi.minsupAbs|1} of 30 baskets.
+        Lower it and more (rarer) combinations qualify; raise it and only the staples survive.
+      stage:
+        - id: ms
+          widget: Slider
+          props: { label: minsup (fraction of baskets), min: 0.05, max: 0.5, step: 0.05, format: pct }
+          bind: { value: minsup }
+        - id: fic
+          widget: Readout
+          props:
+            items:
+              - { label: frequent itemsets, value: '@fi.count', tone: good }
+              - { label: 'Apriori counts', value: '@ap.evaluated' }
+              - { label: 'brute force would count', value: '@ap.bruteForce', tone: bad }
+              - { label: 'FP-growth prefixes', value: '@fp.explored' }
+        - id: fil
+          widget: Text
+          props: { body: '**Frequent:** {=fi.labels}' }
+    - id: rules
+      title: Rules, ranked
+      say: |
+        Turn the frequent itemsets into rules with **minconf**, then sort. Sorting by confidence puts
+        "anything → load" rules near the top. Sort by lift instead and see what floats up.
+      stage:
+        - id: mc
+          widget: Slider
+          props: { label: minconf, min: 0.3, max: 1, step: 0.05, format: 2 }
+          bind: { value: minconf }
+        - id: sb
+          widget: Choice
+          props:
+            label: Sort rules by
+            options:
+              - { value: lift, label: lift }
+              - { value: confidence, label: confidence }
+              - { value: support, label: support }
+          bind: { value: sortBy }
+        - id: table
+          widget: Matrix
+          props: { data: '@rs.table', format: 2, heatmap: seq, rowHeader: 'rule (top 10)' }
+        - id: rc
+          widget: Readout
+          props:
+            items:
+              - { label: rules passing, value: '@rs.count', tone: good }
+              - { label: candidates tried, value: '@rs.considered' }
+    - id: bundle
+      title: What to bundle
+      say: |
+        Aling Nena can afford one "combo price" sign. Pandesal → kape has confidence {=pk.conf|2} and lift {=pk.lift|2},
+        in {=pk.relAB|pct} of all baskets. Coke → yelo has an even bigger lift ({=cy.lift|2}) but appears in only {=cy.relAB|pct}.
+      decision:
+        prompt: Which pair deserves the combo sign?
+        type: mcq
+        options:
+          - Pandesal + kape 3-in-1
+          - Coke + yelo
+          - Kape + load
+          - Lucky Me + load
+        answer: 0
+        model: |
+          **Pandesal + kape.** Its lift ({=pk.lift|2}) shows a real association, and it touches a third of all customers,
+          so a combo price reaches the most people. Coke + yelo has the highest lift but a small audience; it's a better
+          *placement* play than a *pricing* play. Anything + load has lift near or below 1: those customers buy load anyway.
+    - id: load-trap
+      title: The prepaid-load trap
+      say: |
+        A telco rep shows a slide: "**{=kl.conf|pct}** of kape buyers also buy load! Put our poster next to the coffee."
+        And "Lucky Me → load has confidence {=ll.conf|pct}!" Check the lifts before believing it.
+      stage:
+        - id: lt
+          widget: Readout
+          props:
+            items:
+              - { label: 'conf(kape → load)', value: '@kl.conf', format: 2 }
+              - { label: 'lift(kape → load)', value: '@kl.lift', format: 2, tone: bad }
+              - { label: 'conf(Lucky Me → load)', value: '@ll.conf', format: 2 }
+              - { label: 'lift(Lucky Me → load)', value: '@ll.lift', format: 2, tone: warn }
+        - id: ltc
+          widget: Callout
+          props:
+            kind: tip
+            body: 'This is the lecture''s **milk trap** in real life: when B is in almost every basket (load: {=kl.relB|pct}), confidence into B is high for *any* A, and lift sits near 1.'
+      decision:
+        prompt: Should Aling Nena move the load poster next to the kape?
+        type: mcq
+        options:
+          - Yes, 75% confidence is strong evidence
+          - No, load is in most baskets anyway; the lift is below 1
+          - Yes, because the rule passes minconf
+          - Only if the support of {kape} is above minsup
+        answer: 1
+        model: |
+          **No.** Load is bought in {=kl.relB|pct} of baskets regardless. Kape buyers buy it a bit *less* often than
+          average (lift {=kl.lift|2} < 1). The poster would be preaching to people who top up anyway.
+    - id: placement
+      title: Where does the ice chest go?
+      say: |
+        Coke and yelo overlap heavily: **{=cyv.nAB}** of the {=cyv.nA} Coke baskets have ice, and every ice basket has Coke.
+        Lift {=cy.lift|2} means Coke buyers take ice almost four times more often than average.
+      stage:
+        - id: cyvenn
+          widget: Venn
+          props: { labels: [coke, yelo], nA: '@cyv.nA', nB: '@cyv.nB', nAB: '@cyv.nAB', N: '@cyv.N' }
+      decision:
+        prompt: The store has a new ice chest. Where should it go?
+        type: mcq
+        options:
+          - Right next to the Coke cooler
+          - By the pandesal, since that is the most popular item
+          - At the back, so customers walk past everything
+          - It doesn't matter; the lift is only about baskets
+        answer: 0
+        model: |
+          **Next to the Coke cooler.** A high-lift pair is a placement signal: make the second item effortless to grab.
+          (Supermarkets sometimes do the opposite, putting pairs far apart so shoppers pass more shelves. That works in a big store, not in a one-window sari-sari.)
+    - id: actionable
+      title: Is this rule actionable?
+      say: |
+        Lucky Me → itlog has confidence around 0.83 and lift near 2.8, but it covers only about one in six baskets.
+        Numbers alone don't make a decision.
+      decision:
+        prompt: Would you act on "Lucky Me pancit canton → itlog"? What would you do, and what would you check first?
+        type: open
+        model: |
+          It's a **real** association (lift ≈ 2.8 ≫ 1) with decent confidence, so it's worth a cheap action: a handwritten
+          "pancit canton + itlog" merienda sign, or keeping eggs visible near the noodles. Before spending money, check:
+          (1) the **support**: one morning of 30 receipts is tiny, so collect a week of data;
+          (2) whether the pattern holds at other times of day;
+          (3) **causality**: the rule shows co-occurrence, not that the sign will change behavior. Try it for a week and compare sales.
+atScale:
+  title: How it's done on big data
+  body: |
+    Real retailers have millions of baskets and tens of thousands of SKUs. Two practical tools:
+
+    - **Spark MLlib `FPGrowth`** runs *parallel FP-growth* (PFP): it shards the transactions by item, so each worker
+      mines the projected databases for its items independently. This is the "parallelizable" advantage from slide 41.
+      It returns frequent itemsets and rules with confidence, lift and support.
+    - **mlxtend** (single machine, pandas) has `apriori`, `fpgrowth` and `association_rules`, fine up to about a million rows.
+
+    Tips: minsup is relative in both. Very low minsup explodes the output even when the algorithm is fast, so start high
+    and lower it. One-hot encoded baskets are extremely **sparse**; use sparse DataFrames. Filter rules by **lift**,
+    not confidence, to avoid the load/milk trap.
+  code:
+    - lang: python
+      title: PySpark MLlib
+      source: |
+        from pyspark.sql import SparkSession
+        from pyspark.ml.fpm import FPGrowth
+
+        spark = SparkSession.builder.appName("sari-sari").getOrCreate()
+        baskets = spark.createDataFrame(
+            [(1, ["pandesal", "kape", "load"]), (2, ["pandesal", "kape"]), (3, ["coke", "yelo", "load"])],
+            ["id", "items"])
+
+        fp = FPGrowth(itemsCol="items", minSupport=0.15, minConfidence=0.6)
+        model = fp.fit(baskets)
+
+        model.freqItemsets.orderBy("freq", ascending=False).show()
+        (model.associationRules              # antecedent, consequent, confidence, lift, support
+              .filter("lift > 1.2")
+              .orderBy("lift", ascending=False)
+              .show(truncate=False))
+    - lang: python
+      title: pandas + mlxtend
+      source: |
+        import pandas as pd
+        from mlxtend.preprocessing import TransactionEncoder
+        from mlxtend.frequent_patterns import fpgrowth, association_rules
+
+        baskets = [["pandesal", "kape", "load"], ["pandesal", "kape"], ["coke", "yelo", "load"]]
+        te = TransactionEncoder()
+        onehot = pd.DataFrame(te.fit(baskets).transform(baskets), columns=te.columns_)
+
+        itemsets = fpgrowth(onehot, min_support=0.15, use_colnames=True)
+        rules = association_rules(itemsets, metric="confidence", min_threshold=0.6)
+        print(rules.sort_values("lift", ascending=False)[["antecedents", "consequents", "support", "confidence", "lift"]])
+tradeoffs:
+  title: Brute force vs Apriori vs FP-growth
+  columns: [Method, How it works, Cost, Strength, Weakness]
+  rows:
+    - ['Brute force', 'Count every non-empty itemset', '2ⁿ − 1 support counts, each a full scan', 'Trivial to implement and verify', 'Computationally expensive: hopeless beyond ~20 items (slide 41)']
+    - ['Apriori', 'Level by level; only extend frequent itemsets', 'Far fewer candidates; one scan per level', 'Faster; easy to explain with the Apriori principle', 'Still generates candidates; many scans; more complicated (slide 41)']
+    - ['FP-growth', 'Recursively filter to prefix-projected databases (or an FP-tree)', 'No candidate generation; projected DBs shrink fast', 'Parallelizable: each prefix is independent (slide 41); Spark uses it', 'More complicated to implement; memory for projected DBs / tree']
+connections:
+  - module: nb-cf
+    note: 'Rules like {pandesal} → {kape} are a crude item-to-item recommender. Item-based collaborative filtering does the same job with ratings and similarities instead of co-occurrence counts.'
+  - module: lf-cf
+    note: 'Latent-factor models go further: they recommend items a customer has never bought together with anything, by learning hidden "taste" dimensions.'
+explainBack:
+  prompt: |
+    Explain to Aling Nena, without formulas, why "every Lucky Me buyer also bought load" is not a reason to put load next to the noodles, but "Coke buyers take ice 4× more often than average" is a reason to move the ice chest.
+  rubric:
+    - Mentions that load is bought by almost everyone (high base rate)
+    - Explains confidence as "of the people who bought A, the share who bought B"
+    - Explains lift as comparing that share with the usual share
+    - Says lift near 1 means no real connection, lift well above 1 means a real one
+    - Mentions support (how many customers the rule affects)

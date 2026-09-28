@@ -1,0 +1,116 @@
+terms:
+  - id: collaborative-filtering
+    term: Collaborative filtering
+    short: Recommending by using the ratings of many users, assuming people who agreed before will agree again.
+    related: [user-based-cf, item-based-cf]
+    lessonRef: { tab: intuition, id: taste-twins }
+    skills: [similarity]
+  - id: ratings-matrix
+    term: Ratings matrix
+    aka: [utility matrix]
+    short: Users as rows, items as columns, known ratings in cells; most cells are empty.
+    related: [sparsity]
+    lessonRef: { tab: intuition, id: harsh-vs-generous }
+    skills: [mean-centering]
+  - id: user-mean
+    term: User mean (μᵤ)
+    short: The average of the ratings a user actually gave, ignoring items they never rated.
+    formula: '\mu_u = \frac{1}{|I_u|}\sum_{j \in I_u} r_{uj}'
+    related: [mean-centering]
+    lessonRef: { tab: math-code, id: mean-centering }
+    skills: [mean-centering]
+  - id: mean-centering
+    term: Mean-centering
+    short: Subtracting a user's mean from each of their ratings so harsh and generous raters become comparable.
+    formula: 's_{uj} = r_{uj} - \mu_u'
+    related: [user-mean]
+    lessonRef: { tab: intuition, id: harsh-vs-generous }
+    skills: [mean-centering]
+  - id: co-rated
+    term: Co-rated items
+    short: The items that both users being compared have rated; similarity is computed over these only.
+    related: [cosine-similarity, one-overlap-trap]
+    lessonRef: { tab: intuition, id: only-co-rated }
+    skills: [similarity, sparsity-pitfalls]
+  - id: cosine-similarity
+    term: Cosine similarity (centered)
+    short: Dot product of two centered rating vectors divided by the product of their lengths, between −1 and 1.
+    formula: '\frac{\sum_{j} s_{uj} s_{vj}}{\sqrt{\sum_j s_{uj}^2}\sqrt{\sum_j s_{vj}^2}}'
+    related: [co-rated, adjusted-cosine]
+    lessonRef: { tab: math-code, id: similarity }
+    skills: [similarity]
+  - id: user-based-cf
+    term: User-based CF
+    short: Predicting a user's rating of an item from how the most similar users rated that item.
+    related: [neighborhood, item-based-cf]
+    lessonRef: { tab: intuition, id: borrowing-opinions }
+    skills: [ubcf-predict]
+  - id: neighborhood
+    term: Neighbourhood (top-k peers)
+    short: The k most similar users who rated the target item, keeping only those with positive similarity.
+    related: [user-based-cf]
+    lessonRef: { tab: math-code, id: neighbors }
+    skills: [neighbors]
+  - id: centered-prediction
+    term: Centered prediction (ŝ)
+    short: The similarity-weighted average of the neighbours' centered ratings; add the user's mean to get a rating.
+    formula: '\hat s_{uj} = \frac{\sum_v \text{sim}(u,v)\, s_{vj}}{\sum_v \text{sim}(u,v)}, \quad \hat r_{uj} = \hat s_{uj} + \mu_u'
+    related: [user-mean, neighborhood]
+    lessonRef: { tab: intuition, id: add-the-mean-back }
+    skills: [ubcf-predict]
+  - id: item-based-cf
+    term: Item-based CF
+    short: Predicting a rating from the same user's ratings of the items most similar to the target item.
+    related: [adjusted-cosine, user-based-cf]
+    lessonRef: { tab: intuition, id: flip-it }
+    skills: [ibcf-predict]
+  - id: adjusted-cosine
+    term: Adjusted cosine
+    short: Item–item cosine computed on ratings centered by each user's mean, over users who rated both items.
+    related: [cosine-similarity, item-based-cf]
+    lessonRef: { tab: math-code, id: item-similarity }
+    skills: [ibcf-similarity]
+  - id: sparsity
+    term: Sparsity
+    short: Most user–item pairs have no rating, so overlaps are small and some predictions have no usable neighbours.
+    related: [co-rated, cold-start]
+    lessonRef: { tab: intuition, id: one-overlap-trap }
+    skills: [sparsity-pitfalls]
+  - id: one-overlap-trap
+    term: One-overlap trap
+    short: A perfect similarity of ±1 that comes from a single co-rated item and is therefore unreliable.
+    related: [co-rated, significance-weighting]
+    lessonRef: { tab: intuition, id: one-overlap-trap }
+    skills: [sparsity-pitfalls]
+  - id: significance-weighting
+    term: Significance weighting
+    short: Scaling a similarity down when it rests on few co-rated items, e.g. by min(n, β)/β.
+    related: [one-overlap-trap]
+    lessonRef: { tab: math-code, id: significance }
+    skills: [sparsity-pitfalls]
+  - id: cold-start
+    term: Cold start
+    short: A new user or item has no ratings, so neighbourhood methods cannot compute similarities for it.
+    related: [sparsity]
+    lessonRef: { tab: application, id: cold-start }
+    skills: [sparsity-pitfalls]
+  - id: dcg
+    term: Discounted cumulative gain (DCG)
+    short: Sum over list positions of the gain 2^rel − 1 divided by log₂(position + 1).
+    formula: '\sum_{i=1}^{k} \frac{2^{rel_i} - 1}{\log_2(i + 1)}'
+    related: [idcg, ndcg]
+    lessonRef: { tab: math-code, id: dcg }
+    skills: [dcg]
+  - id: idcg
+    term: Ideal DCG (IDCG)
+    short: The DCG of the best possible ordering, items sorted by true relevance.
+    related: [dcg, ndcg]
+    lessonRef: { tab: math-code, id: ndcg }
+    skills: [ndcg]
+  - id: ndcg
+    term: Normalized DCG (NDCG)
+    short: DCG divided by the ideal DCG, a ranking score between 0 and 1.
+    formula: '\frac{\text{DCG}}{\text{IDCG}}'
+    related: [dcg, idcg]
+    lessonRef: { tab: math-code, id: ndcg }
+    skills: [ndcg]

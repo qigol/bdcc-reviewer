@@ -1,0 +1,538 @@
+scenes:
+  - id: taste-twins
+    title: Taste twins
+    goal: How can we measure whether two people have similar taste?
+    skills: [similarity]
+    state:
+      vecs:
+        - { id: migs, label: Migs, x: 2, y: 1, draggable: true }
+        - { id: bea, label: Bea, x: 1, y: 2, draggable: true }
+    derive:
+      - { fn: vecCos, in: { vectors: '@vecs' }, out: vc }
+    stage:
+      - id: plot
+        widget: VectorPlot
+        props: { vectors: '@vecs', domain: [-3, 3], angleBetween: [migs, bea], showCosine: true }
+        bind: { vectors: vecs }
+      - id: f
+        widget: Formula
+        region: side
+        props: { tex: '\cos\theta = \frac{\anchor{dot}{\mathbf{a}\cdot\mathbf{b}}}{\anchor{len}{\|\mathbf{a}\|\,\|\mathbf{b}\|}} = {=vc.cos|2}' }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: similarity, value: '@vc.cos', format: 2, tone: accent }
+    beats:
+      - say: |
+          Two friends each rate two movies. Draw each person as an arrow: x = how much they liked movie 1, y = movie 2 (relative to their usual).
+          Arrows pointing the same way mean **similar taste**.
+      - say: |
+          The **cosine of the angle** between the arrows measures that: 1 means the same direction, 0 means unrelated, −1 means opposite.
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:dot', tone: accent } }
+      - say: Suppose Migs is (2, 1) and Bea (4, 2), the same shape but twice as enthusiastic.
+        set:
+          vecs:
+            - { id: migs, label: Migs, x: 2, y: 1, draggable: true }
+            - { id: bea, label: Bea, x: 3, y: 1.5, draggable: true }
+        gate:
+          type: predict
+          question: What is the cosine similarity of (2, 1) and (4, 2)?
+          options: ['0.5', '0.8', '1', '2']
+          answer: 2
+          explain: They point in exactly the same direction, so cos θ = 1. Length (enthusiasm) doesn't matter, only direction.
+      - say: Now drag Bea's arrow to disagree with Migs.
+        gate:
+          type: when
+          prompt: Make the similarity **below −0.5** (opposite tastes).
+          when: 'vc.cos < -0.5'
+          hint: Point Bea's arrow roughly away from Migs's.
+      - say: |
+          One catch: raw ratings are all positive (1 to 5), so raw arrows live in one corner and every pair looks similar.
+          That's why the lecture first **mean-centers** the ratings, which is the next scene.
+        set:
+          vecs:
+            - { id: migs, label: 'Migs (raw)', x: 2.5, y: 2, draggable: true }
+            - { id: bea, label: 'Bea (raw)', x: 1, y: 2.8, draggable: true }
+    takeaway: Similarity is the cosine between rating vectors; direction (taste) counts, length (enthusiasm) doesn't.
+
+  - id: harsh-vs-generous
+    title: Harsh vs generous raters
+    goal: Why subtract each user's average before comparing?
+    skills: [mean-centering]
+    data: [hp4x7]
+    state:
+      vals:
+        - [4, null, null, 5, 1, null, null]
+        - [5, 5, 4, null, null, null, null]
+        - [null, null, null, 2, 4, 5, null]
+        - [3, null, null, null, 3, null, null]
+    derive:
+      - { fn: center, in: { matrix: { rows: [A, B, C, D], cols: [HP1, HP2, HP3, TW, SW1, SW2, SW3], values: '@vals' } }, out: c }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { rows: [A, B, C, D], cols: [HP1, HP2, HP3, TW, SW1, SW2, SW3], values: '@vals', showRowMeans: true, format: frac, editable: { min: 1, max: 5, step: 1 }, heatmap: div, title: 'Ratings, 1–5 (click a cell to edit)' }
+        bind: { values: vals }
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          steps:
+            - '\mu_u = \anchor{mu}{\text{average of } u\text{''s ratings}}'
+            - 's_{uj} = r_{uj} - \anchor{mu}{\mu_u}'
+          step: 0
+      - id: note
+        widget: Callout
+        region: side
+        hidden: true
+        props: { kind: note, body: 'D rated both movies 3, so after centering D is all zeros. A zero vector has no direction, so its similarity with everyone is 0 (slide 5, row D).' }
+    beats:
+      - say: |
+          The lecture's matrix: four users, seven movies (Harry Potter, Twilight, Star Wars). A 4 from generous B and a 4 from harsh A don't mean the same thing.
+      - say: |
+          So compute each user's average, $\mu_u$, over the movies **they rated**. A: (4 + 5 + 1)/3 = 10/3. B: 14/3. C: 11/3. D: 3.
+        do:
+          - { target: m, cmd: highlight, args: { sel: ['mean:A', 'mean:B', 'mean:C', 'mean:D'], tone: accent } }
+      - say: Now subtract each row's mean from its ratings.
+        gate:
+          type: predict
+          question: What does A's SW1 rating (1) become after centering?
+          answer: { value: -2.33, tol: 0.02 }
+          explain: '1 − 10/3 = −7/3 ≈ −2.33: far below what A usually gives.'
+      - say: |
+          Green means "liked it more than usual", red "less than usual". Now a harsh rater's 4 and a generous rater's 5 can be compared fairly.
+        do:
+          - { target: m, cmd: center }
+          - { target: f, cmd: step, args: { n: 1 } }
+      - say: |
+          Look at D: 3 and 3 become 0 and 0. D carries **no taste information**.
+        show: [note]
+        do:
+          - { target: m, cmd: highlight, args: { sel: 'row:D', tone: warn } }
+      - say: Make D opinionated.
+        do:
+          - { target: m, cmd: uncenter }
+        gate:
+          type: when
+          prompt: Edit one of D's ratings so D's centered values are no longer zero.
+          when: 'abs(c.values.3.0) > 0'
+          hint: Click D's HP1 cell and type 5.
+    takeaway: Subtract each user's own mean (over rated items only) so ratings mean "above or below usual".
+
+  - id: only-co-rated
+    title: Only compare what you both rated
+    goal: Which ratings count when comparing two users?
+    skills: [similarity, sparsity-pitfalls]
+    data: [ab5x6]
+    state:
+      pair: { a: A, b: B }
+    derive:
+      - { fn: center, in: { matrix: '@ab5x6' }, out: c }
+      - { fn: sim, in: { matrix: '@ab5x6', a: '@pair.a', b: '@pair.b', mode: user }, out: s }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { rows: '@c.rows', cols: '@c.cols', values: '@c.values', format: 2, heatmap: div, title: Centered ratings }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Compare
+          options:
+            - { value: { a: A, b: B }, label: 'A & B' }
+            - { value: { a: A, b: C }, label: 'A & C' }
+            - { value: { a: B, b: C }, label: 'B & C' }
+            - { value: { a: C, b: E }, label: 'C & E' }
+        bind: { value: pair }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: co-rated items, value: '@s.overlap' }
+            - { label: similarity, value: '@s.sim', format: 2, tone: accent }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        props: { fn: sim, in: { matrix: '@ab5x6', a: '@pair.a', b: '@pair.b', mode: user }, roles: { matrix: m } }
+    beats:
+      - say: |
+          The 5 × 6 matrix from slides 6–8, already centered. To compare two users we line up their rows. But cells are missing: B never rated c, C skipped a and f.
+      - say: Look at A and B.
+        gate:
+          type: predict
+          question: On how many items do A and B **both** have a rating?
+          answer: { value: 5 }
+          explain: A rated all six items; B rated everything except c, so they share 5 items.
+      - say: |
+          The lecture computes the cosine **only over co-rated items**. A missing rating isn't a zero opinion, it's no opinion. Press ▶ to watch the mask.
+        gate:
+          type: event
+          prompt: Step through the similarity computation.
+          target: player
+          event: done
+      - say: Switch pairs and watch the overlap change.
+        gate:
+          type: when
+          prompt: Pick a pair whose similarity rests on only **four** co-rated items.
+          when: 's.overlap == 4'
+          hint: C has two blanks.
+      - say: |
+          Smaller overlaps mean shakier similarities. Hold that thought for the one-overlap trap later. Meanwhile, B & C at 0.94 are the closest pair in this matrix.
+        set:
+          pair: { a: B, b: C }
+    takeaway: Cosine similarity is computed on centered ratings over the items both users rated, and nothing else.
+
+  - id: similarity-matrix
+    title: The similarity matrix fills in
+    goal: Who is whose taste twin in the lecture's matrix?
+    skills: [similarity]
+    data: [ab5x6]
+    derive:
+      - { fn: center, in: { matrix: '@ab5x6' }, out: c }
+      - { fn: simMatrix, in: { matrix: '@ab5x6', mode: user }, out: sm }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { rows: '@c.rows', cols: '@c.cols', values: '@c.values', format: 2, title: 'Centered ratings (slide 8)' }
+      - id: sims
+        widget: Matrix
+        props: { rows: '@sm.rows', cols: '@sm.cols', values: '@sm.empty', format: 2, heatmap: div, title: 'User–user similarity (slide 9)' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        props: { fn: simMatrix, in: { matrix: '@ab5x6', mode: user }, roles: { sims: sims, matrix: m }, speed: 1.5 }
+    beats:
+      - say: |
+          Every pair of users gets one similarity. The matrix is symmetric (sim(A, B) = sim(B, A)) and the diagonal is left blank.
+      - say: Guess before it fills in.
+        gate:
+          type: predict
+          question: Which pair do you expect to be the most similar?
+          options: ['A & B', 'B & C', 'D & E', 'A & C']
+          answer: 1
+          explain: 'B and C: both love a, b and dislike d, e. Their similarity is 0.94, the top of slide 9.'
+      - say: Play it.
+        gate:
+          type: event
+          prompt: Fill the whole similarity matrix.
+          target: player
+          event: done
+      - say: |
+          Two camps appear: {A, B, C} like the first items, {D, E} like the last. Across camps the similarities are strongly negative (C & D = −1).
+      - say: |
+          Negative similarity means "opposite taste". It is informative, but the lecture's predictions only borrow from **positive** neighbours, as we'll see.
+    takeaway: The similarity matrix is symmetric and reveals taste camps; negative values mean opposite tastes.
+
+  - id: borrowing-opinions
+    title: Borrowing opinions
+    goal: How do we guess B's rating of item c from B's taste twins?
+    skills: [neighbors, ubcf-predict]
+    data: [ab5x6]
+    state: { k: 3 }
+    derive:
+      - { fn: center, in: { matrix: '@ab5x6' }, out: c }
+      - { fn: simMatrix, in: { matrix: '@ab5x6', mode: user }, out: sm }
+      - { fn: predict, in: { matrix: '@ab5x6', user: B, item: c, k: '@k', mode: user }, out: p }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { rows: '@c.rows', cols: '@c.cols', values: '@c.values', format: 2, title: Centered ratings }
+      - id: sims
+        widget: Matrix
+        props: { rows: '@sm.rows', cols: '@sm.cols', values: '@sm.values', format: 2, heatmap: div, title: Similarities }
+      - id: ks
+        widget: Slider
+        region: side
+        props: { label: 'k (neighbours)', min: 1, max: 4, step: 1 }
+        bind: { value: k }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'ŝ (B, c)', value: '@p.centered', format: 2, tone: accent }
+            - { label: neighbours used, value: '@p.used' }
+      - id: f
+        widget: Formula
+        props: { tex: '\hat s_{Bc} = \frac{\sum_{v \in N} \text{sim}(B,v)\, s_{vc}}{\sum_{v \in N} \text{sim}(B,v)} = \frac{ {=p.num|3} }{ {=p.den|3} } = {=p.centered|2}' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        props: { fn: predict, in: { matrix: '@ab5x6', user: B, item: c, k: '@k', mode: user }, roles: { matrix: m, sims: sims } }
+    beats:
+      - say: |
+          B never rated item c. The idea: find users who rated c and whose taste resembles B's, then average **their** opinions of c.
+        do:
+          - { target: m, cmd: highlight, args: { sel: 'cell:B,c', tone: warn } }
+      - say: |
+          Candidates are A, C, D and E (they rated c). Their similarities to B: C 0.94, A 0.70, D −0.72, E −0.90. With k = 3 we take the top three.
+        do:
+          - { target: sims, cmd: highlight, args: { sel: ['cell:B,C', 'cell:B,A', 'cell:B,D'], tone: accent } }
+        gate:
+          type: predict
+          question: With k = 3, whose opinions of c actually get used?
+          options: ['C, A and D', 'C and A', 'Only C', 'All four candidates']
+          answer: 1
+          explain: D makes the top 3 but has a negative similarity, and the lecture uses only neighbours with sim > 0.
+      - say: |
+          So ŝ = (0.94 · 1 + 0.70 · 1.5) / (0.94 + 0.70) = **1.2**: B would like c 1.2 points above B's average. Step through it below.
+        gate:
+          type: event
+          prompt: Play the prediction.
+          target: player
+          event: done
+      - say: Now shrink the neighbourhood.
+        gate:
+          type: when
+          prompt: Change k so that only **one** neighbour is used.
+          when: 'len(p.used) == 1'
+          hint: 'k = 1 keeps only C.'
+      - say: |
+          With only C (sim 0.94, deviation 1) the prediction is exactly 1. Small k trusts few people; large k adds noisier ones. The lecture uses k = 3.
+        set: { k: 3 }
+    takeaway: Predict from the top-k raters of the item, keeping only positive similarities, weighting each deviation by similarity.
+
+  - id: add-the-mean-back
+    title: Add the mean back
+    goal: What rating does "1.2 above average" actually mean?
+    skills: [ubcf-predict, mean-centering]
+    data: [ab5x6]
+    state:
+      cell: { user: B, item: c }
+    derive:
+      - { fn: predict, in: { matrix: '@ab5x6', user: '@cell.user', item: '@cell.item', k: 3, mode: user }, out: pr }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { data: '@ab5x6', showRowMeans: true, format: 2, title: 'Original ratings (1–7)', emptyLabel: '?' }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Missing cell
+          options:
+            - { value: { user: B, item: c }, label: 'B · c' }
+            - { value: { user: C, item: a }, label: 'C · a' }
+            - { value: { user: C, item: f }, label: 'C · f' }
+            - { value: { user: E, item: b }, label: 'E · b' }
+        bind: { value: cell }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'centered ŝ', value: '@pr.centered', format: 2 }
+            - { label: 'user mean μ', value: '@pr.mean', format: 2 }
+            - { label: 'rating ŝ + μ', value: '@pr.rating', format: 2, tone: good }
+    beats:
+      - say: |
+          The slides stop at centered predictions like 1.2. But 1.2 is "above B's usual", not a rating. B's mean is 4.8 (slide 7).
+        do:
+          - { target: m, cmd: highlight, args: { sel: ['cell:B,c', 'mean:B'], tone: accent } }
+      - say: Finish the job.
+        gate:
+          type: predict
+          question: What rating (1–7 scale) do we predict for B on item c?
+          answer: { value: 6.0, tol: 0.06 }
+          explain: 'ŝ + μ_B = 1.21 + 4.8 ≈ 6.0.'
+      - say: |
+          Right: **6.0**. Undo the centering with the target user's own mean. Every prediction in this deck needs this last step.
+        do:
+          - { target: m, cmd: fill, args: { cell: 'B,c', value: 6.01 } }
+      - say: |
+          The other slide examples: C·a = 1.3 + 2 = 3.3, C·f = −1.1 + 2 = 0.9, E·b = −0.5 + 2 = 1.5.
+        do:
+          - { target: m, cmd: fill, args: { cell: 'C,a', value: 3.35 } }
+          - { target: m, cmd: fill, args: { cell: 'C,f', value: 0.86 } }
+          - { target: m, cmd: fill, args: { cell: 'E,b', value: 1.5 } }
+      - say: Check them in the side panel.
+        gate:
+          type: when
+          prompt: Find the missing cell whose predicted rating falls **below the 1–7 scale**.
+          when: 'pr.rating < 1'
+          hint: C is a harsh rater (μ = 2).
+      - say: |
+          C·f comes out at 0.86, below the lowest possible rating. Neighbourhood predictions aren't bounded; real systems **clip** to the scale.
+    takeaway: A centered prediction is a deviation; add the user's mean to get a rating (and clip it to the scale in practice).
+
+  - id: flip-it
+    title: 'Flip it: item-based CF'
+    goal: Can we compare items instead of users?
+    skills: [ibcf-similarity, ibcf-predict]
+    data: [hp4x7]
+    derive:
+      - { fn: center, in: { matrix: '@hp4x7' }, out: c }
+      - { fn: simMatrix, in: { matrix: '@hp4x7', mode: item }, out: ism }
+      - { fn: predict, in: { matrix: '@hp4x7', user: C, item: HP1, k: 2, mode: item }, out: p }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { rows: '@c.rows', cols: '@c.cols', values: '@c.values', format: frac, title: 'Centered ratings (slide 17)' }
+      - id: sims
+        widget: Matrix
+        hidden: true
+        props: { rows: '@ism.rows', cols: '@ism.cols', values: '@ism.values', format: 2, heatmap: div, title: 'Item–item similarity (slide 18)' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: predict, in: { matrix: '@hp4x7', user: C, item: HP1, k: 2, mode: item }, roles: { matrix: m, sims: sims } }
+      - id: err
+        widget: Callout
+        hidden: true
+        props: { kind: errata, body: 'Slide 18 prints sim(TW, SW1) = −0.73; over the co-raters A and C it is **−0.80** (−0.73 is the user-based sim(A, C)). Slides 29–37 also show B·TW as 0.7 although slide 27 computes **0.3**.' }
+    beats:
+      - say: |
+          Same centered matrix, new question: are two **movies** alike? Compare columns. Two movies are similar if the same people liked (and disliked) both.
+        do:
+          - { target: m, cmd: transpose }
+      - say: |
+          Item similarity uses the users who rated both movies, with ratings still centered by each **user's** mean: the adjusted cosine.
+        show: [sims]
+        do:
+          - { target: m, cmd: transpose }
+      - say: To predict C's rating of HP1, look at the movies C rated (TW, SW1, SW2) and how similar each is to HP1.
+        do:
+          - { target: sims, cmd: highlight, args: { sel: ['cell:HP1,TW', 'cell:HP1,SW1', 'cell:HP1,SW2'], tone: accent } }
+        gate:
+          type: predict
+          question: 'With k = 2, which of C''s movies vote on HP1?'
+          options: ['TW and SW2', 'Only TW', 'TW and SW1', 'All three']
+          answer: 1
+          explain: 'Top-2 by similarity are TW (1) and SW2 (0); SW2 is not positive, so only TW votes: (1)(−5/3)/1 ≈ −1.7.'
+      - say: Watch it happen.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the item-based prediction.
+          target: player
+          event: done
+      - say: |
+          C disliked Twilight relative to her mean (−5/3), and HP1 behaves like Twilight, so ŝ = **−1.7**. Many other cells stay blank because every candidate similarity is 0 or negative.
+        show: [err]
+    takeaway: Item-based CF uses item–item similarities and the target user's own centered ratings of similar items.
+
+  - id: one-overlap-trap
+    title: The one-overlap trap
+    goal: Can a similarity of exactly 1 be misleading?
+    skills: [sparsity-pitfalls, similarity]
+    data: [hp4x7]
+    state: { beta: 1 }
+    derive:
+      - { fn: center, in: { matrix: '@hp4x7' }, out: c }
+      - { fn: shrunkSim, in: { matrix: '@hp4x7', a: A, b: B, mode: user, beta: '@beta' }, out: w }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { rows: '@c.rows', cols: '@c.cols', values: '@c.values', format: frac }
+      - id: bs
+        widget: Slider
+        region: side
+        props: { label: 'β (items needed for full trust)', min: 1, max: 5, step: 1 }
+        bind: { value: beta }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'sim(A, B)', value: '@w.sim', format: 2 }
+            - { label: co-rated items, value: '@w.overlap' }
+            - { label: 'shrunk sim', value: '@w.shrunk', format: 2, tone: warn }
+      - id: beyond
+        widget: Callout
+        hidden: true
+        props: { kind: beyond, body: 'Significance weighting multiplies a similarity by min(overlap, β)/β. It is not on the slides, but most practical systems use something like it.' }
+    beats:
+      - say: |
+          Slide 5 says sim(A, B) = **1**: perfect taste twins. Let's check what that rests on.
+        do:
+          - { target: m, cmd: highlight, args: { sel: ['row:A', 'row:B'], tone: accent } }
+      - say: Find the movies both rated.
+        gate:
+          type: predict
+          question: How many movies did A and B both rate?
+          answer: { value: 1 }
+          explain: 'Only HP1. A cosine of two one-number vectors is always +1 or −1.'
+      - say: |
+          One shared movie, both a bit above average → cosine exactly 1. With a single overlap **any** pair gets ±1. That similarity is noise, not evidence.
+        do:
+          - { target: m, cmd: mask, args: { sel: ['cell:A,HP1', 'cell:B,HP1'] } }
+      - say: A common fix is to trust a similarity only in proportion to its overlap.
+        show: [beyond]
+        gate:
+          type: when
+          prompt: Raise β until the shrunk similarity is **0.5 or less**.
+          when: 'w.shrunk <= 0.5'
+      - say: |
+          Sparse matrices are full of tiny overlaps like this. That's one reason neighbourhood methods struggle with sparsity, and it motivates latent-factor models (next module).
+    takeaway: Similarities from one or two co-rated items are unreliable; shrink them by overlap size.
+
+  - id: judging-a-ranking
+    title: Judging a ranking
+    goal: How good is a recommender's top-5 list?
+    skills: [dcg, ndcg]
+    data: [dcg6]
+    state: { order: [B, A, C, F, E, D] }
+    derive:
+      - { fn: dcgFromOrder, in: { ratings: '@dcg6.ratings', order: '@order', k: 5 }, out: n }
+    stage:
+      - id: list
+        widget: RankList
+        props: { items: '@dcg6.items', relevance: '@dcg6.ratings', showRelevance: true, showGain: true, k: 5, draggable: true, order: '@order' }
+        bind: { order: order }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: DCG@5, value: '@n.dcg', format: 2, tone: accent }
+            - { label: IDCG@5, value: '@n.idcg', format: 2 }
+            - { label: NDCG, value: '@n.ndcg', format: 3, tone: good }
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          steps:
+            - '\text{DCG} = \sum_{i=1}^{5} \frac{\anchor{gain}{2^{rel_i} - 1}}{\anchor{disc}{\log_2(i+1)}}'
+            - '\text{NDCG} = \frac{\text{DCG}}{\anchor{idcg}{\text{IDCG}}} = \frac{ {=n.dcg|2} }{ {=n.idcg|2} } = {=n.ndcg|3}'
+          step: 0
+          size: sm
+      - id: err
+        widget: Callout
+        region: side
+        hidden: true
+        props: { kind: errata, body: 'Slide 53 writes NDCG = DCG / **NDCG**. It means DCG / **IDCG**.' }
+    beats:
+      - say: |
+          A recommender returned [B, A, C, F, E] (slide 49). The true ratings are A 9, B 3, C 7, D 2, E 5, F 8. The best item is only second.
+      - say: |
+          **DCG** rewards relevant items near the top: gain $2^{rel} - 1$ shrinks by $\log_2(i+1)$ as you go down. This list scores 514.72 (slide 50).
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:disc', tone: accent } }
+      - say: Improve it yourself.
+        gate:
+          type: predict
+          question: To maximize DCG, which item belongs in position 1?
+          options: ['A', 'F', 'C', 'B']
+          answer: 0
+          explain: 'A has the highest rating (9), and position 1 has no discount.'
+      - say: Drag the list.
+        gate:
+          type: when
+          prompt: Reorder the list until **NDCG ≥ 0.95**.
+          when: 'n.ndcg >= 0.95'
+          hint: Sort by rating, highest first.
+      - say: |
+          The best possible order, A, F, C, E, B, gives **IDCG = 751.45**. D (rating 2) doesn't make the top 5.
+        set: { order: [A, F, C, E, B, D] }
+        do:
+          - { target: f, cmd: step, args: { n: 1 } }
+      - say: |
+          **NDCG = DCG / IDCG**. The original list scores 514.72 / 751.45 = **0.685**. Watch the slide's typo:
+        set: { order: [B, A, C, F, E, D] }
+        show: [err]
+    takeaway: DCG rewards putting relevant items first; NDCG divides by the ideal DCG so scores are comparable (0 to 1).

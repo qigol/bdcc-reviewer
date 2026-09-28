@@ -1,0 +1,428 @@
+scenes:
+  - id: hidden-tastes
+    title: Hidden tastes
+    goal: Can a couple of hidden numbers per person and per film explain a rating?
+    skills: [latent-model]
+    state:
+      vecs:
+        - { id: you, label: 'you (action, romance)', x: 2, y: 1, draggable: true, tone: accent }
+        - { id: film, label: 'film (action, romance)', x: 1, y: 2, draggable: true, tone: good }
+    derive:
+      - { fn: dot2, in: { vectors: '@vecs' }, out: dp }
+    stage:
+      - id: plot
+        widget: VectorPlot
+        props: { vectors: '@vecs', domain: [-1, 3], angleBetween: [you, film] }
+        bind: { vectors: vecs }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: predicted rating, value: '@dp.dot', format: 2, tone: good }
+      - id: f
+        widget: Formula
+        region: side
+        props: { tex: 'p = \anchor{u}{u_1} \anchor{v}{v_1} + u_2 v_2 = {=dp.dot|2}' }
+    beats:
+      - say: |
+          Neighbourhood CF needed overlaps. Latent factors take another route: describe each person by a few **hidden tastes** (say, love of action and of romance) and each film by how much it has of each.
+      - say: |
+          The predicted rating is the **dot product**: your action love × the film's action, plus your romance love × its romance.
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:u', tone: accent } }
+        gate:
+          type: predict
+          question: 'You = (2, 1), film = (1, 2). What rating does the model predict?'
+          answer: { value: 4 }
+          explain: '2·1 + 1·2 = 4.'
+      - say: Drag the film arrow to change what the film is like.
+        gate:
+          type: when
+          prompt: Make a film you'd rate about **5**.
+          when: 'abs(dp.dot - 5) < 0.25'
+          hint: Give it more action, since you care about action twice as much as romance.
+      - say: |
+          Nobody tells the model what "action" means. It **learns** whatever hidden dimensions best explain the observed ratings. The factors are latent.
+    takeaway: Each user and item gets a few latent numbers; a rating is predicted as their dot product.
+
+  - id: matrix-is-a-product
+    title: A matrix is a product
+    goal: How do all those dot products fit together?
+    skills: [latent-model]
+    data: [r5x5]
+    stage:
+      - id: mp
+        widget: MatrixProduct
+        props:
+          U: { rows: [u1, u2, u3, u4, u5], cols: [f1, f2], values: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] }
+          V:
+            rows: [f1, f2]
+            cols: [i1, i2, i3, i4, i5]
+            values:
+              - ['\bar v_{11}', '\bar v_{21}', '\bar v_{31}', '\bar v_{41}', '\bar v_{51}']
+              - ['\bar v_{12}', '\bar v_{22}', '\bar v_{32}', '\bar v_{42}', '\bar v_{52}']
+          R: '@r5x5'
+          symbolic: true
+      - id: note
+        widget: Callout
+        hidden: true
+        props: { kind: note, body: 'U is 5×2 and V is 2×5, so 20 numbers describe a 5×5 matrix. With millions of users and items, d = 50 factors is tiny compared with the full matrix.' }
+    beats:
+      - say: |
+          Stack every user's taste vector as a row of **U** and every item's trait vector as a column of **V**. Then **P = UV** holds every prediction at once (slide 3).
+      - say: Watch one cell being built.
+        do:
+          - { target: mp, cmd: focus, args: { i: 0, j: 0 } }
+        gate:
+          type: predict
+          question: With U = all ones, what is P's cell (u1, i1)?
+          options: ['v̄₁₁ · v̄₁₂', 'v̄₁₁ + v̄₁₂', '2', 'v̄₁₁']
+          answer: 1
+          explain: 'Row (1, 1) of U dotted with column (v̄₁₁, v̄₁₂) of V gives v̄₁₁ + v̄₁₂.'
+      - say: |
+          Every cell in column 1 is the same, $\bar v_{11} + \bar v_{12}$, because all users start identical. Training will make them differ.
+        do:
+          - { target: mp, cmd: focus, args: { i: 3, j: 0 } }
+      - say: |
+          Our job: choose U and V so that P matches R wherever R has a rating. The blanks in R then get predictions for free.
+        show: [note]
+        do:
+          - { target: mp, cmd: unfocus }
+          - { target: mp, cmd: highlight, args: { sel: ['R:2,0', 'R:2,1', 'R:4,4'], tone: warn } }
+    takeaway: 'P = UV: row i of U times column j of V predicts cell (i, j), including the missing ones.'
+
+  - id: only-observed-cells
+    title: Only observed cells count
+    goal: What exactly are we minimizing?
+    skills: [sse-observed]
+    data: [r5x5]
+    state: { c: 2 }
+    derive:
+      - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
+      - { fn: sse, in: { R: '@r5x5', U: '@st.U', V: '@st.V' }, out: s }
+      - { fn: constantSse, in: { R: '@r5x5', c: '@c' }, out: cs }
+    stage:
+      - id: err
+        widget: Matrix
+        props: { data: '@s.errors', format: 2, heatmap: div, title: 'Errors r − p with U = V = ones (every p = 2)', emptyLabel: '—' }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: observed cells, value: '@s.observed' }
+            - { label: 'SSE (p = 2)', value: '@s.sse', format: 2, tone: bad }
+      - id: cs
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'constant prediction c', min: 1, max: 5, step: 0.1, format: 1 }
+        bind: { value: c }
+      - id: csr
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'SSE if every p = c', value: '@cs.sse', format: 2, tone: accent }
+    beats:
+      - say: |
+          Coordinate descent starts from U = V = all ones, so every prediction is 2 (slide 9). The matrix shows the errors r − p.
+      - say: Which cells should the error include?
+        gate:
+          type: predict
+          question: How many cells contribute to the SSE?
+          answer: { value: 22 }
+          explain: '25 cells minus the 3 missing ratings. Blanks are what we want to predict, so they carry no error.'
+      - say: |
+          **SSE** = the sum of squared errors over the **22 observed** cells = 75 here. Missing cells show "—": they are never counted (slide 4 leaves them out).
+        do:
+          - { target: err, cmd: highlight, args: { sel: missing, tone: warn } }
+      - say: As a warm-up, forget factors and predict the same number c everywhere.
+        show: [cs, csr]
+        gate:
+          type: when
+          prompt: Find the constant c with the **smallest** SSE.
+          when: 'cs.sse <= cs.best + 0.05'
+          hint: Try the average of the observed ratings.
+      - say: |
+          The best constant is the **mean of the observed ratings** (≈ 3.3). Factors can do much better because each user and item gets its own numbers.
+    takeaway: The SSE sums squared errors over observed ratings only; the model is judged on what we know.
+
+  - id: als-dance
+    title: The ALS dance
+    goal: How does alternating least squares fit U and V?
+    skills: [als-step]
+    data: [r5x5]
+    state:
+      U: { rows: [u1, u2, u3, u4, u5], cols: [f1, f2], values: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] }
+      V: { rows: [f1, f2], cols: [i1, i2, i3, i4, i5], values: [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1]] }
+    derive:
+      - { fn: sse, in: { R: '@r5x5', U: '@U', V: '@V' }, out: s }
+      - { fn: als, in: { R: '@r5x5', iters: 3 }, out: run }
+    stage:
+      - id: mp
+        widget: MatrixProduct
+        props: { U: '@U', V: '@V', R: '@r5x5', showError: true, format: 3 }
+      - id: sse
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: SSE, value: '@s.sse', format: 3, tone: accent }
+      - id: chart
+        widget: Chart
+        region: side
+        props: { kind: line, series: '@run.series', xLabel: iteration, yLabel: SSE }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        props: { fn: als, in: { R: '@r5x5', iters: 3 }, roles: { product: mp }, speed: 0.8 }
+    beats:
+      - say: |
+          Fitting U and V together is hard. But **freeze U** and each item's column of V is just a linear regression on the users who rated it. Freeze V and each user's row of U is one too.
+      - say: The first move from the slides.
+        gate:
+          type: predict
+          question: 'With U = all ones, the V-step gives item i1 (ratings 5, 3, 2, 4) which value in each factor?'
+          options: ['3.5', '1.75', '1', '14']
+          answer: 1
+          explain: 'Only v₁ + v₂ matters and it must equal the mean 3.5; the even split gives 1.75 each (slide 5).'
+      - say: Play the dance. Colored P cells show the remaining error.
+        gate:
+          type: event
+          prompt: Play three ALS iterations.
+          target: player
+          event: done
+      - say: |
+          Each half-step solves its block **exactly**, so the SSE can only fall: 75 → 35.75 → 23.41 → … But look at U: both columns are still identical. Suspicious? That's the next scene.
+    takeaway: 'ALS alternates two easy least-squares problems: freeze U and solve V, then freeze V and solve U; the SSE never rises.'
+
+  - id: symmetry-trap
+    title: The symmetry trap
+    goal: Why do the slides' U and V have identical columns and rows?
+    skills: [als-symmetry, rank-choice]
+    data: [r5x5]
+    state: { initKind: ones }
+    derive:
+      - { fn: als, in: { R: '@r5x5', iters: 8, initKind: '@initKind', seed: 7 }, out: run }
+    stage:
+      - id: mp
+        widget: MatrixProduct
+        props: { U: '@run.U', V: '@run.V', R: '@r5x5', format: 2 }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Initialize U with
+          options:
+            - { value: ones, label: all ones }
+            - { value: random, label: random }
+        bind: { value: initKind }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'SSE after 8 iterations', value: '@run.sse', format: 2, tone: accent }
+            - { label: 'columns identical?', value: '@run.symmetric' }
+      - id: beyond
+        widget: Callout
+        hidden: true
+        props: { kind: beyond, body: 'Only v₁ⱼ + v₂ⱼ is pinned down by the data, so the minimizer isn''t unique. Regularization (λ) makes it unique and keeps the factors small; see Math & Code → Regularization.' }
+    beats:
+      - say: |
+          After 8 ALS iterations from all-ones U, the two columns of U are **still identical**, as are the two rows of V.
+      - say: Think about why.
+        gate:
+          type: predict
+          question: If U's two columns start equal, what does the V-step produce?
+          options: ['Two different rows in V', 'Two identical rows in V', 'A V of zeros', 'It depends on the ratings']
+          answer: 1
+          explain: 'Both factors look exactly alike to the regression, so they receive the same value. Then the U-step sees identical rows and keeps U''s columns identical.'
+      - say: |
+          Symmetry in, symmetry out, forever. The rank-2 model is really **rank 1**: the second factor is wasted, and the SSE gets stuck at 22.6.
+      - say: Break the tie.
+        gate:
+          type: when
+          prompt: Start from a **random** U instead.
+          when: 'run.symmetric == false'
+      - say: |
+          With random starts the factors specialize and the SSE drops to about 1.85. That's why real ALS initializes randomly.
+        show: [beyond]
+    takeaway: Identical starting factors stay identical forever; random initialization lets each factor learn something different.
+
+  - id: one-knob
+    title: One knob at a time
+    goal: What does coordinate descent actually compute?
+    skills: [cgd-derivation, cgd-update]
+    data: [r5x5]
+    state: { x: 1, y: 1 }
+    derive:
+      - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
+      - { fn: cgdLecture, in: { R: '@r5x5' }, out: cg }
+    stage:
+      - id: fx
+        widget: FunctionPlot
+        props: { fn: sseEntry, args: { R: '@r5x5', U: '@st.U', V: '@st.V', which: U, i: 0, s: 0 }, domain: [0, 5], x: '@x', draggable: true, showTangent: true, xLabel: 'x = u_{11}', yLabel: '\text{SSE}' }
+        bind: { x: x }
+      - id: fy
+        widget: FunctionPlot
+        hidden: true
+        props: { fn: sseEntry, args: { R: '@r5x5', U: '@cg.U1', V: '@cg.V1', which: V, s: 0, j: 0 }, domain: [0, 4], x: '@y', draggable: true, showTangent: true, xLabel: 'y = v_{11}', yLabel: '\text{SSE}' }
+        bind: { x: y }
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          steps:
+            - '(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2'
+            - '\frac{d}{dx}: -2\,[\anchor{num}{13} - \anchor{den}{5}x] = 0'
+            - 'x = \frac{13}{5} = \anchor{sol}{2.6}'
+          step: 0
+          size: sm
+      - id: err
+        widget: Callout
+        region: side
+        hidden: true
+        props: { kind: errata, body: 'Slide 14 labels its result "x = 1.68"; it solves for **y** (= v₁₁).' }
+    beats:
+      - say: |
+          Coordinate descent (slides 9–15) turns just **one** knob. Start from U = V = ones and free only u₁₁ = x: row 1's predictions become x + 1.
+      - say: |
+          The SSE as a function of x is a **parabola** (the other rows are constant). Drag the point and watch the tangent.
+        gate:
+          type: predict
+          question: Where is the bottom of the parabola?
+          answer: { value: 2.6, tol: 0.1 }
+          explain: 'Row 1 minus 1 is (4, 1, 3, 3, 2); the best x is their mean, 13/5 = 2.6.'
+      - say: Find it by hand.
+        gate:
+          type: when
+          prompt: Drag x to the minimum (flat tangent).
+          when: 'abs(x - 2.6) < 0.06'
+      - say: |
+          Setting the derivative to zero gives the exact answer: −2[13 − 5x] = 0, so **x = 2.6** (slide 11). No step size and no iterations: one closed-form jump.
+        do:
+          - { target: f, cmd: step, args: { n: 2 } }
+          - { target: fx, cmd: markMin }
+      - say: Now freeze x = 2.6 and turn the next knob, y = v₁₁.
+        show: [fy]
+        gate:
+          type: predict
+          question: Where is the minimum for y?
+          answer: { value: 1.68, tol: 0.05 }
+          explain: '16.4 − 9.76y = 0 gives y = 1.68 (slides 12–14).'
+      - say: |
+          **y = 1.68**. Repeat for every entry, sweep after sweep. That's coordinate descent. Mind the slide's label:
+        show: [err]
+        do:
+          - { target: fy, cmd: animateTo, args: { x: 1.68 } }
+    takeaway: Freeze everything but one entry; the SSE is a parabola in it; jump to its minimum. Repeat.
+
+  - id: watching-sse-fall
+    title: Watching the SSE fall
+    goal: How do ALS and coordinate descent compare as optimizers?
+    skills: [cgd-update, als-step]
+    data: [r5x5]
+    state: { sweeps: 6 }
+    derive:
+      - { fn: als, in: { R: '@r5x5', iters: '@sweeps', initKind: random, seed: 7 }, out: a }
+      - { fn: cgdRun, in: { R: '@r5x5', sweeps: '@sweeps', initKind: random, seed: 7 }, out: g }
+    stage:
+      - id: chart
+        widget: Chart
+        props: { kind: line, series: ['@a.series.0', '@g.series.0'], xLabel: 'iteration / sweep', yLabel: SSE, logY: true }
+      - id: s
+        widget: Slider
+        region: side
+        props: { label: iterations, min: 1, max: 15, step: 1 }
+        bind: { value: sweeps }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'ALS SSE', value: '@a.sse', format: 2, tone: accent }
+            - { label: 'CGD SSE', value: '@g.sse', format: 2, tone: good }
+    beats:
+      - say: |
+          Both methods start from the same random U and V. ALS solves whole rows and columns at once; coordinate descent adjusts single entries, sweeping through all of them.
+      - say: A property worth knowing for the exam.
+        gate:
+          type: predict
+          question: Can a single exact coordinate update ever **increase** the SSE?
+          options: ['Yes, if the step size is too big', 'No: it jumps to the exact minimum along that coordinate', 'Only for entries of V', 'Only in the first sweep']
+          answer: 1
+          explain: The update minimizes the SSE exactly along one coordinate, so the SSE can only stay the same or drop.
+      - say: Run more iterations.
+        gate:
+          type: when
+          prompt: Increase iterations until the ALS SSE is below **2**.
+          when: 'a.sse < 2'
+      - say: |
+          Both curves only go down (log scale). ALS takes bigger steps per iteration; coordinate descent steps are cheap and easy to parallelize per entry. Neither guarantees the **global** minimum, and a near-zero SSE may just mean over-fitting.
+    takeaway: Exact block or coordinate minimization never increases the SSE; ALS moves faster per iteration, CGD per step is cheaper.
+
+  - id: filling-the-blanks
+    title: Filling the blanks
+    goal: What does the trained model predict for the missing ratings, and should we trust it?
+    skills: [prediction, rank-choice]
+    data: [r5x5]
+    derive:
+      - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7 }, out: run }
+      - { fn: fillMissing, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, out: fm }
+      - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7, lambda: 1 }, out: reg }
+      - { fn: fillMissing, in: { R: '@r5x5', U: '@reg.U', V: '@reg.V' }, out: fr }
+    stage:
+      - id: m
+        widget: Matrix
+        props: { data: '@r5x5', format: 2, emptyLabel: '?', title: Ratings with blanks }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: training SSE, value: '@run.sse', format: 2 }
+            - { label: 'u3·i1', value: '@fm.missing.0.value', format: 2, tone: bad }
+            - { label: 'u3·i2', value: '@fm.missing.1.value', format: 2 }
+            - { label: 'u5·i5', value: '@fm.missing.2.value', format: 2 }
+      - id: reg
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'with λ = 1: SSE', value: '@reg.sse', format: 2 }
+            - { label: 'u3·i1 (λ = 1)', value: '@fr.missing.0.value', format: 2, tone: good }
+      - id: tip
+        widget: Callout
+        hidden: true
+        props: { kind: beyond, body: 'Regularization adds λ(‖U‖² + ‖V‖²) to the SSE. It costs a little training fit and buys saner predictions. Spark''s ALS calls λ `regParam`.' }
+    beats:
+      - say: |
+          Train with a random start (10 ALS iterations), then read the blanks off P = UV.
+        do:
+          - { target: m, cmd: highlight, args: { sel: missing, tone: warn } }
+      - say: Look at the predictions in the side panel.
+        do:
+          - { target: m, cmd: fill, args: { cell: 'u3,i1', value: '@fm.missing.0.value' } }
+          - { target: m, cmd: fill, args: { cell: 'u3,i2', value: '@fm.missing.1.value' } }
+          - { target: m, cmd: fill, args: { cell: 'u5,i5', value: '@fm.missing.2.value' } }
+        gate:
+          type: predict
+          question: Which prediction looks least trustworthy?
+          options: ['u3·i1', 'u3·i2', 'u5·i5', 'They all look fine']
+          answer: 0
+          explain: 'u3·i1 comes out below the 1–5 scale. The model bent itself to fit 22 ratings with 20 parameters.'
+      - say: |
+          Training SSE ≈ 1.85, nearly perfect, yet u3·i1 ≈ 0.5 is off the scale. That's **over-fitting**: too many free numbers for too little data.
+      - say: Add a penalty on big factors.
+        show: [reg, tip]
+        gate:
+          type: continue
+          label: Compare with λ = 1
+      - say: |
+          With λ = 1 the fit on known ratings loosens a bit, and the blank predictions move back toward plausible values. Choosing d and λ is the real modelling decision.
+    takeaway: Predictions for blanks are just P = UV; a tiny training error can hide over-fitting, which regularization and a smaller d control.

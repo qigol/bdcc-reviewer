@@ -1,0 +1,445 @@
+sections:
+  - id: support
+    title: Absolute and relative support
+    skills: [support]
+    summary: |
+      Support measures how common an itemset is: count the transactions that contain **every** item of it
+      (absolute), or divide that count by the number of transactions (relative).
+    keyFormula: '\text{AbsSup}(X) = |\{T \in D : X \subseteq T\}|, \quad \text{RelSup}(X) = \frac{\text{AbsSup}(X)}{|D|}'
+    data: [grocery5]
+    state: { X: [bread, milk] }
+    derive:
+      - { fn: support, in: { transactions: '@grocery5', itemset: '@X' }, out: s }
+    steps:
+      - tex: |
+          \text{AbsSup}(X) = \anchor{abs}{\left|\{\, T \in D : X \subseteq T \,\}\right|}
+        say: Walk through the transactions and count those that contain the whole itemset.
+      - tex: |
+          \text{RelSup}(X) = \anchor{rel}{\frac{\text{AbsSup}(X)}{|D|}}
+        say: Divide by the number of transactions to get a fraction between 0 and 1.
+      - tex: |
+          \text{AbsSup}({=X|set}) = \anchor{abs}{ {=s.abs} }, \qquad \text{RelSup}({=X|set}) = \anchor{rel}{\frac{ {=s.abs} }{ {=s.n} } = {=s.rel|2}}
+        say: 'Lecture example (slides 8–9). Try another itemset in the live inputs, e.g. `milk`.'
+    code:
+      lang: python
+      source: |
+        def abs_support(X, transactions):
+            # @a abs
+            count = 0
+            for T in transactions:
+                if set(X) <= set(T):   # every item of X is in T
+                    count += 1
+            # @end
+            return count
+
+        def rel_support(X, transactions):
+            return abs_support(X, transactions) / len(transactions)  # @a:rel
+    links:
+      - { anchor: abs, label: 'AbsSup(X): transactions containing X', say: 'A transaction counts only if X ⊆ T.' }
+      - { anchor: rel, label: 'RelSup(X): divide by |D|' }
+    trace: { fn: support, in: { transactions: '@grocery5', itemset: '@X' } }
+    examples: [abs-support-bread-butter-milk, abs-support-bread-milk, abs-support-milk, rel-support-bread, rel-support-butter-milk]
+    pitfalls:
+      - A basket supports {bread, milk} only if it has **both**, not either one.
+      - Relative support divides by the number of **transactions**, not by the number of items.
+    examTip: Write the count first (AbsSup), then divide by |D| only if the question asks for relative support.
+
+  - id: frequent-itemsets
+    title: Frequent itemsets and minsup
+    skills: [frequent-itemset]
+    summary: |
+      An itemset is frequent when its support reaches minsup. minsup can be an absolute count (2) or a fraction (0.4).
+      Raising minsup can only remove itemsets.
+    keyFormula: 'X \text{ frequent} \iff \text{Sup}(X) \ge \text{minsup}'
+    data: [grocery5]
+    state: { minsup: 2 }
+    derive:
+      - { fn: frequentItemsets, in: { transactions: '@grocery5', minsup: '@minsup' }, out: f }
+    steps:
+      - tex: |
+          X \text{ is frequent} \iff \anchor{sup}{\text{Sup}(X)} \ge \anchor{minsup}{\text{minsup}}
+        say: Compare the support with the threshold. Use the same kind of support (count or fraction) on both sides.
+      - tex: |
+          \text{Sup}(Y) \le \text{Sup}(X) \quad \text{whenever } X \subseteq Y
+        say: Adding items can only shrink the set of baskets that contain them. This is why raising minsup never adds itemsets.
+      - tex: |
+          \anchor{minsup}{\text{minsup} = {=minsup}} \;\Rightarrow\; {=f.count} \text{ frequent itemsets}
+        say: 'At minsup 2 the lecture finds 11 (slide 45): {=f.labels}.'
+    code:
+      lang: python
+      source: |
+        def is_frequent(X, transactions, minsup):
+            sup = abs_support(X, transactions)      # @a:sup
+            if minsup < 1:                          # relative threshold
+                sup = sup / len(transactions)       # @a:sup
+            return sup >= minsup                    # @a:minsup
+    links:
+      - { anchor: sup, label: 'Sup(X)', say: 'Absolute, or relative when minsup is a fraction.' }
+      - { anchor: minsup, label: minsup }
+    examples: [frequent-among-3, frequent-among-2, frequent-among-rel, frequent-minsup-2]
+    pitfalls:
+      - Frequent means support **≥** minsup, not strictly greater.
+      - Don't compare a count with a fraction; convert one of them first.
+    examTip: 'List supports level by level (singletons, then pairs …) and tick the ones ≥ minsup; count ticks at the end.'
+
+  - id: brute-force
+    title: Brute force
+    skills: [brute-force]
+    summary: |
+      The simplest method: evaluate the support of every non-empty itemset. With n items there are 2ⁿ − 1 of them,
+      which explodes quickly (slide 41: simple but computationally expensive).
+    keyFormula: '\#\text{candidates} = 2^n - 1'
+    data: [grocery5]
+    state: { n: 6 }
+    derive:
+      - { fn: explosion, in: { n: '@n' }, out: ex }
+    steps:
+      - tex: |
+          \anchor{loop}{\forall\, X \subseteq I,\ X \neq \emptyset:\ \text{count Sup}(X)}
+        say: Every subset of the item set I is a candidate, from single items up to all items at once.
+      - tex: |
+          \#\text{candidates} = 2^{\anchor{n}{n}} - 1
+        say: Each item is either in or out of X (2ⁿ choices); drop the empty set.
+      - tex: |
+          \anchor{n}{n = {=n}} \;\Rightarrow\; 2^{ {=n} } - 1 = {=ex.count}
+        say: The lecture's 6 items already give 63 itemsets. A sari-sari store's 300 items would give more than the atoms in the universe.
+    code:
+      lang: python
+      source: |
+        from itertools import combinations
+
+        def brute_force(transactions, minsup):
+            items = sorted({i for T in transactions for i in T})   # @a:n
+            frequent = {}
+            # @a loop
+            for k in range(1, len(items) + 1):
+                for X in combinations(items, k):
+                    sup = abs_support(X, transactions)
+                    if sup >= minsup:
+                        frequent[X] = sup
+            # @end
+            return frequent
+    links:
+      - { anchor: loop, label: every non-empty itemset }
+      - { anchor: n, label: 'n = number of distinct items' }
+    trace: { fn: bruteForce, in: { transactions: '@grocery5', minsup: 2 } }
+    examples: [brute-lattice-size, brute-support-four]
+    pitfalls:
+      - 2ⁿ includes the empty set; brute force checks 2ⁿ − 1.
+    examTip: Quote the count 2ⁿ − 1 when asked why brute force does not scale.
+
+  - id: apriori
+    title: Apriori (as taught)
+    skills: [apriori]
+    summary: |
+      Evaluate only supersets of frequent itemsets. Start with single items; at each level extend every frequent
+      itemset by one frequent item that comes later in the order, and count only those candidates.
+    keyFormula: 'C_{k+1} = \{X \cup \{i\} : X \in L_k,\ i \in L_1,\ i \text{ after } \max X\}'
+    data: [grocery5]
+    state: { minsup: 2 }
+    derive:
+      - { fn: aprioriRun, in: { transactions: '@grocery5', minsup: '@minsup' }, out: ap }
+    steps:
+      - tex: |
+          \text{Sup}(X) < \text{minsup} \;\Rightarrow\; \text{Sup}(Y) < \text{minsup} \quad \forall\, Y \supseteq X
+        say: The Apriori principle. Once an itemset is infrequent, none of its supersets can be frequent.
+      - tex: |
+          C_1 = \anchor{level}{\{\{i\} : i \in I\}}
+        say: Level 1 counts every single item.
+      - tex: |
+          L_k = \anchor{keep}{\{\, X \in C_k : \anchor{count}{\text{Sup}(X)} \ge \text{minsup} \,\}}
+        say: Keep the candidates that reach minsup.
+      - tex: |
+          C_{k+1} = \anchor{extend}{\{\, X \cup \{i\} : X \in L_k,\ i \in L_1,\ i \text{ after } \max(X) \,\}}
+        say: Extend each frequent itemset by a later frequent item (order bread, butter, milk, eggs, yogurt, cheese on slide 19).
+      - tex: |
+          |C_2| = {=ap.level2}, \qquad \text{counted } {=ap.evaluated} \text{ candidates instead of } {=ap.bruteForce}
+        say: 'Same {=ap.count} frequent itemsets as brute force, with {=ap.saved} fewer support counts.'
+    code:
+      lang: python
+      source: |
+        ORDER = ["bread", "butter", "milk", "eggs", "yogurt", "cheese"]  # slide 19
+
+        def apriori(transactions, minsup, order=ORDER):
+            # @a level
+            candidates = [(i,) for i in order]
+            # @end
+            frequent, items1 = {}, None
+            while candidates:
+                level = []
+                for X in candidates:
+                    sup = abs_support(X, transactions)   # @a:count
+                    if sup >= minsup:                    # @a:keep
+                        frequent[X] = sup                # @a:keep
+                        level.append(X)                  # @a:keep
+                if items1 is None:
+                    items1 = [X[0] for X in level]
+                # @a extend
+                candidates = [X + (i,) for X in level
+                              for i in items1 if order.index(i) > order.index(X[-1])]
+                # @end
+            return frequent
+    extraCode:
+      - lang: python
+        title: Classic join + prune (beyond the slides)
+        source: |
+          from itertools import combinations
+
+          def apriori_classic(transactions, minsup):
+              items = sorted({i for T in transactions for i in T})
+              L = [(i,) for i in items if abs_support((i,), transactions) >= minsup]
+              frequent, k = {X: abs_support(X, transactions) for X in L}, 2
+              while L:
+                  prev = set(L)
+                  C = {tuple(sorted(set(a) | set(b))) for a in L for b in L
+                       if a[:-1] == b[:-1] and a[-1] < b[-1]}          # join
+                  C = [c for c in C
+                       if all(s in prev for s in combinations(c, k - 1))]  # prune
+                  L = [c for c in C if abs_support(c, transactions) >= minsup]
+                  frequent.update({c: abs_support(c, transactions) for c in L})
+                  k += 1
+              return frequent
+    links:
+      - { anchor: level, label: 'C₁: every single item' }
+      - { anchor: count, label: count support }
+      - { anchor: keep, label: 'keep if ≥ minsup' }
+      - { anchor: extend, label: 'extend frequent itemsets only' }
+    trace: { fn: aprioriRun, in: { transactions: '@grocery5', minsup: '@minsup' } }
+    examples: [apriori-level-two]
+    pitfalls:
+      - Only frequent itemsets are extended; butter (support 1) never appears in a 2-item candidate.
+      - The lecture's version still counts {bread, milk, eggs} even though {bread, eggs} is infrequent. The classic prune (extra code tab) would skip it.
+    examTip: 'Write the candidates level by level in the slide-19 order, strike the infrequent ones, and extend only what survives.'
+
+  - id: fp-growth
+    title: FP-growth (projected databases)
+    skills: [fp-growth]
+    summary: |
+      Successively filter the database: pick a prefix, keep only rows that contain it, drop the items that come
+      at or before it in alphabetical order, and repeat inside that smaller database while the prefix stays frequent.
+    keyFormula: 'D_{P \cup \{i\}} = \{\, T \setminus \{x \le i\} : T \in D_P,\ i \in T \,\}'
+    data: [grocery5]
+    state: { minsup: 2 }
+    derive:
+      - { fn: fpGrowthRun, in: { transactions: '@grocery5', minsup: '@minsup' }, out: fp }
+    steps:
+      - tex: |
+          D_{\anchor{prefix}{P \cup \{i\}}} = \anchor{filter}{\{\, T \setminus \{x \le i\} : T \in D_P,\ i \in T \,\}}
+        say: Filter to the rows containing the new item, then keep only items after it (so each itemset is found once).
+      - tex: |
+          \text{Sup}(P \cup \{i\}) = |D_{P \cup \{i\}}|
+        say: The support of the grown prefix is simply the number of rows left.
+      - tex: |
+          \text{Sup}(P \cup \{i\}) \ge \text{minsup} \;\Rightarrow\; \anchor{recurse}{\text{mine } D_{P \cup \{i\}} \text{ recursively}}
+        say: Infrequent prefixes stop the recursion (Apriori principle again).
+      - tex: |
+          {=fp.explored} \text{ prefixes explored} \;\Rightarrow\; {=fp.count} \text{ frequent itemsets}
+        say: The lecture walks all 18 prefixes on slides 22–39 and ends with the same 11 itemsets (slide 40).
+    code:
+      lang: python
+      source: |
+        ORDER = ["bread", "butter", "cheese", "eggs", "milk", "yogurt"]  # alphabetical
+
+        def fp_growth(rows, minsup, prefix=(), out=None):
+            out = {} if out is None else out
+            items = sorted({i for T in rows for i in T}, key=ORDER.index)
+            for i in items:
+                # @a filter
+                proj = [[x for x in T if ORDER.index(x) > ORDER.index(i)]
+                        for T in rows if i in T]
+                # @end
+                P = prefix + (i,)                           # @a:prefix
+                if len(proj) >= minsup:
+                    out[P] = len(proj)
+                    fp_growth(proj, minsup, P, out)         # @a:recurse
+            return out
+    links:
+      - { anchor: prefix, label: 'the grown prefix P ∪ {i}' }
+      - { anchor: filter, label: 'filter rows, drop earlier items' }
+      - { anchor: recurse, label: 'recurse while frequent' }
+    trace: { fn: fpGrowthRun, in: { transactions: '@grocery5', minsup: '@minsup' } }
+    examples: [fp-growth-run]
+    pitfalls:
+      - Drop items that come **before or equal to** the prefix's last item; otherwise itemsets get counted twice.
+      - An empty projected row still counts toward the prefix's support.
+    examTip: Keep the alphabetical order fixed; draw each projected table and write its row count as the prefix support.
+    errata:
+      - 'Slide 25 shows the {bread, eggs}-projected database as transaction **1** with {milk}; it should be transaction **3**. T1 has no eggs. The support (1) is unaffected.'
+
+  - id: confidence
+    title: Confidence
+    skills: [confidence, rules]
+    summary: |
+      Of the baskets that contain the antecedent, the fraction that also contain the consequent: a conditional probability.
+    keyFormula: '\text{Conf}(A \rightarrow B) = P(B \mid A) = \frac{\text{Sup}(A \cup B)}{\text{Sup}(A)}'
+    data: [grocery5]
+    state: { A: [bread], B: [butter] }
+    derive:
+      - { fn: confidence, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: c }
+    steps:
+      - tex: |
+          \text{Conf}(A \rightarrow B) = P(B \mid A)
+        say: Among baskets with A, how often is B there too?
+      - tex: |
+          = \frac{\anchor{sup-ab}{\text{Sup}(A \cup B)}}{\anchor{sup-a}{\text{Sup}(A)}}
+        say: Count baskets with both, divide by baskets with the antecedent.
+      - tex: |
+          \text{Conf}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{sup-ab}{ {=c.supAB} }}{\anchor{sup-a}{ {=c.supA} }} = \anchor{ratio}{ {=c.conf|2} }
+        say: 'Lecture example (slide 43). |D| cancels, so counts work as well as fractions.'
+    code:
+      lang: python
+      source: |
+        def confidence(A, B, transactions):
+            # @a sup-ab
+            sup_ab = abs_support(A | B, transactions)
+            # @end
+            sup_a = abs_support(A, transactions)  # @a:sup-a
+            return sup_ab / sup_a                  # @a:ratio
+    links:
+      - { anchor: sup-ab, label: 'Sup(A ∪ B)', say: Baskets holding every item of A and of B. }
+      - { anchor: sup-a, label: 'Sup(A)' }
+      - { anchor: ratio, label: the ratio }
+    trace: { fn: confidence, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
+    examples: [conf-bread-butter, conf-yogurt-milk, conf-milk-yogurt, conf-eggs-milk-yogurt, conf-milk-eggs-yogurt]
+    pitfalls:
+      - Divide by the support of the **antecedent**, not by the number of transactions.
+      - Conf(A → B) ≠ Conf(B → A); the denominator changes.
+    examTip: |
+      Use absolute counts: $|D|$ cancels, so the ratio of counts equals the ratio of relative supports.
+
+  - id: rule-generation
+    title: Generating rules from frequent itemsets
+    skills: [rules, confidence]
+    summary: |
+      Two phases (slide 44): find all frequent itemsets, then split each one of size ≥ 2 into every antecedent/consequent
+      pair and keep the rules whose confidence reaches minconf.
+    keyFormula: 'A \rightarrow I \setminus A \text{ kept if } \frac{\text{Sup}(I)}{\text{Sup}(A)} \ge \text{minconf}'
+    data: [grocery5]
+    state: { minconf: 0.6, I: [eggs, milk, yogurt] }
+    derive:
+      - { fn: rules, in: { transactions: '@grocery5', minsup: 2, minconf: '@minconf' }, out: r }
+      - { fn: rulesFromItemset, in: { transactions: '@grocery5', itemset: '@I', minconf: '@minconf' }, out: one }
+    steps:
+      - tex: |
+          \text{for each frequent } \anchor{itemset}{I} \text{ with } |I| \ge 2
+        say: Single items can't be split into two non-empty sides.
+      - tex: |
+          \text{for each } \anchor{split}{\emptyset \neq A \subsetneq I}: \quad B = I \setminus A
+        say: 'An itemset of size k gives 2^k − 2 candidate rules.'
+      - tex: |
+          \anchor{keep}{\text{keep } A \rightarrow B} \quad \text{if} \quad \anchor{conf}{\frac{\text{Sup}(I)}{\text{Sup}(A)}} \ge \text{minconf}
+        say: The numerator is the same for every split of I; only the antecedent's support changes.
+      - tex: |
+          {=r.count} \text{ rules pass at minsup } 2, \ \text{minconf } {=minconf} \quad (\text{from } {=r.considered} \text{ candidates})
+        say: 'The lecture gets 13 rules (slide 60). {=I|set} alone yields {=one.count} of its {=one.candidates} splits.'
+    code:
+      lang: python
+      source: |
+        from itertools import combinations
+
+        def rules(frequent, minconf):
+            """frequent: {frozenset(itemset): abs support}"""
+            out = []
+            for I, sup_I in frequent.items():              # @a:itemset
+                if len(I) < 2:
+                    continue
+                for k in range(1, len(I)):
+                    for A in combinations(sorted(I), k):   # @a:split
+                        A = frozenset(A)
+                        conf = sup_I / frequent[A]         # @a:conf
+                        if conf >= minconf:                # @a:keep
+                            out.append((A, I - A, conf))   # @a:keep
+            return out
+    links:
+      - { anchor: itemset, label: 'a frequent itemset I' }
+      - { anchor: split, label: 'every non-empty proper subset as A' }
+      - { anchor: conf, label: 'Sup(I) / Sup(A)' }
+      - { anchor: keep, label: 'keep if ≥ minconf' }
+    trace: { fn: rulesFromItemset, in: { transactions: '@grocery5', itemset: '@I', minconf: '@minconf' } }
+    examples: [rules-13, conf-milk-eggs-yogurt]
+    pitfalls:
+      - Every antecedent is a subset of a frequent itemset, so its support is already known; no new counting is needed.
+      - Don't forget multi-item antecedents such as {eggs, yogurt} → {milk}.
+    examTip: For each frequent itemset, list its 2^k − 2 splits in a column, write Sup(I)/Sup(A) next to each, and cross out the ones below minconf.
+
+  - id: lift
+    title: Lift
+    skills: [lift, interpretation]
+    summary: |
+      Confidence alone can mislead when the consequent is popular. Lift divides confidence by how common the
+      consequent already is: above 1 means A makes B more likely.
+    keyFormula: '\text{Lift}(A \rightarrow B) = \frac{\text{Conf}(A \rightarrow B)}{\text{RelSup}(B)}'
+    data: [grocery5]
+    state: { A: [bread], B: [butter] }
+    derive:
+      - { fn: lift, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: l }
+    steps:
+      - tex: |
+          \text{Lift}(A \rightarrow B) = \frac{\anchor{conf}{\text{Conf}(A \rightarrow B)}}{\anchor{relb}{\text{RelSup}(B)}} = \frac{P(B \mid A)}{P(B)}
+        say: How much more likely B is when A is present, compared with B's usual rate.
+      - tex: |
+          \anchor{lift}{\text{Lift}} > 1: \text{positive}, \quad = 1: \text{no association}, \quad < 1: \text{negative}
+        say: The interpretation from slide 61.
+      - tex: |
+          \text{Lift}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{conf}{ {=l.conf|2} }}{\anchor{relb}{ {=l.relB|2} }} = \anchor{lift}{ {=l.lift|2} }
+        say: 'Lecture examples: bread → butter gives 2.5 (slide 61); try B = eggs for 0.83 (slide 62) or B = milk for exactly 1.'
+    code:
+      lang: python
+      source: |
+        def lift(A, B, transactions):
+            conf = confidence(A, B, transactions)                      # @a:conf
+            rel_b = abs_support(B, transactions) / len(transactions)   # @a:relb
+            return conf / rel_b                                        # @a:lift
+    links:
+      - { anchor: conf, label: 'Conf(A → B)' }
+      - { anchor: relb, label: 'RelSup(B): the base rate of B' }
+      - { anchor: lift, label: 'the ratio vs 1' }
+    trace: { fn: lift, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
+    examples: [lift-bread-butter, lift-bread-eggs, lift-milk-trap]
+    pitfalls:
+      - Divide by the relative support of the **consequent** B, not of A.
+      - A rule into an item that is in every basket has confidence 1 but lift 1. It tells you nothing.
+    examTip: 'Lift is symmetric: Lift(A → B) = Lift(B → A) = Sup(A∪B)·|D| / (Sup(A)·Sup(B)).'
+    errata:
+      - 'Slide 62''s lift legend is garbled ("Lift = 1: more likely …"). Use slide 61: **> 1** positive association, **= 1** no association, **< 1** negative association.'
+
+  - id: leverage-conviction
+    title: Leverage and conviction
+    skills: [interpretation]
+    summary: |
+      Two more metrics that libraries such as mlxtend report. Leverage is an additive version of lift;
+      conviction measures how often the rule would fail if A and B were independent.
+    keyFormula: '\text{Lev} = \text{RelSup}(A \cup B) - \text{RelSup}(A)\text{RelSup}(B), \quad \text{Conv} = \frac{1 - \text{RelSup}(B)}{1 - \text{Conf}}'
+    beyondSlides: true
+    data: [grocery5]
+    state: { A: [bread], B: [butter] }
+    derive:
+      - { fn: ruleMetrics, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: m }
+    steps:
+      - tex: |
+          \anchor{lev}{\text{Leverage}} = \text{RelSup}(A \cup B) - \text{RelSup}(A)\,\text{RelSup}(B)
+        say: Observed co-occurrence minus what independence predicts. 0 means independent.
+      - tex: |
+          \anchor{conv}{\text{Conviction}} = \frac{1 - \text{RelSup}(B)}{1 - \text{Conf}(A \rightarrow B)}
+        say: Expected failures over observed failures; infinite when the rule never fails.
+      - tex: |
+          \text{Lev}({=A|set} \rightarrow {=B|set}) = \anchor{lev}{ {=m.leverage|3} }, \quad \text{Conv} = \anchor{conv}{ {=m.conviction|2} }
+        say: 'Lift for comparison: {=m.lift|2}.'
+    code:
+      lang: python
+      source: |
+        def leverage(A, B, transactions):
+            n = len(transactions)
+            s = lambda X: abs_support(X, transactions) / n
+            return s(A | B) - s(A) * s(B)                                  # @a:lev
+
+        def conviction(A, B, transactions):
+            c = confidence(A, B, transactions)
+            rel_b = abs_support(B, transactions) / len(transactions)
+            return float("inf") if c == 1 else (1 - rel_b) / (1 - c)      # @a:conv
+    links:
+      - { anchor: lev, label: leverage }
+      - { anchor: conv, label: conviction }
+    pitfalls:
+      - These are not on the slides; the exam will ask for support, confidence and lift.
+    examTip: If an exam asks which rule is interesting, lift is the lecture's answer; leverage and conviction are for real projects.

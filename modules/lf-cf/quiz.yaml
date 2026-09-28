@@ -1,0 +1,482 @@
+templates:
+  - id: dot-numeric
+    type: numeric
+    skills: [latent-model]
+    difficulty: 1
+    tags: [math]
+    generator: dotQ
+    lessonRef: { tab: math-code, id: latent-model }
+    prompt: |
+      A user's factors are **u = ({=u|list})** and an item's factors are **v = ({=v|list})**. What rating does the latent-factor model predict?
+    answer: { var: p, tol: 0.01 }
+    explanation: |
+      $p = \sum_s u_s v_s = {=p|2}$: multiply matching factors and add.
+
+  - id: dot-numeric-3
+    type: numeric
+    skills: [latent-model, prediction]
+    difficulty: 2
+    tags: [math]
+    generator: dotQ
+    lessonRef: { tab: intuition, id: hidden-tastes }
+    prompt: |
+      With d = {=d} latent factors, u = ({=u|list}) and v = ({=v|list}). Compute the predicted rating $p = \sum_s u_s v_s$.
+    answer: { var: p, tol: 0.01 }
+    explanation: |
+      Dot product over all {=d} factors: {=p|2}.
+
+  - id: params-numeric
+    type: numeric
+    skills: [latent-model, rank-choice]
+    difficulty: 1
+    tags: [math]
+    generator: paramsQ
+    lessonRef: { tab: math-code, id: latent-model }
+    prompt: |
+      A service has **{=m}** users, **{=n}** items and uses **d = {=d}** latent factors. How many numbers do U and V hold together?
+    answer: { var: params, tol: 0 }
+    explanation: |
+      U is {=m}×{=d} and V is {=d}×{=n}: ${=m}\cdot{=d} + {=d}\cdot{=n} = {=params|int}$, versus {=cells|int} cells in R.
+
+  - id: sse-numeric
+    type: numeric
+    skills: [sse-observed]
+    difficulty: 1
+    tags: [math]
+    generator: sseQ
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: Compute the SSE of this factorization (rank 1). Blanks in R are missing ratings.
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    answer: { var: sse, tol: 0.01 }
+    explanation: |
+      Sum (r − p)² over the {=observed} observed cells only: SSE = {=sse|2}.
+
+  - id: sse-numeric-2
+    type: numeric
+    skills: [sse-observed]
+    difficulty: 2
+    tags: [math]
+    generator: sseQ
+    lessonRef: { tab: intuition, id: only-observed-cells }
+    prompt: 'R has two missing ratings. What is the SSE of P = UV on R?'
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    answer: { var: sse, tol: 0.01 }
+    explanation: |
+      Only the {=observed} observed cells count. SSE = {=sse|2}. (Treating blanks as 0 would give {=wrongZero|2}.)
+
+  - id: sse-hand
+    type: hand-calc
+    skills: [sse-observed, latent-model]
+    difficulty: 2
+    tags: [math]
+    generator: sseQ
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: Compute the SSE step by step.
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    steps:
+      - prompt: How many cells of R are observed?
+        answer: { var: observed, tol: 0 }
+      - prompt: 'SSE = Σ (r − p)² over those cells'
+        answer: { var: sse, tol: 0.01 }
+        misconceptions:
+          - { var: wrongZero, feedback: 'Missing ratings must be skipped, not treated as 0.' }
+    explanation: |
+      {=observed} observed cells; SSE = {=sse|2}.
+
+  - id: als-column
+    type: numeric
+    skills: [als-step, als-symmetry]
+    difficulty: 2
+    tags: [math]
+    generator: alsColumnQ
+    lessonRef: { tab: math-code, id: als-update }
+    prompt: |
+      ALS with d = 2 starts from **U = all ones**. After the first V-step, what is the value of each factor for item **{=item}** (the minimum-norm solution, as on slide 5)?
+    show:
+      - { id: r, widget: Matrix, props: { data: '@R', format: int } }
+    answer: { var: v, tol: 0.01 }
+    explanation: |
+      Only $v_1 + v_2$ is determined; it equals the mean of the {=n} observed ratings, {=mean|2}. The even split gives {=v|3} each.
+
+  - id: als-column-hand
+    type: hand-calc
+    skills: [als-step]
+    difficulty: 2
+    tags: [math]
+    generator: alsColumnQ
+    lessonRef: { tab: intuition, id: als-dance }
+    prompt: 'First ALS V-step for item {=item} (U = all ones, d = 2), like slide 5.'
+    show:
+      - { id: r, widget: Matrix, props: { data: '@R', format: int } }
+    steps:
+      - prompt: 'How many observed ratings does {=item} have?'
+        answer: { var: n, tol: 0 }
+      - prompt: 'What must v₁ + v₂ equal (the least-squares value)?'
+        answer: { var: mean, tol: 0.01 }
+        hint: With U = ones every prediction in the column is v₁ + v₂; the best constant is the mean.
+      - prompt: 'v₁ = v₂ = ?'
+        answer: { var: v, tol: 0.01 }
+        misconceptions:
+          - { var: wrongAllRows, feedback: 'Skip the missing ratings when averaging.' }
+    explanation: |
+      Mean of {=n} observed ratings = {=mean|3}; split evenly → {=v|3}.
+
+  - id: cgd-numeric
+    type: numeric
+    skills: [cgd-update]
+    difficulty: 1
+    tags: [math]
+    generator: cgdQ
+    lessonRef: { tab: math-code, id: cgd-worked }
+    prompt: |
+      Coordinate descent, d = 2. U and V are shown below. Update **u_{=i}1** (user {=user}, factor 1) to its exact minimizer.
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    answer: { var: value, tol: 0.01 }
+    explanation: |
+      $u = \dfrac{\sum_j v_{1j}(r_{ij} - u_{i2}v_{2j})}{\sum_j v_{1j}^2} = \dfrac{ {=num|3} }{ {=den|3} } = {=value|3}$, over the observed cells of row {=i}.
+
+  - id: cgd-hand
+    type: hand-calc
+    skills: [cgd-update, cgd-derivation]
+    difficulty: 2
+    tags: [math]
+    generator: cgdQ
+    lessonRef: { tab: intuition, id: one-knob }
+    prompt: |
+      Update u_{=i}1 by coordinate descent, step by step (slide 15's closed form).
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    steps:
+      - prompt: 'Numerator Σⱼ v₁ⱼ (rᵢⱼ − uᵢ₂ v₂ⱼ) over row {=i}''s observed cells'
+        answer: { var: num, tol: 0.01 }
+        hint: 'For each rated column: (factor-1 value of the item) × (rating − what factor 2 already predicts).'
+      - prompt: 'Denominator Σⱼ v₁ⱼ²'
+        answer: { var: den, tol: 0.01 }
+      - prompt: New u_{=i}1
+        answer: { var: value, tol: 0.01 }
+        misconceptions:
+          - { var: wrongMean, feedback: 'Subtract the other factor''s contribution before averaging.' }
+      - prompt: SSE after the update
+        answer: { var: after, tol: 0.05 }
+    explanation: |
+      {=num|3} / {=den|3} = {=value|3}; SSE {=before|2} → {=after|2}.
+
+  - id: cgd-hard
+    type: numeric
+    skills: [cgd-update]
+    difficulty: 3
+    tags: [math]
+    generator: cgdQ
+    lessonRef: { tab: math-code, id: cgd-derivation }
+    prompt: |
+      Two missing ratings and an uneven V. Compute the coordinate-descent update of u_{=i}1.
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    answer: { var: value, tol: 0.01 }
+    explanation: |
+      Numerator {=num|3}, denominator {=den|3}: u = {=value|3}.
+
+  - id: symmetry-mcq
+    type: mcq
+    skills: [als-symmetry]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: symmetry-trap }
+    prompt: 'Why are both columns of U on slide 8 identical (1.0988…, 1.0988…)?'
+    options:
+      - ALS started from U = all ones, and identical factors receive identical updates forever
+      - The data really has only one taste dimension
+      - Least squares always returns identical columns
+      - It is a rounding artifact
+    answer: 0
+    optionFeedback:
+      '1': 'Even with richer data, a symmetric start stays symmetric. Random initialization lets the factors differ.'
+    explanation: With identical columns in U, the V-step gives identical rows in V, and the U-step then keeps U's columns identical. That is the symmetry trap.
+
+  - id: symmetry-fixes
+    type: multi
+    skills: [als-symmetry, rank-choice]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: regularization }
+    prompt: Which changes break the symmetry or make the ALS solution unique?
+    options:
+      - Initialize U randomly
+      - Add λ(‖U‖² + ‖V‖²) regularization
+      - Run more iterations from all ones
+      - Start from U = all twos instead of all ones
+    answer: [0, 1]
+    explanation: Random starts break the tie; regularization makes each least-squares problem strictly convex (unique). Any constant start is still symmetric.
+
+  - id: sse-missing
+    type: mcq
+    skills: [sse-observed]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: only-observed-cells }
+    prompt: How do missing ratings enter the SSE in the lecture's latent-factor model?
+    options:
+      - They don't; only observed cells are summed
+      - As zeros
+      - As the user's mean rating
+      - As the current prediction p_ij, contributing error 0
+    answer: 0
+    optionFeedback:
+      '3': 'Numerically that also adds 0, but conceptually they are simply not in the sum; slide 4 lists only observed terms.'
+    explanation: Slide 4 writes one squared term per observed rating; the blanks are what we want to predict.
+
+  - id: als-monotone
+    type: mcq
+    skills: [als-step, cgd-update]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: watching-sse-fall }
+    prompt: 'During ALS (or exact coordinate descent), the SSE after each update…'
+    options:
+      - never increases
+      - always decreases by the same amount
+      - can increase if the learning rate is too high
+      - always reaches the global minimum
+    answer: 0
+    explanation: Each update solves its sub-problem exactly, so the objective can only drop or stay. But convergence to the global minimum is not guaranteed.
+
+  - id: cgd-derivative
+    type: mcq
+    skills: [cgd-derivation]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: cgd-derivation }
+    prompt: 'In the derivation on slide 15, why is a single-entry update available in closed form?'
+    options:
+      - With everything else frozen, the SSE is a quadratic (parabola) in that one entry
+      - Because U and V are orthogonal
+      - Because the ratings are integers
+      - Because d = 2
+    answer: 0
+    explanation: 'The prediction is linear in u_is, so the squared error is quadratic; set the derivative to 0 and solve.'
+
+  - id: cgd-steps
+    type: order
+    skills: [cgd-derivation]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: cgd-derivation }
+    prompt: Order the derivation of the coordinate update for u_is.
+    items:
+      - Write the SSE over the observed cells of row i
+      - Split each prediction into u_is·v_sj plus the other factors' contribution
+      - Differentiate with respect to u_is and set the derivative to zero
+      - Collect the u_is terms on one side
+      - Divide by Σ v_sj² to get the closed form
+    explanation: 'Slide 15: SSE → split → derivative = 0 → rearrange → u_is = Σ v(r − rest) / Σ v².'
+
+  - id: als-steps
+    type: order
+    skills: [als-step]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: als-run }
+    prompt: Order the ALS procedure.
+    items:
+      - Choose d and initialize U
+      - Freeze U; for each item, solve least squares over its observed ratings to get V's column
+      - Freeze V; for each user, solve least squares over their observed ratings to get U's row
+      - Repeat the two half-steps until the SSE stops improving
+      - Predict missing ratings with P = UV
+    explanation: Alternate the two easy half-steps; predictions come from the product.
+
+  - id: code-predict
+    type: code-fill
+    skills: [latent-model, prediction]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: latent-model }
+    prompt: Complete the prediction functions (U is m×d, V is d×n).
+    code: |
+      def predict(U, V):
+          return __BLANK_1__
+
+      def predict_one(U, V, i, j):
+          return U[i, :] @ V[__BLANK_2__]
+    blanks:
+      '1': { accept: ['U @ V', 'U@V', 'np.dot(U, V)', 'U.dot(V)'] }
+      '2': { accept: [':, j', ':,j'] }
+    explanation: 'P = UV; item j''s factors are column j of V.'
+
+  - id: code-sse
+    type: code-fill
+    skills: [sse-observed]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: Complete the SSE over observed entries (np.nan marks missing ratings).
+    code: |
+      def sse(R, U, V):
+          observed = __BLANK_1__(R)
+          E = R - U @ V
+          return np.sum(E[__BLANK_2__] ** 2)
+    blanks:
+      '1': { accept: ['~np.isnan'] }
+      '2': { accept: ['observed'] }
+    explanation: Mask out missing cells, then sum squared errors on the rest.
+
+  - id: code-als
+    type: code-fill
+    skills: [als-step]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: als-update }
+    prompt: Complete the ALS V-step.
+    code: |
+      def als_step_V(R, U):
+          V = np.zeros((U.shape[1], R.shape[1]))
+          for j in range(R.shape[1]):
+              obs = ~np.isnan(R[:, j])
+              V[:, j] = np.linalg.lstsq(__BLANK_1__, R[obs, j], rcond=None)[0]
+          return V
+    blanks:
+      '1': { accept: ['U[obs]', 'U[obs, :]', 'U[obs,:]'] }
+    explanation: Regress item j's observed ratings on the frozen factors of the users who rated it.
+
+  - id: code-cgd
+    type: code-fill
+    skills: [cgd-derivation, cgd-update]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: math-code, id: cgd-derivation }
+    prompt: Complete the closed-form coordinate update.
+    code: |
+      def update_u(R, U, V, i, s):
+          obs = ~np.isnan(R[i])
+          rest = U[i] @ V - U[i, s] * V[s]
+          resid = R[i, obs] - __BLANK_1__
+          U[i, s] = (V[s, obs] @ resid) / (__BLANK_2__)
+          return U
+    blanks:
+      '1': { accept: ['rest[obs]'] }
+      '2': { accept: ['V[s, obs] @ V[s, obs]', 'V[s,obs] @ V[s,obs]', 'np.sum(V[s, obs] ** 2)', '(V[s, obs] ** 2).sum()'] }
+    explanation: 'Residual after the other factors, regressed on v_s: Σ v·resid / Σ v².'
+
+  - id: match-terms
+    type: match
+    skills: [latent-model, prediction, rank-choice, als-symmetry]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: hidden-tastes }
+    prompt: Match each term to its meaning.
+    pairs:
+      - [Latent factor, 'A learned hidden taste dimension']
+      - [Rank d, 'Number of latent factors']
+      - [Over-fitting, 'Near-zero training error, bad predictions for blanks']
+      - [Symmetry trap, 'Identical starting factors never separate']
+      - [Regularization, 'Penalty on large factor values']
+    explanation: The main ideas beyond the arithmetic.
+
+  - id: match-shapes
+    type: match
+    skills: [latent-model]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: latent-model }
+    prompt: Match each object to its shape (m users, n items, d factors).
+    pairs:
+      - [R, 'm × n']
+      - [U, 'm × d']
+      - [V, 'd × n']
+      - ['A user''s factors', '1 × d (a row of U)']
+      - ['An item''s factors', 'd × 1 (a column of V)']
+    explanation: 'R ≈ UV with V written d×n, as on the slides.'
+
+  - id: overfit
+    type: mcq
+    skills: [prediction, rank-choice]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: filling-the-blanks }
+    prompt: 'A model reaches training SSE ≈ 0 but predicts 0.5 for a 1–5 rating. What is the most likely cause?'
+    options:
+      - Over-fitting (too many free parameters for the data); try smaller d or add λ
+      - Under-fitting; increase d
+      - The SSE was computed over missing cells
+      - The learning rate is too small
+    answer: 0
+    explanation: Fitting known ratings perfectly with many parameters can distort the unknown ones. Regularize or reduce d, and validate on held-out ratings.
+
+  - id: predict-missing
+    type: mcq
+    skills: [prediction]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: prediction }
+    prompt: After training, how is a missing rating r_ij predicted?
+    options:
+      - As the dot product of row i of U and column j of V
+      - As the average of row i
+      - By finding the k most similar users
+      - It can't be predicted without retraining
+    answer: 0
+    explanation: 'The same P = UV used during training gives values for every cell, including blanks.'
+
+  - id: lambda-effect
+    type: mcq
+    skills: [rank-choice]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: regularization }
+    prompt: 'Increasing λ (regularization) in ALS typically…'
+    options:
+      - increases the training SSE a little but stabilizes predictions for unseen cells
+      - decreases the training SSE
+      - has no effect on predictions
+      - makes the symmetry trap worse
+    answer: 0
+    explanation: The penalty pulls factors toward zero, trading training fit for generalization.
+
+  - id: slide14
+    type: mcq
+    skills: [cgd-update]
+    difficulty: 1
+    tags: [math]
+    lessonRef: { tab: math-code, id: cgd-worked }
+    prompt: 'Slide 14 ends with "x = 1.68". Which entry was actually updated?'
+    options:
+      - 'y = v₁₁, the first factor of item 1, with u₁₁ = 2.6 fixed'
+      - 'x = u₁₁ again'
+      - 'u₂₁'
+      - 'v₁₂'
+    answer: 0
+    explanation: 'The expression (4 − 2.6y)² + (2 − y)² + … is in y; the label is a typo.'
+
+  - id: lf-vs-nb
+    type: multi
+    skills: [prediction, latent-model]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: application, id: versus-neighbours }
+    prompt: Which are genuine advantages of latent-factor CF over neighbourhood CF?
+    options:
+      - It generalizes across sparse data (no need for co-rated overlaps)
+      - A prediction is a cheap d-dimensional dot product
+      - Its predictions are easier to explain to users
+      - It has no cold-start problem
+    answer: [0, 1]
+    explanation: Factors share information across all ratings and are cheap to serve. They are harder to explain, and new users/items are still cold.
+
+  - id: fold-in
+    type: mcq
+    skills: [prediction, als-step]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: application, id: cold-users }
+    prompt: A new user rates 3 films. How do you get their factors without retraining everything?
+    options:
+      - Keep V fixed and solve one least-squares problem for the new user's row of U
+      - Average all rows of U
+      - Retrain with d = 3
+      - Set their factors to all ones
+    answer: 0
+    explanation: That is a single ALS U-step for one user ("folding in").
