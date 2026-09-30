@@ -11,31 +11,41 @@ sections:
       - { fn: als, in: { R: '@r5x5', iters: 1 }, out: a }
     steps:
       - tex: |
-          R_{m \times n} \approx \anchor{u}{U_{m \times d}}\;\anchor{v}{V_{d \times n}}
+          R_{m \times n} \approx U_{m \times d}\;V_{d \times n}
         say: 'With d = 2 the 5×5 lecture matrix is explained by 10 + 10 = 20 numbers.'
       - tex: |
-          \anchor{p}{p_{ij}} = \sum_{s=1}^{d} \anchor{u}{u_{is}}\,\anchor{v}{v_{sj}}
-        say: User i's row of U dotted with item j's column of V.
+          \anchor{init}{p_{ij} = 0}, \qquad \anchor{p}{p_{ij}} = \anchor{loop}{\sum_{s=1}^{d}} \anchor{u}{u_{is}}\,\anchor{v}{v_{sj}} \qquad \anchor{ret}{\text{return } p_{ij}}
+        say: User i's row of U dotted with item j's column of V, one factor at a time.
       - tex: |
           \anchor{p}{p_{11}} = \anchor{u}{ {=a.U.values.0.0|4} } \cdot \anchor{v}{ {=a.V.values.0.0|3} } + {=a.U.values.0.1|4} \cdot {=a.V.values.1.0|3} = {=a.P.values.0.0|3}
-        say: After one ALS round from the slides (U row 1 = 1.0988…, V column 1 = 1.75).
+        say: 'After one ALS round from the slides (U row 1 = 1.0988…, V column 1 = 1.75). Step through computes this cell and the blank (u3, i1).'
     code:
       lang: python
       source: |
-        import numpy as np
-
-        def predict(U, V):
-            """U: m x d user factors, V: d x n item factors"""
-            return U @ V            # @a:p
-
         def predict_one(U, V, i, j):
-            u_i = U[i, :]           # @a:u
-            v_j = V[:, j]           # @a:v
-            return u_i @ v_j        # @a:p
+            """U: m x d user factors, V: d x n item factors"""
+            u_i = U[i]                     # @a:u
+            p = 0.0                        # @a:init
+            for s in range(len(u_i)):      # @a:loop
+                v_sj = V[s][j]             # @a:v
+                p += u_i[s] * v_sj         # @a:p
+            return p                       # @a:ret
+    extraCode:
+      - lang: python
+        title: Whole matrix (numpy)
+        source: |
+          import numpy as np
+
+          def predict(U, V):
+              return np.asarray(U) @ np.asarray(V)   # every p_ij at once
     links:
-      - { anchor: u, label: 'U: user factors (m×d)' }
-      - { anchor: v, label: 'V: item factors (d×n)' }
-      - { anchor: p, label: 'P = UV: predictions' }
+      - { anchor: u, label: 'row i of U (user factors)' }
+      - { anchor: init, label: 'p = 0' }
+      - { anchor: loop, label: 'each latent factor s' }
+      - { anchor: v, label: 'column j of V (item factors)' }
+      - { anchor: p, label: 'add u_is · v_sj' }
+      - { anchor: ret, label: 'the prediction' }
+    trace: { fn: predictOneCode, in: { U: '@a.U', V: '@a.V', cells: [[0, 0], [2, 0]] } }
     examples: [init-ones]
     pitfalls:
       - V is d×n on the slides, so item j's factors are a **column** of V.
@@ -55,25 +65,34 @@ sections:
       - { fn: sse, in: { R: '@r5x5', U: '@st.U', V: '@st.V' }, out: s }
     steps:
       - tex: |
-          \text{SSE} = \sum_{\anchor{obs}{(i,j)\ \text{observed}}} \anchor{err}{\left(r_{ij} - p_{ij}\right)^2}
-        say: One squared error per observed rating.
+          \text{SSE} = \anchor{loop}{\sum_{(i,j)}} \ \anchor{obs}{[\,r_{ij} \text{ observed}\,]} \ \anchor{add}{\anchor{err}{\left(r_{ij} - p_{ij}\right)}^2}
+        say: One squared error per observed rating; blanks are skipped.
       - tex: |
           \text{column } i_1: [5 - (\bar v_{11} + \bar v_{12})]^2 + [3 - (\cdot)]^2 + [2 - (\cdot)]^2 + [4 - (\cdot)]^2
         say: 'Slide 4 writes it per item column. Column 1 has four terms because u3·i1 is missing.'
       - tex: |
-          U = V = \mathbf{1}: \quad p_{ij} = 2, \qquad \text{SSE} = \anchor{err}{ {=s.sse|2} } \text{ over } \anchor{obs}{ {=s.observed} } \text{ observed cells}
-        say: The CGD starting point on slide 9.
+          U = V = \mathbf{1}: \quad \anchor{init}{0} + 18 + 7 + 6 + 23 + 21 = \anchor{ret}{ {=s.sse|2} } \text{ over } {=s.observed} \text{ observed cells}
+        say: The CGD starting point on slide 9, one row sum at a time.
     code:
       lang: python
       source: |
         def sse(R, U, V):
-            """R uses np.nan for missing ratings"""
-            observed = ~np.isnan(R)                   # @a:obs
-            E = R - U @ V
-            return np.sum(E[observed] ** 2)           # @a:err
+            total = 0.0                                        # @a:init
+            for i in range(len(R)):                            # @a:loop
+                for j in range(len(R[i])):                     # @a:loop
+                    if R[i][j] is None:                        # @a:obs
+                        continue                               # @a:obs
+                    e = R[i][j] - predict_one(U, V, i, j)      # @a:err
+                    total += e * e                             # @a:add
+            return total                                       # @a:ret
     links:
+      - { anchor: init, label: 'total = 0' }
+      - { anchor: loop, label: 'every cell (i, j)' }
       - { anchor: obs, label: observed cells only }
-      - { anchor: err, label: squared errors }
+      - { anchor: err, label: 'error r − p' }
+      - { anchor: add, label: 'add its square' }
+      - { anchor: ret, label: 'the SSE' }
+    trace: { fn: sseCode, in: { R: '@r5x5', U: '@st.U', V: '@st.V' } }
     examples: [sse-ones]
     pitfalls:
       - Treating missing ratings as 0 would train the model to predict 0 for everything unseen.
@@ -93,35 +112,47 @@ sections:
       - { fn: alsStepU, in: { R: '@r5x5', V: '@s1.V' }, out: s2 }
     steps:
       - tex: |
-          \anchor{freeze}{U \text{ fixed}} \;\Rightarrow\; \mathbf{v}_j = \anchor{solve}{\arg\min_{\mathbf{v}} \sum_{i \in \text{obs}(j)} (r_{ij} - \mathbf{u}_i \cdot \mathbf{v})^2}
-        say: A linear regression per item. The features are the frozen user factors.
+          \anchor{freeze}{U \text{ fixed}} \;\Rightarrow\; \anchor{loop}{\text{for each item } j}: \ \mathbf{v}_j = \anchor{solve}{\arg\min_{\mathbf{v}} \sum_{i \in \anchor{obs}{\text{obs}(j)}} (r_{ij} - \mathbf{u}_i \cdot \mathbf{v})^2}
+        say: A linear regression per item. The features are the frozen user factors, the targets the observed ratings.
       - tex: |
           U = \mathbf{1}: \quad \bar v_{j1} + \bar v_{j2} = \text{mean of column } j \;\Rightarrow\; \bar v_{j1} = \bar v_{j2} = \tfrac{\text{mean}}{2}
         say: 'Only the sum is determined; the slides split it evenly (minimum-norm solution): 3.5/2 = 1.75, 3/2 = 1.5, 3.6/2 = 1.8 …'
       - tex: |
-          V = \begin{pmatrix} {=s1.V.values.0.0|3} & {=s1.V.values.0.1|3} & {=s1.V.values.0.2|3} & {=s1.V.values.0.3|3} & {=s1.V.values.0.4|3} \\ {=s1.V.values.1.0|3} & \cdots & & & {=s1.V.values.1.4|3} \end{pmatrix}
-        say: Slide 5.
+          \anchor{store}{V} = \begin{pmatrix} {=s1.V.values.0.0|3} & {=s1.V.values.0.1|3} & {=s1.V.values.0.2|3} & {=s1.V.values.0.3|3} & {=s1.V.values.0.4|3} \\ {=s1.V.values.1.0|3} & {=s1.V.values.1.1|3} & {=s1.V.values.1.2|3} & {=s1.V.values.1.3|3} & {=s1.V.values.1.4|3} \end{pmatrix}
+        say: Slide 5. Step through to watch each column get solved and stored.
       - tex: |
           \anchor{freeze}{V \text{ fixed}} \;\Rightarrow\; u_{11} = u_{12} = \anchor{solve}{ {=s2.U.values.0.0|8} }
         say: 'Then solve each user row with V frozen: slide 8''s 1.09884117.'
     code:
       lang: python
       source: |
+        import numpy as np
+
         def als_step_V(R, U):
-            d, n = U.shape[1], R.shape[1]
-            V = np.zeros((d, n))                               # @a:freeze
-            for j in range(n):
-                obs = ~np.isnan(R[:, j])
+            d, n = len(U[0]), len(R[0])
+            V = [[0.0] * n for _ in range(d)]                        # @a:freeze
+            for j in range(n):                                       # @a:loop
+                rows = [i for i in range(len(R)) if R[i][j] is not None]   # @a:obs
+                A = [U[i] for i in rows]                             # @a:freeze
+                b = [R[i][j] for i in rows]                          # @a:obs
                 # lstsq returns the minimum-norm solution when the system is rank-deficient
-                V[:, j] = np.linalg.lstsq(U[obs], R[obs, j], rcond=None)[0]   # @a:solve
+                v = np.linalg.lstsq(A, b, rcond=None)[0]             # @a:solve
+                for s in range(d):
+                    V[s][j] = v[s]                                   # @a:store
             return V
 
         def als_step_U(R, V):
-            return als_step_V(R.T, V.T).T                      # same problem, transposed
+            # the same problem on the transposed matrices
+            RT = [list(col) for col in zip(*R)]
+            VT = [list(col) for col in zip(*V)]
+            return [list(r) for r in zip(*als_step_V(RT, VT))]
     links:
       - { anchor: freeze, label: freeze one factor matrix }
+      - { anchor: loop, label: 'each item column j' }
+      - { anchor: obs, label: 'its observed raters and ratings' }
       - { anchor: solve, label: least squares for the other }
-    trace: { fn: alsStepV, in: { R: '@r5x5', U: '@st.U' } }
+      - { anchor: store, label: 'store column j of V' }
+    trace: { fn: alsStepVCode, in: { R: '@r5x5', U: '@st.U' } }
     examples: [als-v-first, als-v-symmetric, als-u-first]
     pitfalls:
       - Each regression uses only the **observed** ratings of that column (or row).
@@ -141,30 +172,35 @@ sections:
       - { fn: als, in: { R: '@r5x5', iters: '@iters', initKind: '@initKind' }, out: run }
     steps:
       - tex: |
-          \anchor{init}{U^{(0)}} \;\xrightarrow{\ \anchor{solve-v}{\text{solve } V}\ }\; V^{(1)} \;\xrightarrow{\ \anchor{solve-u}{\text{solve } U}\ }\; U^{(1)} \;\to \cdots
+          \anchor{init}{U^{(0)}} \;\xrightarrow{\ \anchor{solve-v}{\text{solve } V}\ }\; V^{(1)} \;\xrightarrow{\ \anchor{solve-u}{\text{solve } U}\ }\; U^{(1)} \;\to \cdots \quad (\anchor{loop}{t = 1, \dots, T})
         say: Each half-step minimizes the SSE over one block exactly, so the SSE never increases.
       - tex: |
           U:\ \text{columns equal} \;\Rightarrow\; V:\ \text{rows equal} \;\Rightarrow\; U:\ \text{columns equal}
         say: Symmetry in, symmetry out. Only $v_{j1} + v_{j2}$ is ever determined.
       - tex: |
-          \text{SSE after } {=iters} \text{ iterations} = {=run.sse|3}, \qquad \text{still symmetric? } \text{ {=run.symmetric} }
-        say: 'Set initKind to `random` in the live inputs to break the tie.'
+          \anchor{sse}{\text{SSE after } {=iters} \text{ iterations} = {=run.sse|3}}, \qquad \text{still symmetric? } \text{ {=run.symmetric} }
+        say: 'Set initKind to `random` in the live inputs to break the tie, then step through again.'
     code:
       lang: python
       source: |
+        import numpy as np
+
         def als(R, d=2, iters=10, init="ones", seed=0):
-            m, n = R.shape
+            m = len(R)
             rng = np.random.default_rng(seed)
-            U = np.ones((m, d)) if init == "ones" else 0.5 + rng.random((m, d))   # @a:init
-            for _ in range(iters):
-                V = als_step_V(R, U)                                          # @a:solve-v
-                U = als_step_U(R, V)                                          # @a:solve-u
+            U = (np.ones((m, d)) if init == "ones" else 0.5 + rng.random((m, d))).tolist()   # @a:init
+            for t in range(iters):                                                           # @a:loop
+                V = als_step_V(R, U)                                                         # @a:solve-v
+                U = als_step_U(R, V)                                                         # @a:solve-u
+                print(t + 1, sse(R, U, V))                                                   # @a:sse
             return U, V
     links:
       - { anchor: init, label: initialization }
+      - { anchor: loop, label: 'each iteration t' }
       - { anchor: solve-v, label: 'V-step (U frozen)' }
       - { anchor: solve-u, label: 'U-step (V frozen)' }
-    trace: { fn: als, in: { R: '@r5x5', iters: '@iters', initKind: '@initKind' } }
+      - { anchor: sse, label: 'SSE after the round' }
+    trace: { fn: alsCode, in: { R: '@r5x5', iters: '@iters', initKind: '@initKind' } }
     examples: [als-symmetry]
     pitfalls:
       - All-ones initialization is fine for a hand example but wastes the extra factors; use random initialization in practice.
@@ -177,31 +213,44 @@ sections:
       Change one entry u_is and freeze everything else. The SSE is then a parabola in that entry, so setting the
       derivative to zero gives its exact minimizer.
     keyFormula: 'u_{is} = \frac{\sum_{j} v_{sj}\left(r_{ij} - \sum_{t \ne s} u_{it} v_{tj}\right)}{\sum_{j} v_{sj}^2}'
+    data: [r5x5]
+    derive:
+      - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
     steps:
       - tex: |
-          \text{SSE} = \sum_{j \in \text{obs}(i)} \Big( r_{ij} - u_{is} v_{sj} - \sum_{t \ne s} u_{it} v_{tj} \Big)^2 + \text{(terms without } u_{is})
+          \text{SSE} = \sum_{j \in \text{obs}(i)} \Big( r_{ij} - u_{is} v_{sj} - \anchor{rest}{\sum_{t \ne s} u_{it} v_{tj}} \Big)^2 + \text{(terms without } u_{is})
         say: Split the prediction into the part that uses u_is and the rest.
       - tex: |
-          \anchor{grad}{\frac{\partial\, \text{SSE}}{\partial u_{is}}} = \sum_{j} -2\, v_{sj} \Big( r_{ij} - u_{is} v_{sj} - \sum_{t \ne s} u_{it} v_{tj} \Big) = 0
+          \frac{\partial\, \text{SSE}}{\partial u_{is}} = \anchor{loop}{\sum_{j}} -2\, v_{sj} \Big( r_{ij} - u_{is} v_{sj} - \sum_{t \ne s} u_{it} v_{tj} \Big) = 0
         say: Differentiate and set to zero.
       - tex: |
           \sum_j v_{sj} r_{ij} - u_{is} \sum_j v_{sj}^2 - \sum_j v_{sj} \sum_{t \ne s} u_{it} v_{tj} = 0
         say: Expand the sum (slide 15, line 3).
       - tex: |
-          \anchor{closed}{u_{is} = \frac{\sum_{j} v_{sj}\left(r_{ij} - \sum_{t \ne s} u_{it} v_{tj}\right)}{\sum_{j} v_{sj}^2}}
-        say: Solve for u_is. The v_sj entries update the same way, with the roles of U and V swapped.
+          \anchor{closed}{u_{is}} = \frac{\anchor{num}{\sum_{j} v_{sj}\left(r_{ij} - \sum_{t \ne s} u_{it} v_{tj}\right)}}{\anchor{den}{\sum_{j} v_{sj}^2}}, \qquad \anchor{init}{\text{both sums start at } 0}
+        say: Solve for u_is. Step through to compute x = u₁₁ from all ones, term by term. The v_sj entries update the same way, with U and V swapped.
     code:
       lang: python
       source: |
         def update_u(R, U, V, i, s):
-            obs = ~np.isnan(R[i])
-            rest = U[i] @ V - U[i, s] * V[s]          # prediction without factor s
-            resid = R[i, obs] - rest[obs]             # @a:grad
-            U[i, s] = (V[s, obs] @ resid) / (V[s, obs] @ V[s, obs])   # @a:closed
+            num = den = 0.0                                          # @a:init
+            for j in range(len(R[i])):                               # @a:loop
+                if R[i][j] is None:                                  # @a:loop
+                    continue
+                rest = sum(U[i][t] * V[t][j]                         # @a:rest
+                           for t in range(len(V)) if t != s)         # @a:rest
+                num += V[s][j] * (R[i][j] - rest)                    # @a:num
+                den += V[s][j] ** 2                                  # @a:den
+            U[i][s] = num / den                                      # @a:closed
             return U
     links:
-      - { anchor: grad, label: 'the partial residual (from ∂SSE/∂u = 0)' }
+      - { anchor: init, label: 'num = den = 0' }
+      - { anchor: loop, label: 'each observed item j' }
+      - { anchor: rest, label: 'what the other factors predict' }
+      - { anchor: num, label: 'Σ v · (r − rest)' }
+      - { anchor: den, label: 'Σ v²' }
       - { anchor: closed, label: closed-form minimizer }
+    trace: { fn: cgdUpdateCode, in: { R: '@r5x5', U: '@st.U', V: '@st.V', which: U, i: 0, s: 0 } }
     pitfalls:
       - Sum only over the columns the user rated.
       - Subtract the contribution of the **other** factors before regressing on v_sj.
@@ -219,35 +268,47 @@ sections:
       - { fn: cgdLecture, in: { R: '@r5x5' }, out: cg }
     steps:
       - tex: |
-          \anchor{freeze}{(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2}
+          \anchor{start}{U = V = \mathbf{1}}: \quad \anchor{x}{(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2} \;\Rightarrow\; -2\,[13 - 5x] = 0 \;\Rightarrow\; x = 2.6
         say: Row 1's ratings minus 1 (the frozen factor's contribution), as on slide 11.
       - tex: |
-          -2\,[\anchor{num}{13} - \anchor{den}{5}x] = 0 \;\Rightarrow\; \anchor{update}{x = 2.6}
-        say: The derivative is linear; the root is the minimum.
+          \anchor{y}{(4 - 2.6y)^2 + (2-y)^2 + (1-y)^2 + (3-y)^2}
+        say: Column 1 with u₁₁ = 2.6 fixed (slides 12–13); u3·i1 is blank, so four terms.
       - tex: |
-          (4 - 2.6y)^2 + (2-y)^2 + (1-y)^2 + (3-y)^2 \;\Rightarrow\; -2\,[\anchor{num}{16.4} - \anchor{den}{9.76}\,y] = 0 \;\Rightarrow\; \anchor{update}{y = {=cg.y|2}}
-        say: Column 1 with u₁₁ = 2.6 fixed (slides 12–14). The slide writes "x = 1.68"; it is y.
+          \anchor{update}{y} = \frac{\anchor{num}{2.6(5 - \anchor{rest}{1}) + 1(3 - 1) + 1(2 - 1) + 1(4 - 1)}}{\anchor{den}{2.6^2 + 1^2 + 1^2 + 1^2}} = \frac{16.4}{9.76} = {=cg.y|4}
+        say: 'The same recipe: Σ u(r − rest) / Σ u². The slide writes "x = 1.68"; it is y. Step through to add each term.'
       - tex: |
-          \text{SSE}: {=cg.sse0} \to {=cg.sse1|2} \to {=cg.sse2|2}
+          \anchor{init}{\text{num} = \text{den} = 0} \;\to\; \anchor{loop}{\text{users } u_1, u_2, u_4, u_5} \;\to\; \text{SSE}: {=cg.sse0} \to {=cg.sse1|2} \to {=cg.sse2|2}
         say: Each exact coordinate update lowers the SSE.
     code:
       lang: python
       source: |
-        R1 = np.array([5, 2, 4, 4, 3])                 # row 1, V = ones
-        # prediction of row 1 is x*1 + 1*1 = x + 1
-        # @a freeze
-        sse_row1 = lambda x: np.sum((R1 - (x + 1)) ** 2)
-        # @end
-        num = np.sum(R1 - 1)                           # @a:num
-        den = len(R1)                                  # @a:den
-        x = num / den                                  # @a:update
-        print(x)                                       # 2.6
+        def update_v(R, U, V, s, j):
+            num = den = 0.0                                          # @a:init
+            for i in range(len(R)):                                  # @a:loop
+                if R[i][j] is None:                                  # @a:loop
+                    continue
+                rest = sum(U[i][t] * V[t][j]                         # @a:rest
+                           for t in range(len(U[i])) if t != s)      # @a:rest
+                num += U[i][s] * (R[i][j] - rest)                    # @a:num
+                den += U[i][s] ** 2                                  # @a:den
+            V[s][j] = num / den                                      # @a:update
+            return V
+
+        U = [[1.0, 1.0] for _ in range(5)]                           # @a:start
+        V = [[1.0] * 5, [1.0] * 5]                                   # @a:start
+        U = update_u(R, U, V, i=0, s=0)    # x = u11 = 2.6            # @a:x
+        V = update_v(R, U, V, s=0, j=0)    # y = v11 = 1.68           # @a:y
     links:
-      - { anchor: freeze, label: SSE as a function of one entry }
-      - { anchor: num, label: 'numerator Σ v(r − rest)' }
-      - { anchor: den, label: 'denominator Σ v²' }
+      - { anchor: start, label: 'start from all ones' }
+      - { anchor: x, label: 'x = u₁₁ (previous section)' }
+      - { anchor: y, label: 'y = v₁₁, with x fixed' }
+      - { anchor: init, label: 'num = den = 0' }
+      - { anchor: loop, label: 'each user who rated i1' }
+      - { anchor: rest, label: 'what the other factor predicts' }
+      - { anchor: num, label: 'numerator Σ u(r − rest)' }
+      - { anchor: den, label: 'denominator Σ u²' }
       - { anchor: update, label: the new value }
-    trace: { fn: cgdLecture, in: { R: '@r5x5' } }
+    trace: { fn: cgdWorkedCode, in: { R: '@r5x5' } }
     examples: [cgd-x, cgd-y]
     pitfalls:
       - Only observed cells count; column 1 has four terms because u3·i1 is missing.
@@ -267,27 +328,30 @@ sections:
     derive:
       - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7 }, out: run }
       - { fn: fillMissing, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, out: f }
+      - { fn: fillTex, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, out: ft }
     steps:
       - tex: |
-          \anchor{fill}{\hat r_{ij} = \mathbf{u}_i \cdot \mathbf{v}_j}
+          \anchor{loop}{\text{for each blank } (i, j)}: \quad \anchor{fill}{\hat r_{ij} = \mathbf{u}_i \cdot \mathbf{v}_j}
         say: The same dot product, evaluated where R is blank.
       - tex: |
           \anchor{fit}{\text{training SSE} = {=run.sse|2}}
         say: 'Random start, 10 ALS iterations: an almost perfect fit of the 22 observed ratings.'
       - tex: |
-          \anchor{fill}{\text{blanks}}: \text{ {=f.text} }
-        say: 'u3·i1 comes out far below 1: the model over-fits. Regularization (next section) tames this.'
+          \anchor{fill}{ {=ft.tex.0} }
+        say: 'u3·i1 comes out far below 1: the model over-fits. Regularization (next section) tames this. All blanks: {=f.text}.'
     code:
       lang: python
       source: |
-        U, V = als(R, d=2, iters=10, init="random", seed=7)   # @a:fit
-        P = U @ V
-        missing = np.argwhere(np.isnan(R))
-        for i, j in missing:
-            print(f"u{i+1}·i{j+1} ≈ {P[i, j]:.2f}")    # @a:fill
+        U, V = als(R, d=2, iters=10, init="random", seed=7)       # @a:fit
+        missing = [(i, j) for i in range(len(R))
+                   for j in range(len(R[i])) if R[i][j] is None]
+        for i, j in missing:                                       # @a:loop
+            print(f"u{i+1}·i{j+1} ≈ {predict_one(U, V, i, j):.2f}")  # @a:fill
     links:
+      - { anchor: loop, label: 'each blank cell' }
       - { anchor: fill, label: predictions for missing cells }
       - { anchor: fit, label: training fit (random start) }
+    trace: { fn: fillCode, in: { R: '@r5x5', U: '@run.U', V: '@run.V' } }
     pitfalls:
       - A tiny training SSE does not mean good predictions for the blanks.
       - Clip predictions to the rating scale in practice.
@@ -306,31 +370,37 @@ sections:
     derive:
       - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7, lambda: '@lambda' }, out: reg }
       - { fn: fillMissing, in: { R: '@r5x5', U: '@reg.U', V: '@reg.V' }, out: fr }
+      - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
     steps:
       - tex: |
-          \mathbf{v}_j = \anchor{ridge}{(U_{o}^\top U_{o} + \lambda I)^{-1} U_{o}^\top \mathbf{r}_{o}}
+          \anchor{loop}{\text{for each item } j}: \quad \mathbf{v}_j = \anchor{ridge}{(U_{o}^\top U_{o} + \lambda I)^{-1} U_{o}^\top \mathbf{r}_{o}}
         say: The V-step with the observed rows U_o of U, now a ridge regression.
       - tex: |
           \anchor{lam}{\lambda} \uparrow \;\Rightarrow\; \text{smaller factors, higher training SSE, saner blanks}
         say: λ trades fit on the observed ratings for stability on the missing ones.
       - tex: |
           \anchor{lam}{\lambda = {=lambda}}: \text{ training SSE} = {=reg.sse|2}; \quad \text{blanks: {=fr.text}}
-        say: Change λ in the live inputs and watch u3·i1.
+        say: 'Change λ in the live inputs and watch u3·i1. Step through the V-step from U = ones: with λ > 0 the two factors still tie, but the sum shrinks.'
     code:
       lang: python
       source: |
+        import numpy as np
+
         def ridge_step_V(R, U, lam):
-            d, n = U.shape[1], R.shape[1]
+            d, n = len(U[0]), len(R[0])
             V = np.zeros((d, n))
-            for j in range(n):
-                obs = ~np.isnan(R[:, j])
-                Uo = U[obs]
-                A = Uo.T @ Uo + lam * np.eye(d)                     # @a:lam
-                V[:, j] = np.linalg.solve(A, Uo.T @ R[obs, j])      # @a:ridge
+            for j in range(n):                                       # @a:loop
+                obs = [i for i in range(len(R)) if R[i][j] is not None]
+                Uo = np.array([U[i] for i in obs])
+                r = np.array([R[i][j] for i in obs])
+                A = Uo.T @ Uo + lam * np.eye(d)                      # @a:lam
+                V[:, j] = np.linalg.solve(A, Uo.T @ r)               # @a:ridge
             return V
     links:
+      - { anchor: loop, label: 'each item column' }
       - { anchor: ridge, label: ridge solution }
       - { anchor: lam, label: 'λ: regularization strength' }
+    trace: { fn: ridgeCode, in: { R: '@r5x5', U: '@st.U', lambda: '@lambda' } }
     pitfalls:
       - Not on the slides; Spark's ALS calls λ `regParam`.
     examTip: If asked how to fix the symmetry or over-fitting problems, mention random initialization and regularization.

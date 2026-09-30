@@ -71,3 +71,9 @@
 - confidence: conf as P(B|A)
 - lift: lift and its interpretation
 - interpretation: acting on rules, the milk trap
+
+## Revision 1.1 — count-along (2026-09-30)
+- Intuition now counts every support on screen instead of reporting results: `support` walks the baskets one by one (running tally, ✓ +1 / ✗ +0 per row); `supportGridWalk` fills the slide-8 table row by row and replays the four minsup settings of slides 10–13; `bruteForceWalk` counts all 2⁶ − 1 = 63 itemsets (38 of them are 0); `aprioriWalk` counts all 24 candidates of the slide-19 scheme with the candidate-generation step spelled out; `fpWalk` shows, for every filtered table of slides 21–40, a tick grid with each remaining item's count, then decides each of the 18 prefixes; `rulesWalk` computes all 16 candidate rules of slides 47–60; `liftWalk` computes lift for all 13 kept rules.
+- Rule order in `rulesWalk` follows the slides: itemsets in slide-45 order, items written as on the slides (e.g. {eggs, yogurt, milk}), bigger antecedents first (slides 51–52).
+- Math & Code: every section's trace is line-level (one anchor per code line) and walks every loop iteration, e.g. `supportCode`, `bruteForceCode` (208 steps), `aprioriCode`, `fpGrowthCode` (recursive calls with their prefix), `confidenceCode` (single pass), `rulesCode`, `liftCode`.
+- Examples added as regression checks for the walks: brute-walk-63, apriori-walk-24, fp-walk-18, rules-walk-13.

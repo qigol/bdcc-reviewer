@@ -63,3 +63,9 @@
 - dcg: discounted cumulative gain
 - ndcg: IDCG and NDCG
 - sparsity-pitfalls: small overlaps, blanks, cold start
+
+## Revision 1.1 — solve-along (2026-09-30)
+- Every similarity is solved on a worksheet (`simSheet`): co-rated entries side by side, products, squares, the three sums, then dot / (‖u‖·‖v‖). `simWalk` does this for every pair: HP users (6, slide 5), a–f users (10, slide 9), HP items (21, slide 18), a–f items (15, slide 41). Pairs are visited in lower-triangle order (row label after column label), as the slides' tables are laid out.
+- Numbers are shown the way the slides show them: thirds as fractions on the HP matrix (10/3, −32/9, √(74/9)), decimals on the a–f matrix (5.5, 1.2, 6.2).
+- `centerWalk` computes every mean and every centered value (16 steps for HP, 31 for a–f). `predictWalk` solves every prediction the slides show: B·c, C·a, C·f, E·b (user-based, k = 3), all 17 HP blanks in the slides' column order (item-based, k = 2; 10 stay blank), and C·a, E·b, B·c, C·f (item-based, a–f). `dcgWalk` adds the DCG and IDCG terms one at a time.
+- Math & Code: the Python is now plain loops so the trace can step through every line and iteration (numpy versions are kept as an extra tab for mean-centering).

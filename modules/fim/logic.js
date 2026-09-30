@@ -22,27 +22,150 @@ export default function register(sdk) {
     return minsup > 0 && minsup < 1 ? minsup * n : minsup;
   }
 
-  // roles: table (TransactionTable), code, formula
+  // ---------------------------------------------------------------- count-along helpers
+  const TX = (t) => `T${t.id}`;
+  const txText = (t) => `${TX(t)} ${setText(t.items)}`;
+  const missingOf = (X, t) => X.filter((x) => !t.items.includes(x));
+  const r2 = (x) => (x === null || x === undefined ? '—' : +(+x).toFixed(2));
+  const CHECK = '\\checkmark';
+  const BLANK = '\\cdot';
+  const texSet = (s) => (s.length ? `\\{${s.map((x) => `\\text{${x}}`).join(',\\,')}\\}` : '\\emptyset');
+  const rowsText = (ids) => (ids.length ? ids.map((i) => `T${i}`).join(', ') : 'no rows');
+  const inRows = (ids) => (ids.length ? `${ids.length === 1 ? 'row' : 'rows'} ${rowsText(ids)}` : 'no row');
+
+  // Count along, one transaction at a time.
+  // roles: table (TransactionTable)
   function support({ transactions, itemset }) {
     const set = sortSet(itemset || []);
     const n = transactions.length;
     let count = 0;
     const hits = [];
+    const tally = [];
     const trace = [];
     for (const t of transactions) {
-      const ok = isSubset(set, t.items);
+      const miss = missingOf(set, t);
+      const ok = miss.length === 0;
       if (ok) { count++; hits.push(t.id); }
+      tally.push(ok ? 1 : 0);
       trace.push({
-        label: `T${t.id} ${ok ? 'contains' : 'does not contain'} ${setText(set)} → count = ${count}`,
-        code: 'abs',
-        math: 'abs',
+        label: ok
+          ? `${txText(t)} holds every item of ${setText(set)} ✓ → count = ${count}`
+          : `${txText(t)} is missing ${miss.join(', ')} ✗ → count stays ${count}`,
         vars: { count },
-        ops: [{ role: 'table', cmd: 'highlight', args: { sel: `row:${t.id}`, tone: ok ? 'good' : 'bad' } }],
+        ops: [
+          { role: 'table', cmd: 'highlight', args: { sel: `row:${t.id}`, tone: ok ? 'good' : 'bad' } },
+          { role: 'table', cmd: 'annotate', args: { sel: `row:${t.id}`, text: ok ? `✓ +1 → ${count}` : '✗ +0' } },
+        ],
       });
     }
-    trace.push({ label: `Relative support = ${count} / ${n} = ${n ? +(count / n).toFixed(2) : 0}`, code: 'rel', math: 'rel', vars: { abs: count, n, rel: n ? count / n : 0 },
+    const rel = n ? count / n : 0;
+    const tallyTex = tally.join(' + ');
+    trace.push({ label: `AbsSup = ${tallyTex} = ${count}; RelSup = ${count}/${n} = ${r2(rel)}`, vars: { abs: count, n, rel },
       ops: [{ role: 'table', cmd: 'highlight', args: { sel: hits.map((h) => `row:${h}`), tone: 'good' } }] });
-    return { abs: count, rel: n ? count / n : 0, hits, n, itemset: set, trace };
+    return { abs: count, rel, hits, n, itemset: set, tally, tallyTex, hitsText: rowsText(hits), trace };
+  }
+
+  // Line-by-line trace of abs_support / rel_support for the Math & Code tab.
+  // anchors: init, loop, test, inc, ret, rel
+  function supportCode({ transactions, itemset }) {
+    const X = sortSet(itemset || []);
+    const n = transactions.length;
+    let count = 0;
+    const trace = [{ label: '`count = 0`: nothing counted yet', code: 'init', math: 'init', vars: { count } }];
+    for (const t of transactions) {
+      trace.push({ label: `\`for T in transactions\`: T = ${txText(t)}`, code: 'loop', math: 'loop', vars: { T: txText(t), count } });
+      const miss = missingOf(X, t);
+      const ok = miss.length === 0;
+      trace.push({
+        label: ok ? `Is ${setText(X)} ⊆ ${TX(t)}? **True**, every item is there` : `Is ${setText(X)} ⊆ ${TX(t)}? **False**: ${miss.join(', ')} missing, so skip`,
+        code: 'test', math: 'test', vars: { subset: ok ? 'True' : 'False', count },
+      });
+      if (ok) { count++; trace.push({ label: `\`count += 1\` → count = ${count}`, code: 'inc', math: 'inc', vars: { count } }); }
+    }
+    trace.push({ label: `Loop finished: \`return count\` gives AbsSup = ${count}`, code: 'ret', math: 'ret', vars: { count } });
+    trace.push({ label: `\`rel_support\` = ${count} / len(transactions) = ${count}/${n} = ${r2(count / n)}`, code: 'rel', math: 'rel', vars: { rel: n ? count / n : 0 } });
+    return { abs: count, rel: n ? count / n : 0, trace };
+  }
+
+  // Worksheet for slides 8–13: one row per itemset, a tick per transaction that holds it, then the counts.
+  // upTo = rows filled so far (patched by supportGridWalk); minsup (optional) fills the last column.
+  function supportGrid({ transactions, itemsets, upTo = 99, minsup = null }) {
+    const n = transactions.length;
+    const hasMin = typeof minsup === 'number';
+    const cols = ['itemset', ...transactions.map(TX), 'AbsSup', 'RelSup', 'frequent'];
+    const rows = itemsets.map((_, k) => `X${k + 1}`);
+    const freqRows = [];
+    const values = itemsets.map((X, k) => {
+      const done = k < upTo;
+      const abs = transactions.filter((t) => isSubset(X, t.items)).length;
+      const sup = minsup !== null && minsup < 1 ? abs / n : abs;
+      const freq = hasMin && sup >= minsup - EPS;
+      if (done && freq) freqRows.push(`row:X${k + 1}`);
+      return [
+        texSet(X),
+        ...transactions.map((t) => (done ? (isSubset(X, t.items) ? CHECK : BLANK) : null)),
+        done ? abs : null,
+        done ? abs / n : null,
+        done && hasMin ? (freq ? '\\text{yes}' : '\\text{no}') : null,
+      ];
+    });
+    return { rows, cols, values, freqRows, n };
+  }
+
+  // roles: grid (Matrix from supportGrid), table (TransactionTable). Patches gridUpTo / gridMinsup.
+  function supportGridWalk({ transactions, itemsets, thresholds = [3, 2, 0.5, 0.4] }) {
+    const n = transactions.length;
+    const trace = [];
+    itemsets.forEach((X, k) => {
+      const marks = transactions.map((t) => `${TX(t)} ${isSubset(X, t.items) ? '✓' : '✗'}`).join(', ');
+      const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
+      trace.push({
+        label: `${setText(X)}: ${marks} → AbsSup ${hits.length}, RelSup ${hits.length}/${n} = ${r2(hits.length / n)}`,
+        patch: { gridUpTo: k + 1 },
+        ops: [
+          { role: 'grid', cmd: 'highlight', args: { sel: `row:X${k + 1}`, tone: 'accent' } },
+          { role: 'table', cmd: 'highlight', args: { sel: hits.map((h) => `row:${h}`), tone: 'good' } },
+        ],
+      });
+    });
+    for (const m of thresholds) {
+      const g = supportGrid({ transactions, itemsets, minsup: m });
+      const kept = itemsets.filter((X, k) => g.freqRows.includes(`row:X${k + 1}`));
+      trace.push({
+        label: m < 1
+          ? `minsup = ${m} (relative): keep RelSup ≥ ${m} → ${kept.map(setText).join(', ') || 'none'}`
+          : `minsup = ${m} (absolute): keep AbsSup ≥ ${m} → ${kept.map(setText).join(', ') || 'none'}`,
+        patch: { gridUpTo: itemsets.length, gridMinsup: m },
+        ops: [{ role: 'grid', cmd: 'highlight', args: { sel: g.freqRows, tone: 'good' } }],
+      });
+    }
+    return { steps: trace.length, trace };
+  }
+
+  // Line-by-line trace of frequent_itemsets() over a list of candidates.
+  // anchors: init, loop, sup, rel, minsup, keep, ret
+  function frequentCode({ transactions, itemsets, minsup }) {
+    const n = transactions.length;
+    const trace = [{ label: '`frequent = []`: start with an empty answer list', code: 'init', math: 'init', vars: { frequent: [] } }];
+    const kept = [];
+    for (const X of itemsets) {
+      trace.push({ label: `\`for X in candidates\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) } });
+      const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
+      let sup = hits.length;
+      trace.push({ label: `\`sup = abs_support(X)\`: ${inRows(hits)} → sup = ${sup}`, code: 'sup', math: 'sup', vars: { sup } });
+      if (minsup < 1) {
+        sup = sup / n;
+        trace.push({ label: `minsup ${minsup} < 1 is relative, so \`sup = ${hits.length} / ${n}\` = ${r2(sup)}`, code: 'rel', math: 'rel', vars: { sup } });
+      }
+      const ok = sup >= minsup - EPS;
+      trace.push({ label: `\`sup >= minsup\`: ${r2(sup)} ≥ ${minsup}? **${ok ? 'True' : 'False'}**${ok ? '' : ', so skip it'}`, code: 'minsup', math: 'minsup', vars: { frequent: ok ? 'True' : 'False' } });
+      if (ok) {
+        kept.push(X);
+        trace.push({ label: `\`frequent.append(X)\` → ${kept.length} frequent so far`, code: 'keep', math: 'keep', vars: { frequent: kept.map(setText) } });
+      }
+    }
+    trace.push({ label: `\`return frequent\`: ${kept.map(setText).join(', ') || 'none'}`, code: 'ret', math: 'ret', vars: { count: kept.length } });
+    return { frequent: kept, count: kept.length, trace };
   }
 
   function frequentItemsets({ transactions, minsup, order }) {
@@ -100,6 +223,72 @@ export default function register(sdk) {
     return { evaluated: trace.length, count: freq, trace };
   }
 
+  // Supports of the first `upTo` itemsets in brute-force order (level by level) → lattice support map.
+  function bfSupport({ transactions, upTo = 999 }) {
+    const items = orderFor(transactions);
+    const supportMap = {};
+    powerset(items).slice(0, upTo).forEach((s) => { supportMap[key(s, items)] = transactions.filter((t) => isSubset(s, t.items)).length; });
+    return { supportMap, counted: Object.keys(supportMap).length };
+  }
+
+  // Brute force, one itemset per step: every one of the 2^n − 1 itemsets gets counted.
+  // roles: lattice (ItemsetLattice), table (TransactionTable). Patches bfUpTo.
+  function bruteForceWalk({ transactions, minsup }) {
+    const items = orderFor(transactions);
+    const thr = threshold(minsup, transactions.length);
+    const all = powerset(items);
+    const trace = [];
+    let freq = 0;
+    let level = 0;
+    all.forEach((s, idx) => {
+      if (s.length !== level) {
+        level = s.length;
+        const nk = all.filter((x) => x.length === level).length;
+        trace.push({ label: nk === 1 ? `Level ${level}: the single itemset with all ${level} items` : `Level ${level}: all ${nk} itemsets of size ${level}, counted one by one`, patch: { bfUpTo: idx },
+          ops: [{ role: 'lattice', cmd: 'highlight', args: { sel: `level:${level}`, tone: 'accent' } }] });
+      }
+      const hits = transactions.filter((t) => isSubset(s, t.items)).map((t) => t.id);
+      const ok = hits.length >= thr - EPS && hits.length > 0;
+      if (ok) freq++;
+      trace.push({
+        label: `${setText(s)}: ${hits.length ? `in ${rowsText(hits)}` : 'in no row'} → ${hits.length} ${ok ? `≥ ${thr} ✓` : `< ${thr} ✗`}`,
+        vars: { counted: idx + 1, frequent: freq },
+        patch: { bfUpTo: idx + 1 },
+        ops: [
+          { role: 'lattice', cmd: 'highlight', args: { sel: `set:${key(s, items)}`, tone: ok ? 'good' : 'bad' } },
+          { role: 'table', cmd: 'highlight', args: { sel: hits.map((h) => `row:${h}`), tone: 'accent' } },
+        ],
+      });
+    });
+    trace.push({ label: `Done: ${all.length} support counts for ${freq} frequent itemsets`, patch: { bfUpTo: all.length }, vars: { counted: all.length, frequent: freq } });
+    return { evaluated: all.length, count: freq, trace };
+  }
+
+  // Line-by-line trace of brute_force(). anchors: n, size, loop, count, test, keep, ret
+  function bruteForceCode({ transactions, minsup }) {
+    const items = orderFor(transactions);
+    const thr = threshold(minsup, transactions.length);
+    const trace = [{ label: `\`items\` = the ${items.length} distinct items: ${items.join(', ')}`, code: 'n', math: 'n', vars: { n: items.length } }];
+    let freq = 0;
+    for (let k = 1; k <= items.length; k++) {
+      const Xs = combinations(items, k);
+      trace.push({ label: `\`for k\`: k = ${k}, so ${Xs.length} combinations of ${k} item${k > 1 ? 's' : ''} to check`, code: 'size', math: 'size', vars: { k } });
+      for (const X of Xs) {
+        trace.push({ label: `\`for X in combinations(items, ${k})\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) } });
+        const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
+        trace.push({ label: `\`sup = abs_support(X)\`: ${hits.length ? rowsText(hits) : 'no row'} → sup = ${hits.length}`, code: 'count', math: 'count', vars: { sup: hits.length } });
+        const ok = hits.length >= thr - EPS && hits.length > 0;
+        trace.push({ label: `\`if sup >= minsup\`: ${hits.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**${ok ? '' : ', not stored'}`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' } });
+        if (ok) {
+          freq++;
+          trace.push({ label: `\`frequent[X] = ${hits.length}\`: ${freq} frequent itemset${freq > 1 ? 's' : ''} stored so far`, code: 'keep', math: 'keep', vars: { frequent: freq } });
+        }
+      }
+    }
+    trace.push({ label: `\`return frequent\`: ${freq} frequent itemsets after ${Math.pow(2, items.length) - 1} counts`, code: 'ret', math: 'ret', vars: { frequent: freq } });
+    return { count: freq, trace };
+  }
+
   // Lecture Apriori (slide 19): level 1 = every item; level k+1 = every frequent k-itemset
   // extended by one frequent item that comes later in the lecture's order.
   // roles: lattice (ItemsetLattice), table (TransactionTable), code, formula
@@ -149,6 +338,109 @@ export default function register(sdk) {
     const bruteForce = Math.pow(2, ord.length) - 1;
     trace.push({ label: `Done: ${frequent.length} frequent itemsets after counting ${evaluated.length} candidates (brute force: ${bruteForce})`, code: 'level', math: 'level', vars: { evaluated: evaluated.length, bruteForce } });
     return { frequent, count: frequent.length, evaluated: evaluated.length, bruteForce, saved: bruteForce - evaluated.length, levels, candidates: evaluated, level2: levels[1] ? levels[1].candidates : 0, trace };
+  }
+
+  // Supports of the first `upTo` candidates Apriori counts (evaluation order) → lattice support map.
+  function aprioriSupport({ transactions, minsup, upTo = 999 }) {
+    const r = aprioriRun({ transactions, minsup });
+    const items = itemsOf(transactions);
+    const supportMap = {};
+    r.candidates.slice(0, upTo).forEach((c) => { supportMap[key(c.itemset, items)] = c.abs; });
+    return { supportMap, counted: Object.keys(supportMap).length };
+  }
+
+  // Apriori as taught (slide 19), one candidate per step, with the candidate-generation steps spelled out.
+  // roles: lattice (ItemsetLattice), table (TransactionTable). Patches apUpTo.
+  function aprioriWalk({ transactions, minsup, order }) {
+    const ord = orderFor(transactions, order || APRIORI_ORDER);
+    const items = itemsOf(transactions);
+    const thr = threshold(minsup, transactions.length);
+    const trace = [];
+    let candidates = ord.map((i) => [i]);
+    let freqItems = [];
+    let counted = 0;
+    let k = 1;
+    let prevLevel = [];
+    while (candidates.length) {
+      const setsSel = candidates.map((c) => `set:${key(c, items)}`);
+      trace.push({
+        label: k === 1
+          ? `Level 1: every single item is a candidate (${candidates.length} counts)`
+          : `Level ${k}: extend each of ${setText(prevLevel.map((p) => p.join('+')))} by a later frequent item → ${candidates.length} candidates`,
+        patch: { apUpTo: counted },
+        ops: [{ role: 'lattice', cmd: 'highlight', args: { sel: setsSel, tone: 'accent' } }],
+      });
+      const Lk = [];
+      for (const c of candidates) {
+        const hits = transactions.filter((t) => isSubset(c, t.items)).map((t) => t.id);
+        const ok = hits.length >= thr - EPS && hits.length > 0;
+        counted++;
+        if (ok) Lk.push(c);
+        trace.push({
+          label: `${setText(c)}: ${hits.length ? `in ${rowsText(hits)}` : 'in no row'} → ${hits.length} ${ok ? `≥ ${thr} ✓ keep` : `< ${thr} ✗ never extended`}`,
+          vars: { counted },
+          patch: { apUpTo: counted },
+          ops: [
+            { role: 'lattice', cmd: 'highlight', args: { sel: `set:${key(c, items)}`, tone: ok ? 'good' : 'bad' } },
+            { role: 'table', cmd: 'highlight', args: { sel: hits.map((h) => `row:${h}`), tone: 'accent' } },
+          ],
+        });
+      }
+      if (k === 1) freqItems = Lk.map((c) => c[0]);
+      const next = [];
+      for (const f of Lk) {
+        const last = ord.indexOf(f[f.length - 1]);
+        for (const i of freqItems) if (ord.indexOf(i) > last) next.push([...f, i]);
+      }
+      prevLevel = Lk;
+      candidates = next;
+      k++;
+    }
+    const bf = Math.pow(2, ord.length) - 1;
+    trace.push({ label: `No candidates left. ${counted} counts instead of brute force's ${bf}`, patch: { apUpTo: counted }, vars: { counted } });
+    return { evaluated: counted, trace };
+  }
+
+  // Line-by-line trace of apriori(). anchors: level, while, loop, count, test, keep, items1, extend, ret
+  function aprioriCode({ transactions, minsup, order }) {
+    const ord = orderFor(transactions, order || APRIORI_ORDER);
+    const thr = threshold(minsup, transactions.length);
+    let candidates = ord.map((i) => [i]);
+    const trace = [{ label: `\`candidates\` = every single item, in slide-19 order: ${candidates.length} of them`, code: 'level', math: 'level', vars: { candidates: candidates.map(setText) } }];
+    let items1 = null;
+    let nFreq = 0;
+    let k = 1;
+    while (true) {
+      if (!candidates.length) { trace.push({ label: '`while candidates`: the list is empty, so the loop stops', code: 'while', math: 'while', vars: { candidates: [] } }); break; }
+      trace.push({ label: `\`while candidates\`: ${candidates.length} candidate${candidates.length > 1 ? 's' : ''} of size ${k} to count`, code: 'while', math: 'while', vars: { k } });
+      const level = [];
+      for (const X of candidates) {
+        trace.push({ label: `\`for X in candidates\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) } });
+        const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
+        trace.push({ label: `\`sup = abs_support(X)\`: ${hits.length ? rowsText(hits) : 'no row'} → sup = ${hits.length}`, code: 'count', math: 'count', vars: { sup: hits.length } });
+        const ok = hits.length >= thr - EPS && hits.length > 0;
+        trace.push({ label: `\`if sup >= minsup\`: ${hits.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' } });
+        if (ok) {
+          level.push(X);
+          nFreq++;
+          trace.push({ label: `store \`frequent[X] = ${hits.length}\` and append X to \`level\``, code: 'keep', math: 'keep', vars: { level: level.map(setText) } });
+        }
+      }
+      if (items1 === null) {
+        items1 = level.map((X) => X[0]);
+        trace.push({ label: `First pass only: \`items1\` = the frequent single items (${items1.join(', ')})`, code: 'items1', math: 'items1', vars: { items1 } });
+      }
+      const next = [];
+      for (const X of level) {
+        const last = ord.indexOf(X[X.length - 1]);
+        for (const i of items1) if (ord.indexOf(i) > last) next.push([...X, i]);
+      }
+      trace.push({ label: `Extend every X in \`level\` by a later item of \`items1\` → ${next.length} new candidate${next.length === 1 ? '' : 's'}`, code: 'extend', math: 'extend', vars: { candidates: next.map(setText) } });
+      candidates = next;
+      k++;
+    }
+    trace.push({ label: `\`return frequent\`: ${nFreq} frequent itemsets`, code: 'ret', math: 'ret', vars: { frequent: nFreq } });
+    return { count: nFreq, trace };
   }
 
   // Classic Apriori (beyond the slides): join frequent (k-1)-itemsets sharing a prefix, then prune
@@ -220,6 +512,143 @@ export default function register(sdk) {
     return { frequent, count: frequent.length, tree: cut(root), explored: trace.length - 1, trace };
   }
 
+  // ---------------------------------------------------------------- FP-growth, counted by hand
+  // Every prefix the lecture's recursion visits, in order (depth first, alphabetical).
+  function fpVisits(transactions, minsup, order) {
+    const ord = orderFor(transactions, order);
+    const thr = threshold(minsup, transactions.length);
+    const after = (items, item) => items.filter((x) => ord.indexOf(x) > ord.indexOf(item));
+    const visits = [];
+    function rec(prefix, rows) {
+      const here = sortSet([...new Set(rows.flatMap((r) => r.items))], ord);
+      for (const item of here) {
+        const p = [...prefix, item];
+        const holders = rows.filter((r) => r.items.includes(item));
+        const proj = holders.map((r) => ({ id: r.id, items: after(r.items, item) }));
+        const ok = proj.length >= thr - EPS;
+        visits.push({ prefix: p, parent: prefix, item, holders: holders.map((r) => r.id), proj, sup: proj.length, ok });
+        if (ok) rec(p, proj);
+      }
+    }
+    rec([], transactions.map((t) => ({ id: t.id, items: sortSet(t.items, ord) })));
+    return { visits, ord, thr };
+  }
+  // The projected (filtered) database for a prefix: rows containing it, only the items after it.
+  function projectDb(transactions, prefix, ord) {
+    let rows = transactions.map((t) => ({ id: t.id, items: sortSet(t.items, ord) }));
+    for (const item of prefix) {
+      rows = rows.filter((r) => r.items.includes(item)).map((r) => ({ id: r.id, items: r.items.filter((x) => ord.indexOf(x) > ord.indexOf(item)) }));
+    }
+    return rows;
+  }
+  const Dname = (p) => (p.length ? `$D_{${texSet(p)}}$` : 'the whole database');
+
+  // Tick grid for the current (projected) database: one row per remaining item, one column per row of D.
+  function fpCountGrid({ transactions, prefix = [], order, showCount = true, minsup = 2 }) {
+    const ord = orderFor(transactions, order);
+    const thr = threshold(minsup, transactions.length);
+    const rowsD = projectDb(transactions, prefix, ord);
+    const items = sortSet([...new Set(rowsD.flatMap((r) => r.items))], ord);
+    const cols = [...rowsD.map((r) => `T${r.id}`), 'count'];
+    const counts = items.map((it) => rowsD.filter((r) => r.items.includes(it)).length);
+    const values = items.length
+      ? items.map((it, k) => [...rowsD.map((r) => (r.items.includes(it) ? CHECK : BLANK)), showCount ? counts[k] : null])
+      : [[...rowsD.map(() => BLANK), showCount ? 0 : null]];
+    const title = prefix.length
+      ? `Counting inside ${Dname(prefix)}: ${rowsD.length} row${rowsD.length === 1 ? '' : 's'}, Sup(${setText(prefix)}) = ${rowsD.length}`
+      : `Counting inside the whole database: ${rowsD.length} rows`;
+    return {
+      rows: items.length ? items : ['(nothing left)'], cols, values, title, n: rowsD.length,
+      counts: Object.fromEntries(items.map((it, k) => [it, counts[k]])),
+      countsText: items.length ? items.map((it, k) => `${it} ${counts[k]}`).join(', ') : 'no items left',
+      frequentRows: items.filter((_, k) => counts[k] >= thr - EPS).map((it) => `row:${it}`),
+    };
+  }
+
+  // The recursion tree as far as it has been explored (first `upTo` prefixes).
+  function fpTreeUpTo({ transactions, minsup, order, upTo = 999 }) {
+    const { visits } = fpVisits(transactions, minsup, order);
+    const root = { id: 'root', label: `all items (${transactions.length} rows)`, children: [] };
+    const byId = { root };
+    visits.slice(0, upTo).forEach((v) => {
+      const node = { id: v.prefix.join('-'), label: `${setText(v.prefix)} = ${v.sup}`, note: v.ok ? `rows ${rowsText(v.holders)}` : 'stop', tone: v.ok ? 'good' : 'muted', children: [] };
+      byId[node.id] = node;
+      (byId[v.parent.length ? v.parent.join('-') : 'root'] || root).children.push(node);
+    });
+    const shown = Math.min(upTo, visits.length);
+    return { tree: root, shown, frequent: visits.slice(0, upTo).filter((v) => v.ok).length };
+  }
+
+  // FP-growth as taught, one decision per step. roles: table (TransactionTable), grid (Matrix from fpCountGrid), tree (Tree).
+  // Patches fpPrefix (which database the grid counts in) and fpStep (how much of the tree is drawn).
+  function fpWalk({ transactions, minsup, order }) {
+    const { visits, ord, thr } = fpVisits(transactions, minsup, order);
+    const trace = [];
+    const whole = fpCountGrid({ transactions, prefix: [], order: ord, minsup });
+    trace.push({ label: `Whole database, one tick per row: ${whole.countsText}`, patch: { fpPrefix: [], fpStep: 0 },
+      ops: [{ role: 'table', cmd: 'unproject' }, { role: 'grid', cmd: 'highlight', args: { sel: whole.frequentRows, tone: 'good' } }] });
+    visits.forEach((v, i) => {
+      trace.push({
+        label: `In ${Dname(v.parent)}: ${v.item} is in ${rowsText(v.holders)} → Sup(${setText(v.prefix)}) = ${v.sup} ${v.ok ? `≥ ${thr} ✓` : `< ${thr} ✗ stop`}`,
+        vars: { sup: v.sup },
+        patch: { fpPrefix: v.parent, fpStep: i + 1 },
+        ops: [
+          { role: 'grid', cmd: 'highlight', args: { sel: `row:${v.item}`, tone: v.ok ? 'good' : 'bad' } },
+          { role: 'table', cmd: 'project', args: { prefix: v.prefix } },
+          { role: 'tree', cmd: 'highlight', args: { sel: `node:${v.prefix.join('-')}`, tone: v.ok ? 'good' : 'bad' } },
+        ],
+      });
+      if (v.ok) {
+        const g = fpCountGrid({ transactions, prefix: v.prefix, order: ord, minsup });
+        trace.push({
+          label: `Filter to ${rowsText(v.holders)}, keep items after ${v.item}. ${Dname(v.prefix)}: ${g.countsText}`,
+          patch: { fpPrefix: v.prefix, fpStep: i + 1 },
+          ops: [
+            { role: 'table', cmd: 'project', args: { prefix: v.prefix } },
+            { role: 'grid', cmd: 'highlight', args: { sel: g.frequentRows, tone: 'good' } },
+            { role: 'tree', cmd: 'highlight', args: { sel: `path:${v.prefix.join('-')}`, tone: 'accent' } },
+          ],
+        });
+      }
+    });
+    const nf = visits.filter((v) => v.ok).length;
+    trace.push({ label: `Done: ${visits.length} prefixes tried, ${nf} frequent itemsets (slide 40)`, patch: { fpPrefix: [], fpStep: visits.length },
+      ops: [{ role: 'table', cmd: 'unproject' }] });
+    return { count: nf, explored: visits.length, trace };
+  }
+
+  // Line-by-line trace of the recursive fp_growth(). anchors: items, loop, filter, prefix, test, keep, recurse, ret
+  function fpGrowthCode({ transactions, minsup, order }) {
+    const ord = orderFor(transactions, order);
+    const thr = threshold(minsup, transactions.length);
+    const tup = (p) => `(${p.join(', ')})`;
+    const list = (r) => `[${r.join(', ')}]`;
+    const trace = [];
+    let nf = 0;
+    function rec(prefix, rows) {
+      const items = sortSet([...new Set(rows.flatMap((r) => r))], ord);
+      trace.push({ label: `Call with prefix ${tup(prefix)} and ${rows.length} rows → \`items\` = ${items.length ? items.join(', ') : 'none'}`, code: 'items', math: 'items', vars: { prefix: tup(prefix), items } });
+      for (const i of items) {
+        trace.push({ label: `\`for i in items\`: i = ${i}   (prefix so far ${tup(prefix)})`, code: 'loop', math: 'loop', vars: { i } });
+        const proj = rows.filter((r) => r.includes(i)).map((r) => r.filter((x) => ord.indexOf(x) > ord.indexOf(i)));
+        trace.push({ label: `\`proj\` inside ${tup(prefix)}: ${proj.length} ${proj.length === 1 ? 'row contains' : 'rows contain'} ${i}; items after it → ${proj.map(list).join(' ')}`, code: 'filter', math: 'filter', vars: { proj: proj.map(list) } });
+        const P = [...prefix, i];
+        trace.push({ label: `\`P = prefix + (i,)\` = ${tup(P)}`, code: 'prefix', math: 'prefix', vars: { P: tup(P) } });
+        const ok = proj.length >= thr - EPS;
+        trace.push({ label: `\`len(proj) >= minsup\`: ${proj.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**${ok ? '' : ', so move on'}`, code: 'test', math: 'test', vars: { sup: proj.length } });
+        if (ok) {
+          nf++;
+          trace.push({ label: `\`out[${tup(P)}] = ${proj.length}\` (${nf} frequent so far)`, code: 'keep', math: 'keep', vars: { found: nf } });
+          trace.push({ label: `Recurse: mine the ${proj.length} projected rows with prefix ${tup(P)}`, code: 'recurse', math: 'recurse', vars: { depth: P.length } });
+          rec(P, proj);
+        }
+      }
+      trace.push({ label: `Items exhausted for prefix ${tup(prefix)}: \`return out\`${prefix.length ? ' to the caller' : ` with ${nf} itemsets`}`, code: 'ret', math: 'ret', vars: { found: nf } });
+    }
+    rec([], transactions.map((t) => sortSet(t.items, ord)));
+    return { count: nf, trace };
+  }
+
   // roles: table, code, formula
   function confidence({ transactions, A, B }) {
     const both = support({ transactions, itemset: [...A, ...B] });
@@ -254,6 +683,195 @@ export default function register(sdk) {
         { label: `RelSup of the consequent = ${c.supB}/${c.n} = ${+relB.toFixed(2)}`, math: 'relb', code: 'relb', vars: { relB },
           ops: [{ role: 'table', cmd: 'highlight', args: { sel: bHits, tone: 'accent' } }] },
         { label: `Lift = ${c.conf === null ? '—' : +c.conf.toFixed(2)} / ${+relB.toFixed(2)} = ${value === null ? '—' : +value.toFixed(2)} (${verdict})`, math: 'lift', code: 'lift', vars: { lift: value } },
+      ],
+    };
+  }
+
+  // Single-pass confidence, line by line. anchors: init, loop, has-a, sup-a, has-b, sup-ab, ratio
+  function confidenceCode({ transactions, A, B }) {
+    const a = sortSet(A), b = sortSet(B);
+    let supA = 0, supAB = 0;
+    const trace = [{ label: '`sup_a = sup_ab = 0`: both counters start at zero', code: 'init', math: 'init', vars: { sup_a: 0, sup_ab: 0 } }];
+    for (const t of transactions) {
+      trace.push({ label: `\`for T in transactions\`: T = ${txText(t)}`, code: 'loop', math: 'loop', vars: { T: txText(t) } });
+      const missA = missingOf(a, t);
+      const hasA = missA.length === 0;
+      trace.push({ label: `A = ${setText(a)} ⊆ ${TX(t)}? **${hasA ? 'True' : 'False'}**${hasA ? '' : ` (${missA.join(', ')} missing): this basket says nothing about the rule`}`, code: 'has-a', math: 'has-a', vars: { has_a: hasA ? 'True' : 'False' } });
+      if (!hasA) continue;
+      supA++;
+      trace.push({ label: `\`sup_a += 1\` → sup_a = ${supA}`, code: 'sup-a', math: 'sup-a', vars: { sup_a: supA } });
+      const missB = missingOf(b, t);
+      const hasB = missB.length === 0;
+      trace.push({ label: `B = ${setText(b)} ⊆ ${TX(t)}? **${hasB ? 'True' : 'False'}**${hasB ? '' : ` (${missB.join(', ')} missing)`}`, code: 'has-b', math: 'has-b', vars: { has_b: hasB ? 'True' : 'False' } });
+      if (hasB) { supAB++; trace.push({ label: `\`sup_ab += 1\` → sup_ab = ${supAB}`, code: 'sup-ab', math: 'sup-ab', vars: { sup_ab: supAB } }); }
+    }
+    const conf = supA ? supAB / supA : null;
+    trace.push({ label: `\`return sup_ab / sup_a\` = ${supAB} / ${supA} = ${r2(conf)}`, code: 'ratio', math: 'ratio', vars: { conf } });
+    return { conf, supA, supAB, trace };
+  }
+
+  // Every candidate rule from a list of frequent itemsets, in the order written (bigger antecedents first).
+  function ruleCandidates(transactions, itemsets) {
+    const sup = (s) => transactions.filter((t) => isSubset(s, t.items)).length;
+    const out = [];
+    for (const I of itemsets) {
+      if (I.length < 2) continue;
+      const supI = sup(I);
+      for (let k = I.length - 1; k >= 1; k--) {
+        for (const A of combinations(I, k)) {
+          const B = I.filter((x) => !A.includes(x));
+          out.push({ I, A, B, supI, supA: sup(A), supB: sup(B), conf: supI / sup(A) });
+        }
+      }
+    }
+    return out;
+  }
+  const ruleTex = (A, B) => `${texSet(A)} \\to ${texSet(B)}`;
+
+  // Worksheet of every candidate rule (first `upTo` rows filled). cols: rule, Sup(A∪B), Sup(A), conf, verdict
+  function rulesGrid({ transactions, itemsets, minconf, upTo = 999 }) {
+    const c = ruleCandidates(transactions, itemsets);
+    return {
+      rows: c.map((_, k) => `R${k + 1}`),
+      cols: ['rule', 'Sup(A∪B)', 'Sup(A)', 'conf', 'kept?'],
+      values: c.map((r, k) => {
+        const done = k < upTo;
+        const ok = r.conf >= minconf - EPS;
+        return [ruleTex(r.A, r.B), done ? r.supI : null, done ? r.supA : null, done ? r.conf : null, done ? (ok ? '\\text{keep}' : '\\text{drop}') : null];
+      }),
+      kept: c.filter((r) => r.conf >= minconf - EPS).length,
+      considered: c.length,
+    };
+  }
+
+  // roles: grid (Matrix from rulesGrid), table (TransactionTable). Patches ruleUpTo.
+  function rulesWalk({ transactions, itemsets, minconf }) {
+    const c = ruleCandidates(transactions, itemsets);
+    const trace = [];
+    let k = 0, kept = 0, lastI = null;
+    for (const r of c) {
+      if (r.I !== lastI) {
+        lastI = r.I;
+        const n = Math.pow(2, r.I.length) - 2;
+        const hits = transactions.filter((t) => isSubset(r.I, t.items)).map((t) => `row:${t.id}`);
+        trace.push({ label: `Frequent itemset ${setText(r.I)}, Sup = ${r.supI}: try its ${n} splits into A → B`, patch: { ruleUpTo: k },
+          ops: [{ role: 'table', cmd: 'highlight', args: { sel: hits, tone: 'good' } }] });
+      }
+      k++;
+      const ok = r.conf >= minconf - EPS;
+      if (ok) kept++;
+      const aHits = transactions.filter((t) => isSubset(r.A, t.items)).map((t) => `row:${t.id}`);
+      trace.push({
+        label: `$${ruleTex(r.A, r.B)}$: $\\frac{${r.supI}}{${r.supA}} = ${r2(r.conf)}$ ${ok ? `≥ ${minconf} ✓ keep` : `< ${minconf} ✗ drop`}`,
+        vars: { conf: r.conf, kept },
+        patch: { ruleUpTo: k },
+        ops: [
+          { role: 'grid', cmd: 'highlight', args: { sel: `row:R${k}`, tone: ok ? 'good' : 'bad' } },
+          { role: 'table', cmd: 'highlight', args: { sel: aHits, tone: 'accent' } },
+        ],
+      });
+    }
+    trace.push({ label: `${kept} of ${c.length} candidate rules pass minconf = ${minconf} (slide 60)`, patch: { ruleUpTo: c.length }, vars: { kept } });
+    return { kept, considered: c.length, trace };
+  }
+
+  // Lift worksheet for the rules that pass minconf (first `upTo` rows filled).
+  function liftGrid({ transactions, itemsets, minconf, upTo = 999 }) {
+    const n = transactions.length;
+    const c = ruleCandidates(transactions, itemsets).filter((r) => r.conf >= minconf - EPS);
+    const verdict = (l) => (l > 1 + EPS ? '\\text{positive}' : l < 1 - EPS ? '\\text{negative}' : '\\text{none}');
+    return {
+      rows: c.map((_, k) => `L${k + 1}`),
+      cols: ['rule', 'conf', 'Sup(B)', 'RelSup(B)', 'lift', 'association'],
+      values: c.map((r, k) => {
+        const done = k < upTo;
+        const lift = r.conf / (r.supB / n);
+        return [ruleTex(r.A, r.B), r.conf, done ? r.supB : null, done ? r.supB / n : null, done ? lift : null, done ? verdict(lift) : null];
+      }),
+      count: c.length,
+      ones: c.filter((r) => Math.abs(r.conf / (r.supB / n) - 1) < 1e-9).length,
+    };
+  }
+
+  // roles: grid (Matrix from liftGrid). Patches liftUpTo.
+  function liftWalk({ transactions, itemsets, minconf }) {
+    const n = transactions.length;
+    const c = ruleCandidates(transactions, itemsets).filter((r) => r.conf >= minconf - EPS);
+    const trace = c.map((r, k) => {
+      const lift = r.conf / (r.supB / n);
+      const word = lift > 1 + EPS ? 'positive' : lift < 1 - EPS ? 'negative' : 'no association';
+      return {
+        label: `$${ruleTex(r.A, r.B)}$: lift $= \\frac{${r.supI}}{${r.supA}} \\div \\frac{${r.supB}}{${n}} = ${r2(lift)}$ → ${word}`,
+        vars: { lift },
+        patch: { liftUpTo: k + 1 },
+        ops: [{ role: 'grid', cmd: 'highlight', args: { sel: `row:L${k + 1}`, tone: lift > 1 + EPS ? 'good' : lift < 1 - EPS ? 'bad' : 'warn' } }],
+      };
+    });
+    const ones = c.filter((r) => Math.abs(r.conf / (r.supB / n) - 1) < 1e-9).length;
+    trace.push({ label: `${ones} of the ${c.length} kept rules have lift exactly 1: no association at all`, patch: { liftUpTo: c.length } });
+    return { count: c.length, ones, trace };
+  }
+
+  // Line-by-line rule generation. anchors: init, itemset, skip, size, split, conf, test, keep, ret
+  function rulesCode({ transactions, itemsets, minconf }) {
+    const sup = (s) => transactions.filter((t) => isSubset(s, t.items)).length;
+    const trace = [{ label: '`out = []`: no rules yet', code: 'init', math: 'init', vars: { rules: 0 } }];
+    let kept = 0;
+    for (const I0 of itemsets) {
+      const I = sortSet(I0);
+      const supI = sup(I);
+      trace.push({ label: `\`for I, sup_I in frequent.items()\`: I = ${setText(I)}, sup_I = ${supI}`, code: 'itemset', math: 'itemset', vars: { I: setText(I), sup_I: supI } });
+      if (I.length < 2) { trace.push({ label: `\`len(I) < 2\`: a single item can't be split into A and B, \`continue\``, code: 'skip', math: 'skip' }); continue; }
+      for (let k = I.length - 1; k >= 1; k--) {
+        trace.push({ label: `\`for k\`: antecedents with k = ${k} item${k > 1 ? 's' : ''}`, code: 'size', math: 'size', vars: { k } });
+        for (const A of combinations(I, k)) {
+          const B = I.filter((x) => !A.includes(x));
+          trace.push({ label: `\`for A in combinations\`: A = ${setText(A)}, so B = I − A = ${setText(B)}`, code: 'split', math: 'split', vars: { A: setText(A), B: setText(B) } });
+          const supA = sup(A);
+          const conf = supI / supA;
+          trace.push({ label: `\`conf = sup_I / frequent[A]\` = ${supI} / ${supA} = ${r2(conf)}`, code: 'conf', math: 'conf', vars: { conf } });
+          const ok = conf >= minconf - EPS;
+          trace.push({ label: `\`conf >= minconf\`: ${r2(conf)} ≥ ${minconf}? **${ok ? 'True' : 'False'}**${ok ? '' : ', rule dropped'}`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' } });
+          if (ok) { kept++; trace.push({ label: `\`out.append\`: ${setText(A)} → ${setText(B)} (${kept} rules so far)`, code: 'keep', math: 'keep', vars: { rules: kept } }); }
+        }
+      }
+    }
+    trace.push({ label: `\`return out\`: ${kept} rules`, code: 'ret', math: 'ret', vars: { rules: kept } });
+    return { kept, trace };
+  }
+
+  // Line-by-line lift. anchors: n, sup-a, sup-ab, conf, sup-b, relb, lift
+  function liftCode({ transactions, A, B }) {
+    const n = transactions.length;
+    const hit = (s) => transactions.filter((t) => isSubset(s, t.items)).map((t) => t.id);
+    const ha = hit(A), hab = hit([...A, ...B]), hb = hit(B);
+    const conf = ha.length ? hab.length / ha.length : null;
+    const relB = hb.length / n;
+    const lift = conf === null || relB === 0 ? null : conf / relB;
+    const word = lift === null ? 'undefined' : lift > 1 + EPS ? 'positive association' : lift < 1 - EPS ? 'negative association' : 'no association';
+    return {
+      lift, conf, relB,
+      trace: [
+        { label: `\`n = len(transactions)\` = ${n}`, code: 'n', math: 'n', vars: { n } },
+        { label: `\`sup_a\`: ${setText(sortSet(A))} is in ${rowsText(ha)} → ${ha.length}`, code: 'sup-a', math: 'sup-a', vars: { sup_a: ha.length } },
+        { label: `\`sup_ab\`: ${setText(sortSet([...A, ...B]))} is in ${rowsText(hab)} → ${hab.length}`, code: 'sup-ab', math: 'sup-ab', vars: { sup_ab: hab.length } },
+        { label: `\`conf = sup_ab / sup_a\` = ${hab.length} / ${ha.length} = ${r2(conf)}`, code: 'conf', math: 'conf', vars: { conf } },
+        { label: `\`sup_b\`: ${setText(sortSet(B))} is in ${rowsText(hb)} → ${hb.length}`, code: 'sup-b', math: 'sup-b', vars: { sup_b: hb.length } },
+        { label: `\`rel_b = sup_b / n\` = ${hb.length} / ${n} = ${r2(relB)}`, code: 'relb', math: 'relb', vars: { rel_b: relB } },
+        { label: `\`return conf / rel_b\` = ${r2(conf)} / ${r2(relB)} = ${r2(lift)}: ${word}`, code: 'lift', math: 'lift', vars: { lift } },
+      ],
+    };
+  }
+
+  // Line-by-line leverage and conviction. anchors: rels, lev, conv
+  function leverageCode({ transactions, A, B }) {
+    const m = ruleMetrics({ transactions, A, B });
+    return {
+      leverage: m.leverage, conviction: m.conviction,
+      trace: [
+        { label: `Relative supports: A ${r2(m.relA)}, B ${r2(m.relB)}, A ∪ B ${r2(m.relAB)}`, code: 'rels', math: 'rels', vars: { s_a: m.relA, s_b: m.relB, s_ab: m.relAB } },
+        { label: `\`s(A | B) - s(A) * s(B)\` = ${r2(m.relAB)} − ${r2(m.relA)} × ${r2(m.relB)} = ${+m.leverage.toFixed(3)}`, code: 'lev', math: 'lev', vars: { leverage: m.leverage } },
+        { label: m.convictionInfinite ? 'conf = 1, so the rule never fails: conviction = ∞' : `\`(1 - rel_b) / (1 - c)\` = (1 − ${r2(m.relB)}) / (1 − ${r2(m.conf)}) = ${r2(m.conviction)}`, code: 'conv', math: 'conv', vars: { conviction: m.convictionInfinite ? 'inf' : m.conviction } },
       ],
     };
   }
@@ -569,7 +1187,14 @@ export default function register(sdk) {
   }
 
   return {
-    fns: { support, frequentItemsets, frequentAmong, bruteForce, aprioriRun, aprioriClassic, fpGrowthRun, confidence, lift, ruleMetrics, rules, rulesFromItemset, vennCounts, explosion, itemSupports },
+    fns: {
+      support, supportCode, supportGrid, supportGridWalk, frequentItemsets, frequentAmong, frequentCode,
+      bruteForce, bfSupport, bruteForceWalk, bruteForceCode,
+      aprioriRun, aprioriSupport, aprioriWalk, aprioriCode, aprioriClassic,
+      fpGrowthRun, fpCountGrid, fpTreeUpTo, fpWalk, fpGrowthCode,
+      confidence, confidenceCode, lift, liftCode, ruleMetrics, leverageCode, rules, rulesFromItemset, rulesGrid, rulesWalk, rulesCode, liftGrid, liftWalk,
+      vennCounts, explosion, itemSupports,
+    },
     generators: { supportQ, supportRelQ, countFrequentQ, confidenceQ, liftQ, liftVerdictQ, aprioriCandidatesQ, rulesPassQ, ruleCountQ, bruteCountQ, projectedQ, trapQ, handRuleQ, handMineQ, vennConfQ },
   };
 }

@@ -11,27 +11,49 @@ sections:
       - { fn: center, in: { matrix: '@hp4x7' }, out: c }
     steps:
       - tex: |
+          \anchor{loop}{\text{for each user } u}: \quad \anchor{rated}{I_u = \{\, j : r_{uj} \text{ observed} \,\}}
+        say: Only the items the user **rated** ($I_u$) take part. Blank cells are not zeros.
+      - tex: |
           \mu_u = \anchor{mu}{\frac{1}{|I_u|}\sum_{j \in I_u} r_{uj}}
-        say: Average only the items the user **rated** ($I_u$). Blank cells are not zeros.
+        say: The user's own average.
       - tex: |
           s_{uj} = \anchor{s}{r_{uj} - \mu_u}
         say: Positive means "liked it more than usual", negative "less than usual".
       - tex: |
           \mu_A = \anchor{mu}{\tfrac{4 + 5 + 1}{3} = {=c.meansMap.A|frac}}, \qquad s_{A,\text{HP1}} = \anchor{s}{4 - \tfrac{10}{3} = {=c.values.0.0|frac}}
-        say: 'Lecture example (slides 3–4). B''s mean is {=c.meansMap.B|frac}, C''s {=c.meansMap.C|frac}, D''s {=c.meansMap.D|frac}.'
+        say: 'Lecture example (slides 3–4). B''s mean is {=c.meansMap.B|frac}, C''s {=c.meansMap.C|frac}, D''s {=c.meansMap.D|frac}. Step through all four users.'
     code:
       lang: python
       source: |
-        import numpy as np
-
         def center(R):
-            """R: users x items array, np.nan = not rated"""
-            mu = np.nanmean(R, axis=1)     # @a:mu
-            S = R - mu[:, None]            # @a:s
+            """R: list of rating rows; None = not rated"""
+            S, mu = [], []
+            for row in R:                                  # @a:loop
+                rated = [r for r in row if r is not None]  # @a:rated
+                m = sum(rated) / len(rated)                # @a:mu
+                mu.append(m)
+                # @a s
+                S.append([None if r is None else r - m
+                          for r in row])
+                # @end
             return S, mu
+    extraCode:
+      - lang: python
+        title: Vectorized (numpy)
+        source: |
+          import numpy as np
+
+          def center(R):
+              """R: users x items array, np.nan = not rated"""
+              mu = np.nanmean(R, axis=1)     # mean over rated items only
+              S = R - mu[:, None]            # nan stays nan
+              return S, mu
     links:
+      - { anchor: loop, label: 'one user (row) at a time' }
+      - { anchor: rated, label: 'Iᵤ: the rated items only' }
       - { anchor: mu, label: 'μᵤ: mean over rated items' }
       - { anchor: s, label: 'sᵤⱼ: centered rating' }
+    trace: { fn: centerCode, in: { matrix: '@hp4x7' } }
     examples: [hp-means, hp-center-a, ab-means]
     pitfalls:
       - Divide by the number of ratings the user gave, not by the number of columns.
@@ -49,32 +71,50 @@ sections:
     state: { a: A, b: B }
     derive:
       - { fn: sim, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user }, out: s }
+      - { fn: simSheet, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user }, out: ws }
     steps:
       - tex: |
-          I_{uv} = \anchor{corated}{I_u \cap I_v}
-        say: First find the co-rated items. A and B both rated a, b, d, e, f (B skipped c).
+          \anchor{loop}{\text{for each item } j}: \quad j \in I_{uv} = \anchor{corated}{I_u \cap I_v} \text{ (both rated it)}
+        say: Walk across the items; skip any item that either user left blank.
       - tex: |
-          \text{sim}(u,v) = \frac{\anchor{dot}{\sum_{j \in I_{uv}} s_{uj}\, s_{vj}}}{\anchor{norm}{\sqrt{\sum_{j \in I_{uv}} s_{uj}^2}\,\sqrt{\sum_{j \in I_{uv}} s_{vj}^2}}}
-        say: A cosine of the centered vectors, where both sums run over the co-rated items only.
+          \text{sim}(u,v) = \frac{\anchor{dot}{\sum_{j \in I_{uv}} s_{uj}\, s_{vj}}}{\sqrt{\anchor{nu}{\sum_{j \in I_{uv}} s_{uj}^2}}\,\sqrt{\anchor{nv}{\sum_{j \in I_{uv}} s_{vj}^2}}}
+        say: Three running sums, all over the same co-rated items.
       - tex: |
-          \text{sim}(\text{ {=a} }, \text{ {=b} }) = \frac{\anchor{dot}{ {=s.dot|3} }}{\anchor{norm}{ {=s.na|3} \cdot {=s.nb|3} }} = \anchor{sim}{ {=s.sim|2} }
-        say: 'Slide 9 shows 0.70 for (A, B). Overlap here: {=s.overlap} items ({=s.corated|list}).'
+          \anchor{init}{\text{sums start at } 0}; \qquad \anchor{zero}{\text{a zero norm} \Rightarrow \text{sim} = 0}
+        say: No overlap, or a user whose co-rated centered values are all 0, gives similarity 0 by convention.
+      - tex: |
+          \anchor{sim}{ {=ws.simTex} }
+        say: 'Slide 9 shows 0.70 for (A, B). Overlap here: {=s.overlap} items ({=s.corated|list}). Step through to see every term added.'
     code:
       lang: python
       source: |
+        import math
+
         def sim(S, u, v):
-            """S: centered matrix (np.nan = missing); u, v: row indices"""
-            both = ~np.isnan(S[u]) & ~np.isnan(S[v])       # @a:corated
-            a, b = S[u, both], S[v, both]
-            dot = np.dot(a, b)                              # @a:dot
-            norm = np.linalg.norm(a) * np.linalg.norm(b)    # @a:norm
-            return 0.0 if norm == 0 else dot / norm         # @a:sim
+            """S: centered rows (None = missing); u, v: row indices"""
+            dot = nu = nv = 0.0                              # @a:init
+            # @a loop
+            for j in range(len(S[u])):
+                a, b = S[u][j], S[v][j]
+            # @end
+                if a is None or b is None:                   # @a:corated
+                    continue                                 # @a:corated
+                dot += a * b                                 # @a:dot
+                nu += a * a                                  # @a:nu
+                nv += b * b                                  # @a:nv
+            if nu == 0 or nv == 0:                           # @a:zero
+                return 0.0                                   # @a:zero
+            return dot / (math.sqrt(nu) * math.sqrt(nv))     # @a:sim
     links:
+      - { anchor: init, label: 'three sums start at 0' }
+      - { anchor: loop, label: 'each item j' }
       - { anchor: corated, label: co-rated items only }
       - { anchor: dot, label: dot product of centered ratings }
-      - { anchor: norm, label: 'norms, over the same items' }
+      - { anchor: nu, label: '‖u‖²' }
+      - { anchor: nv, label: '‖v‖²' }
+      - { anchor: zero, label: 'zero norm → 0' }
       - { anchor: sim, label: 'the similarity, in [−1, 1]' }
-    trace: { fn: sim, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user } }
+    trace: { fn: simCode, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user } }
     examples: [ab-sim-ab, ab-sim-ac, ab-sim-bc, ab-sim-bd, ab-sim-de, hp-sim-ca, hp-sim-cb, hp-sim-da]
     pitfalls:
       - Compute the norms over the **co-rated** items, not over everything each user rated.
@@ -94,25 +134,33 @@ sections:
       - { fn: predict, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user }, out: p }
     steps:
       - tex: |
-          P_u(j) = \anchor{cands}{\{ v \neq u : r_{vj} \text{ observed} \}}
+          \anchor{loop}{\text{for each user } v}: \quad P_u(j) = \anchor{cands}{\{ v \neq u : r_{vj} \text{ observed} \}}
         say: Candidates are the other users who rated item j.
       - tex: |
-          N_u(j) = \anchor{topk}{\{ v \in \text{top-}k \text{ of } P_u(j) : \text{sim}(u,v) > 0 \}}
-        say: Rank candidates by similarity, cut at k, then keep only positive similarities.
+          \anchor{topk}{\text{top-}k \text{ of } P_u(j) \text{ by sim}(u, v)}
+        say: Rank candidates by similarity and cut at k.
       - tex: |
-          \text{top-}{=k}: \text{ {=p.top|list} } \;\Rightarrow\; \anchor{topk}{N = \{\text{ {=p.used|list} }\}}
+          N_u(j) = \anchor{pos}{\{ v \in \text{top-}k : \text{sim}(u,v) > 0 \}}
+        say: Then keep only positive similarities.
+      - tex: |
+          \text{top-}{=k}: \text{ {=p.top|list} } \;\Rightarrow\; \anchor{pos}{N = \{\text{ {=p.used|list} }\}}
         say: 'Slide 10 (k = 3, B·c): C 0.94, A 0.70, D −0.72 make the top 3; D is dropped for its negative similarity.'
     code:
       lang: python
       source: |
         def neighbors(S, sims, u, j, k):
-            cands = [v for v in range(len(S))
-                     if v != u and not np.isnan(S[v, j])]        # @a:cands
-            top = sorted(cands, key=lambda v: -sims[u, v])[:k]   # @a:topk
-            return [v for v in top if sims[u, v] > 0]            # @a:topk
+            cands = []
+            for v in range(len(S)):                                # @a:loop
+                if v != u and S[v][j] is not None:                 # @a:cands
+                    cands.append(v)                                # @a:cands
+            top = sorted(cands, key=lambda v: -sims[u][v])[:k]     # @a:topk
+            return [v for v in top if sims[u][v] > 0]              # @a:pos
     links:
-      - { anchor: cands, label: peers who rated item j }
-      - { anchor: topk, label: 'top-k, then sim > 0' }
+      - { anchor: loop, label: 'each other user v' }
+      - { anchor: cands, label: 'peers who rated item j' }
+      - { anchor: topk, label: 'top-k by similarity' }
+      - { anchor: pos, label: 'then sim > 0' }
+    trace: { fn: predictCode, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user, stopAt: pos } }
     examples: [ub-b-c, ub-e-b, ib-hp-c-hp2-blank]
     pitfalls:
       - Take the top-k **before** filtering; a negative neighbour still occupies a top-k slot (E·b on slide 13 uses only D).
@@ -130,38 +178,49 @@ sections:
     state: { user: B, item: c, k: 3 }
     derive:
       - { fn: predict, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user }, out: p }
+      - { fn: predictSheet, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user }, out: ps }
     steps:
       - tex: |
-          \anchor{pred}{\hat s_{uj}} = \frac{\sum_{v \in \anchor{topk}{N_u(j)}} \text{sim}(u,v)\;\anchor{cands}{s_{vj}}}{\sum_{v \in N_u(j)} \text{sim}(u,v)}
+          \anchor{loop}{v \neq u} \text{ with } \anchor{cands}{r_{vj} \text{ observed}} \;\Rightarrow\; \anchor{topk}{\text{top-}k} \;\Rightarrow\; \anchor{pos}{\text{sim} > 0}
+        say: The neighbour selection of the previous section.
+      - tex: |
+          \anchor{pred}{\hat s_{uj}} = \frac{\anchor{num}{\sum_{v \in N} \text{sim}(u,v)\; s_{vj}}}{\anchor{den}{\sum_{v \in N} \text{sim}(u,v)}}, \qquad \anchor{acc}{\text{one term per used neighbour}}
         say: Each neighbour's centered opinion of item j, weighted by how similar they are to u.
       - tex: |
           \hat r_{uj} = \hat s_{uj} + \anchor{mean}{\mu_u}
         say: Undo the centering with the **target user's** mean.
       - tex: |
-          \hat s_{\text{ {=user} },\text{ {=item} }} = \frac{ {=p.num|3} }{ {=p.den|3} } = \anchor{pred}{ {=p.centered|2} }, \qquad \hat r = {=p.centered|2} + \anchor{mean}{ {=p.mean|2} } = {=p.rating|2}
-        say: 'Slide 10: (0.7)(1.5) + (0.94)(1) over 0.7 + 0.94 = 1.2, so B would rate c about 1.2 + 4.8 = 6.0.'
+          \anchor{pred}{ {=ps.predTex} }, \qquad \anchor{mean}{ {=ps.ratingTex} }
+        say: 'Slide 10: (0.94)(1) + (0.7)(1.5) over 0.94 + 0.7 = 1.2, so B would rate c about 1.2 + 4.8 = 6.0.'
     code:
       lang: python
       source: |
-        def predict_user_based(R, u, j, k):
-            S, mu = center(R)
-            n = len(S)
-            sims = np.array([[sim(S, a, b) for b in range(n)] for a in range(n)])
-            cands = [v for v in range(n)
-                     if v != u and not np.isnan(S[v, j])]          # @a:cands
-            top = sorted(cands, key=lambda v: -sims[u, v])[:k]     # @a:topk
-            used = [v for v in top if sims[u, v] > 0]              # @a:topk
-            if not used:
-                return None                                        # blank, as on the slides
-            s_hat = (sum(sims[u, v] * S[v, j] for v in used)
-                     / sum(sims[u, v] for v in used))              # @a:pred
+        def predict_user_based(S, mu, sims, u, j, k):
+            cands = []
+            for v in range(len(S)):                                # @a:loop
+                if v != u and S[v][j] is not None:                 # @a:cands
+                    cands.append(v)                                # @a:cands
+            top = sorted(cands, key=lambda v: -sims[u][v])[:k]     # @a:topk
+            used = [v for v in top if sims[u][v] > 0]              # @a:pos
+            if not used:                                           # @a:pos
+                return None                                        # @a:pos
+            num = den = 0.0
+            for v in used:                                         # @a:acc
+                num += sims[u][v] * S[v][j]                        # @a:num
+                den += sims[u][v]                                  # @a:den
+            s_hat = num / den                                      # @a:pred
             return s_hat + mu[u]                                   # @a:mean
     links:
-      - { anchor: cands, label: "neighbours' centered ratings of j" }
-      - { anchor: topk, label: 'N: top-k with sim > 0' }
+      - { anchor: loop, label: 'each other user v' }
+      - { anchor: cands, label: "rated item j" }
+      - { anchor: topk, label: 'top-k' }
+      - { anchor: pos, label: 'sim > 0, else blank' }
+      - { anchor: acc, label: 'each used neighbour' }
+      - { anchor: num, label: 'Σ sim · s' }
+      - { anchor: den, label: 'Σ sim' }
       - { anchor: pred, label: 'ŝ: weighted average' }
       - { anchor: mean, label: 'add μᵤ back' }
-    trace: { fn: predict, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user } }
+    trace: { fn: predictCode, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user } }
     examples: [ub-b-c, ub-c-a, ub-c-f, ub-e-b, ub-b-c-rating]
     pitfalls:
       - Forgetting to add μᵤ back gives a centered value like 1.2, not a rating like 6.0.
@@ -181,32 +240,50 @@ sections:
     state: { a: a, b: b }
     derive:
       - { fn: sim, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item }, out: s }
+      - { fn: simSheet, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item }, out: ws }
     steps:
       - tex: |
-          U_{ij} = \anchor{corated}{U_i \cap U_j}
+          \anchor{loop}{\text{for each user } u}: \quad u \in U_{ij} = \anchor{corated}{U_i \cap U_j} \text{ (rated both items)}
         say: The users who rated both items.
       - tex: |
-          \text{sim}(i,j) = \frac{\anchor{dot}{\sum_{u \in U_{ij}} s_{ui}\, s_{uj}}}{\anchor{norm}{\sqrt{\sum_{u \in U_{ij}} s_{ui}^2}\,\sqrt{\sum_{u \in U_{ij}} s_{uj}^2}}}
+          \text{sim}(i,j) = \frac{\anchor{dot}{\sum_{u \in U_{ij}} s_{ui}\, s_{uj}}}{\sqrt{\anchor{nu}{\sum_{u \in U_{ij}} s_{ui}^2}}\,\sqrt{\anchor{nv}{\sum_{u \in U_{ij}} s_{uj}^2}}}
         say: Same cosine as before, on columns of the user-centered matrix.
       - tex: |
-          \text{sim}(\text{ {=a} }, \text{ {=b} }) = \frac{\anchor{dot}{ {=s.dot|3} }}{\anchor{norm}{ {=s.na|3} \cdot {=s.nb|3} }} = \anchor{sim}{ {=s.sim|2} }
+          \anchor{init}{\text{all sums start at } 0}; \qquad \anchor{zero}{\text{a zero norm} \Rightarrow \text{sim} = 0}
+        say: Items with no common rater get 0 (HP3 and TW on slide 18).
+      - tex: |
+          \anchor{sim}{ {=ws.simTex} }
         say: 'Slide 41 shows 0.74 for (a, b). Try TW and SW1 on the HP data to see the erratum below.'
     code:
       lang: python
       source: |
+        import math
+
         def item_sim(S, i, j):
             """adjusted cosine: columns of the USER-centered matrix"""
-            both = ~np.isnan(S[:, i]) & ~np.isnan(S[:, j])   # @a:corated
-            a, b = S[both, i], S[both, j]
-            dot = np.dot(a, b)                                # @a:dot
-            norm = np.linalg.norm(a) * np.linalg.norm(b)      # @a:norm
-            return 0.0 if norm == 0 else dot / norm           # @a:sim
+            dot = ni = nj = 0.0                              # @a:init
+            # @a loop
+            for u in range(len(S)):
+                a, b = S[u][i], S[u][j]
+            # @end
+                if a is None or b is None:                   # @a:corated
+                    continue                                 # @a:corated
+                dot += a * b                                 # @a:dot
+                ni += a * a                                  # @a:nu
+                nj += b * b                                  # @a:nv
+            if ni == 0 or nj == 0:                           # @a:zero
+                return 0.0                                   # @a:zero
+            return dot / (math.sqrt(ni) * math.sqrt(nj))     # @a:sim
     links:
+      - { anchor: init, label: 'sums start at 0' }
+      - { anchor: loop, label: 'each user u' }
       - { anchor: corated, label: users who rated both items }
       - { anchor: dot, label: dot product }
-      - { anchor: norm, label: norms over the same users }
+      - { anchor: nu, label: '‖i‖²' }
+      - { anchor: nv, label: '‖j‖²' }
+      - { anchor: zero, label: 'zero norm → 0' }
       - { anchor: sim, label: item similarity }
-    trace: { fn: sim, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item } }
+    trace: { fn: simCode, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item } }
     examples: [ab-isim-ab, ab-isim-ac, ab-isim-af, ab-isim-be, ab-isim-df, ib-sim-hp1-hp2, ib-sim-hp1-tw, ib-sim-hp3-tw, ib-sim-tw-sw1]
     pitfalls:
       - Center by the **user** (row) mean even though you compare columns.
@@ -226,37 +303,49 @@ sections:
     state: { user: C, item: HP1, k: 2 }
     derive:
       - { fn: predict, in: { matrix: '@hp4x7', user: '@user', item: '@item', k: '@k', mode: item }, out: p }
+      - { fn: predictSheet, in: { matrix: '@hp4x7', user: '@user', item: '@item', k: '@k', mode: item }, out: ps }
     steps:
       - tex: |
-          \text{candidates} = \anchor{cands}{\{ i \neq j : r_{ui} \text{ observed} \}}
+          \anchor{loop}{\text{for each item } i}: \quad \text{candidates} = \anchor{cands}{\{ i \neq j : r_{ui} \text{ observed} \}}
         say: The items this user rated.
       - tex: |
-          \anchor{pred}{\hat s_{uj}} = \frac{\sum_{i \in \anchor{topk}{N_j(u)}} \text{sim}(j,i)\; s_{ui}}{\sum_{i \in N_j(u)} \text{sim}(j,i)}, \qquad \hat r_{uj} = \hat s_{uj} + \anchor{mean}{\mu_u}
-        say: Same top-k and sim > 0 rules; the ratings being averaged are the user's own.
+          \anchor{topk}{\text{top-}k \text{ by sim}(j, i)} \;\Rightarrow\; \anchor{pos}{\text{keep sim} > 0}
+        say: Same top-k and sim > 0 rules as user-based CF.
       - tex: |
-          \hat s_{\text{ {=user} },\text{ {=item} }} = \anchor{pred}{ {=p.centered|2} } \quad (\text{used: {=p.used|list}}), \qquad \hat r = {=p.rating|2}
+          \anchor{pred}{\hat s_{uj}} = \frac{\anchor{num}{\sum_{i \in N} \text{sim}(j,i)\; s_{ui}}}{\anchor{den}{\sum_{i \in N} \text{sim}(j,i)}} \ (\anchor{acc}{\text{one term per used item}}), \qquad \hat r_{uj} = \hat s_{uj} + \anchor{mean}{\mu_u}
+        say: The ratings being averaged are the user's own.
+      - tex: |
+          \anchor{pred}{ {=ps.predTex} }
         say: 'Slide 20: C rated TW (sim 1), SW1 (−1), SW2 (0); top-2 = TW, SW2; only TW is positive → (1)(−5/3)/1 = −1.7.'
     code:
       lang: python
       source: |
-        def predict_item_based(R, u, j, k):
-            S, mu = center(R)
-            m = S.shape[1]
-            cands = [i for i in range(m)
-                     if i != j and not np.isnan(S[u, i])]              # @a:cands
-            top = sorted(cands, key=lambda i: -item_sim(S, j, i))[:k]  # @a:topk
-            used = [i for i in top if item_sim(S, j, i) > 0]           # @a:topk
-            if not used:
-                return None
-            s_hat = (sum(item_sim(S, j, i) * S[u, i] for i in used)
-                     / sum(item_sim(S, j, i) for i in used))           # @a:pred
-            return s_hat + mu[u]                                       # @a:mean
+        def predict_item_based(S, mu, isims, u, j, k):
+            cands = []
+            for i in range(len(S[u])):                             # @a:loop
+                if i != j and S[u][i] is not None:                 # @a:cands
+                    cands.append(i)                                # @a:cands
+            top = sorted(cands, key=lambda i: -isims[j][i])[:k]    # @a:topk
+            used = [i for i in top if isims[j][i] > 0]             # @a:pos
+            if not used:                                           # @a:pos
+                return None                                        # @a:pos
+            num = den = 0.0
+            for i in used:                                         # @a:acc
+                num += isims[j][i] * S[u][i]                       # @a:num
+                den += isims[j][i]                                 # @a:den
+            s_hat = num / den                                      # @a:pred
+            return s_hat + mu[u]                                   # @a:mean
     links:
+      - { anchor: loop, label: 'each other item i' }
       - { anchor: cands, label: items the user rated }
-      - { anchor: topk, label: 'top-k similar items, sim > 0' }
+      - { anchor: topk, label: 'top-k similar items' }
+      - { anchor: pos, label: 'sim > 0, else blank' }
+      - { anchor: acc, label: 'each used item' }
+      - { anchor: num, label: 'Σ sim · s' }
+      - { anchor: den, label: 'Σ sim' }
       - { anchor: pred, label: weighted average of the user's own ratings }
       - { anchor: mean, label: add μᵤ back }
-    trace: { fn: predict, in: { matrix: '@hp4x7', user: '@user', item: '@item', k: '@k', mode: item } }
+    trace: { fn: predictCode, in: { matrix: '@hp4x7', user: '@user', item: '@item', k: '@k', mode: item } }
     examples: [ib-hp-c-hp1, ib-hp-a-hp2, ib-hp-b-tw, ib-hp-a-sw2, ib-hp-c-hp2-blank, ib-hp-a-hp3-blank, ib-ab-c-a, ib-ab-e-b, ib-ab-b-c, ib-ab-c-f]
     pitfalls:
       - In item-based CF, the weights come from item–item similarities and the values from the **target user's** row.
@@ -277,13 +366,16 @@ sections:
       - { fn: dcg, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 }, out: d }
     steps:
       - tex: |
-          \text{DCG}@k = \anchor{term}{\sum_{i=1}^{k}} \frac{\anchor{gain}{2^{rel_i} - 1}}{\anchor{disc}{\log_2(i + 1)}}
+          \text{DCG}@k = \anchor{add}{\sum_{\anchor{loop}{i=1}}^{k}} \frac{\anchor{gain}{2^{rel_i} - 1}}{\anchor{disc}{\log_2(i + 1)}}, \qquad \anchor{init}{\text{total starts at } 0}
         say: The exponential gain rewards highly relevant items strongly; the log discount fades with position.
       - tex: |
           = \frac{2^3-1}{\log_2 2} + \frac{2^9-1}{\log_2 3} + \frac{2^7-1}{\log_2 4} + \frac{2^8-1}{\log_2 5} + \frac{2^5-1}{\log_2 6}
         say: 'The list [B, A, C, F, E] with true ratings B = 3, A = 9, C = 7, F = 8, E = 5 (slide 50).'
       - tex: |
-          \text{DCG}@5 = \anchor{term}{ {=d.dcg|2} }
+          = \frac{7}{1} + \frac{511}{1.585} + \frac{127}{2} + \frac{255}{2.322} + \frac{31}{2.585} = 7 + 322.41 + 63.5 + 109.82 + 11.99
+        say: Each term worked out.
+      - tex: |
+          \text{DCG}@5 = \anchor{ret}{ {=d.dcg|2} }
         say: The slide's 514.72.
     code:
       lang: python
@@ -291,17 +383,20 @@ sections:
         import math
 
         def dcg(ratings, ranked, k):
-            total = 0.0
-            for i, item in enumerate(ranked[:k], start=1):   # @a:term
-                gain = 2 ** ratings[item] - 1                # @a:gain
-                disc = math.log2(i + 1)                      # @a:disc
-                total += gain / disc                         # @a:term
-            return total
+            total = 0.0                                        # @a:init
+            for i, item in enumerate(ranked[:k], start=1):     # @a:loop
+                gain = 2 ** ratings[item] - 1                  # @a:gain
+                disc = math.log2(i + 1)                        # @a:disc
+                total += gain / disc                           # @a:add
+            return total                                       # @a:ret
     links:
-      - { anchor: term, label: sum over the top k positions }
+      - { anchor: init, label: 'total = 0' }
+      - { anchor: loop, label: 'positions 1 … k' }
       - { anchor: gain, label: 'gain 2^rel − 1' }
       - { anchor: disc, label: 'discount log₂(i + 1)' }
-    trace: { fn: dcg, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 } }
+      - { anchor: add, label: 'add gain / discount' }
+      - { anchor: ret, label: 'DCG@k' }
+    trace: { fn: dcgCode, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 } }
     examples: [dcg]
     pitfalls:
       - The top position divides by log₂2 = 1, not by log₂1 = 0.
@@ -320,11 +415,11 @@ sections:
       - { fn: ndcg, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 }, out: n }
     steps:
       - tex: |
-          \anchor{idcg}{\text{IDCG}@k} = \text{DCG of the best } k \text{ items in descending relevance}
+          \anchor{ideal}{\text{ideal order}} = \text{all items by true rating, descending}
         say: 'The ideal top 5 of all six items is [A, F, C, E, B]; D (rating 2) doesn''t make it.'
       - tex: |
-          \text{NDCG}@k = \frac{\anchor{dcg}{\text{DCG}@k}}{\anchor{idcg}{\text{IDCG}@k}}
-        say: Normalize by the best possible score.
+          \anchor{idcg}{\text{IDCG}@5} = \frac{511}{1} + \frac{255}{1.585} + \frac{127}{2} + \frac{31}{2.322} + \frac{7}{2.585} = 511 + 160.89 + 63.5 + 13.35 + 2.71
+        say: The same sum as DCG, on the ideal order.
       - tex: |
           \anchor{ndcg}{\text{NDCG}} = \frac{\anchor{dcg}{ {=n.dcg|2} }}{\anchor{idcg}{ {=n.idcg|2} }} = {=n.ndcg|3}
         say: The lecture's 0.685 (slides 52–53).
@@ -332,14 +427,16 @@ sections:
       lang: python
       source: |
         def ndcg(ratings, ranked, k):
-            ideal = sorted(ratings, key=ratings.get, reverse=True)   # @a:idcg
-            return (dcg(ratings, ranked, k)                          # @a:dcg
-                    / dcg(ratings, ideal, k))                        # @a:ndcg
+            ideal = sorted(ratings, key=ratings.get, reverse=True)   # @a:ideal
+            d = dcg(ratings, ranked, k)                              # @a:dcg
+            i = dcg(ratings, ideal, k)                               # @a:idcg
+            return d / i                                             # @a:ndcg
     links:
+      - { anchor: ideal, label: 'the ideal order' }
       - { anchor: dcg, label: DCG of the recommended list }
       - { anchor: idcg, label: DCG of the ideal list }
       - { anchor: ndcg, label: the ratio }
-    trace: { fn: ndcg, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 } }
+    trace: { fn: ndcgCode, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 } }
     examples: [ndcg]
     pitfalls:
       - The ideal list is chosen from **all** rated items, not just the recommended ones.
@@ -362,10 +459,13 @@ sections:
       - { fn: shrunkSim, in: { matrix: '@hp4x7', a: '@a', b: '@b', mode: user, beta: '@beta' }, out: w }
     steps:
       - tex: |
-          \anchor{w}{\frac{\min(|I_u \cap I_v|,\ \beta)}{\beta}}
+          \anchor{both}{|I_u \cap I_v|} = \text{number of co-rated items}
+        say: Count the overlap first.
+      - tex: |
+          \anchor{w}{w = \frac{\min(|I_u \cap I_v|,\ \beta)}{\beta}}
         say: A weight between 0 and 1 that reaches 1 once users share at least β items.
       - tex: |
-          \anchor{shrunk}{\text{sim}^{*}(u,v)} = \anchor{w}{w} \cdot \text{sim}(u,v)
+          \anchor{shrunk}{\text{sim}^{*}(u,v)} = w \cdot \text{sim}(u,v)
         say: Multiply the raw similarity by the weight.
       - tex: |
           \text{sim}(B,A) = {=w.sim|2}, \ |I_B \cap I_A| = {=w.overlap} \;\Rightarrow\; \anchor{shrunk}{\text{sim}^{*} = {=w.shrunk|2}}
@@ -374,12 +474,17 @@ sections:
       lang: python
       source: |
         def shrunk_sim(S, u, v, beta=3):
-            both = ~np.isnan(S[u]) & ~np.isnan(S[v])
-            w = min(both.sum(), beta) / beta     # @a:w
-            return w * sim(S, u, v)              # @a:shrunk
+            # @a both
+            both = sum(1 for a, b in zip(S[u], S[v])
+                       if a is not None and b is not None)
+            # @end
+            w = min(both, beta) / beta     # @a:w
+            return w * sim(S, u, v)        # @a:shrunk
     links:
+      - { anchor: both, label: 'overlap size' }
       - { anchor: w, label: 'overlap weight' }
       - { anchor: shrunk, label: 'shrunk similarity' }
+    trace: { fn: shrunkCode, in: { matrix: '@hp4x7', a: '@a', b: '@b', mode: user, beta: '@beta' } }
     pitfalls:
       - Not in the lecture. On the exam, use plain similarities unless asked.
     examTip: If a question asks why a similarity of 1 might be misleading, point to the size of the overlap.

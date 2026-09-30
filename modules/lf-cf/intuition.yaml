@@ -23,7 +23,11 @@ scenes:
       - id: f
         widget: Formula
         region: side
-        props: { tex: 'p = \anchor{u}{u_1} \anchor{v}{v_1} + u_2 v_2 = {=dp.dot|2}' }
+        props:
+          steps:
+            - 'p = \anchor{u}{u_1} \anchor{v}{v_1} + u_2 v_2'
+            - 'p = {=dp.tex}'
+          step: 1
     beats:
       - say: |
           Neighbourhood CF needed overlaps. Latent factors take another route: describe each person by a few **hidden tastes** (say, love of action and of romance) and each film by how much it has of each.
@@ -35,8 +39,8 @@ scenes:
           type: predict
           question: 'You = (2, 1), film = (1, 2). What rating does the model predict?'
           answer: { value: 4 }
-          explain: '2·1 + 1·2 = 4.'
-      - say: Drag the film arrow to change what the film is like.
+          explain: '(2)(1) + (1)(2) = 2 + 2 = 4: your action love times its action, plus your romance love times its romance.'
+      - say: Drag the film arrow to change what the film is like. The formula redoes the two products and the sum as you drag.
         gate:
           type: when
           prompt: Make a film you'd rate about **5**.
@@ -94,25 +98,38 @@ scenes:
 
   - id: only-observed-cells
     title: Only observed cells count
-    goal: What exactly are we minimizing?
+    goal: What exactly are we minimizing, and how do we get SSE = 75 by hand?
     skills: [sse-observed]
     data: [r5x5]
-    state: { c: 2 }
+    state: { c: 2, sseUpTo: 0 }
     derive:
       - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
       - { fn: sse, in: { R: '@r5x5', U: '@st.U', V: '@st.V' }, out: s }
+      - { fn: sseSheet, in: { R: '@r5x5', U: '@st.U', V: '@st.V', upTo: '@sseUpTo' }, out: sh }
       - { fn: constantSse, in: { R: '@r5x5', c: '@c' }, out: cs }
     stage:
       - id: err
         widget: Matrix
         props: { data: '@s.errors', format: 2, heatmap: div, title: 'Errors r − p with U = V = ones (every p = 2)', emptyLabel: '—' }
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@sh.rows', cols: '@sh.cols', values: '@sh.values', format: 2, title: 'Squared errors (r − p)², row by row', emptyLabel: '' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: sseWalk
+          in: { R: '@r5x5', U: '@st.U', V: '@st.V' }
+          roles: { sheet: sheet, err: err }
+          speed: 0.5
       - id: r
         widget: Readout
         region: side
         props:
           items:
             - { label: observed cells, value: '@s.observed' }
-            - { label: 'SSE (p = 2)', value: '@s.sse', format: 2, tone: bad }
+            - { label: 'SSE so far', value: '@sh.total', format: 2, tone: bad }
       - id: cs
         widget: Slider
         region: side
@@ -128,7 +145,7 @@ scenes:
             - { label: 'SSE if every p = c', value: '@cs.sse', format: 2, tone: accent }
     beats:
       - say: |
-          Coordinate descent starts from U = V = all ones, so every prediction is 2 (slide 9). The matrix shows the errors r − p.
+          Coordinate descent starts from U = V = all ones, so every prediction is $(1)(1) + (1)(1) = 2$ (slide 9). The top matrix shows the errors $r - p$.
       - say: Which cells should the error include?
         gate:
           type: predict
@@ -136,7 +153,22 @@ scenes:
           answer: { value: 22 }
           explain: '25 cells minus the 3 missing ratings. Blanks are what we want to predict, so they carry no error.'
       - say: |
-          **SSE** = the sum of squared errors over the **22 observed** cells = 75 here. Missing cells show "—": they are never counted (slide 4 leaves them out).
+          Square each error and add. Row u1 has ratings 5, 2, 4, 4, 3, so its errors are 3, 0, 2, 2, 1.
+        gate:
+          type: predict
+          question: 'What does row u1 add to the SSE?'
+          answer: { value: 18 }
+          explain: '(5 − 2)² + (2 − 2)² + (4 − 2)² + (4 − 2)² + (3 − 2)² = 9 + 0 + 4 + 4 + 1 = 18.'
+      - say: Now every row. Blank cells are skipped, never counted as 0.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the five rows and the total.
+          target: player
+          event: done
+      - say: |
+          **SSE** $= 18 + 7 + 6 + 23 + 21 = 75$ over the **22 observed** cells. Missing cells show "—": they are never counted (slide 4 leaves them out).
+        set: { sseUpTo: 5 }
         do:
           - { target: err, cmd: highlight, args: { sel: missing, tone: warn } }
       - say: As a warm-up, forget factors and predict the same number c everywhere.
@@ -147,17 +179,18 @@ scenes:
           when: 'cs.sse <= cs.best + 0.05'
           hint: Try the average of the observed ratings.
       - say: |
-          The best constant is the **mean of the observed ratings** (≈ 3.3). Factors can do much better because each user and item gets its own numbers.
+          The best constant is the **mean of the observed ratings**, $\frac{73}{22} \approx 3.32$. Factors can do much better because each user and item gets its own numbers.
     takeaway: The SSE sums squared errors over observed ratings only; the model is judged on what we know.
 
   - id: als-dance
     title: The ALS dance
-    goal: How does alternating least squares fit U and V?
+    goal: How does alternating least squares fit U and V, column by column and row by row?
     skills: [als-step]
     data: [r5x5]
     state:
       U: { rows: [u1, u2, u3, u4, u5], cols: [f1, f2], values: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] }
       V: { rows: [f1, f2], cols: [i1, i2, i3, i4, i5], values: [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1]] }
+      alsTex: '\text{U = V = ones, every prediction is 2}'
     derive:
       - { fn: sse, in: { R: '@r5x5', U: '@U', V: '@V' }, out: s }
       - { fn: als, in: { R: '@r5x5', iters: 3 }, out: run }
@@ -165,6 +198,9 @@ scenes:
       - id: mp
         widget: MatrixProduct
         props: { U: '@U', V: '@V', R: '@r5x5', showError: true, format: 3 }
+      - id: f
+        widget: Formula
+        props: { tex: '{=alsTex}', size: sm }
       - id: sse
         widget: Readout
         region: side
@@ -178,25 +214,35 @@ scenes:
       - id: player
         widget: StepPlayer
         region: bottom
-        props: { fn: als, in: { R: '@r5x5', iters: 3 }, roles: { product: mp }, speed: 0.8 }
+        props: { fn: alsDetailWalk, in: { R: '@r5x5', iters: 3 }, roles: { product: mp }, speed: 0.5 }
     beats:
       - say: |
           Fitting U and V together is hard. But **freeze U** and each item's column of V is just a linear regression on the users who rated it. Freeze V and each user's row of U is one too.
-      - say: The first move from the slides.
+      - say: |
+          With U = all ones, every prediction in column $j$ is $v_{1j} + v_{2j}$. Only the **sum** matters, and the best sum is the mean of the column's observed ratings. i1's ratings are 5, 3, 2, 4.
         gate:
           type: predict
-          question: 'With U = all ones, the V-step gives item i1 (ratings 5, 3, 2, 4) which value in each factor?'
+          question: 'The V-step gives item i1 which value in each factor (slide 5)?'
           options: ['3.5', '1.75', '1', '14']
           answer: 1
-          explain: 'Only v₁ + v₂ matters and it must equal the mean 3.5; the even split gives 1.75 each (slide 5).'
-      - say: Play the dance. Colored P cells show the remaining error.
+          explain: 'The mean is 14/4 = 3.5 = v₁ + v₂. The data can''t tell the two apart, and the minimum-norm solution splits evenly: 1.75 each.'
+      - say: Try another column.
+        gate:
+          type: predict
+          question: 'i3 has ratings 4, 2, 3, 4, 5 (no blanks). What does each factor of i3 get?'
+          answer: { value: 1.8, tol: 0.01 }
+          explain: 'Mean = 18/5 = 3.6, split evenly: 1.8 and 1.8 (slide 5).'
+      - say: |
+          Play the first iteration one column and one row at a time: five column fits, the new SSE, then five row fits. Then iterations 2 and 3.
         gate:
           type: event
-          prompt: Play three ALS iterations.
+          prompt: Play the ALS run to the end.
           target: player
           event: done
       - say: |
-          Each half-step solves its block **exactly**, so the SSE can only fall: 75 → 35.75 → 23.41 → … But look at U: both columns are still identical. Suspicious? That's the next scene.
+          The U-step for u1: V's rows are equal ($c = 1.75, 1.5, 1.8, 1.6, 1.625$), so $u_{11} + u_{12} = \frac{\sum c_j r_{1j}}{\sum c_j^2} = \frac{30.225}{13.753} = 2.198$, split evenly: **1.09884117**, slide 8.
+      - say: |
+          Each half-step solves its block **exactly**, so the SSE can only fall: 75 → 35.75 → 23.41 → 22.70 → … But look at U: both columns are still identical. Suspicious? That's the next scene.
     takeaway: 'ALS alternates two easy least-squares problems: freeze U and solve V, then freeze V and solve U; the SSE never rises.'
 
   - id: symmetry-trap
@@ -255,31 +301,45 @@ scenes:
 
   - id: one-knob
     title: One knob at a time
-    goal: What does coordinate descent actually compute?
+    goal: What does coordinate descent actually compute, term by term?
     skills: [cgd-derivation, cgd-update]
     data: [r5x5]
     state: { x: 1, y: 1 }
     derive:
       - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
       - { fn: cgdLecture, in: { R: '@r5x5' }, out: cg }
+      - { fn: cgdSheet, in: { R: '@r5x5', U: '@st.U', V: '@st.V', which: U, i: 0, s: 0 }, out: sx }
+      - { fn: cgdSheet, in: { R: '@r5x5', U: '@cg.U1', V: '@cg.V1', which: V, s: 0, j: 0 }, out: sy }
     stage:
       - id: fx
         widget: FunctionPlot
         props: { fn: sseEntry, args: { R: '@r5x5', U: '@st.U', V: '@st.V', which: U, i: 0, s: 0 }, domain: [0, 5], x: '@x', draggable: true, showTangent: true, xLabel: 'x = u_{11}', yLabel: '\text{SSE}' }
         bind: { x: x }
+      - id: shx
+        widget: Matrix
+        hidden: true
+        props: { rows: '@sx.rows', cols: '@sx.cols', values: '@sx.values', format: 2, title: 'The general update applied to x: row u1, one line per rated item', rowHeader: item }
       - id: fy
         widget: FunctionPlot
         hidden: true
         props: { fn: sseEntry, args: { R: '@r5x5', U: '@cg.U1', V: '@cg.V1', which: V, s: 0, j: 0 }, domain: [0, 4], x: '@y', draggable: true, showTangent: true, xLabel: 'y = v_{11}', yLabel: '\text{SSE}' }
         bind: { x: y }
+      - id: shy
+        widget: Matrix
+        hidden: true
+        props: { rows: '@sy.rows', cols: '@sy.cols', values: '@sy.values', format: 2, title: 'The same update applied to y: column i1, one line per user who rated it', rowHeader: user }
       - id: f
         widget: Formula
         region: side
         props:
           steps:
-            - '(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2'
-            - '\frac{d}{dx}: -2\,[\anchor{num}{13} - \anchor{den}{5}x] = 0'
+            - '(5 - (x+1))^2 + (2 - (x+1))^2 + (4 - (x+1))^2 + (4 - (x+1))^2 + (3 - (x+1))^2'
+            - '= (4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2'
+            - '\frac{d}{dx}: -2\,[(4-x) + (1-x) + (3-x) + (3-x) + (2-x)] = -2\,[\anchor{num}{13} - \anchor{den}{5}x] = 0'
             - 'x = \frac{13}{5} = \anchor{sol}{2.6}'
+            - '(4 - 2.6y)^2 + (2-y)^2 + (1-y)^2 + (3-y)^2'
+            - '\frac{d}{dy}: -2\,[2.6(4 - 2.6y) + (2-y) + (1-y) + (3-y)] = -2\,[\anchor{num}{16.4} - \anchor{den}{9.76}\,y] = 0'
+            - 'y = \frac{16.4}{9.76} = \anchor{sol}{1.68}'
           step: 0
           size: sm
       - id: err
@@ -289,9 +349,11 @@ scenes:
         props: { kind: errata, body: 'Slide 14 labels its result "x = 1.68"; it solves for **y** (= v₁₁).' }
     beats:
       - say: |
-          Coordinate descent (slides 9–15) turns just **one** knob. Start from U = V = ones and free only u₁₁ = x: row 1's predictions become x + 1.
+          Coordinate descent (slides 9–15) turns just **one** knob. Start from U = V = ones and free only $u_{11} = x$: row 1's predictions become $(x)(1) + (1)(1) = x + 1$; every other prediction stays 2.
       - say: |
-          The SSE as a function of x is a **parabola** (the other rows are constant). Drag the point and watch the tangent.
+          Only row 1 depends on x, so the SSE as a function of x is row 1's errors squared: a **parabola**. Subtract the 1 inside each bracket.
+        do:
+          - { target: f, cmd: step, args: { n: 1 } }
         gate:
           type: predict
           question: Where is the bottom of the parabola?
@@ -303,23 +365,84 @@ scenes:
           prompt: Drag x to the minimum (flat tangent).
           when: 'abs(x - 2.6) < 0.06'
       - say: |
-          Setting the derivative to zero gives the exact answer: −2[13 − 5x] = 0, so **x = 2.6** (slide 11). No step size and no iterations: one closed-form jump.
+          Differentiate and set to zero: $-2[(4-x) + (1-x) + (3-x) + (3-x) + (2-x)] = -2[13 - 5x] = 0$, so **x = 2.6** (slide 11). The worksheet shows the general recipe: $\frac{\sum v\,(r - \text{rest})}{\sum v^2} = \frac{13}{5}$.
+        show: [shx]
         do:
-          - { target: f, cmd: step, args: { n: 2 } }
+          - { target: f, cmd: step, args: { n: 3 } }
           - { target: fx, cmd: markMin }
-      - say: Now freeze x = 2.6 and turn the next knob, y = v₁₁.
+      - say: |
+          Now freeze x = 2.6 and turn the next knob, $y = v_{11}$. Column i1's predictions become $2.6y + 1$ for u1 and $y + 1$ for u2, u4, u5 (u3 is blank).
         show: [fy]
+        hide: [fx, shx]
+        do:
+          - { target: f, cmd: step, args: { n: 4 } }
         gate:
           type: predict
           question: Where is the minimum for y?
           answer: { value: 1.68, tol: 0.05 }
-          explain: '16.4 − 9.76y = 0 gives y = 1.68 (slides 12–14).'
+          explain: '−2[2.6(4 − 2.6y) + (2 − y) + (1 − y) + (3 − y)] = −2[10.4 − 6.76y + 6 − 3y] = −2[16.4 − 9.76y] = 0, so y = 16.4 / 9.76 = 1.68 (slides 12–14).'
       - say: |
-          **y = 1.68**. Repeat for every entry, sweep after sweep. That's coordinate descent. Mind the slide's label:
-        show: [err]
+          Term by term: u1 contributes $2.6 \times (5 - 1) = 10.4$ to the numerator and $2.6^2 = 6.76$ to the denominator; u2, u4, u5 contribute $2 + 1 + 3 = 6$ and $1 + 1 + 1 = 3$. So $y = \frac{16.4}{9.76} = 1.68$.
+        show: [shy]
         do:
+          - { target: f, cmd: step, args: { n: 6 } }
           - { target: fy, cmd: animateTo, args: { x: 1.68 } }
-    takeaway: Freeze everything but one entry; the SSE is a parabola in it; jump to its minimum. Repeat.
+      - say: |
+          **y = 1.68**. Repeat for every entry, sweep after sweep: that's coordinate descent (next scene). Mind the slide's label:
+        show: [err]
+    takeaway: Freeze everything but one entry; the SSE is a parabola in it; jump to its minimum, Σ f·(r − rest) / Σ f². Repeat.
+
+  - id: full-sweep
+    title: One full sweep, entry by entry
+    goal: What happens to all 20 numbers of U and V in one pass of coordinate descent?
+    skills: [cgd-update]
+    data: [r5x5]
+    state:
+      U: { rows: [u1, u2, u3, u4, u5], cols: [f1, f2], values: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] }
+      V: { rows: [f1, f2], cols: [i1, i2, i3, i4, i5], values: [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1]] }
+      upd: { which: U, i: 0, s: 0, j: 0 }
+    derive:
+      - { fn: sse, in: { R: '@r5x5', U: '@U', V: '@V' }, out: s }
+      - { fn: cgdSheet, in: { R: '@r5x5', U: '@U', V: '@V', which: '@upd.which', i: '@upd.i', s: '@upd.s', j: '@upd.j' }, out: cs }
+    stage:
+      - id: mp
+        widget: MatrixProduct
+        props: { U: '@U', V: '@V', R: '@r5x5', showError: true, format: 2 }
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@cs.rows', cols: '@cs.cols', values: '@cs.values', format: 2, title: '@cs.title' }
+      - id: f
+        widget: Formula
+        props: { tex: '{=cs.tex}', size: sm }
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: SSE, value: '@s.sse', format: 2, tone: accent }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        props: { fn: cgdSweepWalk, in: { R: '@r5x5' }, roles: { product: mp }, speed: 0.5 }
+    beats:
+      - say: |
+          One **sweep** updates every entry once. We start with the lecture's two moves, x = u₁₁ and y = v₁₁, then the other 8 entries of U row by row, then the other 8 entries of V. Every update is the same recipe: $\frac{\sum f\,(r - \text{rest})}{\sum f^2}$.
+      - say: After x = 2.6 and y = 1.68, the next entry is $u_{12}$. Think about what it already predicts.
+        gate:
+          type: predict
+          question: 'Can an exact coordinate update ever raise the SSE?'
+          options: ['Yes, if the new value overshoots', 'No: each update minimizes the SSE along that coordinate', 'Only for entries of V', 'Only in the first sweep']
+          answer: 1
+          explain: 'Each update jumps to the bottom of a parabola, so the SSE either drops or (if the entry was already optimal) stays the same.'
+      - say: Play the sweep. The worksheet rebuilds for every entry, and the highlighted cell of U or V is the one being solved.
+        gate:
+          type: event
+          prompt: Play all 20 updates.
+          target: player
+          event: done
+      - say: |
+          One sweep takes the SSE from 75 to about 21.1. Compare ALS: one iteration (10 least-squares fits) reached 23.41. Coordinate descent's steps are tiny, one number each, but cheap and easy to parallelize.
+    takeaway: A sweep solves every entry of U and V once with Σ f·(r − rest)/Σ f²; the SSE never rises.
 
   - id: watching-sse-fall
     title: Watching the SSE fall
@@ -373,12 +496,21 @@ scenes:
     derive:
       - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7 }, out: run }
       - { fn: fillMissing, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, out: fm }
+      - { fn: fillTex, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, out: ft }
       - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7, lambda: 1 }, out: reg }
       - { fn: fillMissing, in: { R: '@r5x5', U: '@reg.U', V: '@reg.V' }, out: fr }
+      - { fn: fillTex, in: { R: '@r5x5', U: '@reg.U', V: '@reg.V' }, out: frt }
     stage:
       - id: m
         widget: Matrix
         props: { data: '@r5x5', format: 2, emptyLabel: '?', title: Ratings with blanks }
+      - id: mp
+        widget: MatrixProduct
+        props: { U: '@run.U', V: '@run.V', R: '@r5x5', format: 2 }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        props: { fn: fillWalk, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, roles: { m: m }, speed: 0.5 }
       - id: r
         widget: Readout
         region: side
@@ -396,33 +528,39 @@ scenes:
           items:
             - { label: 'with λ = 1: SSE', value: '@reg.sse', format: 2 }
             - { label: 'u3·i1 (λ = 1)', value: '@fr.missing.0.value', format: 2, tone: good }
+      - id: regf
+        widget: Formula
+        hidden: true
+        props: { tex: '{=frt.tex.0}', size: sm }
       - id: tip
         widget: Callout
         hidden: true
         props: { kind: beyond, body: 'Regularization adds λ(‖U‖² + ‖V‖²) to the SSE. It costs a little training fit and buys saner predictions. Spark''s ALS calls λ `regParam`.' }
     beats:
       - say: |
-          Train with a random start (10 ALS iterations), then read the blanks off P = UV.
+          Train with a random start (10 ALS iterations), then read the blanks off P = UV: each blank is **row i of U · column j of V**, exactly like a known cell.
         do:
           - { target: m, cmd: highlight, args: { sel: missing, tone: warn } }
-      - say: Look at the predictions in the side panel.
-        do:
-          - { target: m, cmd: fill, args: { cell: 'u3,i1', value: '@fm.missing.0.value' } }
-          - { target: m, cmd: fill, args: { cell: 'u3,i2', value: '@fm.missing.1.value' } }
-          - { target: m, cmd: fill, args: { cell: 'u5,i5', value: '@fm.missing.2.value' } }
+      - say: Compute the three blanks, one dot product each. They appear in the rating matrix as you go.
+        gate:
+          type: event
+          prompt: Play the three dot products.
+          target: player
+          event: done
+      - say: Look at the predictions.
         gate:
           type: predict
           question: Which prediction looks least trustworthy?
           options: ['u3·i1', 'u3·i2', 'u5·i5', 'They all look fine']
           answer: 0
-          explain: 'u3·i1 comes out below the 1–5 scale. The model bent itself to fit 22 ratings with 20 parameters.'
+          explain: 'u3·i1 comes out far below the 1–5 scale. The model bent itself to fit 22 ratings with 20 parameters.'
       - say: |
-          Training SSE ≈ 1.85, nearly perfect, yet u3·i1 ≈ 0.5 is off the scale. That's **over-fitting**: too many free numbers for too little data.
+          Training SSE ≈ 1.85, nearly perfect, yet u3·i1 is off the scale. That's **over-fitting**: too many free numbers for too little data.
       - say: Add a penalty on big factors.
-        show: [reg, tip]
+        show: [reg, regf, tip]
         gate:
           type: continue
           label: Compare with λ = 1
       - say: |
-          With λ = 1 the fit on known ratings loosens a bit, and the blank predictions move back toward plausible values. Choosing d and λ is the real modelling decision.
-    takeaway: Predictions for blanks are just P = UV; a tiny training error can hide over-fitting, which regularization and a smaller d control.
+          With λ = 1 the fit on known ratings loosens a bit, and the same dot product (formula above) lands back near the scale. Choosing d and λ is the real modelling decision.
+    takeaway: Predictions for blanks are just P = UV, one dot product each; a tiny training error can hide over-fitting, which regularization and a smaller d control.

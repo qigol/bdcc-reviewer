@@ -12,37 +12,42 @@ sections:
       - { fn: support, in: { transactions: '@grocery5', itemset: '@X' }, out: s }
     steps:
       - tex: |
-          \text{AbsSup}(X) = \anchor{abs}{\left|\{\, T \in D : X \subseteq T \,\}\right|}
-        say: Walk through the transactions and count those that contain the whole itemset.
+          \text{AbsSup}(X) = \anchor{ret}{\left|\{\, \anchor{loop}{T \in D} : \anchor{test}{X \subseteq T} \,\}\right|}
+        say: The number of transactions that contain the whole itemset.
+      - tex: |
+          \anchor{init}{\text{count} = 0}, \quad \text{for each } \anchor{loop}{T \in D}: \ \anchor{test}{X \subseteq T} \Rightarrow \anchor{inc}{\text{count} \mathrel{+}= 1}
+        say: The same definition written as a loop. Each basket adds 1 or 0.
       - tex: |
           \text{RelSup}(X) = \anchor{rel}{\frac{\text{AbsSup}(X)}{|D|}}
         say: Divide by the number of transactions to get a fraction between 0 and 1.
       - tex: |
-          \text{AbsSup}({=X|set}) = \anchor{abs}{ {=s.abs} }, \qquad \text{RelSup}({=X|set}) = \anchor{rel}{\frac{ {=s.abs} }{ {=s.n} } = {=s.rel|2}}
-        say: 'Lecture example (slides 8–9). Try another itemset in the live inputs, e.g. `milk`.'
+          \text{AbsSup}({=X|set}) = \anchor{ret}{ {=s.tallyTex} = {=s.abs} }, \qquad \text{RelSup} = \anchor{rel}{\frac{ {=s.abs} }{ {=s.n} } = {=s.rel|2}}
+        say: 'Lecture example (slides 8–9): one term per basket. Press **Step through** to run the loop line by line; change X in the live inputs, e.g. `milk`.'
     code:
       lang: python
       source: |
         def abs_support(X, transactions):
-            # @a abs
-            count = 0
-            for T in transactions:
-                if set(X) <= set(T):   # every item of X is in T
-                    count += 1
-            # @end
-            return count
+            count = 0                     # @a:init
+            for T in transactions:        # @a:loop
+                if set(X) <= set(T):      # @a:test
+                    count += 1            # @a:inc
+            return count                  # @a:ret
 
         def rel_support(X, transactions):
             return abs_support(X, transactions) / len(transactions)  # @a:rel
     links:
-      - { anchor: abs, label: 'AbsSup(X): transactions containing X', say: 'A transaction counts only if X ⊆ T.' }
+      - { anchor: init, label: 'count = 0' }
+      - { anchor: loop, label: 'visit every transaction T' }
+      - { anchor: test, label: 'X ⊆ T? (all items present)', say: 'A transaction counts only if X ⊆ T.' }
+      - { anchor: inc, label: 'count += 1' }
+      - { anchor: ret, label: 'AbsSup(X)' }
       - { anchor: rel, label: 'RelSup(X): divide by |D|' }
-    trace: { fn: support, in: { transactions: '@grocery5', itemset: '@X' } }
+    trace: { fn: supportCode, in: { transactions: '@grocery5', itemset: '@X' } }
     examples: [abs-support-bread-butter-milk, abs-support-bread-milk, abs-support-milk, rel-support-bread, rel-support-butter-milk]
     pitfalls:
       - A basket supports {bread, milk} only if it has **both**, not either one.
       - Relative support divides by the number of **transactions**, not by the number of items.
-    examTip: Write the count first (AbsSup), then divide by |D| only if the question asks for relative support.
+    examTip: Write one 1 or 0 per basket, add them (AbsSup), then divide by |D| only if the question asks for relative support.
 
   - id: frequent-itemsets
     title: Frequent itemsets and minsup
@@ -55,27 +60,48 @@ sections:
     state: { minsup: 2 }
     derive:
       - { fn: frequentItemsets, in: { transactions: '@grocery5', minsup: '@minsup' }, out: f }
+      - fn: frequentAmong
+        in: { transactions: '@grocery5', minsup: '@minsup', itemsets: [[bread, butter, milk], [bread, butter], [bread, milk], [butter, milk], [bread], [butter], [milk]] }
+        out: fa
     steps:
       - tex: |
           X \text{ is frequent} \iff \anchor{sup}{\text{Sup}(X)} \ge \anchor{minsup}{\text{minsup}}
         say: Compare the support with the threshold. Use the same kind of support (count or fraction) on both sides.
       - tex: |
+          \text{minsup} < 1 \;\Rightarrow\; \text{compare } \anchor{rel}{\text{RelSup}(X) = \tfrac{\text{AbsSup}(X)}{|D|}} \text{ instead}
+        say: A fraction means a relative threshold, so convert the count first (slides 12–13).
+      - tex: |
+          \anchor{init}{F = \emptyset}; \quad \anchor{loop}{\forall X \in C}: \ \anchor{minsup}{\text{Sup}(X) \ge \text{minsup}} \Rightarrow \anchor{keep}{F \leftarrow F \cup \{X\}}; \quad \anchor{ret}{\text{return } F}
+        say: Filtering a list of candidates is a single loop.
+      - tex: |
           \text{Sup}(Y) \le \text{Sup}(X) \quad \text{whenever } X \subseteq Y
         say: Adding items can only shrink the set of baskets that contain them. This is why raising minsup never adds itemsets.
       - tex: |
-          \anchor{minsup}{\text{minsup} = {=minsup}} \;\Rightarrow\; {=f.count} \text{ frequent itemsets}
-        say: 'At minsup 2 the lecture finds 11 (slide 45): {=f.labels}.'
+          \anchor{minsup}{\text{minsup} = {=minsup}}: \ {=fa.count} \text{ of the 7 slide-8 itemsets}, \ {=f.count} \text{ of all 63}
+        say: 'Step through checks the seven slide-8 itemsets. Set minsup to 3, 0.5 or 0.4 in the live inputs to replay slides 10–13. Over all itemsets at minsup 2: {=f.labels}.'
     code:
       lang: python
       source: |
-        def is_frequent(X, transactions, minsup):
-            sup = abs_support(X, transactions)      # @a:sup
-            if minsup < 1:                          # relative threshold
-                sup = sup / len(transactions)       # @a:sup
-            return sup >= minsup                    # @a:minsup
+        def frequent_itemsets(candidates, transactions, minsup):
+            frequent = []                              # @a:init
+            for X in candidates:                       # @a:loop
+                sup = abs_support(X, transactions)     # @a:sup
+                if minsup < 1:                         # a fraction: relative threshold
+                    sup = sup / len(transactions)      # @a:rel
+                if sup >= minsup:                      # @a:minsup
+                    frequent.append(X)                 # @a:keep
+            return frequent                            # @a:ret
     links:
+      - { anchor: init, label: 'frequent = []' }
+      - { anchor: loop, label: 'each candidate X' }
       - { anchor: sup, label: 'Sup(X)', say: 'Absolute, or relative when minsup is a fraction.' }
-      - { anchor: minsup, label: minsup }
+      - { anchor: rel, label: 'convert to RelSup' }
+      - { anchor: minsup, label: 'Sup(X) ≥ minsup?' }
+      - { anchor: keep, label: 'keep X' }
+      - { anchor: ret, label: 'the frequent itemsets' }
+    trace:
+      fn: frequentCode
+      in: { transactions: '@grocery5', minsup: '@minsup', itemsets: [[bread, butter, milk], [bread, butter], [bread, milk], [butter, milk], [bread], [butter], [milk]] }
     examples: [frequent-among-3, frequent-among-2, frequent-among-rel, frequent-minsup-2]
     pitfalls:
       - Frequent means support **≥** minsup, not strictly greater.
@@ -95,14 +121,14 @@ sections:
       - { fn: explosion, in: { n: '@n' }, out: ex }
     steps:
       - tex: |
-          \anchor{loop}{\forall\, X \subseteq I,\ X \neq \emptyset:\ \text{count Sup}(X)}
+          \anchor{size}{k = 1, \dots, n}: \quad \anchor{loop}{X \in \tbinom{I}{k}} \;\Rightarrow\; \anchor{count}{\text{Sup}(X)} \;\Rightarrow\; \anchor{test}{\ge \text{minsup}?} \;\Rightarrow\; \anchor{keep}{\text{store } X}
         say: Every subset of the item set I is a candidate, from single items up to all items at once.
       - tex: |
-          \#\text{candidates} = 2^{\anchor{n}{n}} - 1
+          \#\text{candidates} = \sum_{k=1}^{n} \tbinom{n}{k} = 2^{\anchor{n}{n}} - 1
         say: Each item is either in or out of X (2ⁿ choices); drop the empty set.
       - tex: |
-          \anchor{n}{n = {=n}} \;\Rightarrow\; 2^{ {=n} } - 1 = {=ex.count}
-        say: The lecture's 6 items already give 63 itemsets. A sari-sari store's 300 items would give more than the atoms in the universe.
+          \anchor{n}{n = {=n}} \;\Rightarrow\; 2^{ {=n} } - 1 = {=ex.count} \text{ counts before } \anchor{ret}{\text{returning}}
+        say: The lecture's 6 items already give 63 itemsets. Step through all 63 counts; 38 of them come back 0.
     code:
       lang: python
       source: |
@@ -111,18 +137,21 @@ sections:
         def brute_force(transactions, minsup):
             items = sorted({i for T in transactions for i in T})   # @a:n
             frequent = {}
-            # @a loop
-            for k in range(1, len(items) + 1):
-                for X in combinations(items, k):
-                    sup = abs_support(X, transactions)
-                    if sup >= minsup:
-                        frequent[X] = sup
-            # @end
-            return frequent
+            for k in range(1, len(items) + 1):                     # @a:size
+                for X in combinations(items, k):                   # @a:loop
+                    sup = abs_support(X, transactions)             # @a:count
+                    if sup >= minsup:                              # @a:test
+                        frequent[X] = sup                          # @a:keep
+            return frequent                                        # @a:ret
     links:
-      - { anchor: loop, label: every non-empty itemset }
       - { anchor: n, label: 'n = number of distinct items' }
-    trace: { fn: bruteForce, in: { transactions: '@grocery5', minsup: 2 } }
+      - { anchor: size, label: 'itemset size k' }
+      - { anchor: loop, label: 'every itemset of size k' }
+      - { anchor: count, label: 'count its support' }
+      - { anchor: test, label: '≥ minsup?' }
+      - { anchor: keep, label: 'store it' }
+      - { anchor: ret, label: 'all frequent itemsets' }
+    trace: { fn: bruteForceCode, in: { transactions: '@grocery5', minsup: 2 } }
     examples: [brute-lattice-size, brute-support-four]
     pitfalls:
       - 2ⁿ includes the empty set; brute force checks 2ⁿ − 1.
@@ -144,16 +173,16 @@ sections:
           \text{Sup}(X) < \text{minsup} \;\Rightarrow\; \text{Sup}(Y) < \text{minsup} \quad \forall\, Y \supseteq X
         say: The Apriori principle. Once an itemset is infrequent, none of its supersets can be frequent.
       - tex: |
-          C_1 = \anchor{level}{\{\{i\} : i \in I\}}
-        say: Level 1 counts every single item.
+          C_1 = \anchor{level}{\{\{i\} : i \in I\}}, \qquad \anchor{while}{\text{repeat while } C_k \neq \emptyset}
+        say: Level 1 counts every single item; the loop runs as long as there are candidates.
       - tex: |
-          L_k = \anchor{keep}{\{\, X \in C_k : \anchor{count}{\text{Sup}(X)} \ge \text{minsup} \,\}}
-        say: Keep the candidates that reach minsup.
+          L_k = \anchor{keep}{\{\, \anchor{loop}{X \in C_k} : \anchor{count}{\text{Sup}(X)} \anchor{test}{\ge \text{minsup}} \,\}}
+        say: Count every candidate once and keep the ones that reach minsup.
       - tex: |
-          C_{k+1} = \anchor{extend}{\{\, X \cup \{i\} : X \in L_k,\ i \in L_1,\ i \text{ after } \max(X) \,\}}
+          C_{k+1} = \anchor{extend}{\{\, X \cup \{i\} : X \in L_k,\ i \in \anchor{items1}{L_1},\ i \text{ after } \max(X) \,\}}
         say: Extend each frequent itemset by a later frequent item (order bread, butter, milk, eggs, yogurt, cheese on slide 19).
       - tex: |
-          |C_2| = {=ap.level2}, \qquad \text{counted } {=ap.evaluated} \text{ candidates instead of } {=ap.bruteForce}
+          |C_2| = {=ap.level2}, \qquad \text{counted } {=ap.evaluated} \text{ candidates instead of } {=ap.bruteForce} \;\Rightarrow\; \anchor{ret}{ {=ap.count} \text{ frequent}}
         say: 'Same {=ap.count} frequent itemsets as brute force, with {=ap.saved} fewer support counts.'
     code:
       lang: python
@@ -161,24 +190,22 @@ sections:
         ORDER = ["bread", "butter", "milk", "eggs", "yogurt", "cheese"]  # slide 19
 
         def apriori(transactions, minsup, order=ORDER):
-            # @a level
-            candidates = [(i,) for i in order]
-            # @end
+            candidates = [(i,) for i in order]                 # @a:level
             frequent, items1 = {}, None
-            while candidates:
+            while candidates:                                  # @a:while
                 level = []
-                for X in candidates:
-                    sup = abs_support(X, transactions)   # @a:count
-                    if sup >= minsup:                    # @a:keep
-                        frequent[X] = sup                # @a:keep
-                        level.append(X)                  # @a:keep
+                for X in candidates:                           # @a:loop
+                    sup = abs_support(X, transactions)         # @a:count
+                    if sup >= minsup:                          # @a:test
+                        frequent[X] = sup                      # @a:keep
+                        level.append(X)                        # @a:keep
                 if items1 is None:
-                    items1 = [X[0] for X in level]
+                    items1 = [X[0] for X in level]             # @a:items1
                 # @a extend
                 candidates = [X + (i,) for X in level
                               for i in items1 if order.index(i) > order.index(X[-1])]
                 # @end
-            return frequent
+            return frequent                                    # @a:ret
     extraCode:
       - lang: python
         title: Classic join + prune (beyond the slides)
@@ -201,10 +228,15 @@ sections:
               return frequent
     links:
       - { anchor: level, label: 'C₁: every single item' }
+      - { anchor: while, label: 'loop while candidates remain' }
+      - { anchor: loop, label: 'each candidate X' }
       - { anchor: count, label: count support }
+      - { anchor: test, label: '≥ minsup?' }
       - { anchor: keep, label: 'keep if ≥ minsup' }
+      - { anchor: items1, label: 'L₁: the frequent single items' }
       - { anchor: extend, label: 'extend frequent itemsets only' }
-    trace: { fn: aprioriRun, in: { transactions: '@grocery5', minsup: '@minsup' } }
+      - { anchor: ret, label: 'all frequent itemsets' }
+    trace: { fn: aprioriCode, in: { transactions: '@grocery5', minsup: '@minsup' } }
     examples: [apriori-level-two]
     pitfalls:
       - Only frequent itemsets are extended; butter (support 1) never appears in a 2-item candidate.
@@ -224,17 +256,17 @@ sections:
       - { fn: fpGrowthRun, in: { transactions: '@grocery5', minsup: '@minsup' }, out: fp }
     steps:
       - tex: |
+          \anchor{items}{I(D_P)} = \text{items present in } D_P, \qquad \anchor{loop}{\text{for each } i \in I(D_P)}
+        say: Start from the whole database (P = ∅) and try every item that still appears in it, alphabetically.
+      - tex: |
           D_{\anchor{prefix}{P \cup \{i\}}} = \anchor{filter}{\{\, T \setminus \{x \le i\} : T \in D_P,\ i \in T \,\}}
         say: Filter to the rows containing the new item, then keep only items after it (so each itemset is found once).
       - tex: |
-          \text{Sup}(P \cup \{i\}) = |D_{P \cup \{i\}}|
-        say: The support of the grown prefix is simply the number of rows left.
+          \text{Sup}(P \cup \{i\}) = |D_{P \cup \{i\}}|, \qquad \anchor{test}{|D_{P \cup \{i\}}| \ge \text{minsup}} \Rightarrow \anchor{keep}{\text{record it}},\ \anchor{recurse}{\text{mine } D_{P \cup \{i\}}}
+        say: The support of the grown prefix is simply the number of rows left. Infrequent prefixes stop the recursion (Apriori principle again).
       - tex: |
-          \text{Sup}(P \cup \{i\}) \ge \text{minsup} \;\Rightarrow\; \anchor{recurse}{\text{mine } D_{P \cup \{i\}} \text{ recursively}}
-        say: Infrequent prefixes stop the recursion (Apriori principle again).
-      - tex: |
-          {=fp.explored} \text{ prefixes explored} \;\Rightarrow\; {=fp.count} \text{ frequent itemsets}
-        say: The lecture walks all 18 prefixes on slides 22–39 and ends with the same 11 itemsets (slide 40).
+          {=fp.explored} \text{ prefixes explored} \;\Rightarrow\; \anchor{ret}{ {=fp.count} \text{ frequent itemsets}}
+        say: The lecture walks all 18 prefixes on slides 22–39 and ends with the same 11 itemsets (slide 40). Step through the recursion call by call.
     code:
       lang: python
       source: |
@@ -242,22 +274,27 @@ sections:
 
         def fp_growth(rows, minsup, prefix=(), out=None):
             out = {} if out is None else out
-            items = sorted({i for T in rows for i in T}, key=ORDER.index)
-            for i in items:
+            items = sorted({i for T in rows for i in T}, key=ORDER.index)   # @a:items
+            for i in items:                                                 # @a:loop
                 # @a filter
                 proj = [[x for x in T if ORDER.index(x) > ORDER.index(i)]
                         for T in rows if i in T]
                 # @end
-                P = prefix + (i,)                           # @a:prefix
-                if len(proj) >= minsup:
-                    out[P] = len(proj)
-                    fp_growth(proj, minsup, P, out)         # @a:recurse
-            return out
+                P = prefix + (i,)                                           # @a:prefix
+                if len(proj) >= minsup:                                     # @a:test
+                    out[P] = len(proj)                                      # @a:keep
+                    fp_growth(proj, minsup, P, out)                         # @a:recurse
+            return out                                                      # @a:ret
     links:
-      - { anchor: prefix, label: 'the grown prefix P ∪ {i}' }
+      - { anchor: items, label: 'items left in this database' }
+      - { anchor: loop, label: 'try each item i' }
       - { anchor: filter, label: 'filter rows, drop earlier items' }
+      - { anchor: prefix, label: 'the grown prefix P ∪ {i}' }
+      - { anchor: test, label: 'row count ≥ minsup?' }
+      - { anchor: keep, label: 'record its support' }
       - { anchor: recurse, label: 'recurse while frequent' }
-    trace: { fn: fpGrowthRun, in: { transactions: '@grocery5', minsup: '@minsup' } }
+      - { anchor: ret, label: 'back to the caller' }
+    trace: { fn: fpGrowthCode, in: { transactions: '@grocery5', minsup: '@minsup' } }
     examples: [fp-growth-run]
     pitfalls:
       - Drop items that come **before or equal to** the prefix's last item; otherwise itemsets get counted twice.
@@ -284,22 +321,31 @@ sections:
           = \frac{\anchor{sup-ab}{\text{Sup}(A \cup B)}}{\anchor{sup-a}{\text{Sup}(A)}}
         say: Count baskets with both, divide by baskets with the antecedent.
       - tex: |
+          \anchor{init}{\text{both counts} = 0}; \ \anchor{loop}{\forall T}: \ \anchor{has-a}{A \subseteq T} \Rightarrow \anchor{sup-a}{\text{Sup}(A) + 1}, \text{ then } \anchor{has-b}{B \subseteq T} \Rightarrow \anchor{sup-ab}{\text{Sup}(A \cup B) + 1}
+        say: Both counts in one pass. A basket without A is skipped entirely; it says nothing about the rule.
+      - tex: |
           \text{Conf}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{sup-ab}{ {=c.supAB} }}{\anchor{sup-a}{ {=c.supA} }} = \anchor{ratio}{ {=c.conf|2} }
         say: 'Lecture example (slide 43). |D| cancels, so counts work as well as fractions.'
     code:
       lang: python
       source: |
         def confidence(A, B, transactions):
-            # @a sup-ab
-            sup_ab = abs_support(A | B, transactions)
-            # @end
-            sup_a = abs_support(A, transactions)  # @a:sup-a
-            return sup_ab / sup_a                  # @a:ratio
+            sup_a = sup_ab = 0                 # @a:init
+            for T in transactions:             # @a:loop
+                if set(A) <= set(T):           # @a:has-a
+                    sup_a += 1                 # @a:sup-a
+                    if set(B) <= set(T):       # @a:has-b
+                        sup_ab += 1            # @a:sup-ab
+            return sup_ab / sup_a              # @a:ratio
     links:
-      - { anchor: sup-ab, label: 'Sup(A ∪ B)', say: Baskets holding every item of A and of B. }
+      - { anchor: init, label: 'both counters = 0' }
+      - { anchor: loop, label: 'each basket' }
+      - { anchor: has-a, label: 'A ⊆ T?' }
       - { anchor: sup-a, label: 'Sup(A)' }
+      - { anchor: has-b, label: 'B ⊆ T too?' }
+      - { anchor: sup-ab, label: 'Sup(A ∪ B)', say: Baskets holding every item of A and of B. }
       - { anchor: ratio, label: the ratio }
-    trace: { fn: confidence, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
+    trace: { fn: confidenceCode, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
     examples: [conf-bread-butter, conf-yogurt-milk, conf-milk-yogurt, conf-eggs-milk-yogurt, conf-milk-eggs-yogurt]
     pitfalls:
       - Divide by the support of the **antecedent**, not by the number of transactions.
@@ -321,17 +367,17 @@ sections:
       - { fn: rulesFromItemset, in: { transactions: '@grocery5', itemset: '@I', minconf: '@minconf' }, out: one }
     steps:
       - tex: |
-          \text{for each frequent } \anchor{itemset}{I} \text{ with } |I| \ge 2
+          \anchor{init}{R = \emptyset}; \quad \anchor{itemset}{\text{for each frequent } I}, \quad \anchor{skip}{|I| < 2 \Rightarrow \text{skip}}
         say: Single items can't be split into two non-empty sides.
       - tex: |
-          \text{for each } \anchor{split}{\emptyset \neq A \subsetneq I}: \quad B = I \setminus A
-        say: 'An itemset of size k gives 2^k − 2 candidate rules.'
+          \anchor{size}{k = |I|-1, \dots, 1}: \quad \anchor{split}{A \in \tbinom{I}{k},\ B = I \setminus A}
+        say: 'An itemset of size k gives 2^k − 2 candidate rules; bigger antecedents first, as on slide 51.'
       - tex: |
-          \anchor{keep}{\text{keep } A \rightarrow B} \quad \text{if} \quad \anchor{conf}{\frac{\text{Sup}(I)}{\text{Sup}(A)}} \ge \text{minconf}
+          \anchor{conf}{\frac{\text{Sup}(I)}{\text{Sup}(A)}} \anchor{test}{\ge \text{minconf}} \;\Rightarrow\; \anchor{keep}{R \leftarrow R \cup \{A \rightarrow B\}}; \qquad \anchor{ret}{\text{return } R}
         say: The numerator is the same for every split of I; only the antecedent's support changes.
       - tex: |
           {=r.count} \text{ rules pass at minsup } 2, \ \text{minconf } {=minconf} \quad (\text{from } {=r.considered} \text{ candidates})
-        say: 'The lecture gets 13 rules (slide 60). {=I|set} alone yields {=one.count} of its {=one.candidates} splits.'
+        say: 'The lecture gets 13 rules (slide 60). {=I|set} alone yields {=one.count} of its {=one.candidates} splits. Step through all 11 frequent itemsets of slide 45.'
     code:
       lang: python
       source: |
@@ -339,23 +385,33 @@ sections:
 
         def rules(frequent, minconf):
             """frequent: {frozenset(itemset): abs support}"""
-            out = []
+            out = []                                       # @a:init
             for I, sup_I in frequent.items():              # @a:itemset
-                if len(I) < 2:
-                    continue
-                for k in range(1, len(I)):
+                if len(I) < 2:                             # @a:skip
+                    continue                               # @a:skip
+                for k in range(len(I) - 1, 0, -1):         # @a:size
                     for A in combinations(sorted(I), k):   # @a:split
                         A = frozenset(A)
                         conf = sup_I / frequent[A]         # @a:conf
-                        if conf >= minconf:                # @a:keep
+                        if conf >= minconf:                # @a:test
                             out.append((A, I - A, conf))   # @a:keep
-            return out
+            return out                                     # @a:ret
     links:
+      - { anchor: init, label: 'no rules yet' }
       - { anchor: itemset, label: 'a frequent itemset I' }
+      - { anchor: skip, label: 'skip single items' }
+      - { anchor: size, label: 'antecedent size k' }
       - { anchor: split, label: 'every non-empty proper subset as A' }
       - { anchor: conf, label: 'Sup(I) / Sup(A)' }
-      - { anchor: keep, label: 'keep if ≥ minconf' }
-    trace: { fn: rulesFromItemset, in: { transactions: '@grocery5', itemset: '@I', minconf: '@minconf' } }
+      - { anchor: test, label: '≥ minconf?' }
+      - { anchor: keep, label: 'keep the rule' }
+      - { anchor: ret, label: 'all kept rules' }
+    trace:
+      fn: rulesCode
+      in:
+        transactions: '@grocery5'
+        minconf: '@minconf'
+        itemsets: [[milk], [yogurt, milk], [eggs, milk], [eggs], [yogurt], [eggs, yogurt, milk], [eggs, yogurt], [bread, milk], [cheese, milk], [bread], [cheese]]
     examples: [rules-13, conf-milk-eggs-yogurt]
     pitfalls:
       - Every antecedent is a subset of a frequent itemset, so its support is already known; no new counting is needed.
@@ -378,23 +434,34 @@ sections:
           \text{Lift}(A \rightarrow B) = \frac{\anchor{conf}{\text{Conf}(A \rightarrow B)}}{\anchor{relb}{\text{RelSup}(B)}} = \frac{P(B \mid A)}{P(B)}
         say: How much more likely B is when A is present, compared with B's usual rate.
       - tex: |
+          = \frac{\anchor{sup-ab}{\text{Sup}(A \cup B)} \,/\, \anchor{sup-a}{\text{Sup}(A)}}{\anchor{sup-b}{\text{Sup}(B)} \,/\, \anchor{n}{|D|}}
+        say: Four counts are all you need.
+      - tex: |
           \anchor{lift}{\text{Lift}} > 1: \text{positive}, \quad = 1: \text{no association}, \quad < 1: \text{negative}
         say: The interpretation from slide 61.
       - tex: |
-          \text{Lift}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{conf}{ {=l.conf|2} }}{\anchor{relb}{ {=l.relB|2} }} = \anchor{lift}{ {=l.lift|2} }
+          \text{Lift}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{conf}{ {=l.supAB}/{=l.supA} }}{\anchor{relb}{ {=l.supB}/{=l.n} }} = \frac{ {=l.conf|2} }{ {=l.relB|2} } = \anchor{lift}{ {=l.lift|2} }
         say: 'Lecture examples: bread → butter gives 2.5 (slide 61); try B = eggs for 0.83 (slide 62) or B = milk for exactly 1.'
     code:
       lang: python
       source: |
         def lift(A, B, transactions):
-            conf = confidence(A, B, transactions)                      # @a:conf
-            rel_b = abs_support(B, transactions) / len(transactions)   # @a:relb
-            return conf / rel_b                                        # @a:lift
+            n = len(transactions)                        # @a:n
+            sup_a = abs_support(A, transactions)         # @a:sup-a
+            sup_ab = abs_support(A | B, transactions)    # @a:sup-ab
+            conf = sup_ab / sup_a                        # @a:conf
+            sup_b = abs_support(B, transactions)         # @a:sup-b
+            rel_b = sup_b / n                            # @a:relb
+            return conf / rel_b                          # @a:lift
     links:
+      - { anchor: n, label: '|D|' }
+      - { anchor: sup-a, label: 'Sup(A)' }
+      - { anchor: sup-ab, label: 'Sup(A ∪ B)' }
       - { anchor: conf, label: 'Conf(A → B)' }
+      - { anchor: sup-b, label: 'Sup(B)' }
       - { anchor: relb, label: 'RelSup(B): the base rate of B' }
       - { anchor: lift, label: 'the ratio vs 1' }
-    trace: { fn: lift, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
+    trace: { fn: liftCode, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
     examples: [lift-bread-butter, lift-bread-eggs, lift-milk-trap]
     pitfalls:
       - Divide by the relative support of the **consequent** B, not of A.
@@ -417,10 +484,10 @@ sections:
       - { fn: ruleMetrics, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: m }
     steps:
       - tex: |
-          \anchor{lev}{\text{Leverage}} = \text{RelSup}(A \cup B) - \text{RelSup}(A)\,\text{RelSup}(B)
+          \anchor{rels}{s(X) = \text{RelSup}(X)}, \qquad \anchor{lev}{\text{Leverage}} = s(A \cup B) - s(A)\,s(B)
         say: Observed co-occurrence minus what independence predicts. 0 means independent.
       - tex: |
-          \anchor{conv}{\text{Conviction}} = \frac{1 - \text{RelSup}(B)}{1 - \text{Conf}(A \rightarrow B)}
+          \anchor{conv}{\text{Conviction}} = \frac{1 - s(B)}{1 - \text{Conf}(A \rightarrow B)}
         say: Expected failures over observed failures; infinite when the rule never fails.
       - tex: |
           \text{Lev}({=A|set} \rightarrow {=B|set}) = \anchor{lev}{ {=m.leverage|3} }, \quad \text{Conv} = \anchor{conv}{ {=m.conviction|2} }
@@ -428,18 +495,18 @@ sections:
     code:
       lang: python
       source: |
-        def leverage(A, B, transactions):
+        def leverage_conviction(A, B, transactions):
             n = len(transactions)
-            s = lambda X: abs_support(X, transactions) / n
-            return s(A | B) - s(A) * s(B)                                  # @a:lev
-
-        def conviction(A, B, transactions):
-            c = confidence(A, B, transactions)
-            rel_b = abs_support(B, transactions) / len(transactions)
-            return float("inf") if c == 1 else (1 - rel_b) / (1 - c)      # @a:conv
+            s = lambda X: abs_support(X, transactions) / n            # @a:rels
+            lev = s(A | B) - s(A) * s(B)                               # @a:lev
+            c, rel_b = s(A | B) / s(A), s(B)
+            conv = float("inf") if c == 1 else (1 - rel_b) / (1 - c)   # @a:conv
+            return lev, conv
     links:
+      - { anchor: rels, label: 'relative supports' }
       - { anchor: lev, label: leverage }
       - { anchor: conv, label: conviction }
+    trace: { fn: leverageCode, in: { transactions: '@grocery5', A: '@A', B: '@B' } }
     pitfalls:
       - These are not on the slides; the exam will ask for support, confidence and lift.
     examTip: If an exam asks which rule is interesting, lift is the lecture's answer; leverage and conviction are for real projects.

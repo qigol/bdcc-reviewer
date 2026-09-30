@@ -50,3 +50,10 @@
 - cgd-update: the worked x = 2.6, y = 1.68 updates
 - prediction: filling missing cells, over-fitting
 - rank-choice: choosing d, regularization
+
+## Revision 1.1 — solve-along (2026-09-30)
+- `sseWalk` counts SSE = 18 + 7 + 6 + 23 + 21 = 75 row by row (squared-error worksheet). `alsDetailWalk` writes out iteration 1: each V column as v₁ⱼ + v₂ⱼ = column mean (then the even split), each U row as u₁ + u₂ = Σ v·r / Σ v² (e.g. 30.225 / 13.753 = 2.1977 → 1.09884117), then summarises iterations 2–3. SSE: 75 → 35.75 → 23.41.
+- `cgdSheet` shows the closed-form update as a worksheet (r, rest, r − rest, factor, products, squares; Σ gives num and den): x = 13/5, y = 16.4/9.76.
+- Beyond the slides: `cgdSweepWalk` completes one full sweep. It starts with the lecture's two moves (x = u₁₁ = 2.6, y = v₁₁ = 1.68; SSE 75 → 62.2 → 57.68), then updates the other entries of U row by row and of V row by row; SSE ends near 21.1.
+- Blank predictions are shown as written dot products (`fillTex`, `fillWalk`).
+- Math & Code: loop-based Python traced line by line (`predictOneCode`, `sseCode`, `alsStepVCode`, `alsCode`, `cgdUpdateCode`, `cgdWorkedCode`, `fillCode`, `ridgeCode`).
