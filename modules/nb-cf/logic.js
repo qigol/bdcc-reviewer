@@ -505,151 +505,356 @@ export default function register(sdk) {
     return { dcg: nd.dcg, idcg: nd.idcg, ndcg: nd.ndcg, trace };
   }
 
-  // ---------------------------------------------------------------- line-by-line code traces (Math & Code tab)
-  const row = (M, i) => `[${M.values[i].map((x) => (x === null ? 'None' : x)).join(', ')}]`;
-  const rowC = (C, st) => `[${C.map((x) => (x === null ? 'None' : st === 'frac' ? (fracParts(x) ? fracStr(x) : dec(x)) : dec(x))).join(', ')}]`;
+  // ---------------------------------------------------------------- numpy code traces (Math & Code tab)
+  // The Math & Code tab shows numpy code. Each trace takes one step per line of that code; a few lines get extra
+  // steps that open up what the line does (how broadcasting repeats the means, which products make up dot[A, B]).
+  // The array a line produces is printed as TeX in the step label; vars carry shapes and single values for the badge.
   function fracStr(x) { const f = fracParts(x, 12); return f && f[1] !== 1 ? `${f[0]}/${f[1]}` : dec(x); }
+  const NAN = '{\\color{gray}\\text{nan}}';
+  const TF = (b) => (b ? '\\text{T}' : '\\text{F}');
+  const txt = (s) => `\\text{${s}}`;
+  const shp = (A) => `(${A.length}, ${A[0].length})`;
+  const numF = (st) => (x) => tn(x, st);
+  const cellT = (x, f) => (typeof x === 'string' ? x : x === null || Number.isNaN(x) ? NAN : f(x));
+  // TeX table of an array, with optional row / column labels; hl = [[i, j], …] entries to box
+  function arr(V, { rows = null, cols = null, f = dec, hl = [] } = {}) {
+    const cell = (x, i, j) => {
+      const t = cellT(x, f);
+      return hl.some(([a, b]) => a === i && b === j) ? `\\boxed{${t}}` : t;
+    };
+    const head = cols ? `${rows ? ' & ' : ''}${cols.map((c) => `\\scriptstyle\\text{${c}}`).join(' & ')} \\\\ \\hline ` : '';
+    const body = V.map((r, i) => `${rows ? `\\scriptstyle\\text{${rows[i]}} & ` : ''}${r.map((x, j) => cell(x, i, j)).join(' & ')}`).join(' \\\\ ');
+    return `\\begin{array}{${rows ? 'r|' : ''}${'r'.repeat(V[0].length)}}${head}${body}\\end{array}`;
+  }
+  // a 1-D array, printed the way numpy prints it
+  const vec = (v, f = dec) => `[\\,${v.map((x) => cellT(x, f)).join(',\\ ')}\\,]`;
+  const pyList = (v, f = dec) => `[${v.map((x) => (x === null ? 'nan' : typeof x === 'string' ? x : f(x))).join(', ')}]`;
+  const pp = (x, f) => `(${f(x)})`;
 
-  // anchors: loop, rated, mu, s
+  // Every intermediate array of user_sims / item_sims (mode 'item' compares columns).
+  function npSims(C, mode) {
+    const Z0 = C.map((r) => r.map((x) => (x === null ? 0 : x)));
+    const M0 = C.map((r) => r.map((x) => (x === null ? 0 : 1)));
+    const Z = mode === 'item' ? sdk.transpose(Z0) : Z0; // the compared things on rows
+    const M = mode === 'item' ? sdk.transpose(M0) : M0;
+    const dot = sdk.matmul(Z, sdk.transpose(Z));
+    const sq = Z0.map((r) => r.map((x) => x * x));
+    const ss = sdk.matmul(Z.map((r) => r.map((x) => x * x)), sdk.transpose(M));
+    const nu = ss.map((r) => r.map((x) => Math.sqrt(x)));
+    const nv = sdk.transpose(nu);
+    const den = nu.map((r, i) => r.map((x, j) => x * nv[i][j]));
+    const safe = den.map((r) => r.map((x) => (x > EPS ? x : 1)));
+    const sims = den.map((r, i) => r.map((x, j) => (x > EPS ? dot[i][j] / x : 0)));
+    return { Z0, M0, dot, sq, ss, nu, nv, den, safe, sims };
+  }
+
+  // anchors: rated, count, total, mu, s, ret
   function centerCode({ matrix }) {
-    const st = styleOf(matrix);
-    const mu = means(matrix);
-    const C = centered(matrix);
-    const trace = [];
-    matrix.rows.forEach((u, i) => {
-      const obs = matrix.values[i].filter((x) => x !== null);
-      trace.push({ label: `\`for row in R\`: user ${u}, row = ${row(matrix, i)}`, code: 'loop', math: 'loop', vars: { user: u } });
-      trace.push({ label: `\`rated\` keeps the ${obs.length} numbers: [${obs.join(', ')}] (blanks are not zeros)`, code: 'rated', math: 'rated', vars: { rated: obs } });
-      trace.push({ label: `\`m = sum(rated) / len(rated)\` = ${obs.reduce((a, b) => a + b, 0)} / ${obs.length} = ${fracStr(mu[i])}${st === 'frac' && fracParts(mu[i])[1] !== 1 ? ` ≈ ${dec(mu[i])}` : ''}`, code: 'mu', math: 'mu', vars: { m: mu[i] } });
-      trace.push({ label: `Subtract ${fracStr(mu[i])} from every rating (None stays None) → ${rowC(C[i], st)}`, code: 's', math: 's', vars: { s: rowC(C[i], st) } });
+    const st = styleOf(matrix), f = numF(st);
+    const { rows, cols, values: R } = matrix;
+    const m = R.length, n = R[0].length;
+    const M = R.map((r) => r.map((x) => x !== null));
+    const counts = M.map((r) => r.filter(Boolean).length);
+    const obs = R.map((r) => r.filter((x) => x !== null));
+    const totals = obs.map((o) => o.reduce((a, b) => a + b, 0));
+    const mu = totals.map((t, i) => t / counts[i]);
+    const S = R.map((r, i) => r.map((x) => (x === null ? null : x - mu[i])));
+    const col = (v, g) => arr(v.map((x) => [x]), { rows, f: g });
+    const muTex = (i) => `\\tfrac{${totals[i]}}{${counts[i]}} ${st === 'frac' && fracParts(mu[i], 12)[1] !== 1 ? `\\approx ${dec(mu[i])}` : `= ${dec(mu[i])}`}`;
+    const trace = [
+      { label: `\`np.isnan(R)\` is True at every blank; \`~\` flips it, so **T = rated**, F = blank.\n\n$M = ${arr(M.map((r) => r.map(TF)), { rows, cols })}$`,
+        code: 'rated', math: 'rated', vars: { shape: shp(M) } },
+      { label: `\`M.sum(axis=1)\` adds along each row, counting True as 1. \`keepdims=True\` keeps a ${m}×1 column.\n\n$\\text{counts} = ${col(counts, String)}$`,
+        code: 'count', math: 'count', vars: { shape: `(${m}, 1)` } },
+      { label: `\`np.nansum(R, axis=1)\` adds each row's ratings and skips NaN (a plain sum would give NaN).\n\n$${rows.map((u, i) => `${txt(u)}{:}\\ ${obs[i].join(' + ')} = ${totals[i]}`).join(',\\quad ')}$`,
+        code: 'total', math: 'total', vars: { shape: `(${m}, 1)` } },
+      { label: `Both are ${m}×1 columns, so \`/\` divides row by row: each user's average.\n\n$\\text{mu} = ${arr(rows.map((u, i) => [muTex(i)]), { rows })}$`,
+        code: 'mu', math: 'mu', vars: { shape: `(${m}, 1)` } },
+      { label: `\`R\` is ${m}×${n} but \`mu\` is ${m}×1, so numpy **broadcasts**: it repeats each row's mean across all ${n} columns.\n\n$${arr(R.map((r, i) => r.map(() => mu[i])), { rows, cols, f })}$`,
+        code: 's', math: 's', vars: { broadcast: `(${m}, 1) → (${m}, ${n})` } },
+    ];
+    rows.forEach((u, i) => {
+      trace.push({
+        label: `Row ${u}: each rating minus ${u}'s mean. A NaN minus anything stays NaN, so blanks stay blank.\n\n$${obs[i].map((x) => `${x} - ${f(mu[i])} = ${f(x - mu[i])}`).join(',\\quad ')}$`,
+        code: 's', math: 's', vars: { [`S[${i}]`]: pyList(S[i], st === 'frac' ? fracStr : dec) },
+      });
     });
+    trace.push({ label: `Same ${m}×${n} shape as \`R\`, NaN in the same places; each row's ratings now add up to 0.\n\n$S = ${arr(S, { rows, cols, f })}$`,
+      code: 's', math: 's', vars: { shape: shp(S) } });
+    trace.push({ label: `\`mu.ravel()\` flattens the ${m}×1 column into a plain 1-D array of ${m} means.\n\n$\\text{mu} = ${vec(mu, f)}$`,
+      code: 'ret', math: 'ret', vars: { shape: `(${m},)` } });
     return { means: mu, trace };
   }
 
-  // anchors: init, loop, corated, dot, nu, nv, zero, sim
+  // anchors: mask, fill, dot, sq, ss, nu, nv, den, zero, sim   (mode user: rows of S; mode item: columns)
   function simCode({ matrix, a, b, mode = 'user' }) {
-    const st = styleOf(matrix);
+    const st = styleOf(matrix), f = numF(st);
+    const I = mode === 'item';
     const C = centered(matrix);
-    const va = vector(C, matrix, mode, a), vb = vector(C, matrix, mode, b);
-    const other = mode === 'item' ? matrix.rows : matrix.cols;
-    const f = (x) => (st === 'frac' ? fracStr(x) : dec(x));
-    const g = (x) => (x < -EPS ? `(${f(x)})` : f(x));
-    let dot = 0, nu = 0, nv = 0;
-    const [NU, NV] = mode === 'item' ? ['ni', 'nj'] : ['nu', 'nv'];
-    const trace = [{ label: `\`dot = ${NU} = ${NV} = 0.0\`: three running sums`, code: 'init', math: 'init', vars: { dot: 0, [NU]: 0, [NV]: 0 } }];
-    for (let q = 0; q < va.length; q++) {
-      const x = va[q], y = vb[q];
-      trace.push({ label: `\`for ${mode === 'item' ? 'u' : 'j'}\`: ${mode === 'item' ? 'user' : 'item'} ${other[q]}: ${a} → ${x === null ? 'None' : f(x)}, ${b} → ${y === null ? 'None' : f(y)}`, code: 'loop', math: 'loop', vars: { [mode === 'item' ? 'u' : 'j']: other[q], a: x === null ? 'None' : f(x), b: y === null ? 'None' : f(y) } });
-      if (x === null || y === null) {
-        trace.push({ label: mode === 'item' ? `User ${other[q]} didn't rate ${x === null ? a : b} → \`continue\` (not a co-rater)` : `${x === null ? a : b} didn't rate ${other[q]} → \`continue\` (not co-rated)`, code: 'corated', math: 'corated', vars: { skip: 'True' } });
-        continue;
-      }
-      trace.push({ label: mode === 'item' ? `User ${other[q]} rated both ${a} and ${b}: a co-rater, so it counts` : `Both ${a} and ${b} rated ${other[q]}: co-rated, so it counts`, code: 'corated', math: 'corated', vars: { skip: 'False' } });
-      dot += x * y;
-      trace.push({ label: `\`dot += a * b\`: + (${f(x)})(${f(y)}) = + ${g(x * y)} → dot = ${f(dot)}`, code: 'dot', math: 'dot', vars: { dot } });
-      nu += x * x;
-      trace.push({ label: `\`${NU} += a * a\`: + ${f(x * x)} → ${NU} = ${f(nu)}`, code: 'nu', math: 'nu', vars: { [NU]: nu } });
-      nv += y * y;
-      trace.push({ label: `\`${NV} += b * b\`: + ${f(y * y)} → ${NV} = ${f(nv)}`, code: 'nv', math: 'nv', vars: { [NV]: nv } });
-    }
-    const zero = nu < EPS || nv < EPS;
-    trace.push({ label: zero ? `\`${NU} == 0 or ${NV} == 0\`: **True** → return 0.0 (no overlap, or a zero vector)` : `\`${NU} == 0 or ${NV} == 0\`: **False**, both vectors have length`, code: 'zero', math: 'zero', vars: { [NU]: nu, [NV]: nv } });
-    const s = zero ? 0 : dot / (Math.sqrt(nu) * Math.sqrt(nv));
-    if (!zero) trace.push({ label: `\`dot / (sqrt(${NU}) * sqrt(${NV}))\` = ${dec(dot)} / (${dec(Math.sqrt(nu))} × ${dec(Math.sqrt(nv))}) = ${dec(dot)} / ${dec(Math.sqrt(nu) * Math.sqrt(nv))} = ${dec(s)}`, code: 'sim', math: 'sim', vars: { sim: s } });
-    return { sim: s, trace };
+    const P = I ? matrix.cols : matrix.rows; // the things compared
+    const O = I ? matrix.rows : matrix.cols; // what they are compared over
+    const pa = P.indexOf(a), pb = P.indexOf(b);
+    if (pa < 0 || pb < 0) throw new Error(`unknown ${I ? 'item' : 'user'} ${pa < 0 ? a : b}`);
+    const X = npSims(C, mode);
+    const R = { rows: matrix.rows, cols: matrix.cols };
+    const PP = { rows: P, cols: P, f };
+    const hl = [[pa, pb]];
+    const [DOT, SS, NU, NV] = I ? ['Z.T @ Z', 'sq.T @ M', 'ni', 'nj'] : ['Z @ Z.T', 'sq @ M.T', 'nu', 'nv'];
+    const colOf = (A, q) => (I ? A.map((r) => r[q]) : A[q]);
+    const za = colOf(X.Z0, pa), zb = colOf(X.Z0, pb), ma = colOf(X.M0, pa), mb = colOf(X.M0, pb);
+    const nP = P.length, nO = O.length;
+    const other = I ? 'users' : 'items';
+    const ent = (A) => A[pa][pb];
+    const zeros = X.den.flat().filter((x) => x <= EPS).length;
+    const idx = (nm) => `${nm}[${pa}, ${pb}]`;
+    const trace = [
+      { label: `\`~np.isnan(S)\` marks the rated cells; \`.astype(float)\` turns True/False into 1/0.\n\n$M = ${arr(X.M0, { ...R, f: String })}$`,
+        code: 'mask', math: 'mask', vars: { shape: shp(X.M0) } },
+      { label: `\`np.nan_to_num(S)\` replaces every NaN with 0. A 0 adds nothing to a sum, so blanks will drop out.\n\n$Z = ${arr(X.Z0, { ...R, f })}$`,
+        code: 'fill', math: 'fill', vars: { shape: shp(X.Z0) } },
+      { label: `\`${DOT}\` is a matrix product: (${nP}×${nO})(${nO}×${nP}) gives ${nP}×${nP}. Entry (${I ? 'i, j' : 'u, v'}) = ${I ? 'column i · column j' : 'row u · row v'} of Z.\n\n$\\text{dot} = ${arr(X.dot, { ...PP, hl })}$`,
+        code: 'dot', math: 'dot', vars: { shape: shp(X.dot) } },
+      { label: `Entry (${a}, ${b}) term by term: a blank is 0, so its product vanishes and only co-rated ${other} count.\n\n$\\text{dot}[${txt(a)}, ${txt(b)}] = ${za.map((x, q) => `${pp(x, f)}${pp(zb[q], f)}`).join(' + ')} = ${f(ent(X.dot))}$`,
+        code: 'dot', math: 'dot', vars: { [idx('dot')]: ent(X.dot) } },
+      { label: `\`Z ** 2\` squares every entry on its own (element-wise, not a matrix product).\n\n$\\text{sq} = ${arr(X.sq, { ...R, f })}$`,
+        code: 'sq', math: 'sq', vars: { shape: shp(X.sq) } },
+      { label: `\`${SS}\`: entry (${I ? 'i, j' : 'u, v'}) adds ${I ? "i's squares only for users who also rated j" : "u's squares only over items v also rated"}.\n\n$\\text{ss} = ${arr(X.ss, { ...PP, hl: [[pa, pb], [pb, pa]] })}$`,
+        code: 'ss', math: 'ss', vars: { shape: shp(X.ss) } },
+      { label: `The two entries we need: each side's squares, masked by the other side's ratings.\n\n$\\text{ss}[${txt(a)}, ${txt(b)}] = ${za.map((x, q) => `${f(x * x)}\\cdot${mb[q]}`).join(' + ')} = ${f(ent(X.ss))},\\quad \\text{ss}[${txt(b)}, ${txt(a)}] = ${zb.map((x, q) => `${f(x * x)}\\cdot${ma[q]}`).join(' + ')} = ${f(X.ss[pb][pa])}$`,
+        code: 'ss', math: 'ss', vars: { [idx('ss')]: ent(X.ss), [`ss[${pb}, ${pa}]`]: X.ss[pb][pa] } },
+      { label: `\`np.sqrt\` takes the square root of every entry: each ${I ? 'item' : 'user'}'s length over the co-rated ${other}.\n\n$\\text{${NU}} = ${arr(X.nu, { ...PP, hl })}$`,
+        code: 'nu', math: 'nu', vars: { [idx(NU)]: ent(X.nu) } },
+      { label: `\`.T\` transposes (swaps rows and columns): ${NV}[${I ? 'i, j' : 'u, v'}] = ${NU}[${I ? 'j, i' : 'v, u'}], the other side's length over the same ${other}.\n\n$\\text{${NV}} = ${arr(X.nv, { ...PP, hl })}$`,
+        code: 'nv', math: 'nv', vars: { [idx(NV)]: ent(X.nv) } },
+      { label: `\`${NU} * ${NV}\` multiplies entry by entry: the denominator for every pair at once.\n\n$\\text{den} = ${arr(X.den, { ...PP, hl })}$`,
+        code: 'den', math: 'den', vars: { [idx('den')]: ent(X.den) } },
+      { label: `\`np.where(c, x, y)\` takes x where c is True, else y: zeros in den become 1. ${zeros ? `(${zeros} zeros here.)` : '(No zeros here.)'}\n\n$\\text{safe} = ${arr(X.safe, { ...PP, hl })}$`,
+        code: 'zero', math: 'zero', vars: { 'zeros in den': zeros } },
+      { label: `\`dot / safe\` divides entry by entry; the outer \`np.where\` writes 0 wherever den was 0.\n\n$\\text{sims} = ${arr(X.sims, { ...PP, hl })}$`,
+        code: 'sim', math: 'sim', vars: { shape: shp(X.sims) } },
+      { label: `Entry (${a}, ${b}), the similarity itself.\n\n$\\text{sims}[${txt(a)}, ${txt(b)}] = ${ent(X.den) > EPS ? `\\frac{${dec(ent(X.dot))}}{${dec(ent(X.nu))} \\times ${dec(ent(X.nv))}} = \\frac{${dec(ent(X.dot))}}{${dec(ent(X.den))}} = ${dec(ent(X.sims))}` : `0 \\quad (\\text{den} = 0)`}$`,
+        code: 'sim', math: 'sim', vars: { [idx('sims')]: ent(X.sims) } },
+    ];
+    return { sim: ent(X.sims), trace };
   }
 
-  // anchors: loop, cands, topk, pos, acc, num, den, pred, mean   (mode user or item)
-  function predictCode({ matrix, user, item, k, mode = 'user', stopAt = null }) {
-    const st = styleOf(matrix);
-    const f = (x) => (st === 'frac' ? fracStr(x) : dec(x));
+  // anchors: raters, self, idx, sort, topk, pos   (user-based neighbours)
+  function nbrSteps(matrix, user, item, k) {
+    const st = styleOf(matrix), f = numF(st);
+    const C = centered(matrix);
+    const u = matrix.rows.indexOf(user), j = matrix.cols.indexOf(item);
+    if (u < 0 || j < 0) throw new Error('unknown user or item');
+    const sims = npSims(C, 'user').sims;
+    const colj = C.map((r) => r[j]);
+    const raters = colj.map((x) => x !== null);
+    const was = raters[u];
+    const raters2 = raters.map((x, q) => (q === u ? false : x));
+    const cands = raters2.map((x, q) => (x ? q : -1)).filter((q) => q >= 0);
+    const sc = cands.map((q) => sims[u][q]);
+    const order = cands.map((_, t) => t).sort((x, y) => sc[y] - sc[x] || x - y);
+    const top = order.slice(0, k).map((t) => cands[t]);
+    const keep = top.map((q) => sims[u][q] > EPS);
+    const N = top.filter((_, t) => keep[t]);
+    const nm = (qs) => qs.map((q) => matrix.rows[q]).join(', ') || 'none';
+    const U = { cols: matrix.rows };
+    const steps = [
+      { label: `\`S[:, j]\` is column ${item}: every user's centered rating of it. \`~np.isnan\` marks who rated it.\n\n$\\text{S[:, j]} = ${arr([colj], { ...U, f })} \\;\\Rightarrow\\; ${arr([raters.map(TF)], U)}$`,
+        code: 'raters', math: 'raters', vars: { j: `${j} (${item})` } },
+      { label: `\`raters[u] = False\`: ${user} is the target and can't vote for itself${was ? '' : ` (already False: ${user} never rated ${item})`}.\n\n$\\text{raters} = ${arr([raters2.map(TF)], U)}$`,
+        code: 'self', math: 'self', vars: { u: `${u} (${user})` } },
+      { label: '`np.flatnonzero` returns the positions of the True entries: the candidates\' row numbers.\n\n' + `$\\text{cands} = ${vec(cands, String)} \\quad (${txt(nm(cands))})$`,
+        code: 'idx', math: 'idx', vars: { cands: pyList(cands, String) } },
+      { label: `\`sims[u, cands]\` reads row ${user} at those columns. \`argsort\` sorts ascending, so sort the negatives: most similar first.\n\n$\\text{sims[u, cands]} = ${vec(sc)} \\;\\Rightarrow\\; \\text{order} = ${vec(order, String)}$`,
+        code: 'sort', math: 'sort', vars: { order: pyList(order, String) } },
+      { label: `\`order[:k]\` keeps the first k = ${k} positions; \`cands[…]\` turns them back into row numbers.\n\n$\\text{top} = ${vec(top, String)} \\quad (${txt(nm(top))})$`,
+        code: 'topk', math: 'topk', vars: { top: pyList(top, String) } },
+      { label: `\`sims[u, top] > 0\` gives True/False per neighbour; indexing \`top\` with it keeps the True ones.\n\n$${vec(top.map((q) => sims[u][q]))} > 0 = ${vec(keep.map(TF))} \\;\\Rightarrow\\; N = ${vec(N, String)} \\quad (${txt(N.length ? nm(N) : 'nobody')})$`,
+        code: 'pos', math: 'pos', vars: { N: pyList(N, String) } },
+    ];
+    return { u, j, C, sims, cands, top, N, steps, f, st, nm };
+  }
+  function neighborsCode({ matrix, user, item, k }) {
+    const r = nbrSteps(matrix, user, item, k);
+    return { used: r.N.map((q) => matrix.rows[q]), trace: r.steps };
+  }
+
+  // anchors: nbrs, blank, w, s, num, den, pred, mean   (user-based prediction)
+  function predictCode({ matrix, user, item, k }) {
+    const r = nbrSteps(matrix, user, item, k);
+    const { u, j, C, sims, N, f, st } = r;
+    const mu = means(matrix);
+    const trace = [
+      { label: `\`neighbors(S, sims, u, j, k)\` (previous section): raters of ${item}, top ${k} by similarity, then sim > 0.\n\n$${r.cands.length ? `${txt(r.nm(r.cands))} \\to \\text{top-}${k}{:}\\ ${txt(r.nm(r.top))} \\to N = ${vec(N, String)}\\ (${N.length ? txt(r.nm(N)) : '\\text{nobody}'})` : '\\text{nobody rated it} \\Rightarrow N = [\\,]'}$`,
+        code: 'nbrs', math: 'nbrs', vars: { N: pyList(N, String) } },
+    ];
+    if (!N.length) {
+      trace.push({ label: '`N.size == 0`: nobody is left to vote, so `return np.nan` and the cell stays blank.', code: 'blank', math: 'blank', vars: { 'N.size': 0 } });
+      return { centered: null, rating: null, trace };
+    }
+    const w = N.map((q) => sims[u][q]);
+    const s = N.map((q) => C[q][j]);
+    const num = w.reduce((t, x, q) => t + x * s[q], 0);
+    const den = w.reduce((t, x) => t + x, 0);
+    const sh = num / den;
+    trace.push(
+      { label: `\`N.size\` is ${N.length}, not 0, so the function carries on.`, code: 'blank', math: 'blank', vars: { 'N.size': N.length } },
+      { label: `Fancy indexing: \`sims[u, N]\` reads row ${user} at the columns in N, in N's order.\n\n$\\mathbf{w} = ${vec(w)}$`,
+        code: 'w', math: 'w', vars: { w: pyList(w) } },
+      { label: `\`S[N, j]\` reads rows N of column ${item}: the neighbours' centered ratings, in the same order.\n\n$\\mathbf{s} = ${vec(s, f)}$`,
+        code: 's', math: 's', vars: { s: pyList(s, st === 'frac' ? fracStr : dec) } },
+      { label: `\`w @ s\` on two 1-D arrays is a dot product: multiply pairwise, then add.\n\n$${w.map((x, q) => `(${dec(x)})${pp(s[q], f)}`).join(' + ')}${w.length > 1 ? ` = ${w.map((x, q) => dec(x * s[q])).join(' + ').replace(/\+ -/g, '- ')}` : ''} = ${dec(num)}$`,
+        code: 'num', math: 'num', vars: { num } },
+      { label: w.length > 1 ? '`w.sum()` adds the weights.\n\n' + `$${w.map((x) => dec(x)).join(' + ')} = ${dec(den)}$` : `\`w.sum()\` adds the weights; with one neighbour it is just $${dec(den)}$.`, code: 'den', math: 'den', vars: { den } },
+      { label: 'Divide: the similarity-weighted average of the neighbours\' centered ratings.\n\n' + `$\\hat s = \\frac{${dec(num)}}{${dec(den)}} = ${dec(sh)}$`, code: 'pred', math: 'pred', vars: { s_hat: sh } },
+      { label: `\`mu[u]\` is ${user}'s mean; adding it undoes the centering and gives a rating.\n\n$${dec(sh)} + ${tn(mu[u], st)} = ${dec(sh + mu[u])}$`,
+        code: 'mean', math: 'mean', vars: { rating: sh + mu[u] } },
+    );
+    return { centered: sh, rating: sh + mu[u], trace };
+  }
+
+  // anchors: rated, self, idx, sort, topk, pos, blank, w, s, num, den, pred, mean   (item-based prediction)
+  function ibPredictCode({ matrix, user, item, k }) {
+    const st = styleOf(matrix), f = numF(st);
     const C = centered(matrix);
     const mu = means(matrix);
-    const ui = matrix.rows.indexOf(user), ij = matrix.cols.indexOf(item);
-    const p = predict({ matrix, user, item, k, mode });
-    const peers = mode === 'user' ? matrix.rows : matrix.cols;
-    const trace = [];
-    const cands = [];
-    peers.forEach((v, q) => {
-      const self = mode === 'user' ? q === ui : q === ij;
-      const val = mode === 'user' ? C[q][ij] : C[ui][q];
-      const V = mode === 'user' ? 'v' : 'i';
-      trace.push({ label: `\`for ${V}\`: ${mode === 'user' ? 'user' : 'item'} ${v}${self ? ' (the target itself)' : ''}`, code: 'loop', math: 'loop', vars: { [V]: v } });
-      const ok = !self && val !== null;
-      if (ok) cands.push(v);
-      trace.push({
-        label: self ? `${mode === 'user' ? 'v' : 'i'} is the target → not a candidate` : ok ? `${mode === 'user' ? `${v} rated ${item}` : `${user} rated ${v}`} → candidate (${cands.length} so far)` : `${mode === 'user' ? `${v} didn't rate ${item}` : `${user} didn't rate ${v}`} → skip`,
-        code: 'cands', math: 'cands', vars: { cands: [...cands] },
-      });
-    });
-    const simOf = (v) => p.neighbors.find((c) => c.label === v).sim;
-    trace.push({ label: `Sort by similarity and cut at k = ${k}: ${p.neighbors.map((c) => `${c.label} ${dec(c.sim)}`).join(', ')} → top = ${p.top.join(', ') || 'none'}`, code: 'topk', math: 'topk', vars: { top: p.top } });
-    trace.push({ label: `Keep only sim > 0 → used = ${p.used.join(', ') || 'nobody'}`, code: 'pos', math: 'pos', vars: { used: p.used } });
-    if (stopAt === 'pos') return { used: p.used, trace };
-    if (p.blank) {
-      trace.push({ label: '`if not used`: nobody left, so `return None` (the cell stays blank)', code: 'pos', math: 'pos', vars: { result: 'None' } });
-      return { centered: null, trace };
+    const u = matrix.rows.indexOf(user), j = matrix.cols.indexOf(item);
+    if (u < 0 || j < 0) throw new Error('unknown user or item');
+    const isims = npSims(C, 'item').sims;
+    const rowu = C[u];
+    const rated = rowu.map((x) => x !== null);
+    const rated2 = rated.map((x, q) => (q === j ? false : x));
+    const cands = rated2.map((x, q) => (x ? q : -1)).filter((q) => q >= 0);
+    const sc = cands.map((q) => isims[j][q]);
+    const order = cands.map((_, t) => t).sort((x, y) => sc[y] - sc[x] || x - y);
+    const top = order.slice(0, k).map((t) => cands[t]);
+    const keep = top.map((q) => isims[j][q] > EPS);
+    const N = top.filter((_, t) => keep[t]);
+    const nm = (qs) => qs.map((q) => matrix.cols[q]).join(', ') || 'none';
+    const It = { cols: matrix.cols };
+    const trace = [
+      { label: `\`S[u]\` is row ${user}: ${user}'s centered ratings. \`~np.isnan\` marks the items ${user} rated.\n\n$\\text{S[u]} = ${arr([rowu], { ...It, f })} \\;\\Rightarrow\\; ${arr([rated.map(TF)], It)}$`,
+        code: 'rated', math: 'rated', vars: { u: `${u} (${user})` } },
+      { label: `\`rated[j] = False\`: ${item} is the target item, not a neighbour${rated[j] ? '' : ` (already False: ${user} never rated it)`}.\n\n$\\text{rated} = ${arr([rated2.map(TF)], It)}$`,
+        code: 'self', math: 'self', vars: { j: `${j} (${item})` } },
+      { label: '`np.flatnonzero` returns the positions of the True entries: the candidate items\' column numbers.\n\n' + `$\\text{cands} = ${vec(cands, String)} \\quad (${txt(nm(cands))})$`,
+        code: 'idx', math: 'idx', vars: { cands: pyList(cands, String) } },
+      { label: `\`isims[j, cands]\` reads row ${item} of the item similarities there; sorting the negatives puts the most similar first.\n\n$\\text{isims[j, cands]} = ${vec(sc)} \\;\\Rightarrow\\; \\text{order} = ${vec(order, String)}$`,
+        code: 'sort', math: 'sort', vars: { order: pyList(order, String) } },
+      { label: `\`order[:k]\` keeps the first k = ${k}; \`cands[…]\` turns them back into column numbers.\n\n$\\text{top} = ${vec(top, String)} \\quad (${txt(nm(top))})$`,
+        code: 'topk', math: 'topk', vars: { top: pyList(top, String) } },
+      { label: '`isims[j, top] > 0` gives True/False per item; boolean indexing keeps the True ones.\n\n' + `$${vec(top.map((q) => isims[j][q]))} > 0 = ${vec(keep.map(TF))} \\;\\Rightarrow\\; N = ${vec(N, String)} \\quad (${txt(N.length ? nm(N) : 'nothing')})$`,
+        code: 'pos', math: 'pos', vars: { N: pyList(N, String) } },
+    ];
+    if (!N.length) {
+      trace.push({ label: '`N.size == 0`: no similar item is left, so `return np.nan` and the cell stays blank.', code: 'blank', math: 'blank', vars: { 'N.size': 0 } });
+      return { centered: null, rating: null, trace };
     }
-    let num = 0, den = 0;
-    for (const v of p.used) {
-      const q = peers.indexOf(v);
-      const sv = mode === 'user' ? C[q][ij] : C[ui][q];
-      const sm = simOf(v);
-      trace.push({ label: `\`for ${mode === 'user' ? 'v' : 'i'} in used\`: ${v}, sim = ${dec(sm)}, centered rating s = ${f(sv)}`, code: 'acc', math: 'acc', vars: { [mode === 'user' ? 'v' : 'i']: v, sim: sm, s: sv } });
-      num += sm * sv;
-      trace.push({ label: `\`num += sim * s\`: + (${dec(sm)})(${f(sv)}) = + ${sm * sv < -EPS ? `(${dec(sm * sv)})` : dec(sm * sv)} → num = ${dec(num)}`, code: 'num', math: 'num', vars: { num } });
-      den += sm;
-      trace.push({ label: `\`den += sim\`: + ${dec(sm)} → den = ${dec(den)}`, code: 'den', math: 'den', vars: { den } });
-    }
-    trace.push({ label: `\`s_hat = num / den\` = ${dec(num)} / ${dec(den)} = ${dec(num / den)}`, code: 'pred', math: 'pred', vars: { s_hat: num / den } });
-    trace.push({ label: `\`return s_hat + mu[u]\` = ${dec(num / den)} + ${f(mu[ui])} = ${dec(num / den + mu[ui])}`, code: 'mean', math: 'mean', vars: { rating: num / den + mu[ui] } });
-    return { centered: num / den, rating: num / den + mu[ui], trace };
+    const w = N.map((q) => isims[j][q]);
+    const s = N.map((q) => C[u][q]);
+    const num = w.reduce((t, x, q) => t + x * s[q], 0);
+    const den = w.reduce((t, x) => t + x, 0);
+    const sh = num / den;
+    trace.push(
+      { label: `\`N.size\` is ${N.length}, not 0, so the function carries on.`, code: 'blank', math: 'blank', vars: { 'N.size': N.length } },
+      { label: `\`isims[j, N]\` reads row ${item} at the columns in N: the weights.\n\n$\\mathbf{w} = ${vec(w)}$`, code: 'w', math: 'w', vars: { w: pyList(w) } },
+      { label: `\`S[u, N]\` reads row ${user} at the same columns: ${user}'s **own** centered ratings of those items.\n\n$\\mathbf{s} = ${vec(s, f)}$`,
+        code: 's', math: 's', vars: { s: pyList(s, st === 'frac' ? fracStr : dec) } },
+      { label: '`w @ s` is a dot product: multiply pairwise, then add.\n\n' + `$${w.map((x, q) => `(${dec(x)})${pp(s[q], f)}`).join(' + ')} = ${dec(num)}$`, code: 'num', math: 'num', vars: { num } },
+      { label: w.length > 1 ? '`w.sum()` adds the weights.\n\n' + `$${w.map((x) => dec(x)).join(' + ')} = ${dec(den)}$` : `\`w.sum()\` adds the weights; with one neighbour it is just $${dec(den)}$.`, code: 'den', math: 'den', vars: { den } },
+      { label: 'Divide: the similarity-weighted average of the user\'s own centered ratings.\n\n' + `$\\hat s = \\frac{${dec(num)}}{${dec(den)}} = ${dec(sh)}$`, code: 'pred', math: 'pred', vars: { s_hat: sh } },
+      { label: `\`mu[u]\` is ${user}'s mean; adding it gives the rating.\n\n$${dec(sh)} + ${tn(mu[u], st)} = ${dec(sh + mu[u])}$`, code: 'mean', math: 'mean', vars: { rating: sh + mu[u] } },
+    );
+    return { centered: sh, rating: sh + mu[u], trace };
   }
 
-  // anchors: init, loop, gain, disc, add, ret
+  // anchors: rel, pos, gain, disc, terms, add
+  function dcgSteps(rels, k, names) {
+    const kk = Math.min(k, rels.length);
+    const rel = rels.slice(0, kk);
+    const pos = rel.map((_, t) => t + 1);
+    const gain = rel.map((r) => Math.pow(2, r) - 1);
+    const disc = pos.map((i) => Math.log2(i + 1));
+    const terms = gain.map((g, t) => g / disc[t]);
+    const total = terms.reduce((a, b) => a + b, 0);
+    const d3 = (x) => String(+x.toFixed(3));
+    const steps = [
+      { label: `\`rel[:k]\` keeps the first ${kk} positions; \`np.asarray(…, dtype=float)\` makes a float array of the true ratings.\n\n$\\text{rel} = ${vec(rel, String)}${names ? ` \\quad (${txt(names.slice(0, kk).join(', '))})` : ''}$`,
+        code: 'rel', math: 'rel', vars: { shape: `(${kk},)` } },
+      { label: `\`np.arange(1, ${kk + 1})\` counts from 1 up to ${kk} (the stop value ${kk + 1} is left out): the positions.\n\n$\\mathbf{i} = ${vec(pos, String)}$`,
+        code: 'pos', math: 'pos', vars: { i: pyList(pos, String) } },
+      { label: '`2.0 ** rel` raises 2 to each rating (element-wise), then `- 1` subtracts 1 from each: the gains.\n\n' + `$${rel.map((r) => `2^{${r}} - 1`).join(',\\ ')} \\;\\Rightarrow\\; \\text{gain} = ${vec(gain, String)}$`,
+        code: 'gain', math: 'gain', vars: { gain: pyList(gain, String) } },
+      { label: '`i + 1` adds 1 to each position, then `np.log2` takes log base 2 of each: the discounts.\n\n' + `$${pos.map((i) => `\\log_2 ${i + 1}`).join(',\\ ')} \\;\\Rightarrow\\; \\text{disc} = ${vec(disc, d3)}$`,
+        code: 'disc', math: 'disc', vars: { disc: pyList(disc, d3) } },
+      { label: '`gain / disc` divides position by position: one term per position.\n\n' + `$${gain.map((g, t) => `\\tfrac{${g}}{${d3(disc[t])}}`).join(',\\ ')} \\;\\Rightarrow\\; \\text{terms} = ${vec(terms)}$`,
+        code: 'terms', math: 'terms', vars: { terms: pyList(terms) } },
+      { label: '`.sum()` adds every term: the DCG.\n\n' + `$${terms.map((x) => dec(x)).join(' + ')} = ${dec(total)}$`, code: 'add', math: 'add', vars: { dcg: total } },
+    ];
+    return { rel, gain, disc, terms, total, steps };
+  }
   function dcgCode({ ratings, list, k }) {
-    const kk = Math.min(k ?? list.length, list.length);
-    let total = 0;
-    const trace = [{ label: '`total = 0.0`', code: 'init', math: 'init', vars: { total: 0 } }];
-    for (let i = 1; i <= kk; i++) {
-      const id = list[i - 1], rel = ratings[id] ?? 0, gain = Math.pow(2, rel) - 1, disc = Math.log2(i + 1);
-      trace.push({ label: `\`for i, item\`: position i = ${i}, item = ${id} (true rating ${rel})`, code: 'loop', math: 'loop', vars: { i, item: id } });
-      trace.push({ label: `\`gain = 2 ** ${rel} - 1\` = ${gain}`, code: 'gain', math: 'gain', vars: { gain } });
-      trace.push({ label: `\`disc = log2(${i} + 1)\` = ${+disc.toFixed(3)}`, code: 'disc', math: 'disc', vars: { disc } });
-      total += gain / disc;
-      trace.push({ label: `\`total += gain / disc\`: + ${gain}/${+disc.toFixed(3)} = + ${dec(gain / disc)} → total = ${dec(total)}`, code: 'add', math: 'add', vars: { total } });
-    }
-    trace.push({ label: `\`return total\` = ${dec(total)}`, code: 'ret', math: 'ret', vars: { dcg: total } });
-    return { dcg: total, trace };
+    const r = dcgSteps(list.map((id) => ratings[id] ?? 0), k ?? list.length, list);
+    return { dcg: r.total, trace: r.steps };
   }
 
-  // anchors: ideal, dcg, idcg, ndcg
+  // anchors: dcg, ideal, idcg, ndcg
   function ndcgCode({ ratings, list, k }) {
-    const nd = ndcg({ ratings, list, k });
-    const all = Object.keys(ratings).sort((a, b) => ratings[b] - ratings[a] || (a < b ? -1 : 1));
+    const kk = Math.min(k ?? list.length, list.length);
+    const ids = Object.keys(ratings);
+    const all = ids.map((id) => ratings[id]);
+    const d = dcgSteps(list.map((id) => ratings[id] ?? 0), kk);
+    const asc = all.slice().sort((x, y) => x - y);
+    const desc = asc.slice().reverse();
+    const idealIds = ids.slice().sort((x, y) => ratings[y] - ratings[x] || (x < y ? -1 : 1));
+    const id = dcgSteps(desc, kk);
+    const v = id.total > 0 ? d.total / id.total : 0;
     return {
-      ndcg: nd.ndcg,
+      ndcg: v,
       trace: [
-        { label: `\`ideal\` = all items sorted by true rating: ${all.map((i) => `${i} ${ratings[i]}`).join(', ')}`, code: 'ideal', math: 'ideal', vars: { ideal: all } },
-        ...nd.terms.map((t) => ({ label: `\`dcg(ranked)\` position ${t.pos}: ${t.id}, (2^${t.rel} − 1)/log₂(${t.pos + 1}) = ${dec(t.contrib)}`, code: 'dcg', math: 'dcg', vars: { term: t.contrib } })),
-        { label: `DCG of the recommended list = ${dec(nd.dcg)}`, code: 'dcg', math: 'dcg', vars: { dcg: nd.dcg } },
-        ...nd.idealTerms.map((t) => ({ label: `\`dcg(ideal)\` position ${t.pos}: ${t.id}, (2^${t.rel} − 1)/log₂(${t.pos + 1}) = ${dec(t.contrib)}`, code: 'idcg', math: 'idcg', vars: { term: t.contrib } })),
-        { label: `IDCG (only the top ${nd.ideal.length} of the ideal list count) = ${dec(nd.idcg)}`, code: 'idcg', math: 'idcg', vars: { idcg: nd.idcg } },
-        { label: `\`return\` ${dec(nd.dcg)} / ${dec(nd.idcg)} = ${+nd.ndcg.toFixed(3)}`, code: 'ndcg', math: 'ndcg', vars: { ndcg: nd.ndcg } },
+        { label: `\`dcg(rel, ${kk})\` (previous section) on the recommended order ${list.slice(0, kk).join(', ')}.\n\n$\\text{rel} = ${vec(d.rel, String)} \\;\\Rightarrow\\; \\text{terms} = ${vec(d.terms)} \\;\\Rightarrow\\; d = ${dec(d.total)}$`,
+          code: 'dcg', math: 'dcg', vars: { d: d.total } },
+        { label: '`np.sort(all_rel)` sorts every item\'s true rating, smallest first.\n\n' + `$\\text{all\\_rel} = ${vec(all, String)} \\ (${txt(ids.join(', '))}) \\;\\Rightarrow\\; ${vec(asc, String)}$`,
+          code: 'ideal', math: 'ideal', vars: { 'all_rel': pyList(all, String) } },
+        { label: '`[::-1]` reads the array backwards (a slice with step −1): best first, the ideal order.\n\n' + `$\\text{ideal} = ${vec(desc, String)} \\ (${txt(idealIds.join(', '))})$`,
+          code: 'ideal', math: 'ideal', vars: { ideal: pyList(desc, String) } },
+        { label: `\`dcg(ideal, ${kk})\` keeps only the best ${kk}${desc.length > kk ? ` (${desc.slice(kk).join(', ')} drops out)` : ''} and scores them the same way: the IDCG.\n\n$${vec(id.rel, String)} \\;\\Rightarrow\\; \\text{terms} = ${vec(id.terms)} \\;\\Rightarrow\\; i = ${dec(id.total)}$`,
+          code: 'idcg', math: 'idcg', vars: { i: id.total } },
+        { label: 'Divide: how close the recommended list comes to the best possible ordering (1 = perfect).\n\n' + `$\\text{NDCG} = \\frac{${dec(d.total)}}{${dec(id.total)}} = ${+v.toFixed(3)}$`,
+          code: 'ndcg', math: 'ndcg', vars: { ndcg: v } },
       ],
     };
   }
 
-  // anchors: both, w, shrunk
-  function shrunkCode({ matrix, a, b, mode = 'user', beta = 3 }) {
-    const s = shrunkSim({ matrix, a, b, mode, beta });
-    const sm = sim({ matrix, a, b, mode });
+  // anchors: mask, both, w, shrunk   (significance weighting on user similarities)
+  function shrunkCode({ matrix, a, b, beta = 3 }) {
+    const st = styleOf(matrix);
+    const C = centered(matrix);
+    const X = npSims(C, 'user');
+    const P = matrix.rows;
+    const pa = P.indexOf(a), pb = P.indexOf(b);
+    if (pa < 0 || pb < 0) throw new Error(`unknown user ${pa < 0 ? a : b}`);
+    const M = X.M0;
+    const both = sdk.matmul(M, sdk.transpose(M));
+    const w = both.map((r) => r.map((x) => Math.min(x, beta) / beta));
+    const out = w.map((r, i) => r.map((x, j) => x * X.sims[i][j]));
+    const PP = { rows: P, cols: P };
+    const hl = [[pa, pb]];
+    const wF = (x) => tn(x, 'frac');
     return {
-      shrunk: s.shrunk,
+      shrunk: out[pa][pb],
       trace: [
-        { label: `\`both\`: co-rated entries of ${a} and ${b} → ${sm.corated.join(', ') || 'none'} (${s.overlap})`, code: 'both', math: 'both', vars: { overlap: s.overlap } },
-        { label: `\`w = min(${s.overlap}, ${beta}) / ${beta}\` = ${dec(s.weight)}`, code: 'w', math: 'w', vars: { w: s.weight } },
-        { label: `\`w * sim\` = ${dec(s.weight)} × ${dec(s.sim)} = ${dec(s.shrunk)}`, code: 'shrunk', math: 'shrunk', vars: { shrunk: s.shrunk } },
+        { label: '`~np.isnan(S)` marks rated cells; `.astype(int)` turns True/False into 1/0.\n\n' + `$M = ${arr(M, { rows: P, cols: matrix.cols, f: String })}$`,
+          code: 'mask', math: 'mask', vars: { shape: shp(M) } },
+        { label: '`M @ M.T`: entry (u, v) is row u · row v of the mask, which counts the items both rated.\n\n' + `$\\text{both} = ${arr(both, { ...PP, f: String, hl })}$`,
+          code: 'both', math: 'both', vars: { shape: shp(both) } },
+        { label: `Entry (${a}, ${b}): a 1·1 only where both rated. The diagonal is how many items each user rated.\n\n$\\text{both}[${txt(a)}, ${txt(b)}] = ${M[pa].map((x, q) => `${x}\\cdot${M[pb][q]}`).join(' + ')} = ${both[pa][pb]}$`,
+          code: 'both', math: 'both', vars: { [`both[${pa}, ${pb}]`]: both[pa][pb] } },
+        { label: `\`np.minimum(both, ${beta})\` caps each count at β = ${beta}; dividing by β gives weights from 0 to 1.\n\n$w = ${arr(w, { ...PP, f: wF, hl })}$`,
+          code: 'w', math: 'w', vars: { [`w[${pa}, ${pb}]`]: w[pa][pb] } },
+        { label: '`w * sims` multiplies entry by entry: each similarity scaled by how much evidence it rests on.\n\n' + `$\\text{sims} = ${arr(X.sims, { ...PP, hl })} \\;\\Rightarrow\\; ${arr(out, { ...PP, hl })}$`,
+          code: 'shrunk', math: 'shrunk', vars: { [`shrunk[${pa}, ${pb}]`]: out[pa][pb] } },
+        { label: `Entry (${a}, ${b}).\n\n$${wF(w[pa][pb])} \\times ${dec(X.sims[pa][pb])} = ${dec(out[pa][pb])}$`,
+          code: 'shrunk', math: 'shrunk', vars: { [`shrunk[${pa}, ${pb}]`]: out[pa][pb] } },
       ],
     };
   }
@@ -831,7 +1036,7 @@ export default function register(sdk) {
     fns: {
       vecCos, center, rowMeans, sim, simMatrix, predict, fill, dcg, ndcg, dcgFromOrder, shrunkSim, recommend, holdout,
       simSheet, simWalk, centerWalk, predictSheet, predictWalk, dcgSheet, dcgWalk,
-      centerCode, simCode, predictCode, dcgCode, ndcgCode, shrunkCode,
+      centerCode, simCode, neighborsCode, predictCode, ibPredictCode, dcgCode, ndcgCode, shrunkCode,
     },
     generators: { meanQ, centerQ, simQ, neighborsQ, ubPredictQ, ibPredictQ, dcgQ, ndcgQ },
   };

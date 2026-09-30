@@ -340,18 +340,19 @@ templates:
     difficulty: 2
     tags: [code]
     lessonRef: { tab: math-code, id: ub-predict }
-    prompt: Complete the end of the user-based predictor.
+    prompt: 'Complete the end of the user-based predictor (NumPy). `top` holds the rows of the k most similar users who rated item j.'
     code: |
-      top = sorted(cands, key=lambda v: -sims[u, v])[:k]
-      used = [v for v in top if sims[u, v] __BLANK_1__]
-      if not used:
-          return None
-      s_hat = sum(sims[u, v] * S[v, j] for v in used) / sum(sims[u, v] for v in used)
-      return s_hat + __BLANK_2__
+      def predict_user_based(S, mu, sims, u, j, top):
+          N = top[sims[u, top] __BLANK_1__]
+          if N.size == 0:
+              return np.nan
+          w = sims[u, N]
+          s_hat = (w @ S[N, j]) / w.sum()
+          return s_hat + __BLANK_2__
     blanks:
-      '1': { accept: ['> 0', '>0'] }
+      '1': { accept: ['> 0', '>0'], hint: a condition that keeps only some neighbours }
       '2': { accept: ['mu[u]'] }
-    explanation: Only positive neighbours vote, and the target user's mean turns ŝ back into a rating.
+    explanation: 'Boolean indexing keeps only the positive neighbours (`sims[u, top] > 0`), and the target user''s mean `mu[u]` turns ŝ back into a rating.'
 
   - id: code-dcg
     type: code-fill
@@ -359,17 +360,16 @@ templates:
     difficulty: 1
     tags: [code]
     lessonRef: { tab: math-code, id: dcg }
-    prompt: Complete DCG.
+    prompt: 'Complete DCG (NumPy). `rel` holds the true relevance of each recommended item, in ranked order.'
     code: |
-      def dcg(ratings, ranked, k):
-          total = 0.0
-          for i, item in enumerate(ranked[:k], start=1):
-              total += (__BLANK_1__) / math.log2(__BLANK_2__)
-          return total
+      def dcg(rel, k):
+          rel = np.asarray(rel[:k], dtype=float)
+          i = np.arange(1, rel.size + 1)
+          return np.sum((__BLANK_1__) / np.log2(__BLANK_2__))
     blanks:
-      '1': { accept: ['2 ** ratings[item] - 1', '2**ratings[item]-1', 'pow(2, ratings[item]) - 1'] }
+      '1': { accept: ['2 ** rel - 1', '2.0 ** rel - 1', 'np.power(2, rel) - 1', 'np.exp2(rel) - 1'], hint: the gain of every position at once }
       '2': { accept: ['i + 1', 'i+1'] }
-    explanation: 'Gain 2^rel − 1 over log₂(i + 1) with positions starting at 1.'
+    explanation: 'Gain 2^rel − 1 over log₂(i + 1), element-wise, with positions starting at 1; `np.sum` adds the terms.'
 
   - id: match-terms
     type: match

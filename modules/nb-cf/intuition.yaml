@@ -32,10 +32,14 @@ scenes:
             - { label: similarity, value: '@vc.cos', format: 2, tone: accent }
     beats:
       - say: |
-          Two friends each rate two movies. Draw each person as an arrow: x = how much they liked movie 1, y = movie 2 (relative to their usual).
+          **Collaborative filtering** (CF) recommends things by pooling many people's ratings: to guess what you'll think of a movie,
+          find people whose past ratings resemble yours and borrow their opinions. First we need a number for "resemble".
+      - say: |
+          Two friends each rate two movies. Draw each person as an arrow (a **vector**): x = how much they liked movie 1, y = movie 2 (relative to their usual).
           Arrows pointing the same way mean **similar taste**.
       - say: |
-          The **cosine of the angle** between the arrows measures that: 1 means the same direction, 0 means unrelated, −1 means opposite. Multiply matching coordinates and add (the dot product), then divide by both lengths.
+          **Cosine similarity** is the cosine of the angle between the arrows: 1 = same direction, 0 = unrelated, −1 = opposite.
+          Compute it as the **dot product** (multiply matching coordinates, then add) divided by both lengths, also called **norms**: $\|a\| = \sqrt{a_1^2 + a_2^2}$ by Pythagoras.
         do:
           - { target: f, cmd: step, args: { n: 0 } }
           - { target: f, cmd: highlight, args: { sel: 'term:dot', tone: accent } }
@@ -62,7 +66,7 @@ scenes:
           hint: Point Bea's arrow roughly away from Migs's.
       - say: |
           One catch: raw ratings are all positive (1 to 5), so raw arrows live in one corner and every pair looks similar.
-          That's why the lecture first **mean-centers** the ratings, which is the next scene.
+          That's why the lecture first **mean-centers** the ratings (subtracts each person's own average), which is the next scene.
         set:
           vecs:
             - { id: migs, label: 'Migs (raw)', x: 2.5, y: 2, draggable: true }
@@ -117,7 +121,7 @@ scenes:
       - say: |
           The lecture's matrix: four users, seven movies (Harry Potter, Twilight, Star Wars). A 4 from generous B and a 4 from harsh A don't mean the same thing.
       - say: |
-          Step 1: each user's average $\mu_u$, over the movies **they rated** only. A rated HP1, TW, SW1: $\mu_A = \frac{4 + 5 + 1}{3} = \frac{10}{3} \approx 3.33$. Blanks are not zeros.
+          Step 1: each user's average $\mu_u$ ("mu of u"), over the movies **they rated** only. A rated HP1, TW, SW1: $\mu_A = \frac{4 + 5 + 1}{3} = \frac{10}{3} \approx 3.33$. Blanks are not zeros.
         do:
           - { target: m, cmd: highlight, args: { sel: ['row:A', 'mean:A'], tone: accent } }
         gate:
@@ -125,7 +129,9 @@ scenes:
           question: B rated 5, 5 and 4. What is μ_B?
           answer: { value: 4.67, tol: 0.02 }
           explain: '(5 + 5 + 4)/3 = 14/3 ≈ 4.67. Likewise μ_C = (2 + 4 + 5)/3 = 11/3 and μ_D = (3 + 3)/2 = 3.'
-      - say: Step 2 subtracts each user's own mean from each of their ratings.
+      - say: |
+          Step 2 is **mean-centering**: subtract each user's own mean from each of their ratings. The result $s_{uj}$, u's **centered rating** of item j,
+          is positive if u liked j more than usual and negative if less.
         do:
           - { target: f, cmd: step, args: { n: 1 } }
         gate:
@@ -187,7 +193,7 @@ scenes:
         props: { fn: simWalk, in: { matrix: '@hp4x7', mode: user }, roles: { matrix: m, sheet: sheet, sims: sims }, speed: 1 }
     beats:
       - say: |
-          To compare two users, line them up **only on the movies both rated**. A missing rating isn't a zero opinion, it's no opinion. Start with C and A, the first number on slide 5.
+          To compare two users, line them up **only on the movies both rated**, their **co-rated** items. A missing rating isn't a zero opinion, it's no opinion. Start with C and A, the first number on slide 5.
         do:
           - { target: m, cmd: mask, args: { sel: ['row:A', 'row:C'] } }
         gate:
@@ -203,13 +209,15 @@ scenes:
           answer: { value: -3.56, tol: 0.03 }
           explain: '(−5/3)(5/3) + (1/3)(−7/3) = −25/9 − 7/9 = −32/9 ≈ −3.56.'
       - say: |
-          The lengths use the **same two movies**: $\|C\| = \sqrt{\frac{25}{9} + \frac{1}{9}} = \sqrt{\frac{26}{9}} = 1.70$ and $\|A\| = \sqrt{\frac{25}{9} + \frac{49}{9}} = \sqrt{\frac{74}{9}} = 2.87$.
+          The lengths (**norms**) use the **same two movies**: $\|C\| = \sqrt{\frac{25}{9} + \frac{1}{9}} = \sqrt{\frac{26}{9}} = 1.70$ and $\|A\| = \sqrt{\frac{25}{9} + \frac{49}{9}} = \sqrt{\frac{74}{9}} = 2.87$.
         gate:
           type: predict
           question: 'So what is sim(C, A)?'
           answer: { value: -0.73, tol: 0.02 }
           explain: '−3.56 / (1.70 × 2.87) = −3.56 / 4.87 = −0.73, exactly slide 5. C and A disagree: C liked SW1 more than TW, A the opposite.'
-      - say: Now all six pairs of slide 5, solved the same way. Each pair takes three steps (co-rated movies, dot product, norms and division) and fills both halves of the symmetric matrix.
+      - say: |
+          Now all six pairs of slide 5, solved the same way: co-rated movies, dot product, norms and division. Since sim(u, v) = sim(v, u),
+          the matrix is **symmetric** and each pair fills both halves.
         show: [sims, player]
         gate:
           type: event
@@ -374,11 +382,12 @@ scenes:
         props: { kind: errata, body: 'Slides 11–12 plug in **0.87** for sim(C, A), but slide 9''s table says **0.89**. With 0.89: C·a = 2.47/1.83 = 1.35 and C·f = −2.09/1.83 = −1.14; both still round to the slide''s 1.3 and −1.1.' }
     beats:
       - say: |
-          B never rated item c. The idea: find users who **did** rate c and whose taste resembles B's, then average **their** centered opinions of c, weighted by similarity.
+          B never rated item c. **User-based CF** finds users who **did** rate c and whose taste resembles B's (B's **neighbours**), then averages **their** centered opinions of c, weighted by similarity.
         do:
           - { target: m, cmd: highlight, args: { sel: 'cell:B,c', tone: warn } }
       - say: |
-          Candidates = users who rated c: A, C, D, E. Read their similarity to B off row B: C 0.94, A 0.70, D −0.72, E −0.90. Sort them and take the top k = 3.
+          Candidates = users who rated c: A, C, D, E. Read their similarity to B off row B: C 0.94, A 0.70, D −0.72, E −0.90.
+          Sort them and keep the top **k** = 3. k is the neighbourhood size: how many of the most similar users get a say.
         do:
           - { target: sims, cmd: highlight, args: { sel: ['cell:B,C', 'cell:B,A', 'cell:B,D', 'cell:B,E'], tone: accent } }
         gate:
@@ -388,7 +397,8 @@ scenes:
           answer: 1
           explain: 'Top 3 = C, A, D. D makes the cut but has a negative similarity, and the lecture uses only neighbours with sim > 0.'
       - say: |
-          C's centered rating of c is 1, A's is 1.5. Weight each by its similarity and divide by the sum of the weights used.
+          C's centered rating of c is 1, A's is 1.5. A **weighted average** lets each opinion count in proportion to its similarity:
+          multiply each by its weight, add, and divide by the sum of the weights. The hat in $\hat s$ marks a *predicted* value.
         gate:
           type: predict
           question: 'ŝ(B, c) = [(0.94)(1) + (0.70)(1.5)] / (0.94 + 0.70) = ?'
@@ -554,11 +564,13 @@ scenes:
         props: { kind: errata, body: 'Slide 18 prints sim(TW, SW1) = −0.73; over the co-raters A and C it is **−0.80** (−0.73 is the user-based sim(A, C)). Slides 29–37 also show B·TW as 0.7 although slide 27 computes **0.3**.' }
     beats:
       - say: |
-          Same centered matrix, new question: are two **movies** alike? Compare columns. Two movies are similar if the same people liked (and disliked) both.
+          **Item-based CF** flips the question: are two **movies** alike? Compare columns: two movies are similar if the same people liked (and disliked) both.
+          To predict, we then use the movies the user already rated that resemble the target.
         do:
           - { target: m, cmd: transpose }
       - say: |
-          Item similarity uses the **users who rated both movies**, with ratings still centered by each user's mean: the adjusted cosine. HP1 and TW have one co-rater, A.
+          Item similarity uses the **co-raters**, the users who rated both movies, with ratings still centered by each **user's** mean.
+          That is the **adjusted cosine**: "adjusted" for each user's personal rating scale. HP1 and TW have one co-rater, A.
         show: [sheet, f]
         do:
           - { target: m, cmd: transpose }
@@ -606,7 +618,7 @@ scenes:
           answer: { value: 10 }
           explain: 'All of HP3 and SW3, plus C·HP2, B·SW1 and B·SW2: in each, no candidate among the top 2 has a positive similarity. Only 7 get a number.'
       - say: |
-          Sparse data leaves most item similarities at 0 or ±1, so many cells stay blank. Watch two slide mistakes:
+          The matrix is **sparse**: most cells are empty, so most movie pairs share few or no raters. Similarities come out mostly 0 or ±1 and many cells stay blank. Watch two slide mistakes:
         show: [err]
     takeaway: Item-based CF uses item–item similarities and the target user's own centered ratings of the most similar items.
 
@@ -753,14 +765,16 @@ scenes:
           One shared movie: $\frac{(\frac{1}{3})(\frac{2}{3})}{\frac{1}{3} \cdot \frac{2}{3}} = \frac{2/9}{2/9} = 1$. The numerator and denominator are the same product, so with a single overlap **any** pair gets ±1. That similarity is noise, not evidence.
         do:
           - { target: m, cmd: mask, args: { sel: ['cell:A,HP1', 'cell:B,HP1'] } }
-      - say: A common fix is to trust a similarity only in proportion to its overlap.
+      - say: |
+          A common fix, **significance weighting**, trusts a similarity only in proportion to its overlap: multiply it by min(overlap, β)/β.
+          That **shrinks** it toward 0 until the two users share at least β items.
         show: [beyond]
         gate:
           type: when
           prompt: Raise β until the shrunk similarity is **0.5 or less**.
           when: 'w.shrunk <= 0.5'
       - say: |
-          At β = 2: weight $\frac{\min(1, 2)}{2} = 0.5$, so $0.5 \times 1 = 0.5$. At β = 3 it drops to $\frac{1}{3}$. Sparse matrices are full of tiny overlaps, which motivates latent-factor models (next module).
+          At β = 2: weight $\frac{\min(1, 2)}{2} = 0.5$, so $0.5 \times 1 = 0.5$. At β = 3 it drops to $\frac{1}{3}$. Sparse matrices are full of tiny overlaps, which motivates **latent-factor models** (next module): they learn a few hidden taste dimensions instead of comparing overlaps.
     takeaway: Similarities from one or two co-rated items are unreliable; shrink them by overlap size.
 
   - id: judging-a-ranking
@@ -794,15 +808,16 @@ scenes:
         region: side
         props:
           items:
-            - { label: DCG@5, value: '@n.dcg', format: 2, tone: accent }
-            - { label: IDCG@5, value: '@n.idcg', format: 2 }
-            - { label: NDCG, value: '@n.ndcg', format: 3, tone: good }
+            - { label: 'DCG@5 (discounted cumulative gain)', value: '@n.dcg', format: 2, tone: accent }
+            - { label: 'IDCG@5 (DCG of the ideal order)', value: '@n.idcg', format: 2 }
+            - { label: 'NDCG = DCG / IDCG (0 to 1)', value: '@n.ndcg', format: 3, tone: good }
       - id: f
         widget: Formula
         region: side
         props:
           steps:
-            - '\text{DCG} = \sum_{i=1}^{5} \frac{\anchor{gain}{2^{rel_i} - 1}}{\anchor{disc}{\log_2(i+1)}}'
+            - '\text{DCG}@5 = \underbrace{\sum_{i=1}^{5}}_{\text{cumulative}} \frac{\overbrace{\anchor{gain}{2^{rel_i} - 1}}^{\text{gain}}}{\underbrace{\anchor{disc}{\log_2(i+1)}}_{\text{discount}}}'
+            - '\anchor{idcg}{\text{IDCG}@5} = \text{DCG@5 of the ideal order (best first)}'
             - '\text{NDCG} = \frac{\text{DCG}}{\anchor{idcg}{\text{IDCG}}} = \frac{ {=n.dcg|2} }{ {=n.idcg|2} } = {=n.ndcg|3}'
           step: 0
           size: sm
@@ -813,17 +828,29 @@ scenes:
         props: { kind: errata, body: 'Slide 53 writes NDCG = DCG / **NDCG**. It means DCG / **IDCG**.' }
     beats:
       - say: |
-          A recommender returned [B, A, C, F, E] (slide 49). The true ratings are A 9, B 3, C 7, D 2, E 5, F 8. The best item is only second.
+          A recommender has to be judged. For one user it returned the ranked list [B, A, C, F, E] (slide 49), and we happen to know that user's
+          **true ratings**: A 9, B 3, C 7, D 2, E 5, F 8. How good is this order? The best item is only second.
       - say: |
-          **DCG** rewards relevant items near the top: each position adds a gain $2^{rel} - 1$, divided by $\log_2(i+1)$. Position 1 has $\log_2 2 = 1$, so B adds $\frac{2^3 - 1}{1} = 7$.
+          The lecture's score is **DCG, discounted cumulative gain**. *Gain*: each item earns $2^{rel} - 1$, where $rel$ is its **relevance**
+          (here, its true rating). The exponent makes highly relevant items count far more: $2^9 - 1 = 511$, but $2^3 - 1 = 7$.
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:gain', tone: accent } }
+      - say: |
+          *Discounted*: the gain at position $i$ is divided by $\log_2(i + 1)$, because people look at the top of a list first.
+          Position 1 divides by $\log_2 2 = 1$ (no discount), position 2 by 1.585, position 3 by 2. *Cumulative*: add the terms down the list.
         do:
           - { target: f, cmd: highlight, args: { sel: 'term:disc', tone: accent } }
         gate:
           type: predict
-          question: 'What does A add at position 2? (2^9 − 1)/log₂3 = ?'
+          question: 'B at position 1 adds (2³ − 1)/1 = 7. What does A add at position 2? (2^9 − 1)/log₂3 = ?'
           answer: { value: 322.41, tol: 0.5 }
           explain: '511 / 1.585 = 322.41. A huge gain, only partly discounted.'
-      - say: Play the full DCG, then the ideal order's IDCG, term by term (slides 50–52).
+      - say: |
+          Is the total any good? DCG has no fixed scale: it depends on the ratings and on k. So compare it with the best possible list,
+          the items sorted by true rating. Its DCG is the **ideal DCG (IDCG)**.
+        do:
+          - { target: f, cmd: step, args: { n: 1 } }
+      - say: Play the DCG of this list, then the IDCG of the ideal order, one term per step (slides 50–52).
         gate:
           type: event
           prompt: Play every term.
@@ -833,8 +860,11 @@ scenes:
           DCG $= 7 + 322.41 + 63.5 + 109.82 + 11.99 = 514.72$. IDCG $= 511 + 160.89 + 63.5 + 13.35 + 2.71 = 751.45$. D (rating 2) never makes the ideal top 5.
         set: { dUp: 5, iUp: 5 }
         show: [isheet]
+      - say: |
+          **NDCG, normalized DCG**, divides the two: DCG / IDCG is the share of the best possible score this list achieves.
+          It always lies between 0 and 1 (1 = perfect order), so lists for different users become comparable. Here $514.72 / 751.45 = 0.685$.
         do:
-          - { target: f, cmd: step, args: { n: 1 } }
+          - { target: f, cmd: step, args: { n: 2 } }
       - say: Improve the list yourself.
         gate:
           type: predict
@@ -849,7 +879,7 @@ scenes:
           when: 'n.ndcg >= 0.95'
           hint: Sort by rating, highest first.
       - say: |
-          **NDCG = DCG / IDCG**. The original list scores $514.72 / 751.45 = 0.685$. Watch the slide's typo:
+          Back to the recommender's list, NDCG $= 514.72 / 751.45 = 0.685$. Watch the slide's typo:
         set: { order: [B, A, C, F, E, D], dUp: 5, iUp: 5 }
         show: [err]
     takeaway: DCG adds (2^rel − 1)/log₂(i + 1) down the list; NDCG divides by the ideal order's DCG so scores lie between 0 and 1.

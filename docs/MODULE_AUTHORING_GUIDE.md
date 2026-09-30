@@ -811,6 +811,7 @@ templates:
 - **Open with a question or puzzle** (`goal`), not a definition. Concrete before abstract: show the lecture's own data first, then vary it.
 - **One idea per beat**, ≤ 60 words. Narration explains the *idea*, never the UI ("drag the slider" is fine; "this widget displays…" is not).
 - **Math grows out of the picture.** Put a `Formula` on stage and reveal it with `step` as the visual explains each part; highlight a term (`term:<anchor>`) at the moment the corresponding thing happens.
+- **Count along, never skip to the end:** every lecture number is solved on stage, step by step (§7.5).
 - **Predict before reveal:** at least one `predict` gate per scene. At least half of the scenes need an interactive gate (`when` or `event`) where the learner *does* something (drag, reorder, tune a parameter).
 - **Continuity:** same widgets across beats; animate by changing state. Colors carry meaning consistently (`good` kept/frequent, `bad` pruned/wrong, `accent` current focus).
 - **Surface insights and traps:** each module should have 1–3 "aha" scenes built on a surprising fact from the data (the FIM deck has *the milk trap*: conf = 1 but lift = 1).
@@ -820,6 +821,7 @@ templates:
 ### 7.2 Math & Code
 - One section per formula or algorithm in the source, in lecture order. Derivations proceed in small steps: definition, then symbolic form, then live numbers.
 - **Anchor every term that matters** in both panes (≥ 2 anchors per non-trivial section).
+- **Step through the code line by line, iteration by iteration,** on the lecture's data (§7.5).
 - Give the live example the lecture's numbers, and list the matching `examples`.
 - Pitfalls come from real mistakes (they should mirror your quiz misconceptions). An exam tip is one practical sentence.
 - Add sections that go beyond the slides only when they're genuinely useful (for example, regularization in ALS), and mark them `beyondSlides: true`.
@@ -834,6 +836,23 @@ templates:
 - ≥ 8 generator-driven `numeric` or `hand-calc` · ≥ 2 `hand-calc` that mirror the lecture's worked procedure step by step · ≥ 6 conceptual `mcq`/`multi` · ≥ 4 `code-fill` · ≥ 2 `order` · ≥ 2 `match`.
 - Every numeric template has **≥ 2 misconceptions**. MCQ distractors should be *plausible wrong answers* (ideally computed from misconceptions), never joke options.
 - Difficulty spread is roughly 40% level 1, 40% level 2, 20% level 3.
+
+### 7.5 Count along and solve along
+A learner should be able to reproduce **every** number in the lecture with pencil and paper by following the lesson. Showing a finished table, similarity matrix, FP-tree or lattice and then explaining it is a defect: build it in front of them, one number at a time.
+
+**Intuition scenes**
+- **Solve every number, not a sample.** Each similarity pair, each candidate's support, each rule's confidence and lift, each cell of an update gets its own step with the arithmetic written out, e.g. `$\frac{4\cdot3 + 2\cdot5}{\sqrt{20}\,\sqrt{34}} = 0.84$`. Work the first case slowly across beats (with a `predict` gate before the result), then let a walk player do the rest at the same level of detail.
+- **Count visibly.** For support, tick every basket that holds the itemset (a basket × candidate `Matrix` of `\checkmark` / `\cdot` cells, or `annotate` on table rows) and show the tally as a sum: `$1+0+1+1+0 = 3$`. For FP-growth, show the item counts, the reordered and filtered baskets, the tree growing one insert at a time, then each conditional pattern base and its counts. Nothing appears already finished.
+- **Worksheet fn + walk fn + `patch`.** Write a derived fn that renders a partly filled worksheet from a progress param (`supportGrid({…, upTo})` returns Matrix `values` with TeX cells for solved entries and `''` for unreached ones). Write a trace fn (a "walk") whose steps advance that param with `patch: { gridUpTo: 7 }`. Declare the key in the scene `state`, feed it to the derived fn in `derive` (`upTo: '@gridUpTo'`), and bind the widget to the result (`values: '@g.values'`). The Matrix, Tree or ItemsetLattice then fills in as the player steps, and seeking back rewinds it. See `fim` scene `lecture-support-table`.
+- **Patch pitfalls.** A patch applies only while its player is on stage (hiding the player drops the patch and any `fill`ed cells, so keep it visible to the end of the scene or `set` the final values in the next beat). A player's `in` must not read a key it patches. Patch only keys the beats don't `set`, because an active patch overrides beat state.
+- **Labels carry the arithmetic.** Put the numbers in `$…$` (each math run counts as one word toward the 20-word label limit) and the *why* in words: "T3 holds bread and milk → tick. $1+0+1 = 2$ so far."
+
+**Math & Code sections**
+- **Write loops, not one-liners.** The code the learner steps through is plain Python that does one visible thing per line on the lecture's data. The idiomatic numpy/pandas version can go in `extraCode`. Keep each block ≤ 30 lines.
+- **Anchor every line that changes data,** and give each code anchor a TeX partner and a `links` entry. A derivation step such as "the loop in math" (`\anchor{acc}{s \mathrel{+}= r_{ui}\,r_{vi}}`) usually provides the partners.
+- **One trace step per executed line, per iteration.** The trace follows the loop exactly as Python would run it (`for` → `if` test → accumulate, for every iteration), with `vars` holding the current loop variables and the running value (`i: 'bread'`, `acc: 7`). Math & Code uses only `label`, `code`, `math` and `vars`; it ignores `ops` and `patch`. Stay ≤ 400 steps: on large inputs, trace one full outer iteration line by line and give each remaining iteration a single summary step.
+
+**Tests.** Add an `examples` entry for every walk fn (how many cases it visits and its final result), so a later edit can't quietly shorten the count-along.
 
 ---
 
@@ -918,6 +937,7 @@ Don't invent widgets, props or commands. Instead:
 - [ ] Every TeX `\anchor{x}` has a code `@a x` in the same section and vice versa; every anchor appears in `links`.
 - [ ] Only catalog widgets, props, commands and selectors are used, and `requires.widgets` matches exactly.
 - [ ] Quotas are met: 6–10 scenes; a predict gate in every scene; interactive gates in ≥ 50% of scenes; ≥ 25 quiz templates; ≥ 2 per skill; type mix per §7.4; ≥ 2 misconceptions per numeric template.
+- [ ] Every lecture number is solved step by step in some scene (no finished tables dropped on stage), and every math-code trace walks each loop iteration line by line (§7.5).
 - [ ] Every skill appears in manifest, scenes, sections and quiz templates; every `lessonRef` points to an existing id.
 - [ ] Word limits are respected; there are no placeholder texts, "TODO"s or "…" anywhere.
 - [ ] YAML follows §4.8 (TeX in `|` blocks or single quotes, refs quoted).
@@ -932,6 +952,7 @@ Don't invent widgets, props or commands. Instead:
 - Generators that produce ugly decimals, ties at the k-th neighbor, or divisions by zero.
 - Misconception values equal to the right answer for some seeds (redraw).
 - Narration that restates the formula in words without the *why*.
+- Skipping to the end: showing the final support table, similarity matrix or FP-tree without computing each entry in front of the learner, or a code trace that jumps over loop iterations.
 - Computation embedded in YAML: all numbers come from `logic.js` or datasets.
 - Renaming IDs when revising. Add new ones and retire old ones instead (removed IDs simply stop appearing).
 - Double-quoted TeX in YAML (`"\frac"` breaks). Use `|` or single quotes.

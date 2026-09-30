@@ -466,141 +466,248 @@ export default function register(sdk) {
     return { trace: f.cells.map((c) => ({ label: `$${c.tex}$`, ops: [{ role: 'm', cmd: 'fill', args: { cell: c.cell, value: c.value } }] })) };
   }
 
-  // ---------------------------------------------------------------- line-by-line code traces
-  // anchors: u, init, loop, v, p, ret
-  function predictOneCode({ U, V, cells = [[0, 0]] }) {
-    const trace = [];
+  // ---------------------------------------------------------------- numpy code traces (Math & Code tab)
+  // The Math & Code tab shows numpy code. Each trace takes one step per line of that code (a few lines get an extra
+  // step that splits a line into its two operations). The array a line produces is printed as TeX in the step label;
+  // vars carry shapes and single values for the badge beside the code line.
+  const NAN = '{\\color{gray}\\text{nan}}';
+  const TF = (b) => (b ? '\\text{T}' : '\\text{F}');
+  const txt = (x) => `\\text{${x}}`;
+  const shp = (A) => `(${A.length}, ${A[0].length})`;
+  const cellT = (x, f) => (typeof x === 'string' ? x : x === null || Number.isNaN(x) ? NAN : f(x));
+  // TeX table of an array, with optional row / column labels; hl = [[i, j], …] entries to box
+  function arr(V, { rows = null, cols = null, f = (x) => dn(x, 3), hl = [] } = {}) {
+    const cell = (x, i, j) => {
+      const t = cellT(x, f);
+      return hl.some(([a, b]) => a === i && b === j) ? `\\boxed{${t}}` : t;
+    };
+    const head = cols ? `${rows ? ' & ' : ''}${cols.map((c) => `\\scriptstyle\\text{${c}}`).join(' & ')} \\\\ \\hline ` : '';
+    const body = V.map((r, i) => `${rows ? `\\scriptstyle\\text{${rows[i]}} & ` : ''}${r.map((x, j) => cell(x, i, j)).join(' & ')}`).join(' \\\\ ');
+    const t = `\\begin{array}{${rows ? 'r|' : ''}${'r'.repeat(V[0].length)}}${head}${body}\\end{array}`;
+    return rows || cols ? t : `\\left[${t}\\right]`;
+  }
+  // a 1-D array, printed the way numpy prints it
+  const vec = (v, f = (x) => dn(x, 3)) => `[\\,${v.map((x) => cellT(x, f)).join(',\\ ')}\\,]`;
+  const pyList = (v, f = (x) => dn(x, 3)) => `[${v.map((x) => (x === null ? 'nan' : typeof x === 'string' ? x : f(x))).join(', ')}]`;
+  const colOf = (A, j) => A.map((r) => r[j]);
+  const mul = (A, B) => A.map((r) => B[0].map((_, j) => r.reduce((t, x, k) => t + x * B[k][j], 0)));
+
+  // anchors: u, v, p, all
+  function predictOneCode({ U, V, R = null, cells = [[0, 0]] }) {
     const d = U.values[0].length;
+    const f4 = (x) => dn(x, 4);
+    const trace = [];
     for (const [i, j] of cells) {
-      trace.push({ label: `\`u_i = U[${i}]\`: user ${U.rows[i]}'s factors (${U.values[i].map((x) => dn(x, 4)).join(', ')})`, code: 'u', math: 'u', vars: { u_i: U.values[i].map((x) => +x.toFixed(4)) } });
-      let p = 0;
-      trace.push({ label: '`p = 0.0`', code: 'init', math: 'init', vars: { p } });
-      for (let s = 0; s < d; s++) {
-        trace.push({ label: `\`for s\`: factor s = ${s + 1} of ${d}`, code: 'loop', math: 'loop', vars: { s: s + 1 } });
-        trace.push({ label: `\`v_sj = V[${s}][${j}]\` = ${dn(V.values[s][j], 4)} (item ${V.cols[j]})`, code: 'v', math: 'v', vars: { v_sj: V.values[s][j] } });
-        p += U.values[i][s] * V.values[s][j];
-        trace.push({ label: `\`p += u_i[s] * v_sj\`: + (${dn(U.values[i][s], 4)})(${dn(V.values[s][j], 4)}) → p = ${dn(p, 4)}`, code: 'p', math: 'p', vars: { p } });
-      }
-      trace.push({ label: `\`return p\`: prediction for (${U.rows[i]}, ${V.cols[j]}) = ${dn(p, 4)}`, code: 'ret', math: 'ret', vars: { p } });
+      const u = U.values[i], v = colOf(V.values, j);
+      const p = u.reduce((t, x, s) => t + x * v[s], 0);
+      trace.push(
+        { label: `\`U[i]\` with i = ${i} is row ${U.rows[i]} of U: that user's ${d} factor values.\n\n$\\mathbf{u}_i = ${vec(u, f4)}$`,
+          code: 'u', math: 'u', vars: { i } },
+        { label: `\`V[:, j]\` with j = ${j} is column ${V.cols[j]} of V (\`:\` means every row): the item's ${d} factor values.\n\n$\\mathbf{v}_j = ${vec(v, f4)}$`,
+          code: 'v', math: 'v', vars: { j } },
+        { label: '`u_i @ v_j` multiplies factor by factor, then adds: a dot product.\n\n' + `$p_{${U.rows[i]},${V.cols[j]}} = ${u.map((x, s) => `${pr(x, 4)}${pr(v[s], 4)}`).join(' + ')} = ${dn(p, 4)}$${R && R.values[i][j] === null ? ' (a blank in R, predicted all the same)' : ''}`,
+          code: 'p', math: 'p', vars: { p } },
+      );
     }
+    const P = mul(U.values, V.values);
+    trace.push({ label: `\`U @ V\`: (${U.values.length}×${d})(${d}×${V.cols.length}) gives ${U.values.length}×${V.cols.length}, every cell's dot product at once. Boxed: the cells above.\n\n$P = ${arr(P, { rows: U.rows, cols: V.cols, hl: cells })}$`,
+      code: 'all', math: 'all', vars: { shape: shp(P) } });
     return { trace };
   }
 
-  // anchors: init, loop, obs, err, add, ret
+  // anchors: pred, err, obs, sq, add
   function sseCode({ R, U, V }) {
-    const { values: P } = product({ U, V });
-    let total = 0;
-    const trace = [{ label: '`total = 0.0`', code: 'init', math: 'init', vars: { total } }];
-    R.values.forEach((row, i) => row.forEach((r, j) => {
-      trace.push({ label: `\`for i, j\`: cell (${R.rows[i]}, ${R.cols[j]}), rating ${r === null ? 'None' : r}`, code: 'loop', math: 'loop', vars: { i: R.rows[i], j: R.cols[j] } });
-      if (r === null) { trace.push({ label: '`R[i][j] is None` → `continue`: a blank carries no error', code: 'obs', math: 'obs', vars: { observed: 'False' } }); return; }
-      const e = r - P[i][j];
-      trace.push({ label: `\`e = R[i][j] - predict_one(...)\` = ${r} − ${dn(P[i][j], 3)} = ${dn(e, 3)}`, code: 'err', math: 'err', vars: { e } });
-      total += e * e;
-      trace.push({ label: `\`total += e * e\`: + ${dn(e * e, 3)} → total = ${dn(total, 3)}`, code: 'add', math: 'add', vars: { total } });
-    }));
-    trace.push({ label: `\`return total\` = ${dn(total, 3)}`, code: 'ret', math: 'ret', vars: { sse: total } });
-    return { sse: total, trace };
+    const P = mul(U.values, V.values);
+    const E = R.values.map((row, i) => row.map((r, j) => (r === null ? null : r - P[i][j])));
+    const M = R.values.map((row) => row.map((r) => r !== null));
+    const e = E.flat().filter((x) => x !== null);
+    const sq = e.map((x) => x * x);
+    const rowS = E.map((row) => row.reduce((t, x) => t + (x === null ? 0 : x * x), 0));
+    const total = sq.reduce((a, b) => a + b, 0);
+    const L = { rows: R.rows, cols: R.cols };
+    return {
+      sse: total,
+      trace: [
+        { label: '`U @ V`: every prediction at once.\n\n' + `$P = ${arr(P, { ...L, f: (x) => dn(x, 2) })}$`, code: 'pred', math: 'pred', vars: { shape: shp(P) } },
+        { label: '`R - P` subtracts entry by entry. A blank is NaN, and NaN minus anything stays NaN.\n\n' + `$E = ${arr(E, { ...L, f: (x) => dn(x, 2) })}$`, code: 'err', math: 'err', vars: { shape: shp(E) } },
+        { label: `\`np.isnan(R)\` marks the blanks and \`~\` flips it: T = observed (${e.length} of ${M.flat().length} cells).\n\n$M = ${arr(M.map((r) => r.map(TF)), L)}$`, code: 'obs', math: 'obs', vars: { observed: e.length } },
+        { label: `\`E[M]\` (boolean indexing) keeps only the ${e.length} observed errors, row by row, as a flat 1-D array.\n\n$${vec(e, (x) => dn(x, 2))}$`, code: 'sq', math: 'sq', vars: { shape: `(${e.length},)` } },
+        { label: '`** 2` squares each error: every term is positive, and big misses count extra.\n\n' + `$${vec(sq, (x) => dn(x, 2))}$`, code: 'sq', math: 'sq', vars: { shape: `(${sq.length},)` } },
+        { label: '`.sum()` adds all the squares. Grouped by row:\n\n' + `$${rowS.map((x) => dn(x, 2)).join(' + ')} = ${dn(total, 3)}$`, code: 'add', math: 'add', vars: { sse: total } },
+      ],
+    };
   }
 
-  // anchors: freeze, loop, obs, solve, store
+  // anchors: init, loop, obs, feat, target, solve, transpose
   function alsStepVCode({ R, U }) {
-    const d = U.values[0].length;
-    const trace = [{ label: `\`V\` starts as a ${d} × ${R.cols.length} table of zeros; U stays frozen`, code: 'freeze', math: 'freeze', vars: { d, n: R.cols.length } }];
-    const V = { rows: factorNames(d), cols: R.cols, values: Array.from({ length: d }, () => Array(R.cols.length).fill(0)) };
+    const d = U.values[0].length, n = R.cols.length;
+    const V = Array.from({ length: d }, () => Array(n).fill(0));
+    const f3 = (x) => dn(x, 3);
+    const trace = [{ label: `\`np.zeros((${d}, ${n}))\`: a ${d} × ${n} table of zeros, one column per item, filled in below. U stays frozen.\n\n$V = ${arr(V, { rows: factorNames(d), cols: R.cols, f: String })}$`,
+      code: 'init', math: 'init', vars: { shape: `(${d}, ${n})` } }];
     R.cols.forEach((c, j) => {
-      trace.push({ label: `\`for j\`: item ${c}`, code: 'loop', math: 'loop', vars: { j: c } });
-      const rows = R.values.map((row, i) => i).filter((i) => R.values[i][j] !== null);
+      const col = colOf(R.values, j);
+      const rated = col.map((x) => x !== null);
+      const rows = rated.map((b, i) => (b ? i : -1)).filter((i) => i >= 0);
+      const A = rows.map((i) => U.values[i]);
       const b = rows.map((i) => R.values[i][j]);
-      trace.push({ label: `Observed raters: ${rows.map((i) => R.rows[i]).join(', ')}; \`b\` = [${b.join(', ')}]`, code: 'obs', math: 'obs', vars: { b } });
-      trace.push({ label: `\`A\` = their frozen rows of U: ${rows.map((i) => `(${U.values[i].map((x) => dn(x, 3)).join(', ')})`).join(' ')}`, code: 'freeze', math: 'freeze', vars: { rows: rows.length } });
       const st = solveTex(R, U, { values: [[0], [0]] }, 'V', j);
-      trace.push({ label: `\`lstsq(A, b)\`: ${st.text.replace(`${c} `, '')}`, code: 'solve', math: 'solve', vars: { v: st.v.map((x) => +x.toFixed(4)) } });
-      st.v.forEach((x, s) => (V.values[s][j] = x));
-      trace.push({ label: `Store column ${c} of V: (${st.v.map((x) => dn(x, 4)).join(', ')})`, code: 'store', math: 'store', vars: { V_col: st.v.map((x) => +x.toFixed(4)) } });
+      st.v.forEach((x, s) => (V[s][j] = x));
+      const allOnes = A.every((r) => r.every((x) => Math.abs(x - 1) < 1e-12));
+      trace.push(
+        { label: `\`for j\`: j = ${j}, item ${c}. Each item is its own small regression.`, code: 'loop', math: 'loop', vars: { j } },
+        { label: `\`R[:, j]\` is column ${c}; \`~np.isnan\` marks the users who rated it.\n\n$${arr([col], { cols: R.rows, f: String })} \\;\\Rightarrow\\; ${arr([rated.map(TF)], { cols: R.rows })}$`,
+          code: 'obs', math: 'obs', vars: { rated: rated.filter(Boolean).length } },
+        { label: '`U[rated]` keeps those users\' frozen rows of U: the inputs (features) of the regression.\n\n' + `$A = ${arr(A, { rows: rows.map((i) => R.rows[i]), cols: factorNames(d), f: f3 })}$`,
+          code: 'feat', math: 'feat', vars: { shape: shp(A) } },
+        { label: `\`R[rated, j]\` keeps their ratings of ${c}: the targets the regression should match.\n\n$\\mathbf{b} = ${vec(b, String)}$`,
+          code: 'target', math: 'target', vars: { shape: `(${b.length},)` } },
+        { label: (allOnes
+          ? 'A\'s rows are all (1, 1), so only v₁ + v₂ counts; it equals the mean. `lstsq` splits it evenly.'
+          : '`np.linalg.lstsq` finds the v with the smallest ‖Av − b‖²; `V[:, j] = v` stores it as column j.') + `\n\n$${st.tex} \\;\\Rightarrow\\; V =${arr(V, { rows: factorNames(d), cols: R.cols, f: f3, hl: Array.from({ length: d }, (_, s) => [s, j]) })}$`,
+          code: 'solve', math: 'solve', vars: { v: pyList(st.v, (x) => dn(x, 4)) } },
+      );
     });
-    return { V, trace };
+    // the U-step: the same function on the transposes
+    const Vm = { rows: factorNames(d), cols: R.cols, values: V };
+    const U2 = alsStepU({ R, V: Vm }).U;
+    const su = solveTex(R, U, Vm, 'U', 0);
+    trace.push(
+      { label: `\`als_step_U\`: with \`R.T\` and \`V.T\`, users become columns, so the V-step code solves U; \`.T\` flips it back.\n\n$U = ${arr(U2.values, { rows: R.rows, cols: factorNames(d), f: (x) => dn(x, 8) })}$`,
+        code: 'transpose', math: 'transpose', vars: { shape: shp(U2.values) } },
+      { label: `Row ${R.rows[0]} of that U-step, written out (slide 8). V's rows are equal, so only u₁₁ + u₁₂ matters.\n\n$${su.tex}$`,
+        code: 'transpose', math: 'transpose', vars: { 'U[0]': pyList(U2.values[0], (x) => dn(x, 8)) } },
+    );
+    return { V: Vm, U: U2, trace };
   }
 
   // anchors: init, loop, solve-v, solve-u, sse
   function alsCode({ R, iters = 3, initKind = 'ones', seed = 7 }) {
     let { U, V } = init({ R, d: 2, kind: initKind, seed });
-    const trace = [{ label: `\`U\` = ${initKind === 'ones' ? 'all ones' : 'random numbers between 0.5 and 1.5'}; SSE = ${dn(sse({ R, U, V }).sse, 3)}`, code: 'init', math: 'init', vars: { U_row1: U.values[0].map((x) => +x.toFixed(3)) } }];
+    const L = (M, f = (x) => dn(x, 3)) => arr(M.values, { rows: M.rows, cols: M.cols, f });
+    const trace = [{ label: `${initKind === 'ones' ? '`np.ones`: every entry of U is 1 (the lecture).' : 'Random numbers between 0.5 and 1.5 (the site uses its own seeded generator, so numpy\'s would differ).'} SSE = ${dn(sse({ R, U, V }).sse, 3)}.\n\n$U = ${L(U, (x) => dn(x, 2))}$`,
+      code: 'init', math: 'init' }];
     for (let t = 0; t < iters; t++) {
-      trace.push({ label: `\`for t\`: iteration ${t + 1} of ${iters}`, code: 'loop', math: 'loop', vars: { t: t + 1 } });
+      trace.push({ label: `\`for t\`: iteration ${t + 1} of ${iters}: one V-step, then one U-step.`, code: 'loop', math: 'loop', vars: { t } });
       V = alsStepV({ R, U }).V;
-      trace.push({ label: `\`V = als_step_V(R, U)\`: 5 least-squares fits, SSE = ${dn(sse({ R, U, V }).sse, 3)}`, code: 'solve-v', math: 'solve-v', vars: { V_col1: V.values.map((r) => +r[0].toFixed(3)) } });
+      const a = sse({ R, U, V }).sse;
+      trace.push({ label: `\`als_step_V(R, U)\`: U frozen, 5 column regressions. SSE = ${dn(a, 3)}.\n\n$V = ${L(V)}$`, code: 'solve-v', math: 'solve-v', vars: { sse: a } });
       U = alsStepU({ R, V }).U;
-      trace.push({ label: `\`U = als_step_U(R, V)\`: 5 least-squares fits, SSE = ${dn(sse({ R, U, V }).sse, 3)}`, code: 'solve-u', math: 'solve-u', vars: { U_row1: U.values[0].map((x) => +x.toFixed(4)) } });
-      trace.push({ label: `\`print\`: iteration ${t + 1}, SSE ${dn(sse({ R, U, V }).sse, 3)}${U.values.every((r) => Math.abs(r[0] - r[1]) < 1e-9) ? ' (columns of U still identical)' : ''}`, code: 'sse', math: 'sse', vars: { sse: sse({ R, U, V }).sse } });
+      const b = sse({ R, U, V }).sse;
+      trace.push({ label: `\`als_step_U(R, V)\`: V frozen, 5 row regressions. SSE = ${dn(b, 3)}.\n\n$U = ${L(U, (x) => dn(x, 4))}$`, code: 'solve-u', math: 'solve-u', vars: { sse: b } });
+      const sym = U.values.every((r) => Math.abs(r[0] - r[1]) < 1e-9);
+      trace.push({ label: `\`print\`: iteration ${t + 1}, SSE ${dn(b, 3)}.${sym ? ' The two columns of U are still identical: the symmetry trap.' : ' The two columns of U now differ.'}`, code: 'sse', math: 'sse', vars: { sse: b } });
     }
     return { trace };
   }
 
-  // anchors: init, loop, rest, num, den, closed   (which = 'U' updates u_is, 'V' updates v_sj)
-  function cgdUpdateCode({ R, U, V, which = 'U', i = 0, s = 0, j = 0 }) {
+  // anchors: obs, full, rest, num, den, closed (which = 'U': update_u for U[i, s]; 'V': update_v for V[s, j], anchor 'update')
+  function cgdSteps({ R, U, V, which = 'U', i = 0, s = 0, j = 0 }) {
+    const I = which === 'U';
     const d = U.values[0].length;
-    const trace = [{ label: '`num = den = 0.0`', code: 'init', math: 'init', vars: { num: 0, den: 0 } }];
-    let num = 0, den = 0;
-    const n = which === 'U' ? R.cols.length : R.rows.length;
-    for (let q = 0; q < n; q++) {
-      const ii = which === 'U' ? i : q, jj = which === 'U' ? q : j;
-      const r = R.values[ii][jj];
-      trace.push({ label: `\`for ${which === 'U' ? 'j' : 'i'}\`: cell (${R.rows[ii]}, ${R.cols[jj]}), rating ${r === null ? 'None → `continue`' : r}`, code: 'loop', math: 'loop', vars: { [which === 'U' ? 'j' : 'i']: which === 'U' ? R.cols[jj] : R.rows[ii] } });
-      if (r === null) continue;
-      let rest = 0;
-      const parts = [];
-      for (let t = 0; t < d; t++) if (t !== s) { rest += U.values[ii][t] * V.values[t][jj]; parts.push(`(${dn(U.values[ii][t], 3)})(${dn(V.values[t][jj], 3)})`); }
-      trace.push({ label: `\`rest\` = other factors' part = ${parts.join(' + ')} = ${dn(rest, 3)}`, code: 'rest', math: 'rest', vars: { rest } });
-      const f = which === 'U' ? V.values[s][jj] : U.values[ii][s];
-      num += f * (r - rest);
-      trace.push({ label: `\`num += ${which === 'U' ? 'V[s][j]' : 'U[i][s]'} * (r - rest)\`: + (${dn(f, 3)})(${r} − ${dn(rest, 3)}) = + ${dn(f * (r - rest), 3)} → num = ${dn(num, 3)}`, code: 'num', math: 'num', vars: { num } });
-      den += f * f;
-      trace.push({ label: `\`den += ${which === 'U' ? 'V[s][j]' : 'U[i][s]'} ** 2\`: + ${dn(f * f, 3)} → den = ${dn(den, 3)}`, code: 'den', math: 'den', vars: { den } });
-    }
-    trace.push({ label: `\`${which === 'U' ? `U[${i}][${s}]` : `V[${s}][${j}]`} = num / den\` = ${dn(num, 3)} / ${dn(den, 3)} = ${dn(num / den, 4)}`, code: 'closed', math: 'closed', vars: { value: num / den } });
-    return { value: num / den, trace };
+    const idx = I ? R.cols.map((_, q) => q) : R.rows.map((_, q) => q);
+    const line = I ? R.values[i] : colOf(R.values, j);
+    const rated = line.map((x) => x !== null);
+    const k = idx.filter((q) => rated[q]);
+    const names = I ? R.cols : R.rows;
+    const full = k.map((q) => (I ? U.values[i].reduce((t, x, tt) => t + x * V.values[tt][q], 0) : U.values[q].reduce((t, x, tt) => t + x * V.values[tt][j], 0)));
+    const own = k.map((q) => (I ? U.values[i][s] * V.values[s][q] : U.values[q][s] * V.values[s][j]));
+    const rest = full.map((x, t) => x - own[t]);
+    const fac = k.map((q) => (I ? V.values[s][q] : U.values[q][s]));
+    const r = k.map((q) => line[q]);
+    const left = r.map((x, t) => x - rest[t]);
+    const num = fac.reduce((t, x, q) => t + x * left[q], 0);
+    const den = fac.reduce((t, x) => t + x * x, 0);
+    const value = num / den;
+    const f3 = (x) => dn(x, 3);
+    const upd = cgdUpdate({ R, U, V, which, i, s, j });
+    const target = I ? `U[${i}, ${s}]` : `V[${s}, ${j}]`;
+    const who = I ? `the items ${R.rows[i]} rated` : `the users who rated ${R.cols[j]}`;
+    const steps = [
+      { label: `\`${I ? 'R[i]' : 'R[:, j]'}\` is ${I ? `row ${R.rows[i]}` : `column ${R.cols[j]}`}; \`~np.isnan\` marks ${who}.\n\n$${arr([line], { cols: names, f: String })} \\;\\Rightarrow\\; ${arr([rated.map(TF)], { cols: names })}$`,
+        code: 'obs', math: 'obs', vars: { rated: k.length } },
+      { label: `\`${I ? 'U[i] @ V[:, rated]' : 'U[rated] @ V[:, j]'}\`: the full prediction for each of ${who}.\n\n$\\text{full} = ${vec(full, f3)}$`,
+        code: 'full', math: 'full', vars: { shape: `(${k.length},)` } },
+      { label: `\`full\` minus \`${I ? 'U[i, s] * V[s, rated]' : 'U[rated, s] * V[s, j]'}\`, factor ${s + 1}'s own part (element-wise): what the other factors predict.\n\n$${vec(full, f3)} - ${vec(own, f3)} = ${vec(rest, f3)}$`,
+        code: 'rest', math: 'rest', vars: { rest: pyList(rest, f3) } },
+      { label: `\`${I ? 'R[i, rated]' : 'R[rated, j]'} - rest\` is what is left for factor ${s + 1} to explain; \`@\` with its factor values multiplies and adds.\n\n$${fac.map((x, q) => `${pr(x, 3)}(${r[q]} - ${f3(rest[q])})`).join(' + ')} = ${fac.map((x, q) => f3(x * left[q])).join(' + ')} = ${f3(num)}$`,
+        code: 'num', math: 'num', vars: { num } },
+      { label: 'A vector `@` itself adds its squares.\n\n' + `$${fac.map((x) => `${f3(x)}^2`).join(' + ')} = ${f3(den)}$`, code: 'den', math: 'den', vars: { den } },
+      { label: `Divide: the bottom of the parabola, written into ${target}. SSE ${dn(upd.sseBefore, 2)} → ${dn(upd.sseAfter, 2)}.\n\n$${I ? uName(i, s) : vName(s, j)} = \\frac{${f3(num)}}{${f3(den)}} = ${dn(value, 4)}$`,
+        code: I ? 'closed' : 'update', math: I ? 'closed' : 'update', vars: { [target]: value } },
+    ];
+    return { value, steps, upd };
+  }
+  function cgdUpdateCode(args) {
+    const r = cgdSteps(args);
+    return { value: r.value, trace: r.steps };
   }
 
-  // Lecture CGD walk for the Math & Code tab: x via update_u, then y line by line via update_v.
-  // anchors: start, x, init, loop, rest, num, den, update
+  // Lecture CGD walk: x via update_u, then y line by line via update_v.
+  // anchors: start, x, obs, full, rest, num, den, update, y
   function cgdWorkedCode({ R }) {
     const st = init({ R, d: 2, kind: 'ones' });
     const a = cgdUpdate({ R, U: st.U, V: st.V, which: 'U', i: 0, s: 0 });
-    const t = [{ label: `\`U, V\` = all ones: every prediction is 2, SSE = ${dn(a.sseBefore)}`, code: 'start', math: 'start', vars: { sse: a.sseBefore } },
-      { label: `\`update_u(i=0, s=0)\`: x = u₁₁ = ${dn(a.num)}/${dn(a.den)} = ${dn(a.value)}; SSE ${dn(a.sseBefore)} → ${dn(a.sseAfter)}`, code: 'x', math: 'x', vars: { x: a.value } }];
-    const inner = cgdUpdateCode({ R, U: a.U, V: a.V, which: 'V', s: 0, j: 0 }).trace.map((s) => ({ ...s, code: s.code === 'closed' ? 'update' : s.code, math: s.math === 'closed' ? 'update' : s.math }));
-    inner[0] = { ...inner[0], label: `\`update_v(s=0, j=0)\` starts: ${inner[0].label}`, code: 'init', math: 'init' };
-    const b = cgdUpdate({ R, U: a.U, V: a.V, which: 'V', s: 0, j: 0 });
-    return { x: a.value, y: b.value, trace: [...t, ...inner, { label: `y = v₁₁ = ${dn(b.value, 4)}; SSE ${dn(b.sseBefore)} → ${dn(b.sseAfter)}`, code: 'y', math: 'y', vars: { y: b.value } }] };
+    const inner = cgdSteps({ R, U: a.U, V: a.V, which: 'V', s: 0, j: 0 });
+    return {
+      x: a.value, y: inner.value,
+      trace: [
+        { label: `\`np.ones\`: U (5 × 2) and V (2 × 5) all ones, so every prediction is 2. SSE = ${dn(a.sseBefore)}.`, code: 'start', math: 'start', vars: { sse: a.sseBefore } },
+        { label: `\`update_u(R, U, V, i=0, s=0)\` (previous section): x = u₁₁ = ${dn(a.num)} / ${dn(a.den)} = ${dn(a.value)}. SSE ${dn(a.sseBefore)} → ${dn(a.sseAfter)}.`, code: 'x', math: 'x', vars: { 'U[0, 0]': a.value } },
+        ...inner.steps,
+        { label: `\`V\` now holds y = v₁₁ = ${dn(inner.value, 4)}. SSE ${dn(inner.upd.sseBefore)} → ${dn(inner.upd.sseAfter)}.`, code: 'y', math: 'y', vars: { 'V[0, 0]': inner.value } },
+      ],
+    };
   }
 
-  // anchors: fit, loop, fill
+  // anchors: fit, pred, blank, fill, filled
   function fillCode({ R, U, V }) {
+    const P = mul(U.values, V.values);
+    const M = R.values.map((row) => row.map((r) => r === null));
     const f = fillTex({ R, U, V });
-    const trace = [{ label: `\`U, V\` trained; training SSE = ${dn(sse({ R, U, V }).sse)}`, code: 'fit', math: 'fit', vars: { sse: sse({ R, U, V }).sse } }];
-    f.cells.forEach((c) => {
-      trace.push({ label: `\`for i, j in missing\`: cell (${c.cell.replace(',', ', ')})`, code: 'loop', math: 'loop', vars: { cell: c.cell } });
-      trace.push({ label: `$${c.tex}$`, code: 'fill', math: 'fill', vars: { p: c.value } });
-    });
-    return { trace };
+    const L = { rows: R.rows, cols: R.cols, f: (x) => dn(x, 2) };
+    const blanks = [];
+    M.forEach((row, i) => row.forEach((b, j) => { if (b) blanks.push([i, j]); }));
+    const filled = R.values.map((row, i) => row.map((r, j) => (r === null ? P[i][j] : r)));
+    const e = sse({ R, U, V }).sse;
+    return {
+      trace: [
+        { label: `\`als(...)\` from a random start: training SSE = ${dn(e)}.\n\n$U = ${arr(U.values, { rows: U.rows, cols: U.cols, f: (x) => dn(x, 2) })} \\quad V = ${arr(V.values, { rows: V.rows, cols: V.cols, f: (x) => dn(x, 2) })}$`,
+          code: 'fit', math: 'fit', vars: { sse: e } },
+        { label: '`U @ V`: every prediction at once, blanks included.\n\n' + `$P = ${arr(P, { ...L, hl: blanks })}$`, code: 'pred', math: 'pred', vars: { shape: shp(P) } },
+        { label: `\`np.isnan(R)\` is True exactly at the ${blanks.length} blanks.\n\n$M = ${arr(M.map((r) => r.map(TF)), { rows: R.rows, cols: R.cols })}$`, code: 'blank', math: 'blank', vars: { blanks: blanks.length } },
+        ...f.cells.map((c) => ({ label: `Each value in \`P[M]\` is one dot product, a row of U · a column of V:\n\n$${c.tex}$`, code: 'fill', math: 'fill', vars: { p: c.value } })),
+        { label: '`P[M]` as one flat array, in row order.\n\n' + `$${vec(f.cells.map((c) => c.value), (x) => dn(x, 2))}$`, code: 'fill', math: 'fill', vars: { shape: `(${blanks.length},)` } },
+        { label: '`np.where(M, P, R)` takes P where M is True (a blank) and R everywhere else.\n\n' + `$\\hat R = ${arr(filled, { ...L, hl: blanks })}$`, code: 'filled', math: 'filled', vars: { shape: shp(filled) } },
+      ],
+    };
   }
 
-  // anchors: loop, lam, ridge
+  // anchors: init, loop, obs, lam, rhs, ridge
   function ridgeCode({ R, U, lambda = 1 }) {
-    const trace = [];
-    const d = U.values[0].length;
+    const d = U.values[0].length, n = R.cols.length;
+    const V = Array.from({ length: d }, () => Array(n).fill(0));
+    const f3 = (x) => dn(x, 3);
+    const trace = [{ label: `\`d = U.shape[1]\` = ${d} factors; \`np.zeros\` makes the ${d} × ${n} result, one column per item.`, code: 'init', math: 'init', vars: { d } }];
     R.cols.forEach((c, j) => {
       const rows = R.values.map((_, i) => i).filter((i) => R.values[i][j] !== null);
-      trace.push({ label: `\`for j\`: item ${c}, observed raters ${rows.map((i) => R.rows[i]).join(', ')}`, code: 'loop', math: 'loop', vars: { j: c } });
       const Uo = rows.map((i) => U.values[i]);
+      const r = rows.map((i) => R.values[i][j]);
       const A = Array.from({ length: d }, (_, p) => Array.from({ length: d }, (_, q) => Uo.reduce((t, u) => t + u[p] * u[q], 0) + (p === q ? lambda : 0)));
-      trace.push({ label: `\`A = Uoᵀ Uo + λI\` = [${A.map((r) => `[${r.map((x) => dn(x, 3)).join(', ')}]`).join(', ')}]`, code: 'lam', math: 'lam', vars: { A: A.map((r) => r.map((x) => +x.toFixed(3))) } });
-      const rhs = Array.from({ length: d }, (_, p) => rows.reduce((t, i) => t + U.values[i][p] * R.values[i][j], 0));
+      const rhs = Array.from({ length: d }, (_, p) => Uo.reduce((t, u, k) => t + u[p] * r[k], 0));
       const v = solve(A, rhs);
-      trace.push({ label: `\`solve(A, Uoᵀ r)\` with Uoᵀ r = (${rhs.map((x) => dn(x, 3)).join(', ')}) → v = (${v.map((x) => dn(x, 3)).join(', ')})`, code: 'ridge', math: 'ridge', vars: { v: v.map((x) => +x.toFixed(4)) } });
+      v.forEach((x, s) => (V[s][j] = x));
+      trace.push(
+        { label: `\`for j\`: j = ${j}, item ${c}.`, code: 'loop', math: 'loop', vars: { j } },
+        { label: `Raters of ${c}: ${rows.map((i) => R.rows[i]).join(', ')}. \`U[rated]\` keeps their rows, \`R[rated, j]\` their ratings.\n\n$U_o = ${arr(Uo, { rows: rows.map((i) => R.rows[i]), cols: factorNames(d), f: f3 })} \\quad \\mathbf{r} = ${vec(r, String)}$`,
+          code: 'obs', math: 'obs', vars: { shape: shp(Uo) } },
+        { label: `\`Uo.T @ Uo\` is ${d} × ${d}; \`lam * np.eye(${d})\` adds λ = ${lambda} to its diagonal.\n\n$A = ${arr(Uo.length ? mul(transpose(Uo), Uo) : [[0, 0], [0, 0]], { f: f3 })} + ${lambda}\\,I = ${arr(A, { f: f3 })}$`,
+          code: 'lam', math: 'lam', vars: { shape: shp(A) } },
+        { label: `\`Uo.T @ r\`: each factor's column of Uo dotted with the ratings.\n\n$\\text{rhs} = ${vec(rhs, f3)}$`, code: 'rhs', math: 'rhs', vars: { rhs: pyList(rhs, f3) } },
+        { label: `\`np.linalg.solve(A, rhs)\` solves A v = rhs; \`V[:, j] = v\` stores it as column ${c} of V.\n\n$\\mathbf{v} = ${vec(v, (x) => dn(x, 4))}$`, code: 'ridge', math: 'ridge', vars: { v: pyList(v, (x) => dn(x, 4)) } },
+      );
     });
-    return { trace };
+    return { V, trace };
   }
 
   // ---------------------------------------------------------------- quiz generators

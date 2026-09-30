@@ -4,51 +4,60 @@ sections:
     skills: [latent-model, rank-choice]
     summary: |
       Give every user a short vector of tastes and every item a vector of traits. A predicted rating is their dot
-      product. The whole matrix is U (m×d) times V (d×n).
+      product. The whole matrix is U (m×d) times V (d×n), which numpy computes with one `@`.
     keyFormula: 'R \approx P = UV, \qquad p_{ij} = \sum_{s=1}^{d} u_{is}\, v_{sj}'
     data: [r5x5]
     derive:
       - { fn: als, in: { R: '@r5x5', iters: 1 }, out: a }
     steps:
       - tex: |
-          R_{m \times n} \approx U_{m \times d}\;V_{d \times n}
-        say: 'With d = 2 the 5×5 lecture matrix is explained by 10 + 10 = 20 numbers.'
+          R_{m \times n} \approx \anchor{all}{P = U_{m \times d}\;V_{d \times n}}
+        say: |
+          With d = 2 the 5×5 lecture matrix is explained by 10 + 10 = 20 numbers. In numpy, `@` is matrix multiplication:
+          an (m × d) array times a (d × n) array gives an (m × n) array.
       - tex: |
-          \anchor{init}{p_{ij} = 0}, \qquad \anchor{p}{p_{ij}} = \anchor{loop}{\sum_{s=1}^{d}} \anchor{u}{u_{is}}\,\anchor{v}{v_{sj}} \qquad \anchor{ret}{\text{return } p_{ij}}
-        say: User i's row of U dotted with item j's column of V, one factor at a time.
+          \anchor{p}{p_{ij}} = \anchor{u}{\mathbf{u}_i} \cdot \anchor{v}{\mathbf{v}_j} = \sum_{s=1}^{d} u_{is}\, v_{sj}
+        say: |
+          `U[i]` is row i of U (user i's factors). `V[:, j]` is column j of V: the `:` means "every row", so it collects
+          item j's factors. `@` between two 1-D arrays multiplies them entry by entry and adds: the dot product.
       - tex: |
           \anchor{p}{p_{11}} = \anchor{u}{ {=a.U.values.0.0|4} } \cdot \anchor{v}{ {=a.V.values.0.0|3} } + {=a.U.values.0.1|4} \cdot {=a.V.values.1.0|3} = {=a.P.values.0.0|3}
-        say: 'After one ALS round from the slides (U row 1 = 1.0988…, V column 1 = 1.75). Step through computes this cell and the blank (u3, i1).'
+        say: 'After one ALS round from the slides (U row 1 = 1.0988…, V column 1 = 1.75). Step through computes this cell, the blank (u3, i1), and then all 25 cells at once.'
     code:
       lang: python
       source: |
-        def predict_one(U, V, i, j):
-            """U: m x d user factors, V: d x n item factors"""
-            u_i = U[i]                     # @a:u
-            p = 0.0                        # @a:init
-            for s in range(len(u_i)):      # @a:loop
-                v_sj = V[s][j]             # @a:v
-                p += u_i[s] * v_sj         # @a:p
-            return p                       # @a:ret
-    extraCode:
-      - lang: python
-        title: Whole matrix (numpy)
-        source: |
-          import numpy as np
+        import numpy as np
 
-          def predict(U, V):
-              return np.asarray(U) @ np.asarray(V)   # every p_ij at once
+        def predict(U, V, i, j):
+            """U: m × d user factors, V: d × n item factors"""
+            # @a u
+            # user i's factors: row i of U, shape (d,)
+            u_i = U[i]
+            # @end
+            # @a v
+            # item j's factors: column j of V (":" = every row)
+            v_j = V[:, j]
+            # @end
+            # @a p
+            # multiply factor by factor, then add: a dot product
+            return u_i @ v_j
+            # @end
+
+        def predict_all(U, V):
+            # @a all
+            # every cell at once: (m × d) @ (d × n) → m × n
+            return U @ V
+            # @end
     links:
-      - { anchor: u, label: 'row i of U (user factors)' }
-      - { anchor: init, label: 'p = 0' }
-      - { anchor: loop, label: 'each latent factor s' }
-      - { anchor: v, label: 'column j of V (item factors)' }
-      - { anchor: p, label: 'add u_is · v_sj' }
-      - { anchor: ret, label: 'the prediction' }
-    trace: { fn: predictOneCode, in: { U: '@a.U', V: '@a.V', cells: [[0, 0], [2, 0]] } }
+      - { anchor: u, label: 'row i of U (user factors)', say: 'Indexing a 2-D array with one number returns that row.' }
+      - { anchor: v, label: 'column j of V (item factors)', say: '`V[:, j]`: every row, column j.' }
+      - { anchor: p, label: 'the dot product u·v', say: '`@` on two 1-D arrays multiplies pairwise and adds.' }
+      - { anchor: all, label: 'P = U @ V (all cells)', say: '`@` on two 2-D arrays is the matrix product.' }
+    trace: { fn: predictOneCode, in: { U: '@a.U', V: '@a.V', R: '@r5x5', cells: [[0, 0], [2, 0]] } }
     examples: [init-ones]
     pitfalls:
-      - V is d×n on the slides, so item j's factors are a **column** of V.
+      - V is d×n on the slides, so item j's factors are a **column** of V (`V[:, j]`, not `V[j]`).
+      - '`U * V` would try an element-wise product and fail (shapes 5×2 and 2×5); the matrix product is `U @ V`.'
       - The model has m·d + d·n parameters, far fewer than m·n cells.
     examTip: 'Write U and V next to R with their shapes; every p_ij is "row i of U · column j of V".'
 
@@ -57,7 +66,7 @@ sections:
     skills: [sse-observed]
     summary: |
       Fit U and V by making predictions close to the ratings we **have**. Missing cells are what we want to predict,
-      so they never enter the error.
+      so they never enter the error. In numpy a boolean mask keeps only the observed errors.
     keyFormula: '\text{SSE} = \sum_{(i,j)\ \text{observed}} \left(r_{ij} - \sum_s u_{is} v_{sj}\right)^2'
     data: [r5x5]
     derive:
@@ -65,37 +74,65 @@ sections:
       - { fn: sse, in: { R: '@r5x5', U: '@st.U', V: '@st.V' }, out: s }
     steps:
       - tex: |
-          \text{SSE} = \anchor{loop}{\sum_{(i,j)}} \ \anchor{obs}{[\,r_{ij} \text{ observed}\,]} \ \anchor{add}{\anchor{err}{\left(r_{ij} - p_{ij}\right)}^2}
+          \text{SSE} = \anchor{add}{\sum_{(i,j)}} \ \anchor{obs}{[\,r_{ij} \text{ observed}\,]} \ \anchor{sq}{\big(\anchor{err}{r_{ij} - \anchor{pred}{p_{ij}}}\big)^2}
         say: One squared error per observed rating; blanks are skipped.
       - tex: |
-          \text{column } i_1: [5 - (\bar v_{11} + \bar v_{12})]^2 + [3 - (\cdot)]^2 + [2 - (\cdot)]^2 + [4 - (\cdot)]^2
+          \begin{gathered} \anchor{pred}{P = UV}, \qquad \anchor{err}{E = R - P}, \qquad \anchor{obs}{M = [\,R \text{ observed}\,]} \\ \text{SSE} = \anchor{add}{\textstyle\sum} \anchor{sq}{E[M]^2} \end{gathered}
+        say: |
+          The same sum, as array operations. `R - P` works entry by entry, and a blank (NaN) stays NaN. `E[M]` is **boolean indexing**:
+          it keeps the entries where the mask M is True and returns them as a flat 1-D array. `** 2` squares each, `.sum()` adds them.
+      - tex: |
+          \begin{gathered} \text{column } i_1: \\ [5 - (\bar v_{11} + \bar v_{12})]^2 + [3 - (\cdot)]^2 + [2 - (\cdot)]^2 + [4 - (\cdot)]^2 \end{gathered}
         say: 'Slide 4 writes it per item column. Column 1 has four terms because u3·i1 is missing.'
       - tex: |
-          U = V = \mathbf{1}: \quad \anchor{init}{0} + 18 + 7 + 6 + 23 + 21 = \anchor{ret}{ {=s.sse|2} } \text{ over } {=s.observed} \text{ observed cells}
+          \begin{gathered} U = V = \mathbf{1}: \quad 18 + 7 + 6 + 23 + 21 = \anchor{add}{ {=s.sse|2} } \\ \text{over } {=s.observed} \text{ observed cells} \end{gathered}
         say: The CGD starting point on slide 9, one row sum at a time.
     code:
       lang: python
       source: |
+        import numpy as np
+
         def sse(R, U, V):
-            total = 0.0                                        # @a:init
-            for i in range(len(R)):                            # @a:loop
-                for j in range(len(R[i])):                     # @a:loop
-                    if R[i][j] is None:                        # @a:obs
-                        continue                               # @a:obs
-                    e = R[i][j] - predict_one(U, V, i, j)      # @a:err
-                    total += e * e                             # @a:add
-            return total                                       # @a:ret
+            """R: m × n ratings, np.nan = missing"""
+            # @a pred
+            # every prediction at once
+            P = U @ V
+            # @end
+            # @a err
+            # error of every cell (NaN where R is blank)
+            E = R - P
+            # @end
+            # @a obs
+            # True where a rating exists
+            M = ~np.isnan(R)
+            # @end
+            # @a sq
+            # keep the observed errors (flat 1-D array), square each
+            sq = E[M] ** 2
+            # @end
+            # @a add
+            # add them up
+            return sq.sum()
+            # @end
+    extraCode:
+      - lang: python
+        title: Shortcut (np.nansum)
+        source: |
+          import numpy as np
+
+          def sse(R, U, V):
+              return np.nansum((R - U @ V) ** 2)   # NaN terms are skipped
     links:
-      - { anchor: init, label: 'total = 0' }
-      - { anchor: loop, label: 'every cell (i, j)' }
-      - { anchor: obs, label: observed cells only }
-      - { anchor: err, label: 'error r − p' }
-      - { anchor: add, label: 'add its square' }
-      - { anchor: ret, label: 'the SSE' }
+      - { anchor: pred, label: 'P = U @ V' }
+      - { anchor: err, label: 'errors E = R − P', say: 'Element-wise subtraction; NaN stays NaN.' }
+      - { anchor: obs, label: 'M: observed cells', say: '`~np.isnan(R)` is True where a rating exists.' }
+      - { anchor: sq, label: 'observed errors, squared', say: 'Boolean indexing flattens to the 22 observed errors.' }
+      - { anchor: add, label: 'the SSE', say: '`.sum()` adds every entry.' }
     trace: { fn: sseCode, in: { R: '@r5x5', U: '@st.U', V: '@st.V' } }
     examples: [sse-ones]
     pitfalls:
       - Treating missing ratings as 0 would train the model to predict 0 for everything unseen.
+      - '`((R - P) ** 2).sum()` returns NaN: a single NaN poisons the sum. Mask first (`E[M]`) or use `np.nansum`.'
     examTip: 'Count the observed cells first (22 on the slides), then write one squared term per cell.'
 
   - id: als-update
@@ -112,51 +149,77 @@ sections:
       - { fn: alsStepU, in: { R: '@r5x5', V: '@s1.V' }, out: s2 }
     steps:
       - tex: |
-          \anchor{freeze}{U \text{ fixed}} \;\Rightarrow\; \anchor{loop}{\text{for each item } j}: \ \mathbf{v}_j = \anchor{solve}{\arg\min_{\mathbf{v}} \sum_{i \in \anchor{obs}{\text{obs}(j)}} (r_{ij} - \mathbf{u}_i \cdot \mathbf{v})^2}
-        say: A linear regression per item. The features are the frozen user factors, the targets the observed ratings.
+          \begin{gathered} U \text{ fixed}: \quad \anchor{init}{V = 0_{d \times n}} \\ \anchor{loop}{\text{for each item } j}: \ \mathbf{v}_j = \anchor{solve}{\arg\min_{\mathbf{v}} \|A\mathbf{v} - \mathbf{b}\|^2} \end{gathered}
+        say: |
+          A linear regression per item. `np.zeros((d, n))` makes the empty V, and the loop fills one column per item:
+          each column has its own set of raters, so the items are solved one at a time.
       - tex: |
-          U = \mathbf{1}: \quad \bar v_{j1} + \bar v_{j2} = \text{mean of column } j \;\Rightarrow\; \bar v_{j1} = \bar v_{j2} = \tfrac{\text{mean}}{2}
-        say: 'Only the sum is determined; the slides split it evenly (minimum-norm solution): 3.5/2 = 1.75, 3/2 = 1.5, 3.6/2 = 1.8 …'
+          \begin{gathered} \anchor{obs}{\text{obs}(j) = \{\, i : r_{ij} \text{ observed} \,\}} \\ \anchor{feat}{A = U_{\text{obs}(j),\,:}}, \qquad \anchor{target}{\mathbf{b} = R_{\text{obs}(j),\,j}} \end{gathered}
+        say: |
+          `~np.isnan(R[:, j])` marks the raters of item j. `U[rated]` keeps their rows of the frozen U (the features)
+          and `R[rated, j]` their ratings (the targets). `np.linalg.lstsq(A, b)` returns the v with the smallest $\|A\mathbf{v} - \mathbf{b}\|^2$.
       - tex: |
-          \anchor{store}{V} = \begin{pmatrix} {=s1.V.values.0.0|3} & {=s1.V.values.0.1|3} & {=s1.V.values.0.2|3} & {=s1.V.values.0.3|3} & {=s1.V.values.0.4|3} \\ {=s1.V.values.1.0|3} & {=s1.V.values.1.1|3} & {=s1.V.values.1.2|3} & {=s1.V.values.1.3|3} & {=s1.V.values.1.4|3} \end{pmatrix}
+          \begin{gathered} U = \mathbf{1}: \quad \bar v_{j1} + \bar v_{j2} = \text{mean of column } j \\ \Rightarrow\; \bar v_{j1} = \bar v_{j2} = \tfrac{\text{mean}}{2} \end{gathered}
+        say: 'Every row of A is (1, 1), so only the sum is determined. `lstsq` returns the minimum-norm solution, the even split: 3.5/2 = 1.75, 3/2 = 1.5, 3.6/2 = 1.8 …'
+      - tex: |
+          \anchor{solve}{V} = \begin{pmatrix} {=s1.V.values.0.0|3} & {=s1.V.values.0.1|3} & {=s1.V.values.0.2|3} & {=s1.V.values.0.3|3} & {=s1.V.values.0.4|3} \\ {=s1.V.values.1.0|3} & {=s1.V.values.1.1|3} & {=s1.V.values.1.2|3} & {=s1.V.values.1.3|3} & {=s1.V.values.1.4|3} \end{pmatrix}
         say: Slide 5. Step through to watch each column get solved and stored.
       - tex: |
-          \anchor{freeze}{V \text{ fixed}} \;\Rightarrow\; u_{11} = u_{12} = \anchor{solve}{ {=s2.U.values.0.0|8} }
-        say: 'Then solve each user row with V frozen: slide 8''s 1.09884117.'
+          \begin{gathered} \anchor{transpose}{U = \text{als\_step\_V}(R^{\top}, V^{\top})^{\top}} \\ u_{11} = u_{12} = {=s2.U.values.0.0|8} \end{gathered}
+        say: '`.T` transposes (swaps rows and columns). With users and items swapped, the U-step is the same function, and the answer is flipped back: slide 8''s 1.09884117.'
     code:
       lang: python
       source: |
         import numpy as np
 
         def als_step_V(R, U):
-            d, n = len(U[0]), len(R[0])
-            V = [[0.0] * n for _ in range(d)]                        # @a:freeze
-            for j in range(n):                                       # @a:loop
-                rows = [i for i in range(len(R)) if R[i][j] is not None]   # @a:obs
-                A = [U[i] for i in rows]                             # @a:freeze
-                b = [R[i][j] for i in rows]                          # @a:obs
-                # lstsq returns the minimum-norm solution when the system is rank-deficient
-                v = np.linalg.lstsq(A, b, rcond=None)[0]             # @a:solve
-                for s in range(d):
-                    V[s][j] = v[s]                                   # @a:store
+            """U frozen (m × d) → the best V (d × n)"""
+            # @a init
+            # the result, one column per item, filled in below
+            V = np.zeros((U.shape[1], R.shape[1]))
+            # @end
+            # @a loop
+            # each item (column of R) is its own regression
+            for j in range(R.shape[1]):
+            # @end
+                # @a obs
+                # users who rated item j
+                rated = ~np.isnan(R[:, j])
+                # @end
+                # @a feat
+                # features: their frozen rows of U
+                A = U[rated]
+                # @end
+                # @a target
+                # targets: their ratings of item j
+                b = R[rated, j]
+                # @end
+                # @a solve
+                # least squares (minimum-norm if A is rank-deficient)
+                v = np.linalg.lstsq(A, b, rcond=None)[0]
+                V[:, j] = v
+                # @end
             return V
 
         def als_step_U(R, V):
-            # the same problem on the transposed matrices
-            RT = [list(col) for col in zip(*R)]
-            VT = [list(col) for col in zip(*V)]
-            return [list(r) for r in zip(*als_step_V(RT, VT))]
+            # @a transpose
+            # the same problem with users and items swapped
+            return als_step_V(R.T, V.T).T
+            # @end
     links:
-      - { anchor: freeze, label: freeze one factor matrix }
+      - { anchor: init, label: 'empty V (d × n)', say: '`np.zeros(shape)` makes an array of zeros.' }
       - { anchor: loop, label: 'each item column j' }
-      - { anchor: obs, label: 'its observed raters and ratings' }
-      - { anchor: solve, label: least squares for the other }
-      - { anchor: store, label: 'store column j of V' }
+      - { anchor: obs, label: 'who rated item j', say: 'Column slice, then a NaN test.' }
+      - { anchor: feat, label: 'features: frozen U rows', say: 'Boolean indexing on the rows of U.' }
+      - { anchor: target, label: 'targets: their ratings' }
+      - { anchor: solve, label: least squares → column j of V, say: 'lstsq returns (solution, residuals, rank, singular values); [0] takes the solution.' }
+      - { anchor: transpose, label: 'U-step = V-step on the transposes' }
     trace: { fn: alsStepVCode, in: { R: '@r5x5', U: '@st.U' } }
     examples: [als-v-first, als-v-symmetric, als-u-first]
     pitfalls:
       - Each regression uses only the **observed** ratings of that column (or row).
-      - With U = all ones the problem has infinitely many solutions; the slides pick the even split.
+      - With U = all ones the problem has infinitely many solutions; the slides pick the even split, which is what `lstsq` returns.
+      - '`np.linalg.solve(A.T @ A, A.T @ b)` fails here: with identical columns A.T @ A is singular. `lstsq` handles it.'
     examTip: 'From U = all ones, each V column is simply (column mean of observed ratings)/2 in every row.'
 
   - id: als-run
@@ -173,26 +236,43 @@ sections:
     steps:
       - tex: |
           \anchor{init}{U^{(0)}} \;\xrightarrow{\ \anchor{solve-v}{\text{solve } V}\ }\; V^{(1)} \;\xrightarrow{\ \anchor{solve-u}{\text{solve } U}\ }\; U^{(1)} \;\to \cdots \quad (\anchor{loop}{t = 1, \dots, T})
-        say: Each half-step minimizes the SSE over one block exactly, so the SSE never increases.
+        say: |
+          `np.ones((m, d))` is the lecture's start; `0.5 + rng.random((m, d))` fills U with random numbers in [0.5, 1.5).
+          Each half-step minimizes the SSE over one block exactly, so the SSE never increases.
       - tex: |
           U:\ \text{columns equal} \;\Rightarrow\; V:\ \text{rows equal} \;\Rightarrow\; U:\ \text{columns equal}
         say: Symmetry in, symmetry out. Only $v_{j1} + v_{j2}$ is ever determined.
       - tex: |
           \anchor{sse}{\text{SSE after } {=iters} \text{ iterations} = {=run.sse|3}}, \qquad \text{still symmetric? } \text{ {=run.symmetric} }
-        say: 'Set initKind to `random` in the live inputs to break the tie, then step through again.'
+        say: 'Set initKind to `random` in the live inputs to break the tie, then step through again. (The site uses its own seeded random numbers, so numpy''s differ.)'
     code:
       lang: python
       source: |
         import numpy as np
 
-        def als(R, d=2, iters=10, init="ones", seed=0):
-            m = len(R)
-            rng = np.random.default_rng(seed)
-            U = (np.ones((m, d)) if init == "ones" else 0.5 + rng.random((m, d))).tolist()   # @a:init
-            for t in range(iters):                                                           # @a:loop
-                V = als_step_V(R, U)                                                         # @a:solve-v
-                U = als_step_U(R, V)                                                         # @a:solve-u
-                print(t + 1, sse(R, U, V))                                                   # @a:sse
+        def als(R, d=2, iters=3, init="ones", seed=0):
+            # @a init
+            # all ones (the lecture), or random numbers in [0.5, 1.5)
+            U = np.ones((R.shape[0], d))
+            if init == "random":
+                U = 0.5 + np.random.default_rng(seed).random(U.shape)
+            # @end
+            # @a loop
+            # one iteration = a V-step, then a U-step
+            for t in range(iters):
+            # @end
+                # @a solve-v
+                # freeze U, solve every column of V
+                V = als_step_V(R, U)
+                # @end
+                # @a solve-u
+                # freeze V, solve every row of U
+                U = als_step_U(R, V)
+                # @end
+                # @a sse
+                # the SSE can only go down
+                print(t + 1, sse(R, U, V))
+                # @end
             return U, V
     links:
       - { anchor: init, label: initialization }
@@ -211,48 +291,71 @@ sections:
     skills: [cgd-derivation]
     summary: |
       Change one entry u_is and freeze everything else. The SSE is then a parabola in that entry, so setting the
-      derivative to zero gives its exact minimizer.
+      derivative to zero gives its exact minimizer: two dot products and a division.
     keyFormula: 'u_{is} = \frac{\sum_{j} v_{sj}\left(r_{ij} - \sum_{t \ne s} u_{it} v_{tj}\right)}{\sum_{j} v_{sj}^2}'
     data: [r5x5]
     derive:
       - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
     steps:
       - tex: |
-          \text{SSE} = \sum_{j \in \text{obs}(i)} \Big( r_{ij} - u_{is} v_{sj} - \anchor{rest}{\sum_{t \ne s} u_{it} v_{tj}} \Big)^2 + \text{(terms without } u_{is})
-        say: Split the prediction into the part that uses u_is and the rest.
+          \begin{gathered} \text{SSE} = \sum_{j \in \anchor{obs}{\text{obs}(i)}} \Big( r_{ij} - u_{is} v_{sj} - \anchor{rest}{\sum_{t \ne s} u_{it} v_{tj}} \Big)^2 \\ + \text{(terms without } u_{is}) \end{gathered}
+        say: 'Split the prediction into the part that uses u_is and the rest (what the other factors predict).'
       - tex: |
-          \frac{\partial\, \text{SSE}}{\partial u_{is}} = \anchor{loop}{\sum_{j}} -2\, v_{sj} \Big( r_{ij} - u_{is} v_{sj} - \sum_{t \ne s} u_{it} v_{tj} \Big) = 0
+          \frac{\partial\, \text{SSE}}{\partial u_{is}} = \sum_{j} -2\, v_{sj} \Big( r_{ij} - u_{is} v_{sj} - \sum_{t \ne s} u_{it} v_{tj} \Big) = 0
         say: Differentiate and set to zero.
       - tex: |
           \sum_j v_{sj} r_{ij} - u_{is} \sum_j v_{sj}^2 - \sum_j v_{sj} \sum_{t \ne s} u_{it} v_{tj} = 0
         say: Expand the sum (slide 15, line 3).
       - tex: |
-          \anchor{closed}{u_{is}} = \frac{\anchor{num}{\sum_{j} v_{sj}\left(r_{ij} - \sum_{t \ne s} u_{it} v_{tj}\right)}}{\anchor{den}{\sum_{j} v_{sj}^2}}, \qquad \anchor{init}{\text{both sums start at } 0}
-        say: Solve for u_is. Step through to compute x = u₁₁ from all ones, term by term. The v_sj entries update the same way, with U and V swapped.
+          \anchor{closed}{u_{is}} = \frac{\anchor{num}{\sum_{j} v_{sj}\left(r_{ij} - \text{rest}_j\right)}}{\anchor{den}{\sum_{j} v_{sj}^2}}
+        say: Solve for u_is. The v_sj entries update the same way, with U and V swapped.
+      - tex: |
+          \begin{gathered} \anchor{rest}{\textbf{rest} = \anchor{full}{\mathbf{u}_i V_{:,J}} - u_{is}\, V_{s,J}} \\ \anchor{num}{\text{num} = V_{s,J} \cdot (\mathbf{r}_{i,J} - \textbf{rest})}, \qquad \anchor{den}{\text{den} = V_{s,J} \cdot V_{s,J}} \end{gathered}
+        say: |
+          In numpy, with J = the rated items (`rated`): `full = U[i] @ V[:, rated]` is the whole prediction for each rated item, and
+          subtracting `U[i, s] * V[s, rated]` (element-wise) leaves what the other factors predict. Both sums are then dot products.
     code:
       lang: python
       source: |
+        import numpy as np
+
         def update_u(R, U, V, i, s):
-            num = den = 0.0                                          # @a:init
-            for j in range(len(R[i])):                               # @a:loop
-                if R[i][j] is None:                                  # @a:loop
-                    continue
-                rest = sum(U[i][t] * V[t][j]                         # @a:rest
-                           for t in range(len(V)) if t != s)         # @a:rest
-                num += V[s][j] * (R[i][j] - rest)                    # @a:num
-                den += V[s][j] ** 2                                  # @a:den
-            U[i][s] = num / den                                      # @a:closed
+            """exact minimizer of the SSE in the single entry U[i, s]"""
+            # @a obs
+            # the items user i rated
+            rated = ~np.isnan(R[i])
+            # @end
+            # @a full
+            # the full prediction for each rated item
+            full = U[i] @ V[:, rated]
+            # @end
+            # @a rest
+            # minus factor s's own part: what the OTHER factors predict
+            rest = full - U[i, s] * V[s, rated]
+            # @end
+            # @a num
+            # Σ v_sj (r_ij − rest_j): a dot product
+            num = V[s, rated] @ (R[i, rated] - rest)
+            # @end
+            # @a den
+            # Σ v_sj²: a vector dotted with itself
+            den = V[s, rated] @ V[s, rated]
+            # @end
+            # @a closed
+            # jump to the bottom of the parabola
+            U[i, s] = num / den
+            # @end
             return U
     links:
-      - { anchor: init, label: 'num = den = 0' }
-      - { anchor: loop, label: 'each observed item j' }
-      - { anchor: rest, label: 'what the other factors predict' }
-      - { anchor: num, label: 'Σ v · (r − rest)' }
-      - { anchor: den, label: 'Σ v²' }
-      - { anchor: closed, label: closed-form minimizer }
+      - { anchor: obs, label: 'items user i rated', say: 'Row slice `R[i]`, then a NaN test.' }
+      - { anchor: full, label: 'the full predictions', say: 'Row i of U times the rated columns of V.' }
+      - { anchor: rest, label: 'what the other factors predict', say: 'Full prediction minus factor s''s own part.' }
+      - { anchor: num, label: 'Σ v · (r − rest)', say: 'A dot product.' }
+      - { anchor: den, label: 'Σ v²', say: 'A vector dotted with itself.' }
+      - { anchor: closed, label: closed-form minimizer, say: 'Written straight into U.' }
     trace: { fn: cgdUpdateCode, in: { R: '@r5x5', U: '@st.U', V: '@st.V', which: U, i: 0, s: 0 } }
     pitfalls:
-      - Sum only over the columns the user rated.
+      - Sum only over the columns the user rated (`rated`).
       - Subtract the contribution of the **other** factors before regressing on v_sj.
     examTip: 'Memorize the pattern: Σ (factor)·(rating − rest) / Σ (factor)².'
 
@@ -268,42 +371,68 @@ sections:
       - { fn: cgdLecture, in: { R: '@r5x5' }, out: cg }
     steps:
       - tex: |
-          \anchor{start}{U = V = \mathbf{1}}: \quad \anchor{x}{(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2} \;\Rightarrow\; -2\,[13 - 5x] = 0 \;\Rightarrow\; x = 2.6
+          \begin{gathered} \anchor{start}{U = V = \mathbf{1}}: \quad \anchor{x}{(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2} \\ \Rightarrow\; -2\,[13 - 5x] = 0 \;\Rightarrow\; x = 2.6 \end{gathered}
         say: Row 1's ratings minus 1 (the frozen factor's contribution), as on slide 11.
       - tex: |
           \anchor{y}{(4 - 2.6y)^2 + (2-y)^2 + (1-y)^2 + (3-y)^2}
         say: Column 1 with u₁₁ = 2.6 fixed (slides 12–13); u3·i1 is blank, so four terms.
       - tex: |
-          \anchor{update}{y} = \frac{\anchor{num}{2.6(5 - \anchor{rest}{1}) + 1(3 - 1) + 1(2 - 1) + 1(4 - 1)}}{\anchor{den}{2.6^2 + 1^2 + 1^2 + 1^2}} = \frac{16.4}{9.76} = {=cg.y|4}
-        say: 'The same recipe: Σ u(r − rest) / Σ u². The slide writes "x = 1.68"; it is y. Step through to add each term.'
+          \begin{gathered} \anchor{update}{y} = \frac{\anchor{num}{2.6(5 - \anchor{rest}{1}) + 1(3 - 1) + 1(2 - 1) + 1(4 - 1)}}{\anchor{den}{2.6^2 + 1^2 + 1^2 + 1^2}} \\ = \frac{16.4}{9.76} = {=cg.y|4} \end{gathered}
+        say: 'The same recipe: Σ u(r − rest) / Σ u². The slide writes "x = 1.68"; it is y.'
       - tex: |
-          \anchor{init}{\text{num} = \text{den} = 0} \;\to\; \anchor{loop}{\text{users } u_1, u_2, u_4, u_5} \;\to\; \text{SSE}: {=cg.sse0} \to {=cg.sse1|2} \to {=cg.sse2|2}
-        say: Each exact coordinate update lowers the SSE.
+          \begin{gathered} \anchor{obs}{I = \text{users who rated } j}: \quad \anchor{rest}{\textbf{rest} = \anchor{full}{U_{I,:}\,\mathbf{v}_j} - U_{I,s}\, v_{sj}} \\ \text{SSE}: {=cg.sse0} \to {=cg.sse1|2} \to {=cg.sse2|2} \end{gathered}
+        say: '`update_v` mirrors `update_u`: a column of R instead of a row, `U[rated]` instead of `V[:, rated]`. Each exact update lowers the SSE.'
     code:
       lang: python
       source: |
+        import numpy as np
+
         def update_v(R, U, V, s, j):
-            num = den = 0.0                                          # @a:init
-            for i in range(len(R)):                                  # @a:loop
-                if R[i][j] is None:                                  # @a:loop
-                    continue
-                rest = sum(U[i][t] * V[t][j]                         # @a:rest
-                           for t in range(len(U[i])) if t != s)      # @a:rest
-                num += U[i][s] * (R[i][j] - rest)                    # @a:num
-                den += U[i][s] ** 2                                  # @a:den
-            V[s][j] = num / den                                      # @a:update
+            """the same recipe for V[s, j], over the users who rated j"""
+            # @a obs
+            # the users who rated item j
+            rated = ~np.isnan(R[:, j])
+            # @end
+            # @a full
+            # their full predictions for item j
+            full = U[rated] @ V[:, j]
+            # @end
+            # @a rest
+            # minus factor s's own part: what the OTHER factors predict
+            rest = full - U[rated, s] * V[s, j]
+            # @end
+            # @a num
+            # Σ u_is (r_ij − rest_i)
+            num = U[rated, s] @ (R[rated, j] - rest)
+            # @end
+            # @a den
+            # Σ u_is²
+            den = U[rated, s] @ U[rated, s]
+            # @end
+            # @a update
+            # the bottom of the parabola in y
+            V[s, j] = num / den
+            # @end
             return V
 
-        U = [[1.0, 1.0] for _ in range(5)]                           # @a:start
-        V = [[1.0] * 5, [1.0] * 5]                                   # @a:start
-        U = update_u(R, U, V, i=0, s=0)    # x = u11 = 2.6            # @a:x
-        V = update_v(R, U, V, s=0, j=0)    # y = v11 = 1.68           # @a:y
+        # @a start
+        # slide 9: start from all ones (R uses np.nan for blanks)
+        U, V = np.ones((5, 2)), np.ones((2, 5))
+        # @end
+        # @a x
+        # slide 11: x = u11 (previous section)
+        U = update_u(R, U, V, i=0, s=0)
+        # @end
+        # @a y
+        # slides 12–14: y = v11, using the new x
+        V = update_v(R, U, V, s=0, j=0)
+        # @end
     links:
       - { anchor: start, label: 'start from all ones' }
       - { anchor: x, label: 'x = u₁₁ (previous section)' }
       - { anchor: y, label: 'y = v₁₁, with x fixed' }
-      - { anchor: init, label: 'num = den = 0' }
-      - { anchor: loop, label: 'each user who rated i1' }
+      - { anchor: obs, label: 'users who rated item j' }
+      - { anchor: full, label: 'their full predictions' }
       - { anchor: rest, label: 'what the other factor predicts' }
       - { anchor: num, label: 'numerator Σ u(r − rest)' }
       - { anchor: den, label: 'denominator Σ u²' }
@@ -312,7 +441,7 @@ sections:
     examples: [cgd-x, cgd-y]
     pitfalls:
       - Only observed cells count; column 1 has four terms because u3·i1 is missing.
-      - After updating x, use the **new** x when updating y.
+      - After updating x, use the **new** x when updating y (the functions change U and V in place).
     examTip: 'Write the parabola, differentiate, solve: for u₁₁ from all ones it is just the mean of (rating − 1) over the row.'
     errata:
       - 'Slide 14 solves for **y** (= v₁₁) but labels the answer "x = 1.68". It is y = 1.68.'
@@ -331,8 +460,11 @@ sections:
       - { fn: fillTex, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, out: ft }
     steps:
       - tex: |
-          \anchor{loop}{\text{for each blank } (i, j)}: \quad \anchor{fill}{\hat r_{ij} = \mathbf{u}_i \cdot \mathbf{v}_j}
-        say: The same dot product, evaluated where R is blank.
+          \begin{gathered} \anchor{pred}{P = UV}, \qquad \anchor{blank}{M = [\,r_{ij} \text{ missing}\,]} \\ \anchor{fill}{\hat r_{ij} = p_{ij} = \mathbf{u}_i \cdot \mathbf{v}_j \ \text{ for } (i, j) \in M} \end{gathered}
+        say: 'The same dot product, evaluated where R is blank. `P[M]` picks those entries (boolean indexing).'
+      - tex: |
+          \anchor{filled}{\hat R = \text{where}(M,\ P,\ R)}
+        say: '`np.where(cond, a, b)` takes a where cond is True and b elsewhere: known ratings stay, blanks get predictions.'
       - tex: |
           \anchor{fit}{\text{training SSE} = {=run.sse|2}}
         say: 'Random start, 10 ALS iterations: an almost perfect fit of the 22 observed ratings.'
@@ -342,19 +474,38 @@ sections:
     code:
       lang: python
       source: |
-        U, V = als(R, d=2, iters=10, init="random", seed=7)       # @a:fit
-        missing = [(i, j) for i in range(len(R))
-                   for j in range(len(R[i])) if R[i][j] is None]
-        for i, j in missing:                                       # @a:loop
-            print(f"u{i+1}·i{j+1} ≈ {predict_one(U, V, i, j):.2f}")  # @a:fill
+        import numpy as np
+
+        # @a fit
+        # random start, 10 ALS iterations (previous sections)
+        U, V = als(R, d=2, iters=10, init="random", seed=7)
+        # @end
+        # @a pred
+        # every prediction at once
+        P = U @ V
+        # @end
+        # @a blank
+        # True where R is blank
+        M = np.isnan(R)
+        # @end
+        # @a fill
+        # the predictions for the blanks only
+        print(P[M])
+        # @end
+        # @a filled
+        # known ratings stay; blanks get their predictions
+        R_hat = np.where(M, P, R)
+        # @end
     links:
-      - { anchor: loop, label: 'each blank cell' }
-      - { anchor: fill, label: predictions for missing cells }
       - { anchor: fit, label: training fit (random start) }
+      - { anchor: pred, label: 'P = U @ V' }
+      - { anchor: blank, label: 'M: where the blanks are' }
+      - { anchor: fill, label: predictions for missing cells }
+      - { anchor: filled, label: 'the completed matrix', say: 'np.where(condition, if_true, if_false), entry by entry.' }
     trace: { fn: fillCode, in: { R: '@r5x5', U: '@run.U', V: '@run.V' } }
     pitfalls:
       - A tiny training SSE does not mean good predictions for the blanks.
-      - Clip predictions to the rating scale in practice.
+      - Clip predictions to the rating scale in practice (`np.clip(R_hat, 1, 5)`).
     examTip: 'Predictions come from the same product UV; nothing special happens for missing cells.'
 
   - id: regularization
@@ -373,33 +524,61 @@ sections:
       - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
     steps:
       - tex: |
-          \anchor{loop}{\text{for each item } j}: \quad \mathbf{v}_j = \anchor{ridge}{(U_{o}^\top U_{o} + \lambda I)^{-1} U_{o}^\top \mathbf{r}_{o}}
-        say: The V-step with the observed rows U_o of U, now a ridge regression.
+          \begin{gathered} \anchor{init}{V = 0_{d \times n}} \\ \anchor{loop}{\text{for each item } j}: \quad \mathbf{v}_j = \anchor{ridge}{(\anchor{lam}{U_{o}^\top U_{o} + \lambda I})^{-1}\, \anchor{rhs}{U_{o}^\top \mathbf{r}_{o}}} \end{gathered}
+        say: 'The V-step with the observed rows U_o of U, now a ridge regression.'
+      - tex: |
+          \anchor{obs}{U_o = U_{\text{obs}(j),\,:}, \ \ \mathbf{r}_o = R_{\text{obs}(j),\,j}}
+        say: |
+          `Uo.T @ Uo` is a small d × d matrix; `lam * np.eye(d)` adds λ to its diagonal (`np.eye` is the identity).
+          `np.linalg.solve(A, rhs)` solves the d equations A v = rhs, which always has one answer when λ > 0.
       - tex: |
           \anchor{lam}{\lambda} \uparrow \;\Rightarrow\; \text{smaller factors, higher training SSE, saner blanks}
         say: λ trades fit on the observed ratings for stability on the missing ones.
       - tex: |
           \anchor{lam}{\lambda = {=lambda}}: \text{ training SSE} = {=reg.sse|2}; \quad \text{blanks: {=fr.text}}
-        say: 'Change λ in the live inputs and watch u3·i1. Step through the V-step from U = ones: with λ > 0 the two factors still tie, but the sum shrinks.'
+        say: 'Change λ in the live inputs and watch u3·i1. Step through the V-step from U = ones: the two factors still tie, but the sum shrinks.'
     code:
       lang: python
       source: |
         import numpy as np
 
         def ridge_step_V(R, U, lam):
-            d, n = len(U[0]), len(R[0])
-            V = np.zeros((d, n))
-            for j in range(n):                                       # @a:loop
-                obs = [i for i in range(len(R)) if R[i][j] is not None]
-                Uo = np.array([U[i] for i in obs])
-                r = np.array([R[i][j] for i in obs])
-                A = Uo.T @ Uo + lam * np.eye(d)                      # @a:lam
-                V[:, j] = np.linalg.solve(A, Uo.T @ r)               # @a:ridge
+            """the V-step with a penalty lam · ‖v‖² (ridge regression)"""
+            # @a init
+            # d factors; the result has one column per item
+            d = U.shape[1]
+            V = np.zeros((d, R.shape[1]))
+            # @end
+            # @a loop
+            # one ridge regression per item
+            for j in range(R.shape[1]):
+            # @end
+                # @a obs
+                # the raters' frozen rows of U and their ratings of j
+                rated = ~np.isnan(R[:, j])
+                Uo, r = U[rated], R[rated, j]
+                # @end
+                # @a lam
+                # Uoᵀ Uo, plus λ on the diagonal
+                A = Uo.T @ Uo + lam * np.eye(d)
+                # @end
+                # @a rhs
+                # right-hand side Uoᵀ r
+                rhs = Uo.T @ r
+                # @end
+                # @a ridge
+                # solve A v = rhs (always one answer when λ > 0)
+                v = np.linalg.solve(A, rhs)
+                V[:, j] = v
+                # @end
             return V
     links:
+      - { anchor: init, label: 'empty V' }
       - { anchor: loop, label: 'each item column' }
-      - { anchor: ridge, label: ridge solution }
-      - { anchor: lam, label: 'λ: regularization strength' }
+      - { anchor: obs, label: 'raters and ratings of j' }
+      - { anchor: lam, label: 'Uoᵀ Uo + λI', say: '`np.eye(d)` is the d × d identity matrix.' }
+      - { anchor: rhs, label: 'Uoᵀ r' }
+      - { anchor: ridge, label: ridge solution, say: '`np.linalg.solve` solves a square linear system.' }
     trace: { fn: ridgeCode, in: { R: '@r5x5', U: '@st.U', lambda: '@lambda' } }
     pitfalls:
       - Not on the slides; Spark's ALS calls λ `regParam`.

@@ -335,11 +335,11 @@ templates:
       def als_step_V(R, U):
           V = np.zeros((U.shape[1], R.shape[1]))
           for j in range(R.shape[1]):
-              obs = ~np.isnan(R[:, j])
-              V[:, j] = np.linalg.lstsq(__BLANK_1__, R[obs, j], rcond=None)[0]
+              rated = ~np.isnan(R[:, j])
+              V[:, j] = np.linalg.lstsq(__BLANK_1__, R[rated, j], rcond=None)[0]
           return V
     blanks:
-      '1': { accept: ['U[obs]', 'U[obs, :]', 'U[obs,:]'] }
+      '1': { accept: ['U[rated]', 'U[rated, :]'], hint: the frozen rows of the users who rated item j }
     explanation: Regress item j's observed ratings on the frozen factors of the users who rated it.
 
   - id: code-cgd
@@ -351,14 +351,14 @@ templates:
     prompt: Complete the closed-form coordinate update.
     code: |
       def update_u(R, U, V, i, s):
-          obs = ~np.isnan(R[i])
+          rated = ~np.isnan(R[i])
           rest = U[i] @ V - U[i, s] * V[s]
-          resid = R[i, obs] - __BLANK_1__
-          U[i, s] = (V[s, obs] @ resid) / (__BLANK_2__)
+          resid = R[i, rated] - __BLANK_1__
+          U[i, s] = (V[s, rated] @ resid) / (__BLANK_2__)
           return U
     blanks:
-      '1': { accept: ['rest[obs]'] }
-      '2': { accept: ['V[s, obs] @ V[s, obs]', 'V[s,obs] @ V[s,obs]', 'np.sum(V[s, obs] ** 2)', '(V[s, obs] ** 2).sum()'] }
+      '1': { accept: ['rest[rated]'] }
+      '2': { accept: ['V[s, rated] @ V[s, rated]', 'np.sum(V[s, rated] ** 2)', '(V[s, rated] ** 2).sum()', 'np.dot(V[s, rated], V[s, rated])'] }
     explanation: 'Residual after the other factors, regressed on v_s: Σ v·resid / Σ v².'
 
   - id: match-terms
