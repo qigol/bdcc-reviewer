@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, Clock, Flag, RotateCcw, Trophy } from 'lucide-react';
+import { ArrowRight, BookMarked, Clock, Flag, RotateCcw, Trophy } from 'lucide-react';
 import type { QuizInstance } from '@kodigo/schema';
 import { useModuleStore, type LoadedModule } from '../modules/store';
-import { getSession, instantiate, newSession, randomSeed, QTYPE_LABEL, MODE_LABEL, type QuizSession } from './session';
+import { getRunState, getSession, instantiate, newSession, randomSeed, saveRunState, QTYPE_LABEL, MODE_LABEL, type QuizSession } from './session';
 import { QuestionView, emptyResponse, grade, isAnswered, type Graded } from './Question';
 import { recordAttempt } from '../storage/progress';
 import { cn } from '../lib/util';
+import { usePopup } from '../lib/popup';
 
 interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number }
 
@@ -20,13 +21,26 @@ export function QuizRunner() {
 function Runner({ session }: { session: QuizSession }) {
   const store = useModuleStore();
   const nav = useNavigate();
-  const [slots, setSlots] = useState<Slot[]>(() => session.items.map(() => ({})));
-  const [idx, setIdx] = useState(0);
-  const [finished, setFinished] = useState(false);
+  const popup = usePopup();
+  // Restore answers saved for this session (e.g. after opening the lesson or glossary and coming back).
+  const [saved] = useState(() => getRunState(session.id));
+  const [slots, setSlots] = useState<Slot[]>(() => session.items.map((_, i) => {
+    const sv = saved?.slots[i];
+    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs } : {};
+  }));
+  const [idx, setIdx] = useState(() => Math.min(saved?.idx ?? 0, session.items.length - 1));
+  const [finished, setFinished] = useState(() => saved?.finished ?? false);
   const exam = session.mode === 'exam';
   const practice = !exam;
-  const [deadline] = useState(() => (session.timeLimitSec ? Date.now() + session.timeLimitSec * 1000 : null));
+  const [deadline] = useState(() => saved?.deadline ?? (session.timeLimitSec ? Date.now() + session.timeLimitSec * 1000 : null));
   const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    saveRunState(session.id, {
+      idx, finished, deadline,
+      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs })),
+    });
+  }, [slots, idx, finished]);
 
   useEffect(() => {
     let alive = true;
@@ -34,7 +48,12 @@ function Runner({ session }: { session: QuizSession }) {
       try {
         const mod = await store.load(it.moduleId);
         const inst = await instantiate(mod, it);
-        if (alive) setSlots((s) => { const n = s.slice(); n[i] = { ...n[i], inst, mod, response: emptyResponse(inst), graded: null, startedAt: i === 0 ? Date.now() : undefined }; return n; });
+        if (alive) setSlots((s) => {
+          const n = s.slice();
+          const prev = n[i];
+          n[i] = { ...prev, inst, mod, response: prev.response !== undefined ? prev.response : emptyResponse(inst), graded: prev.graded ?? null, startedAt: prev.startedAt ?? (i === idx ? Date.now() : undefined) };
+          return n;
+        });
       } catch (e: any) {
         if (alive) setSlots((s) => { const n = s.slice(); n[i] = { ...n[i], error: String(e?.message ?? e) }; return n; });
       }
@@ -47,7 +66,8 @@ function Runner({ session }: { session: QuizSession }) {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [deadline, finished]);
-  useEffect(() => { if (deadline && now >= deadline && !finished) finishExam(); }, [now]);
+  // (wait until every question is rebuilt, so a resumed exam whose time ran out grades all answers)
+  useEffect(() => { if (deadline && now >= deadline && !finished && slots.every((s) => s.inst || s.error)) finishExam(); }, [now, slots]);
 
   useEffect(() => { setSlots((s) => { const n = s.slice(); if (n[idx] && !n[idx].startedAt) n[idx] = { ...n[idx], startedAt: Date.now() }; return n; }); }, [idx]);
 
@@ -111,6 +131,7 @@ function Runner({ session }: { session: QuizSession }) {
           ))}
         </div>
         {remaining !== null && <span className={cn('flex items-center gap-1 font-mono text-sm', remaining < 60 && 'text-bad')}><Clock size={14} /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</span>}
+        <button className="btn btn-sm" onClick={() => popup.open({ title: 'Glossary', src: '/glossary', note: 'Your quiz stays open underneath' })} data-testid="quiz-glossary"><BookMarked size={13} /> Glossary</button>
         {exam && <button className="btn btn-sm" onClick={finishExam}><Flag size={13} /> Finish</button>}
       </div>
       <div className="card p-5" data-testid="question">

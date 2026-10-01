@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -10,6 +9,7 @@ import type { LoadedModule } from '../modules/store';
 import { StageProvider, Stage } from '../engine/Stage';
 import { Markdown } from '../lib/md';
 import { cn } from '../lib/util';
+import { usePopup } from '../lib/popup';
 import { fmtNum } from '../widgets/common';
 
 export interface Graded { score: number; correct: boolean; response: unknown; feedback: string[] }
@@ -105,9 +105,11 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
   inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; graded: Graded | null; reveal: boolean; practice: boolean;
 }) {
   const locked = !!graded;
-  const [shown, setShown] = useState(false);
+  const popup = usePopup();
   const extraScope = useMemo(() => inst.scope, [inst]);
   const lessonHref = inst.lessonRef ? `/m/${inst.moduleId}/${inst.lessonRef.tab}${inst.lessonRef.tab === 'application' ? '' : `/${inst.lessonRef.id}`}` : null;
+  // Open the lesson in a popup over the quiz instead of navigating away (which used to wipe quiz progress).
+  const openLesson = () => lessonHref && popup.open({ title: `Lesson · ${mod.parsed.manifest.shortTitle}`, src: lessonHref, note: 'Your quiz stays open underneath' });
   return (
     <StageProvider mod={mod} spec={{}} state={{}} extraScope={extraScope}>
       <div className="flex flex-col gap-3">
@@ -188,13 +190,12 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
             </div>
             {graded.feedback.map((f, i) => <Markdown key={i} text={f} className="mb-1 text-sm font-medium text-warn" />)}
             <Markdown text={inst.explanation} className="text-sm" />
-            {lessonHref && <Link to={lessonHref} className="mt-2 inline-flex items-center gap-1 text-sm text-accent underline"><BookOpen size={13} /> Show me in the lesson</Link>}
+            {lessonHref && <button onClick={openLesson} className="mt-2 inline-flex items-center gap-1 text-sm text-accent underline"><BookOpen size={13} /> Show me in the lesson</button>}
           </div>
         )}
-        {!reveal && practice && lessonHref && !shown && (
-          <button className="self-start text-xs text-muted underline" onClick={() => setShown(true)}>Need a nudge?</button>
+        {!reveal && practice && lessonHref && (
+          <button className="inline-flex items-center gap-1 self-start text-xs text-muted underline hover:text-accent" onClick={openLesson} title="Opens the lesson in a popup; your answers stay put" data-testid="nudge"><BookOpen size={12} /> Need a nudge?</button>
         )}
-        {!reveal && shown && lessonHref && <Link to={lessonHref} className="self-start text-xs text-accent underline">Open the lesson for this question →</Link>}
       </div>
     </StageProvider>
   );

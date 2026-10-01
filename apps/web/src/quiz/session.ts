@@ -54,6 +54,38 @@ export function getSession(id: string): QuizSession | undefined {
   return loadAll()[id];
 }
 
+/**
+ * In-progress answers for a running quiz, so leaving the quiz page (lesson, glossary, browser
+ * back, reload) and coming back resumes where you were instead of starting over.
+ * Question instances aren't stored: they're regenerated deterministically from each item's seed.
+ */
+export interface SavedSlot { response?: unknown; graded?: unknown; startedAt?: number; timeMs?: number }
+export interface SavedRun { idx: number; finished: boolean; deadline: number | null; slots: SavedSlot[]; updatedAt: number }
+
+const RUN_KEY = 'kodigo-quiz-progress';
+function loadRuns(): Record<string, SavedRun> {
+  try { return JSON.parse(sessionStorage.getItem(RUN_KEY) ?? '{}'); } catch { return {}; }
+}
+export function getRunState(id: string): SavedRun | undefined {
+  return loadRuns()[id];
+}
+export function saveRunState(id: string, run: Omit<SavedRun, 'updatedAt'>) {
+  const sessions = loadAll();
+  const runs = loadRuns();
+  runs[id] = { ...run, updatedAt: Date.now() };
+  // only keep progress for sessions that still exist
+  const kept = Object.fromEntries(Object.entries(runs).filter(([k]) => k === id || sessions[k]));
+  try { sessionStorage.setItem(RUN_KEY, JSON.stringify(kept)); } catch {}
+}
+/** Most recent quiz that was started but not finished, if any. */
+export function latestUnfinished(): { session: QuizSession; run: SavedRun } | undefined {
+  const sessions = loadAll();
+  const best = Object.entries(loadRuns())
+    .filter(([id, r]) => !r.finished && sessions[id] && r.slots.some((s) => s.graded || s.response !== undefined))
+    .sort((a, b) => b[1].updatedAt - a[1].updatedAt)[0];
+  return best ? { session: sessions[best[0]], run: best[1] } : undefined;
+}
+
 export interface Candidate { moduleId: string; templateId: string; type: string; skills: string[]; difficulty: number; glossary?: boolean }
 
 export function candidates(mods: LoadedModule[], cfg: Pick<SessionConfig, 'modules' | 'types' | 'skills' | 'difficulties' | 'glossary'>): Candidate[] {

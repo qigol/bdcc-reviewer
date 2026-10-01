@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BookMarked, Clapperboard, FunctionSquare, Search, Sigma } from 'lucide-react';
 import { useAllModules } from '../modules/useAll';
 import { renderTex } from '../lib/md';
 import { cn } from '../lib/util';
+import { usePopup } from '../lib/popup';
 
 interface Entry { kind: 'term' | 'section' | 'scene' | 'formula'; title: string; sub: string; to: string; tex?: string }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { mods } = useAllModules();
   const nav = useNavigate();
+  const loc = useLocation();
+  const popup = usePopup();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -27,7 +30,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   useEffect(() => { if (open) { setQ(''); setSel(0); setTimeout(() => input.current?.focus(), 10); } }, [open]);
   useEffect(() => setSel(0), [q]);
   if (!open) return null;
-  const go = (e?: Entry) => { if (!e) return; nav(e.to); onClose(); };
+  const go = (e?: Entry) => {
+    if (!e) return;
+    // mid-quiz: show the result over the quiz instead of navigating away from it
+    if (loc.pathname.startsWith('/quiz/run/')) popup.open({ title: e.title, src: e.to, note: 'Your quiz stays open underneath' });
+    else nav(e.to);
+    onClose();
+  };
   const Icon = { term: BookMarked, section: Sigma, scene: Clapperboard, formula: FunctionSquare };
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]" onClick={onClose}>

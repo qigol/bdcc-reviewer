@@ -17,6 +17,7 @@ import { ReviewPage } from '../quiz/ReviewPage';
 import { AdminPage } from '../admin/AdminPage';
 import { useDueReviews, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
+import { PopupProvider, isEmbedded, useEmbeddedEscape, usePopup } from '../lib/popup';
 
 function useTheme() {
   const [theme, setTheme] = useSetting('theme');
@@ -37,6 +38,8 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
   const due = useDueReviews();
   const { toggle, isDark } = useTheme();
   const loc = useLocation();
+  const popup = usePopup();
+  const inQuiz = loc.pathname.startsWith('/quiz/run/');
   const item = (to: string, label: React.ReactNode, active?: boolean) => (
     <NavLink to={to} className={({ isActive }) => cn('flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium transition', isActive || active ? 'bg-panel2 text-ink' : 'text-muted hover:text-ink')}>{label}</NavLink>
   );
@@ -49,7 +52,10 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
           <span className="mx-1 h-5 w-px bg-line" />
           {item('/quiz', <><Dumbbell size={15} />Quiz</>, loc.pathname.startsWith('/quiz'))}
           {item('/review', <><Repeat size={15} />Review{due.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{due.length}</span>}</>)}
-          {item('/glossary', <><BookMarked size={15} />Glossary</>)}
+          {inQuiz
+            // mid-quiz: open the glossary over the quiz instead of leaving it
+            ? <button className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:text-ink" onClick={() => popup.open({ title: 'Glossary', src: '/glossary', note: 'Your quiz stays open underneath' })}><BookMarked size={15} />Glossary</button>
+            : item('/glossary', <><BookMarked size={15} />Glossary</>)}
         </nav>
         <button className="btn-ghost btn-sm hidden md:inline-flex" onClick={onSearch} title="Search (Ctrl/Cmd-K)"><Search size={15} /><span className="kbd">Ctrl K</span></button>
         <Link to="/cheatsheet" className="btn-ghost btn-sm" title="Cheat sheet"><FileText size={16} /></Link>
@@ -62,8 +68,14 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
 }
 
 export function App() {
+  return <PopupProvider><Shell /></PopupProvider>;
+}
+
+function Shell() {
   const [palette, setPalette] = useState(false);
+  useEmbeddedEscape();
   useEffect(() => {
+    if (isEmbedded) return;
     const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette((p) => !p); } };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
@@ -80,7 +92,7 @@ export function App() {
   );
   return (
     <div className="flex min-h-full flex-col">
-      <TopBar onSearch={() => setPalette(true)} />
+      {!isEmbedded && <TopBar onSearch={() => setPalette(true)} />}
       <main className="flex flex-1 flex-col">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -96,7 +108,7 @@ export function App() {
           <Route path="*" element={<div className="p-10 text-center text-muted">Page not found. <Link className="text-accent underline" to="/">Home</Link></div>} />
         </Routes>
       </main>
-      <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      {!isEmbedded && <CommandPalette open={palette} onClose={() => setPalette(false)} />}
     </div>
   );
 }

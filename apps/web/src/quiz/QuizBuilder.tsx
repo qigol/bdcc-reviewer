@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Dumbbell, Play } from 'lucide-react';
+import { Dumbbell, Play, RotateCw } from 'lucide-react';
 import { useAllModules } from '../modules/useAll';
-import { candidates, MODE_LABEL, newSession, pickItems, QTYPE_LABEL, QTYPES, type Mode, type SessionConfig } from './session';
+import { candidates, latestUnfinished, MODE_LABEL, newSession, pickItems, QTYPE_LABEL, QTYPES, type Mode, type SessionConfig } from './session';
 import { db } from '../storage/db';
 import { cn } from '../lib/util';
 
@@ -21,6 +21,7 @@ export function QuizBuilder() {
     timeLimitMin: 20,
   }));
   const [msg, setMsg] = useState<string | null>(null);
+  const [unfinished] = useState(() => latestUnfinished());
   useEffect(() => {
     if (!loading && !cfg.modules.length && mods.length) setCfg((c) => ({ ...c, modules: mods.map((m) => m.id) }));
   }, [loading, mods.length]);
@@ -57,6 +58,16 @@ export function QuizBuilder() {
     <div className="mx-auto w-full max-w-[900px] px-4 py-6">
       <h1 className="mb-1 flex items-center gap-2 text-xl font-semibold"><Dumbbell size={20} /> Build a quiz</h1>
       <p className="mb-5 text-sm text-muted">Every question is freshly generated: the numbers change each time. Exam-style hand calculations walk you through the lecture's procedure step by step.</p>
+      {unfinished && !params.get('start') && (() => {
+        const done = unfinished.run.slots.filter((x) => x.graded).length;
+        return (
+          <div className="card mb-4 flex flex-wrap items-center gap-3 border-accent/50 bg-accent/5 px-4 py-3 text-sm" data-testid="resume-quiz">
+            <RotateCw size={16} className="text-accent" />
+            <span className="flex-1">You have an unfinished quiz ({done} of {unfinished.session.items.length} answered).</span>
+            <button className="btn-primary" onClick={() => nav(`/quiz/run/${unfinished.session.id}`)}>Resume</button>
+          </div>
+        );
+      })()}
       <div className="card divide-y divide-line">
         <Field label="Modules">
           <div className="flex flex-wrap gap-1.5">

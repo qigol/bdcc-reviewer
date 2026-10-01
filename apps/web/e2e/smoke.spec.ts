@@ -153,3 +153,64 @@ test('progress survives reload and export → reset → import', async ({ page }
   await expect(page.getByText(/Imported:/)).toBeVisible();
   expect(await doneCount()).toBeGreaterThan(0);
 });
+
+test('quiz progress survives the nudge popup, the glossary and leaving the page', async ({ page }) => {
+  const errors = collectErrors(page);
+  const id = modules[0];
+  await page.goto(`/quiz?modules=${id}&count=5&mode=practice&start=1`);
+  await page.getByTestId('question').waitFor({ timeout: 15_000 });
+  await expect(page.getByText("Couldn't generate")).toHaveCount(0);
+  const metaText = async () => (await page.getByTestId('question-meta').textContent().catch(() => '')) ?? '';
+  await expect.poll(metaText).not.toMatch(/Seed\s*·/);
+
+  // answer question 1 and move on to question 2
+  const q1 = await metaText();
+  const radio = await page.$('[role=radio]'); if (radio) await radio.click();
+  const check = await page.$('[role=checkbox]'); if (check) await check.click();
+  const num = await page.$('input[aria-label=answer]'); if (num) await num.fill('1');
+  for (const b of await page.$$('input[aria-label^="blank"]')) await b.fill('x');
+  for (let k = 0; k < 8; k++) { const s = await page.$('button:has-text("Show step")'); if (!s) break; await s.click(); await page.waitForTimeout(100); }
+  for (const s of await page.$$('input[aria-label$="answer"]')) if (!(await s.inputValue())) await s.fill('1');
+  await page.getByTestId('submit-answer').click();
+  await page.getByTestId('next-question').click();
+  await expect(page.getByText('Question 2 of 5')).toBeVisible();
+  await expect.poll(metaText).not.toBe(q1);
+  const q2 = await metaText();
+
+  // glossary opens in a popup over the quiz; closing it leaves the quiz untouched
+  await page.getByTestId('quiz-glossary').click();
+  await expect(page.getByTestId('popup')).toBeVisible();
+  await expect(page.frameLocator('[data-testid=popup] iframe').getByRole('heading', { name: 'Glossary' })).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('popup-close').click();
+  await expect(page.getByTestId('popup')).toHaveCount(0);
+  await expect(page.getByText('Question 2 of 5')).toBeVisible();
+  expect(await metaText()).toBe(q2);
+
+  // top-bar Glossary also opens the popup while a quiz is running
+  await page.locator('header').getByRole('button', { name: 'Glossary' }).click();
+  await expect(page.getByTestId('popup')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('popup')).toHaveCount(0);
+
+  // nudge (when this question has a lesson) opens the lesson in the popup
+  if (await page.getByTestId('nudge').count()) {
+    await page.getByTestId('nudge').click();
+    await expect(page.getByTestId('popup')).toBeVisible();
+    await page.getByTestId('popup-close').click();
+    await expect(page.getByText('Question 2 of 5')).toBeVisible();
+  }
+
+  // even actually leaving the page and coming back resumes where you were
+  await page.goto('/glossary');
+  await page.goBack();
+  await expect(page.getByText('Question 2 of 5')).toBeVisible({ timeout: 15_000 });
+  await expect.poll(metaText).toBe(q2);
+  await expect(page.locator('button[aria-label="question 1"]')).not.toHaveClass(/bg-line/);
+
+  // and the quiz builder offers to resume it
+  await page.goto('/quiz');
+  await expect(page.getByTestId('resume-quiz')).toContainText('1 of 5 answered');
+  await page.getByTestId('resume-quiz').getByRole('button', { name: 'Resume' }).click();
+  await expect(page.getByText('Question 2 of 5')).toBeVisible({ timeout: 15_000 });
+  expect(errors).toEqual([]);
+});
