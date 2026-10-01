@@ -127,6 +127,7 @@ export default function Matrix({ props, cmds, marks, ctx, bind, emit, isBound }:
                       masked(i, j) && 'opacity-25',
                       props.editable && 'cursor-text hover:ring-1 hover:ring-accent/50',
                       pulse && 'pulse',
+                      marks.note(`cell:${or},${oc}`) && 'pb-0.5 pt-3.5',
                     )}
                     title={marks.note(`cell:${or},${oc}`)}
                   >
@@ -153,7 +154,7 @@ export default function Matrix({ props, cmds, marks, ctx, bind, emit, isBound }:
                     ) : (
                       props.emptyLabel ?? ''
                     )}
-                    {marks.note(`cell:${or},${oc}`) && <span className="absolute -top-2 right-0 rounded bg-accent px-1 text-[9px] text-white">{marks.note(`cell:${or},${oc}`)}</span>}
+                    {marks.note(`cell:${or},${oc}`) && <span className="absolute left-1/2 top-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-accent px-1 text-[9px] leading-tight text-white">{marks.note(`cell:${or},${oc}`)}</span>}
                   </td>
                 );
               })}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseCodeAnchors } from '@kodigo/schema';
 import { tokenize, type Tok } from './shiki';
 import { cn } from '../lib/util';
@@ -26,9 +26,12 @@ export interface CodeViewProps {
   anchorOrder?: string[];
   title?: string;
   className?: string;
+  /** keep the trace's active line scrolled into view inside the pane */
+  followActive?: boolean;
 }
 
-export function CodeView({ source, lang = 'python', lineNumbers = true, maxHeight, hoverAnchor, setHoverAnchor, activeAnchor, badges, anchorTones, lineTones, anchorOrder, title, className }: CodeViewProps) {
+export function CodeView({ source, lang = 'python', lineNumbers = true, maxHeight, hoverAnchor, setHoverAnchor, activeAnchor, badges, anchorTones, lineTones, anchorOrder, title, className, followActive }: CodeViewProps) {
+  const preRef = useRef<HTMLPreElement>(null);
   const parsed = useMemo(() => parseCodeAnchors(source ?? '', lang), [source, lang]);
   const [tokens, setTokens] = useState<Tok[][] | null>(null);
   useEffect(() => {
@@ -52,10 +55,18 @@ export function CodeView({ source, lang = 'python', lineNumbers = true, maxHeigh
     }
     return m;
   }, [badges, parsed]);
+  useEffect(() => {
+    const pre = preRef.current;
+    if (!followActive || !pre || !activeAnchor) return;
+    const el = pre.querySelector<HTMLElement>('.trace-on');
+    if (!el) return;
+    const top = el.offsetTop, bottom = top + el.offsetHeight;
+    if (top < pre.scrollTop + 8 || bottom > pre.scrollTop + pre.clientHeight - 8) pre.scrollTo({ top: Math.max(0, top - pre.clientHeight / 3), behavior: 'smooth' });
+  }, [activeAnchor, followActive]);
   return (
     <div className={cn('overflow-hidden rounded-xl border border-line bg-panel', className)}>
       {title && <div className="border-b border-line bg-panel2 px-3 py-1.5 text-xs font-medium text-muted">{title}</div>}
-      <pre className="scrollbar-thin overflow-auto py-2 font-mono text-[13px] leading-[1.45]" style={{ maxHeight }}>
+      <pre ref={preRef} className="scrollbar-thin relative overflow-auto py-2 font-mono text-[13px] leading-[1.45]" style={{ maxHeight }}>
         <code>
           {parsed.lines.map((line, i) => {
             const anchors = lineAnchors[i];

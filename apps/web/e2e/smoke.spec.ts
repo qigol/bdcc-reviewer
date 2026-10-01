@@ -75,6 +75,13 @@ test('every Math & Code section and the Application tab render', async ({ page }
       await page.goto(`/m/${id}/math-code/${s.id}`);
       await expect(page.getByRole('heading', { name: s.title }).first()).toBeVisible({ timeout: 15_000 });
       await expect(page.locator('.katex').first()).toBeVisible();
+      if (s.trace) {
+        // stepping moves the live data next to the code and drives it with the trace's ops
+        await page.getByTestId('step-through').click();
+        for (let k = 0; k < 3; k++) await page.locator('button:has-text("▶")').click();
+        await expect(page.getByTestId('live-trace')).toBeVisible();
+        await expect(page.getByTestId('vars-watch').locator('span.font-mono').first()).toBeVisible();
+      }
     }
     await page.goto(`/m/${id}/application`);
     await expect(page.getByText(mod.application.case.title).first()).toBeVisible({ timeout: 15_000 });

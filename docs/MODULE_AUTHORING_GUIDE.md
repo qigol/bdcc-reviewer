@@ -432,8 +432,9 @@ interface Section {
   summary: Markdown;                  // ≤ 60 words
   keyFormula?: Tex;                   // goes to the cheat sheet; no {=}
   data?: Id[]; state?: Record<string, Value>; derive?: Derive[];   // the live example
+  live?: StageWidget[];               // live-example widgets; default: one per dataset in `data` (ids `ds-<datasetId>`)
   steps: { tex: Tex; say: Markdown }[];     // derivation, ≥ 2 steps; last step may substitute live numbers via {=}
-  code: { lang?: string; title?: string; source: string };          // default lang python; ≤ 30 lines
+  code: { lang?: string; title?: string; source: string };          // default lang python; ≤ 30 lines, docstrings not counted
   extraCode?: { lang?: string; title: string; source: string }[];   // e.g. vectorized version
   links: { anchor: string; label: string; say?: Markdown }[];       // one per anchor used; legend order
   trace?: { fn: string; in: Record<string, Prop> };                 // enables "Step through"
@@ -445,8 +446,11 @@ interface Section {
 }
 ```
 **Code rules:** idiomatic, readable, from-scratch Python; the standard library, plus `numpy` only where matrices make it clearer. Mirror the math's names (`mu_u`, `sim`, `s_vj`, `sup_ab`) and the **lecture's conventions exactly** (same ordering, same tie-breaks, same neighbor rules). The Python must compute the same results as the matching `logic.js` fn. Define small helpers once (e.g. `abs_support`) and reuse them by name in later sections; a helper used but not shown in a section is assumed from an earlier section.
+**Every function gets a docstring** (and a top-level script block gets a module docstring): a one-line summary, then `Args:` and `Returns:` in the lecture's terms, plus a `Lecture:` line with the slide's number when there is one (`Lecture: confidence({"bread"}, {"butter"}, D) == 0.5`). Docstrings don't count toward the 30-line limit. Never put `# @a` markers inside a docstring.
 
 For a trace in math-code, the roles `code` and `formula` map automatically to the section's code pane and derivation pane. The trace fn's `code` and `math` anchors must exist there.
+
+**The live example.** The panel above the derivation shows the section's `live` widgets (or, without `live`, one TransactionTable / Matrix / Text per dataset in `data`), in the section's scope, so props can reference state (`highlight: '@X'`). A live Slider or Choice with `bind` becomes the input for that state key; every other state key gets an automatic input (numbers → number box, itemsets → item toggles, a matrix row/column label → a dropdown). While the learner steps through, the panel moves next to the code with a **Variables** watch (the latest `vars` seen so far), and every trace step's **`ops` are applied to the live widgets**, so the data shows what the current line is doing: the basket being tested, the cells being multiplied, a value being filled in. An op's `role` resolves to a live widget by exact widget id, then `ds-<role>` (a dataset id), then `table` = the first TransactionTable, `matrix` = the first Matrix, `data` = the first live widget, then a widget whose catalog name matches (`ranklist`). The validator warns about roles that match nothing. Use `highlight` (this step only) for the current focus and `annotate` / `fill` / `project` / `sortIdeal` (persistent) for results the loop has produced so far; start the trace with a `clear` op so rewinding is clean. A table's static `highlight` prop is switched off while stepping.
 
 ### 5.9 `application.yaml`
 
@@ -850,7 +854,7 @@ A learner should be able to reproduce **every** number in the lecture with penci
 **Math & Code sections**
 - **Write loops, not one-liners.** The code the learner steps through is plain Python that does one visible thing per line on the lecture's data. The idiomatic numpy/pandas version can go in `extraCode`. Keep each block ≤ 30 lines.
 - **Anchor every line that changes data,** and give each code anchor a TeX partner and a `links` entry. A derivation step such as "the loop in math" (`\anchor{acc}{s \mathrel{+}= r_{ui}\,r_{vi}}`) usually provides the partners.
-- **One trace step per executed line, per iteration.** The trace follows the loop exactly as Python would run it (`for` → `if` test → accumulate, for every iteration), with `vars` holding the current loop variables and the running value (`i: 'bread'`, `acc: 7`). Math & Code uses only `label`, `code`, `math` and `vars`; it ignores `ops` and `patch`. Stay ≤ 400 steps: on large inputs, trace one full outer iteration line by line and give each remaining iteration a single summary step.
+- **One trace step per executed line, per iteration.** The trace follows the loop exactly as Python would run it (`for` → `if` test → accumulate, for every iteration), with `vars` holding the current loop variables and the running value (`i: 'bread'`, `acc: 7`). Math & Code uses `label`, `code`, `math` and `vars`, and applies `ops` to the live-example widgets (§5.8); it ignores `patch`. **Give every step ops** that show its line on the data: highlight the row, cell or chips the line reads, and annotate or fill what it writes. Stay ≤ 400 steps: on large inputs, trace one full outer iteration line by line and give each remaining iteration a single summary step.
 
 **Tests.** Add an `examples` entry for every walk fn (how many cases it visits and its final result), so a later edit can't quietly shorten the count-along.
 
@@ -922,7 +926,7 @@ Don't invent widgets, props or commands. Instead:
 | section `summary` | 60 words |
 | cell `say` | 90 words |
 | glossary `short` | 25 words |
-| code block | 30 lines |
+| code block | 30 lines (docstrings not counted) |
 | quiz `explanation` | 120 words |
 
 ---
@@ -939,6 +943,7 @@ Don't invent widgets, props or commands. Instead:
 - [ ] Quotas are met: 6–10 scenes; a predict gate in every scene; interactive gates in ≥ 50% of scenes; ≥ 25 quiz templates; ≥ 2 per skill; type mix per §7.4; ≥ 2 misconceptions per numeric template.
 - [ ] Every lecture number is solved step by step in some scene (no finished tables dropped on stage), and every math-code trace walks each loop iteration line by line (§7.5).
 - [ ] Every skill appears in manifest, scenes, sections and quiz templates; every `lessonRef` points to an existing id.
+- [ ] Every math-code function has a docstring, and every trace step carries `ops` that show its line on the live-example widgets.
 - [ ] Word limits are respected; there are no placeholder texts, "TODO"s or "…" anywhere.
 - [ ] YAML follows §4.8 (TeX in `|` blocks or single quotes, refs quoted).
 - [ ] The output is one bundle in the §3.2 format, with every file complete.

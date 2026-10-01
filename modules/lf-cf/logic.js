@@ -492,6 +492,17 @@ export default function register(sdk) {
   const colOf = (A, j) => A.map((r) => r[j]);
   const mul = (A, B) => A.map((r) => B[0].map((_, j) => r.reduce((t, x, k) => t + x * B[k][j], 0)));
 
+  // Live-example ops for Math & Code traces. Role `matrix` = the section's rating matrix R.
+  // highlight is transient (this step only); fill / annotate / clear persist until the trace is rewound.
+  const M_HL = (sel, tone = 'accent') => ({ role: 'matrix', cmd: 'highlight', args: { sel, tone } });
+  const M_NOTE = (cell, text) => ({ role: 'matrix', cmd: 'annotate', args: { sel: cell, text } });
+  const M_FILL = (cell, value) => ({ role: 'matrix', cmd: 'fill', args: { cell, value } });
+  const M_CLEAR = () => ({ role: 'matrix', cmd: 'clear' });
+  const cellOf = (R, i, j) => `cell:${R.rows[i]},${R.cols[j]}`;
+  const obsCells = (R) => R.values.flatMap((r, i) => r.flatMap((x, j) => (x === null ? [] : [cellOf(R, i, j)])));
+  const colCells = (R, j, rated = true) => R.rows.flatMap((_, i) => ((R.values[i][j] !== null) === rated ? [cellOf(R, i, j)] : []));
+  const rowCells = (R, i, rated = true) => R.cols.flatMap((_, j) => ((R.values[i][j] !== null) === rated ? [cellOf(R, i, j)] : []));
+
   // anchors: u, v, p, all
   function predictOneCode({ U, V, R = null, cells = [[0, 0]] }) {
     const d = U.values[0].length;
@@ -500,18 +511,19 @@ export default function register(sdk) {
     for (const [i, j] of cells) {
       const u = U.values[i], v = colOf(V.values, j);
       const p = u.reduce((t, x, s) => t + x * v[s], 0);
+      const c = `cell:${U.rows[i]},${V.cols[j]}`;
       trace.push(
         { label: `\`U[i]\` with i = ${i} is row ${U.rows[i]} of U: that user's ${d} factor values.\n\n$\\mathbf{u}_i = ${vec(u, f4)}$`,
-          code: 'u', math: 'u', vars: { i } },
+          code: 'u', math: 'u', vars: { i }, ops: [M_HL(`row:${U.rows[i]}`)] },
         { label: `\`V[:, j]\` with j = ${j} is column ${V.cols[j]} of V (\`:\` means every row): the item's ${d} factor values.\n\n$\\mathbf{v}_j = ${vec(v, f4)}$`,
-          code: 'v', math: 'v', vars: { j } },
+          code: 'v', math: 'v', vars: { j }, ops: [M_HL(`row:${U.rows[i]}`), M_HL(`col:${V.cols[j]}`, 'warn')] },
         { label: '`u_i @ v_j` multiplies factor by factor, then adds: a dot product.\n\n' + `$p_{${U.rows[i]},${V.cols[j]}} = ${u.map((x, s) => `${pr(x, 4)}${pr(v[s], 4)}`).join(' + ')} = ${dn(p, 4)}$${R && R.values[i][j] === null ? ' (a blank in R, predicted all the same)' : ''}`,
-          code: 'p', math: 'p', vars: { p } },
+          code: 'p', math: 'p', vars: { p }, ops: [M_HL(c, 'good'), M_NOTE(c, `p ${dn(p, 2)}`)] },
       );
     }
     const P = mul(U.values, V.values);
     trace.push({ label: `\`U @ V\`: (${U.values.length}×${d})(${d}×${V.cols.length}) gives ${U.values.length}×${V.cols.length}, every cell's dot product at once. Boxed: the cells above.\n\n$P = ${arr(P, { rows: U.rows, cols: V.cols, hl: cells })}$`,
-      code: 'all', math: 'all', vars: { shape: shp(P) } });
+      code: 'all', math: 'all', vars: { shape: shp(P) }, ops: [M_HL(cells.map(([i, j]) => `cell:${U.rows[i]},${V.cols[j]}`), 'good')] });
     return { trace };
   }
 
@@ -525,6 +537,16 @@ export default function register(sdk) {
     const rowS = E.map((row) => row.reduce((t, x) => t + (x === null ? 0 : x * x), 0));
     const total = sq.reduce((a, b) => a + b, 0);
     const L = { rows: R.rows, cols: R.cols };
+    const obs = obsCells(R);
+    const notes = (fmt) => R.values.flatMap((row, i) => row.flatMap((r, j) => (r === null ? [] : [M_NOTE(cellOf(R, i, j), fmt(E[i][j], P[i][j]))])));
+    const liveOps = [
+      [M_CLEAR(), M_HL(obs), ...notes((e, p) => `p ${dn(p, 1)}`)],
+      [M_HL(obs), M_HL('missing', 'muted'), ...notes((e) => `e ${dn(e, 1)}`)],
+      [M_HL(obs, 'good'), M_HL('missing', 'bad')],
+      [M_HL(obs, 'good')],
+      [M_HL(obs, 'good'), ...notes((e) => `e² ${dn(e * e, 1)}`)],
+      [M_HL(obs, 'good')],
+    ];
     return {
       sse: total,
       trace: [
@@ -534,7 +556,7 @@ export default function register(sdk) {
         { label: `\`E[M]\` (boolean indexing) keeps only the ${e.length} observed errors, row by row, as a flat 1-D array.\n\n$${vec(e, (x) => dn(x, 2))}$`, code: 'sq', math: 'sq', vars: { shape: `(${e.length},)` } },
         { label: '`** 2` squares each error: every term is positive, and big misses count extra.\n\n' + `$${vec(sq, (x) => dn(x, 2))}$`, code: 'sq', math: 'sq', vars: { shape: `(${sq.length},)` } },
         { label: '`.sum()` adds all the squares. Grouped by row:\n\n' + `$${rowS.map((x) => dn(x, 2)).join(' + ')} = ${dn(total, 3)}$`, code: 'add', math: 'add', vars: { sse: total } },
-      ],
+      ].map((t, q) => ({ ...t, ops: liveOps[q] })),
     };
   }
 
@@ -544,9 +566,10 @@ export default function register(sdk) {
     const V = Array.from({ length: d }, () => Array(n).fill(0));
     const f3 = (x) => dn(x, 3);
     const trace = [{ label: `\`np.zeros((${d}, ${n}))\`: a ${d} × ${n} table of zeros, one column per item, filled in below. U stays frozen.\n\n$V = ${arr(V, { rows: factorNames(d), cols: R.cols, f: String })}$`,
-      code: 'init', math: 'init', vars: { shape: `(${d}, ${n})` } }];
+      code: 'init', math: 'init', vars: { shape: `(${d}, ${n})` }, ops: [M_CLEAR()] }];
     R.cols.forEach((c, j) => {
       const col = colOf(R.values, j);
+      const raters = colCells(R, j), blanks = colCells(R, j, false);
       const rated = col.map((x) => x !== null);
       const rows = rated.map((b, i) => (b ? i : -1)).filter((i) => i >= 0);
       const A = rows.map((i) => U.values[i]);
@@ -555,17 +578,17 @@ export default function register(sdk) {
       st.v.forEach((x, s) => (V[s][j] = x));
       const allOnes = A.every((r) => r.every((x) => Math.abs(x - 1) < 1e-12));
       trace.push(
-        { label: `\`for j\`: j = ${j}, item ${c}. Each item is its own small regression.`, code: 'loop', math: 'loop', vars: { j } },
+        { label: `\`for j\`: j = ${j}, item ${c}. Each item is its own small regression.`, code: 'loop', math: 'loop', vars: { j }, ops: [M_HL(`col:${c}`)] },
         { label: `\`R[:, j]\` is column ${c}; \`~np.isnan\` marks the users who rated it.\n\n$${arr([col], { cols: R.rows, f: String })} \\;\\Rightarrow\\; ${arr([rated.map(TF)], { cols: R.rows })}$`,
-          code: 'obs', math: 'obs', vars: { rated: rated.filter(Boolean).length } },
+          code: 'obs', math: 'obs', vars: { rated: rated.filter(Boolean).length }, ops: [M_HL(`col:${c}`), M_HL(raters, 'good'), M_HL(blanks, 'bad')] },
         { label: '`U[rated]` keeps those users\' frozen rows of U: the inputs (features) of the regression.\n\n' + `$A = ${arr(A, { rows: rows.map((i) => R.rows[i]), cols: factorNames(d), f: f3 })}$`,
-          code: 'feat', math: 'feat', vars: { shape: shp(A) } },
+          code: 'feat', math: 'feat', vars: { shape: shp(A) }, ops: [M_HL(rows.map((i) => `row:${R.rows[i]}`)), M_HL(raters, 'good')] },
         { label: `\`R[rated, j]\` keeps their ratings of ${c}: the targets the regression should match.\n\n$\\mathbf{b} = ${vec(b, String)}$`,
-          code: 'target', math: 'target', vars: { shape: `(${b.length},)` } },
+          code: 'target', math: 'target', vars: { shape: `(${b.length},)` }, ops: [M_HL(`col:${c}`), M_HL(raters, 'good')] },
         { label: (allOnes
           ? 'A\'s rows are all (1, 1), so only v₁ + v₂ counts; it equals the mean. `lstsq` splits it evenly.'
           : '`np.linalg.lstsq` finds the v with the smallest ‖Av − b‖²; `V[:, j] = v` stores it as column j.') + `\n\n$${st.tex} \\;\\Rightarrow\\; V =${arr(V, { rows: factorNames(d), cols: R.cols, f: f3, hl: Array.from({ length: d }, (_, s) => [s, j]) })}$`,
-          code: 'solve', math: 'solve', vars: { v: pyList(st.v, (x) => dn(x, 4)) } },
+          code: 'solve', math: 'solve', vars: { v: pyList(st.v, (x) => dn(x, 4)) }, ops: [M_HL(`col:${c}`, 'good'), M_NOTE(cellOf(R, 0, j), `v ${st.v.map((x) => dn(x, 2)).join(', ')}`)] },
       );
     });
     // the U-step: the same function on the transposes
@@ -574,9 +597,9 @@ export default function register(sdk) {
     const su = solveTex(R, U, Vm, 'U', 0);
     trace.push(
       { label: `\`als_step_U\`: with \`R.T\` and \`V.T\`, users become columns, so the V-step code solves U; \`.T\` flips it back.\n\n$U = ${arr(U2.values, { rows: R.rows, cols: factorNames(d), f: (x) => dn(x, 8) })}$`,
-        code: 'transpose', math: 'transpose', vars: { shape: shp(U2.values) } },
+        code: 'transpose', math: 'transpose', vars: { shape: shp(U2.values) }, ops: [M_CLEAR(), M_HL(R.rows.map((r) => `row:${r}`))] },
       { label: `Row ${R.rows[0]} of that U-step, written out (slide 8). V's rows are equal, so only u₁₁ + u₁₂ matters.\n\n$${su.tex}$`,
-        code: 'transpose', math: 'transpose', vars: { 'U[0]': pyList(U2.values[0], (x) => dn(x, 8)) } },
+        code: 'transpose', math: 'transpose', vars: { 'U[0]': pyList(U2.values[0], (x) => dn(x, 8)) }, ops: [M_HL(`row:${R.rows[0]}`), M_HL(rowCells(R, 0), 'good')] },
     );
     return { V: Vm, U: U2, trace };
   }
@@ -586,17 +609,21 @@ export default function register(sdk) {
     let { U, V } = init({ R, d: 2, kind: initKind, seed });
     const L = (M, f = (x) => dn(x, 3)) => arr(M.values, { rows: M.rows, cols: M.cols, f });
     const trace = [{ label: `${initKind === 'ones' ? '`np.ones`: every entry of U is 1 (the lecture).' : 'Random numbers between 0.5 and 1.5 (the site uses its own seeded generator, so numpy\'s would differ).'} SSE = ${dn(sse({ R, U, V }).sse, 3)}.\n\n$U = ${L(U, (x) => dn(x, 2))}$`,
-      code: 'init', math: 'init' }];
+      code: 'init', math: 'init', ops: [M_CLEAR()] }];
+    const obs = obsCells(R);
+    // after each half-step, write the current prediction into every blank of R
+    const blanks = R.values.flatMap((row, i) => row.flatMap((x, j) => (x === null ? [[i, j]] : [])));
+    const predictBlanks = (U, V) => blanks.map(([i, j]) => M_FILL(`${R.rows[i]},${R.cols[j]}`, U.values[i].reduce((s, x, q) => s + x * V.values[q][j], 0)));
     for (let t = 0; t < iters; t++) {
-      trace.push({ label: `\`for t\`: iteration ${t + 1} of ${iters}: one V-step, then one U-step.`, code: 'loop', math: 'loop', vars: { t } });
+      trace.push({ label: `\`for t\`: iteration ${t + 1} of ${iters}: one V-step, then one U-step.`, code: 'loop', math: 'loop', vars: { t }, ops: [M_HL(blanks.map(([i, j]) => cellOf(R, i, j)), 'warn')] });
       V = alsStepV({ R, U }).V;
       const a = sse({ R, U, V }).sse;
-      trace.push({ label: `\`als_step_V(R, U)\`: U frozen, 5 column regressions. SSE = ${dn(a, 3)}.\n\n$V = ${L(V)}$`, code: 'solve-v', math: 'solve-v', vars: { sse: a } });
+      trace.push({ label: `\`als_step_V(R, U)\`: U frozen, 5 column regressions. SSE = ${dn(a, 3)}.\n\n$V = ${L(V)}$`, code: 'solve-v', math: 'solve-v', vars: { sse: a }, ops: [M_HL(R.cols.map((c) => `col:${c}`)), M_HL(obs, 'good'), ...predictBlanks(U, V)] });
       U = alsStepU({ R, V }).U;
       const b = sse({ R, U, V }).sse;
-      trace.push({ label: `\`als_step_U(R, V)\`: V frozen, 5 row regressions. SSE = ${dn(b, 3)}.\n\n$U = ${L(U, (x) => dn(x, 4))}$`, code: 'solve-u', math: 'solve-u', vars: { sse: b } });
+      trace.push({ label: `\`als_step_U(R, V)\`: V frozen, 5 row regressions. SSE = ${dn(b, 3)}.\n\n$U = ${L(U, (x) => dn(x, 4))}$`, code: 'solve-u', math: 'solve-u', vars: { sse: b }, ops: [M_HL(R.rows.map((r) => `row:${r}`)), M_HL(obs, 'good'), ...predictBlanks(U, V)] });
       const sym = U.values.every((r) => Math.abs(r[0] - r[1]) < 1e-9);
-      trace.push({ label: `\`print\`: iteration ${t + 1}, SSE ${dn(b, 3)}.${sym ? ' The two columns of U are still identical: the symmetry trap.' : ' The two columns of U now differ.'}`, code: 'sse', math: 'sse', vars: { sse: b } });
+      trace.push({ label: `\`print\`: iteration ${t + 1}, SSE ${dn(b, 3)}.${sym ? ' The two columns of U are still identical: the symmetry trap.' : ' The two columns of U now differ.'}`, code: 'sse', math: 'sse', vars: { sse: b }, ops: [M_HL(obs, 'good')] });
     }
     return { trace };
   }
@@ -623,6 +650,10 @@ export default function register(sdk) {
     const upd = cgdUpdate({ R, U, V, which, i, s, j });
     const target = I ? `U[${i}, ${s}]` : `V[${s}, ${j}]`;
     const who = I ? `the items ${R.rows[i]} rated` : `the users who rated ${R.cols[j]}`;
+    const line$ = I ? `row:${R.rows[i]}` : `col:${R.cols[j]}`;
+    const ratedCells = k.map((q) => (I ? cellOf(R, i, q) : cellOf(R, q, j)));
+    const blankCells = I ? rowCells(R, i, false) : colCells(R, j, false);
+    const per = (vals, tag) => k.map((q, t) => M_NOTE(ratedCells[t], `${tag} ${dn(vals[t], 2)}`));
     const steps = [
       { label: `\`${I ? 'R[i]' : 'R[:, j]'}\` is ${I ? `row ${R.rows[i]}` : `column ${R.cols[j]}`}; \`~np.isnan\` marks ${who}.\n\n$${arr([line], { cols: names, f: String })} \\;\\Rightarrow\\; ${arr([rated.map(TF)], { cols: names })}$`,
         code: 'obs', math: 'obs', vars: { rated: k.length } },
@@ -636,10 +667,20 @@ export default function register(sdk) {
       { label: `Divide: the bottom of the parabola, written into ${target}. SSE ${dn(upd.sseBefore, 2)} → ${dn(upd.sseAfter, 2)}.\n\n$${I ? uName(i, s) : vName(s, j)} = \\frac{${f3(num)}}{${f3(den)}} = ${dn(value, 4)}$`,
         code: I ? 'closed' : 'update', math: I ? 'closed' : 'update', vars: { [target]: value } },
     ];
+    const liveOps = [
+      [M_HL(line$), M_HL(ratedCells, 'good'), M_HL(blankCells, 'bad')],
+      [M_HL(ratedCells, 'good'), ...per(full, 'p')],
+      [M_HL(ratedCells, 'good'), ...per(rest, 'rest')],
+      [M_HL(ratedCells, 'good'), ...per(left, 'left')],
+      [M_HL(ratedCells, 'good')],
+      [M_HL(line$, 'good')],
+    ];
+    steps.forEach((t, q) => { t.ops = liveOps[q]; });
     return { value, steps, upd };
   }
   function cgdUpdateCode(args) {
     const r = cgdSteps(args);
+    r.steps[0].ops = [M_CLEAR(), ...r.steps[0].ops];
     return { value: r.value, trace: r.steps };
   }
 
@@ -652,10 +693,10 @@ export default function register(sdk) {
     return {
       x: a.value, y: inner.value,
       trace: [
-        { label: `\`np.ones\`: U (5 × 2) and V (2 × 5) all ones, so every prediction is 2. SSE = ${dn(a.sseBefore)}.`, code: 'start', math: 'start', vars: { sse: a.sseBefore } },
-        { label: `\`update_u(R, U, V, i=0, s=0)\` (previous section): x = u₁₁ = ${dn(a.num)} / ${dn(a.den)} = ${dn(a.value)}. SSE ${dn(a.sseBefore)} → ${dn(a.sseAfter)}.`, code: 'x', math: 'x', vars: { 'U[0, 0]': a.value } },
+        { label: `\`np.ones\`: U (5 × 2) and V (2 × 5) all ones, so every prediction is 2. SSE = ${dn(a.sseBefore)}.`, code: 'start', math: 'start', vars: { sse: a.sseBefore }, ops: [M_CLEAR(), M_HL(obsCells(R), 'good')] },
+        { label: `\`update_u(R, U, V, i=0, s=0)\` (previous section): x = u₁₁ = ${dn(a.num)} / ${dn(a.den)} = ${dn(a.value)}. SSE ${dn(a.sseBefore)} → ${dn(a.sseAfter)}.`, code: 'x', math: 'x', vars: { 'U[0, 0]': a.value }, ops: [M_HL(`row:${R.rows[0]}`, 'good'), M_HL(rowCells(R, 0), 'good')] },
         ...inner.steps,
-        { label: `\`V\` now holds y = v₁₁ = ${dn(inner.value, 4)}. SSE ${dn(inner.upd.sseBefore)} → ${dn(inner.upd.sseAfter)}.`, code: 'y', math: 'y', vars: { 'V[0, 0]': inner.value } },
+        { label: `\`V\` now holds y = v₁₁ = ${dn(inner.value, 4)}. SSE ${dn(inner.upd.sseBefore)} → ${dn(inner.upd.sseAfter)}.`, code: 'y', math: 'y', vars: { 'V[0, 0]': inner.value }, ops: [M_HL(`col:${R.cols[0]}`, 'good')] },
       ],
     };
   }
@@ -670,15 +711,18 @@ export default function register(sdk) {
     M.forEach((row, i) => row.forEach((b, j) => { if (b) blanks.push([i, j]); }));
     const filled = R.values.map((row, i) => row.map((r, j) => (r === null ? P[i][j] : r)));
     const e = sse({ R, U, V }).sse;
+    const blankSel = blanks.map(([i, j]) => cellOf(R, i, j));
     return {
       trace: [
         { label: `\`als(...)\` from a random start: training SSE = ${dn(e)}.\n\n$U = ${arr(U.values, { rows: U.rows, cols: U.cols, f: (x) => dn(x, 2) })} \\quad V = ${arr(V.values, { rows: V.rows, cols: V.cols, f: (x) => dn(x, 2) })}$`,
-          code: 'fit', math: 'fit', vars: { sse: e } },
-        { label: '`U @ V`: every prediction at once, blanks included.\n\n' + `$P = ${arr(P, { ...L, hl: blanks })}$`, code: 'pred', math: 'pred', vars: { shape: shp(P) } },
-        { label: `\`np.isnan(R)\` is True exactly at the ${blanks.length} blanks.\n\n$M = ${arr(M.map((r) => r.map(TF)), { rows: R.rows, cols: R.cols })}$`, code: 'blank', math: 'blank', vars: { blanks: blanks.length } },
-        ...f.cells.map((c) => ({ label: `Each value in \`P[M]\` is one dot product, a row of U · a column of V:\n\n$${c.tex}$`, code: 'fill', math: 'fill', vars: { p: c.value } })),
-        { label: '`P[M]` as one flat array, in row order.\n\n' + `$${vec(f.cells.map((c) => c.value), (x) => dn(x, 2))}$`, code: 'fill', math: 'fill', vars: { shape: `(${blanks.length},)` } },
-        { label: '`np.where(M, P, R)` takes P where M is True (a blank) and R everywhere else.\n\n' + `$\\hat R = ${arr(filled, { ...L, hl: blanks })}$`, code: 'filled', math: 'filled', vars: { shape: shp(filled) } },
+          code: 'fit', math: 'fit', vars: { sse: e }, ops: [M_CLEAR(), M_HL(obsCells(R), 'good')] },
+        { label: '`U @ V`: every prediction at once, blanks included.\n\n' + `$P = ${arr(P, { ...L, hl: blanks })}$`, code: 'pred', math: 'pred', vars: { shape: shp(P) },
+          ops: R.values.flatMap((row, i) => row.flatMap((r, j) => (r === null ? [] : [M_NOTE(cellOf(R, i, j), `p ${dn(P[i][j], 1)}`)]))) },
+        { label: `\`np.isnan(R)\` is True exactly at the ${blanks.length} blanks.\n\n$M = ${arr(M.map((r) => r.map(TF)), { rows: R.rows, cols: R.cols })}$`, code: 'blank', math: 'blank', vars: { blanks: blanks.length }, ops: [M_CLEAR(), M_HL(blankSel, 'warn')] },
+        ...f.cells.map((c) => ({ label: `Each value in \`P[M]\` is one dot product, a row of U · a column of V:\n\n$${c.tex}$`, code: 'fill', math: 'fill', vars: { p: c.value },
+          ops: [M_HL(`cell:${c.cell}`), M_HL(`row:${c.cell.split(',')[0]}`), M_HL(`col:${c.cell.split(',')[1]}`, 'warn'), M_FILL(c.cell, c.value)] })),
+        { label: '`P[M]` as one flat array, in row order.\n\n' + `$${vec(f.cells.map((c) => c.value), (x) => dn(x, 2))}$`, code: 'fill', math: 'fill', vars: { shape: `(${blanks.length},)` }, ops: [M_HL(blankSel)] },
+        { label: '`np.where(M, P, R)` takes P where M is True (a blank) and R everywhere else.\n\n' + `$\\hat R = ${arr(filled, { ...L, hl: blanks })}$`, code: 'filled', math: 'filled', vars: { shape: shp(filled) }, ops: [M_HL(blankSel, 'good')] },
       ],
     };
   }
@@ -688,7 +732,7 @@ export default function register(sdk) {
     const d = U.values[0].length, n = R.cols.length;
     const V = Array.from({ length: d }, () => Array(n).fill(0));
     const f3 = (x) => dn(x, 3);
-    const trace = [{ label: `\`d = U.shape[1]\` = ${d} factors; \`np.zeros\` makes the ${d} × ${n} result, one column per item.`, code: 'init', math: 'init', vars: { d } }];
+    const trace = [{ label: `\`d = U.shape[1]\` = ${d} factors; \`np.zeros\` makes the ${d} × ${n} result, one column per item.`, code: 'init', math: 'init', vars: { d }, ops: [M_CLEAR()] }];
     R.cols.forEach((c, j) => {
       const rows = R.values.map((_, i) => i).filter((i) => R.values[i][j] !== null);
       const Uo = rows.map((i) => U.values[i]);
@@ -698,13 +742,13 @@ export default function register(sdk) {
       const v = solve(A, rhs);
       v.forEach((x, s) => (V[s][j] = x));
       trace.push(
-        { label: `\`for j\`: j = ${j}, item ${c}.`, code: 'loop', math: 'loop', vars: { j } },
+        { label: `\`for j\`: j = ${j}, item ${c}.`, code: 'loop', math: 'loop', vars: { j }, ops: [M_HL(`col:${c}`)] },
         { label: `Raters of ${c}: ${rows.map((i) => R.rows[i]).join(', ')}. \`U[rated]\` keeps their rows, \`R[rated, j]\` their ratings.\n\n$U_o = ${arr(Uo, { rows: rows.map((i) => R.rows[i]), cols: factorNames(d), f: f3 })} \\quad \\mathbf{r} = ${vec(r, String)}$`,
-          code: 'obs', math: 'obs', vars: { shape: shp(Uo) } },
+          code: 'obs', math: 'obs', vars: { shape: shp(Uo) }, ops: [M_HL(`col:${c}`), M_HL(colCells(R, j), 'good'), M_HL(colCells(R, j, false), 'bad')] },
         { label: `\`Uo.T @ Uo\` is ${d} × ${d}; \`lam * np.eye(${d})\` adds λ = ${lambda} to its diagonal.\n\n$A = ${arr(Uo.length ? mul(transpose(Uo), Uo) : [[0, 0], [0, 0]], { f: f3 })} + ${lambda}\\,I = ${arr(A, { f: f3 })}$`,
-          code: 'lam', math: 'lam', vars: { shape: shp(A) } },
-        { label: `\`Uo.T @ r\`: each factor's column of Uo dotted with the ratings.\n\n$\\text{rhs} = ${vec(rhs, f3)}$`, code: 'rhs', math: 'rhs', vars: { rhs: pyList(rhs, f3) } },
-        { label: `\`np.linalg.solve(A, rhs)\` solves A v = rhs; \`V[:, j] = v\` stores it as column ${c} of V.\n\n$\\mathbf{v} = ${vec(v, (x) => dn(x, 4))}$`, code: 'ridge', math: 'ridge', vars: { v: pyList(v, (x) => dn(x, 4)) } },
+          code: 'lam', math: 'lam', vars: { shape: shp(A) }, ops: [M_HL(colCells(R, j), 'good')] },
+        { label: `\`Uo.T @ r\`: each factor's column of Uo dotted with the ratings.\n\n$\\text{rhs} = ${vec(rhs, f3)}$`, code: 'rhs', math: 'rhs', vars: { rhs: pyList(rhs, f3) }, ops: [M_HL(colCells(R, j), 'good')] },
+        { label: `\`np.linalg.solve(A, rhs)\` solves A v = rhs; \`V[:, j] = v\` stores it as column ${c} of V.\n\n$\\mathbf{v} = ${vec(v, (x) => dn(x, 4))}$`, code: 'ridge', math: 'ridge', vars: { v: pyList(v, (x) => dn(x, 4)) }, ops: [M_HL(`col:${c}`, 'good'), M_NOTE(cellOf(R, 0, j), `v ${v.map((x) => dn(x, 2)).join(', ')}`)] },
       );
     });
     return { V, trace };

@@ -531,6 +531,17 @@ export default function register(sdk) {
   const pyList = (v, f = dec) => `[${v.map((x) => (x === null ? 'nan' : typeof x === 'string' ? x : f(x))).join(', ')}]`;
   const pp = (x, f) => `(${f(x)})`;
 
+  // Live-example ops for Math & Code traces. Role `matrix` = the section's rating Matrix, `ranklist` = its RankList.
+  // highlight is transient (this step only); fill / annotate / center / sortIdeal persist until the trace is rewound.
+  const M_HL = (sel, tone = 'accent') => ({ role: 'matrix', cmd: 'highlight', args: { sel, tone } });
+  const M_NOTE = (cell, text) => ({ role: 'matrix', cmd: 'annotate', args: { sel: cell, text } });
+  const M_FILL = (cell, value) => ({ role: 'matrix', cmd: 'fill', args: { cell, value } });
+  const M_CLEAR = () => ({ role: 'matrix', cmd: 'clear' });
+  const cellOf = (M, i, j) => `cell:${M.rows[i]},${M.cols[j]}`;
+  const observedCells = (M) => M.values.flatMap((r, i) => r.flatMap((x, j) => (x === null ? [] : [cellOf(M, i, j)])));
+  const L_HL = (sel, tone = 'accent') => ({ role: 'ranklist', cmd: 'highlight', args: { sel, tone } });
+  const posSel = (k) => Array.from({ length: k }, (_, t) => `pos:${t + 1}`);
+
   // Every intermediate array of user_sims / item_sims (mode 'item' compares columns).
   function npSims(C, mode) {
     const Z0 = C.map((r) => r.map((x) => (x === null ? 0 : x)));
@@ -561,28 +572,31 @@ export default function register(sdk) {
     const S = R.map((r, i) => r.map((x) => (x === null ? null : x - mu[i])));
     const col = (v, g) => arr(v.map((x) => [x]), { rows, f: g });
     const muTex = (i) => `\\tfrac{${totals[i]}}{${counts[i]}} ${st === 'frac' && fracParts(mu[i], 12)[1] !== 1 ? `\\approx ${dec(mu[i])}` : `= ${dec(mu[i])}`}`;
+    const obsCells = observedCells(matrix);
+    const meanSel = rows.map((u) => `mean:${u}`);
     const trace = [
       { label: `\`np.isnan(R)\` is True at every blank; \`~\` flips it, so **T = rated**, F = blank.\n\n$M = ${arr(M.map((r) => r.map(TF)), { rows, cols })}$`,
-        code: 'rated', math: 'rated', vars: { shape: shp(M) } },
+        code: 'rated', math: 'rated', vars: { shape: shp(M) }, ops: [M_CLEAR(), M_HL(obsCells, 'good'), M_HL('missing', 'muted')] },
       { label: `\`M.sum(axis=1)\` adds along each row, counting True as 1. \`keepdims=True\` keeps a ${m}×1 column.\n\n$\\text{counts} = ${col(counts, String)}$`,
-        code: 'count', math: 'count', vars: { shape: `(${m}, 1)` } },
+        code: 'count', math: 'count', vars: { shape: `(${m}, 1)` }, ops: [M_HL(obsCells, 'good'), ...rows.map((u, i) => M_NOTE(cellOf(matrix, i, n - 1), `${counts[i]} rated`))] },
       { label: `\`np.nansum(R, axis=1)\` adds each row's ratings and skips NaN (a plain sum would give NaN).\n\n$${rows.map((u, i) => `${txt(u)}{:}\\ ${obs[i].join(' + ')} = ${totals[i]}`).join(',\\quad ')}$`,
-        code: 'total', math: 'total', vars: { shape: `(${m}, 1)` } },
+        code: 'total', math: 'total', vars: { shape: `(${m}, 1)` }, ops: [M_HL(obsCells, 'good'), ...rows.map((u, i) => M_NOTE(cellOf(matrix, i, n - 1), `Σ ${totals[i]}`))] },
       { label: `Both are ${m}×1 columns, so \`/\` divides row by row: each user's average.\n\n$\\text{mu} = ${arr(rows.map((u, i) => [muTex(i)]), { rows })}$`,
-        code: 'mu', math: 'mu', vars: { shape: `(${m}, 1)` } },
+        code: 'mu', math: 'mu', vars: { shape: `(${m}, 1)` }, ops: [M_CLEAR(), M_HL(meanSel)] },
       { label: `\`R\` is ${m}×${n} but \`mu\` is ${m}×1, so numpy **broadcasts**: it repeats each row's mean across all ${n} columns.\n\n$${arr(R.map((r, i) => r.map(() => mu[i])), { rows, cols, f })}$`,
-        code: 's', math: 's', vars: { broadcast: `(${m}, 1) → (${m}, ${n})` } },
+        code: 's', math: 's', vars: { broadcast: `(${m}, 1) → (${m}, ${n})` }, ops: [M_HL(meanSel), M_HL(rows.map((u) => `row:${u}`), 'warn')] },
     ];
     rows.forEach((u, i) => {
       trace.push({
         label: `Row ${u}: each rating minus ${u}'s mean. A NaN minus anything stays NaN, so blanks stay blank.\n\n$${obs[i].map((x) => `${x} - ${f(mu[i])} = ${f(x - mu[i])}`).join(',\\quad ')}$`,
         code: 's', math: 's', vars: { [`S[${i}]`]: pyList(S[i], st === 'frac' ? fracStr : dec) },
+        ops: [M_HL([`row:${u}`, `mean:${u}`]), ...R[i].flatMap((x, j) => (x === null ? [] : [M_FILL(`${u},${cols[j]}`, x - mu[i])]))],
       });
     });
     trace.push({ label: `Same ${m}×${n} shape as \`R\`, NaN in the same places; each row's ratings now add up to 0.\n\n$S = ${arr(S, { rows, cols, f })}$`,
-      code: 's', math: 's', vars: { shape: shp(S) } });
+      code: 's', math: 's', vars: { shape: shp(S) }, ops: [M_HL(obsCells, 'good')] });
     trace.push({ label: `\`mu.ravel()\` flattens the ${m}×1 column into a plain 1-D array of ${m} means.\n\n$\\text{mu} = ${vec(mu, f)}$`,
-      code: 'ret', math: 'ret', vars: { shape: `(${m},)` } });
+      code: 'ret', math: 'ret', vars: { shape: `(${m},)` }, ops: [M_HL(meanSel)] });
     return { means: mu, trace };
   }
 
@@ -607,6 +621,15 @@ export default function register(sdk) {
     const ent = (A) => A[pa][pb];
     const zeros = X.den.flat().filter((x) => x <= EPS).length;
     const idx = (nm) => `${nm}[${pa}, ${pb}]`;
+    // live matrix: the two users (rows) or items (columns) being compared, and the cells they share
+    const side = (p) => (I ? `col:${p}` : `row:${p}`);
+    const at = (p, q) => (I ? `cell:${O[q]},${p}` : `cell:${p},${O[q]}`);
+    const pair = [side(a), side(b)];
+    const co = O.map((_, q) => q).filter((q) => ma[q] && mb[q]);
+    const lone = O.map((_, q) => q).filter((q) => (ma[q] || mb[q]) && !(ma[q] && mb[q]));
+    const coCells = co.flatMap((q) => [at(a, q), at(b, q)]);
+    const loneCells = lone.flatMap((q) => [at(a, q), at(b, q)]);
+    const zFill = matrix.rows.flatMap((r, i) => matrix.cols.map((c, j) => M_FILL(`${r},${c}`, X.Z0[i][j])));
     const trace = [
       { label: `\`~np.isnan(S)\` marks the rated cells; \`.astype(float)\` turns True/False into 1/0.\n\n$M = ${arr(X.M0, { ...R, f: String })}$`,
         code: 'mask', math: 'mask', vars: { shape: shp(X.M0) } },
@@ -635,6 +658,18 @@ export default function register(sdk) {
       { label: `Entry (${a}, ${b}), the similarity itself.\n\n$\\text{sims}[${txt(a)}, ${txt(b)}] = ${ent(X.den) > EPS ? `\\frac{${dec(ent(X.dot))}}{${dec(ent(X.nu))} \\times ${dec(ent(X.nv))}} = \\frac{${dec(ent(X.dot))}}{${dec(ent(X.den))}} = ${dec(ent(X.sims))}` : `0 \\quad (\\text{den} = 0)`}$`,
         code: 'sim', math: 'sim', vars: { [idx('sims')]: ent(X.sims) } },
     ];
+    const live = [
+      [M_CLEAR(), M_HL(observedCells(matrix), 'good'), M_HL('missing', 'muted')], // mask
+      [...zFill, M_HL('missing', 'muted')], // fill: the matrix now shows Z (centered, blanks 0)
+      [M_HL(pair)], // dot (all pairs)
+      [M_HL(pair), M_HL(coCells, 'good'), M_HL(loneCells, 'muted')], // dot entry
+      [M_HL(pair)], // sq
+      [M_HL(pair)], // ss
+      [M_HL(pair), M_HL(coCells, 'good'), M_HL(loneCells, 'muted')], // ss entries
+      [M_HL(pair)], [M_HL(pair)], [M_HL(pair)], [M_HL(pair)], [M_HL(pair)], // nu, nv, den, zero, sims
+      [M_HL(pair), M_HL(coCells, 'good')], // the entry
+    ];
+    trace.forEach((t, q) => { if (live[q]) t.ops = live[q]; });
     return { sim: ent(X.sims), trace };
   }
 
@@ -657,6 +692,10 @@ export default function register(sdk) {
     const N = top.filter((_, t) => keep[t]);
     const nm = (qs) => qs.map((q) => matrix.rows[q]).join(', ') || 'none';
     const U = { cols: matrix.rows };
+    // live matrix: column `item`, the target cell, and the candidates' cells with their similarity to `user`
+    const tgt = cellOf(matrix, u, j);
+    const cAt = (qs) => qs.map((q) => cellOf(matrix, q, j));
+    const simNotes = cands.map((q) => M_NOTE(cellOf(matrix, q, j), `sim ${dec(sims[u][q])}`));
     const steps = [
       { label: `\`S[:, j]\` is column ${item}: every user's centered rating of it. \`~np.isnan\` marks who rated it.\n\n$\\text{S[:, j]} = ${arr([colj], { ...U, f })} \\;\\Rightarrow\\; ${arr([raters.map(TF)], U)}$`,
         code: 'raters', math: 'raters', vars: { j: `${j} (${item})` } },
@@ -671,7 +710,16 @@ export default function register(sdk) {
       { label: `\`sims[u, top] > 0\` gives True/False per neighbour; indexing \`top\` with it keeps the True ones.\n\n$${vec(top.map((q) => sims[u][q]))} > 0 = ${vec(keep.map(TF))} \\;\\Rightarrow\\; N = ${vec(N, String)} \\quad (${txt(N.length ? nm(N) : 'nobody')})$`,
         code: 'pos', math: 'pos', vars: { N: pyList(N, String) } },
     ];
-    return { u, j, C, sims, cands, top, N, steps, f, st, nm };
+    const live = [
+      [M_CLEAR(), M_HL(`col:${item}`), M_HL(cAt(raters.map((x, q) => (x ? q : -1)).filter((q) => q >= 0)), 'good')],
+      [M_HL(`col:${item}`), M_HL(tgt, 'warn'), M_HL(`row:${user}`, 'warn')],
+      [M_HL(tgt, 'warn'), M_HL(cAt(cands), 'good')],
+      [M_HL(tgt, 'warn'), M_HL(cAt(cands), 'good'), ...simNotes],
+      [M_HL(tgt, 'warn'), M_HL(cAt(cands), 'muted'), M_HL(cAt(top), 'good')],
+      [M_HL(tgt, 'warn'), M_HL(cAt(top), 'bad'), M_HL(cAt(N), 'good')],
+    ];
+    steps.forEach((t, q) => { t.ops = live[q]; });
+    return { u, j, C, sims, cands, top, N, steps, f, st, nm, tgt, cAt, simNotes };
   }
   function neighborsCode({ matrix, user, item, k }) {
     const r = nbrSteps(matrix, user, item, k);
@@ -681,14 +729,16 @@ export default function register(sdk) {
   // anchors: nbrs, blank, w, s, num, den, pred, mean   (user-based prediction)
   function predictCode({ matrix, user, item, k }) {
     const r = nbrSteps(matrix, user, item, k);
-    const { u, j, C, sims, N, f, st } = r;
+    const { u, j, C, sims, N, f, st, tgt, cAt } = r;
     const mu = means(matrix);
+    const nCells = cAt(N);
+    const base = [M_HL(tgt, 'warn'), M_HL(nCells, 'good')];
     const trace = [
       { label: `\`neighbors(S, sims, u, j, k)\` (previous section): raters of ${item}, top ${k} by similarity, then sim > 0.\n\n$${r.cands.length ? `${txt(r.nm(r.cands))} \\to \\text{top-}${k}{:}\\ ${txt(r.nm(r.top))} \\to N = ${vec(N, String)}\\ (${N.length ? txt(r.nm(N)) : '\\text{nobody}'})` : '\\text{nobody rated it} \\Rightarrow N = [\\,]'}$`,
-        code: 'nbrs', math: 'nbrs', vars: { N: pyList(N, String) } },
+        code: 'nbrs', math: 'nbrs', vars: { N: pyList(N, String) }, ops: [M_CLEAR(), M_HL(`col:${item}`), ...base, ...N.map((q) => M_NOTE(cellOf(matrix, q, j), `w ${dec(sims[u][q])}`))] },
     ];
     if (!N.length) {
-      trace.push({ label: '`N.size == 0`: nobody is left to vote, so `return np.nan` and the cell stays blank.', code: 'blank', math: 'blank', vars: { 'N.size': 0 } });
+      trace.push({ label: '`N.size == 0`: nobody is left to vote, so `return np.nan` and the cell stays blank.', code: 'blank', math: 'blank', vars: { 'N.size': 0 }, ops: [M_HL(tgt, 'bad')] });
       return { centered: null, rating: null, trace };
     }
     const w = N.map((q) => sims[u][q]);
@@ -697,17 +747,17 @@ export default function register(sdk) {
     const den = w.reduce((t, x) => t + x, 0);
     const sh = num / den;
     trace.push(
-      { label: `\`N.size\` is ${N.length}, not 0, so the function carries on.`, code: 'blank', math: 'blank', vars: { 'N.size': N.length } },
+      { label: `\`N.size\` is ${N.length}, not 0, so the function carries on.`, code: 'blank', math: 'blank', vars: { 'N.size': N.length }, ops: base },
       { label: `Fancy indexing: \`sims[u, N]\` reads row ${user} at the columns in N, in N's order.\n\n$\\mathbf{w} = ${vec(w)}$`,
-        code: 'w', math: 'w', vars: { w: pyList(w) } },
+        code: 'w', math: 'w', vars: { w: pyList(w) }, ops: base },
       { label: `\`S[N, j]\` reads rows N of column ${item}: the neighbours' centered ratings, in the same order.\n\n$\\mathbf{s} = ${vec(s, f)}$`,
-        code: 's', math: 's', vars: { s: pyList(s, st === 'frac' ? fracStr : dec) } },
+        code: 's', math: 's', vars: { s: pyList(s, st === 'frac' ? fracStr : dec) }, ops: [...base, ...N.map((q, t) => M_FILL(`${matrix.rows[q]},${item}`, s[t]))] },
       { label: `\`w @ s\` on two 1-D arrays is a dot product: multiply pairwise, then add.\n\n$${w.map((x, q) => `(${dec(x)})${pp(s[q], f)}`).join(' + ')}${w.length > 1 ? ` = ${w.map((x, q) => dec(x * s[q])).join(' + ').replace(/\+ -/g, '- ')}` : ''} = ${dec(num)}$`,
-        code: 'num', math: 'num', vars: { num } },
-      { label: w.length > 1 ? '`w.sum()` adds the weights.\n\n' + `$${w.map((x) => dec(x)).join(' + ')} = ${dec(den)}$` : `\`w.sum()\` adds the weights; with one neighbour it is just $${dec(den)}$.`, code: 'den', math: 'den', vars: { den } },
-      { label: 'Divide: the similarity-weighted average of the neighbours\' centered ratings.\n\n' + `$\\hat s = \\frac{${dec(num)}}{${dec(den)}} = ${dec(sh)}$`, code: 'pred', math: 'pred', vars: { s_hat: sh } },
+        code: 'num', math: 'num', vars: { num }, ops: base },
+      { label: w.length > 1 ? '`w.sum()` adds the weights.\n\n' + `$${w.map((x) => dec(x)).join(' + ')} = ${dec(den)}$` : `\`w.sum()\` adds the weights; with one neighbour it is just $${dec(den)}$.`, code: 'den', math: 'den', vars: { den }, ops: base },
+      { label: 'Divide: the similarity-weighted average of the neighbours\' centered ratings.\n\n' + `$\\hat s = \\frac{${dec(num)}}{${dec(den)}} = ${dec(sh)}$`, code: 'pred', math: 'pred', vars: { s_hat: sh }, ops: [...base, M_FILL(`${user},${item}`, sh)] },
       { label: `\`mu[u]\` is ${user}'s mean; adding it undoes the centering and gives a rating.\n\n$${dec(sh)} + ${tn(mu[u], st)} = ${dec(sh + mu[u])}$`,
-        code: 'mean', math: 'mean', vars: { rating: sh + mu[u] } },
+        code: 'mean', math: 'mean', vars: { rating: sh + mu[u] }, ops: [M_HL(tgt, 'good'), M_FILL(`${user},${item}`, sh + mu[u]), M_NOTE(tgt, `+ μ ${dec(mu[u])}`)] },
     );
     return { centered: sh, rating: sh + mu[u], trace };
   }
@@ -731,6 +781,9 @@ export default function register(sdk) {
     const N = top.filter((_, t) => keep[t]);
     const nm = (qs) => qs.map((q) => matrix.cols[q]).join(', ') || 'none';
     const It = { cols: matrix.cols };
+    // live matrix: row `user`, the target cell, and the candidate items' cells in that row
+    const tgt = cellOf(matrix, u, j);
+    const rAt = (qs) => qs.map((q) => cellOf(matrix, u, q));
     const trace = [
       { label: `\`S[u]\` is row ${user}: ${user}'s centered ratings. \`~np.isnan\` marks the items ${user} rated.\n\n$\\text{S[u]} = ${arr([rowu], { ...It, f })} \\;\\Rightarrow\\; ${arr([rated.map(TF)], It)}$`,
         code: 'rated', math: 'rated', vars: { u: `${u} (${user})` } },
@@ -745,24 +798,34 @@ export default function register(sdk) {
       { label: '`isims[j, top] > 0` gives True/False per item; boolean indexing keeps the True ones.\n\n' + `$${vec(top.map((q) => isims[j][q]))} > 0 = ${vec(keep.map(TF))} \\;\\Rightarrow\\; N = ${vec(N, String)} \\quad (${txt(N.length ? nm(N) : 'nothing')})$`,
         code: 'pos', math: 'pos', vars: { N: pyList(N, String) } },
     ];
+    const live0 = [
+      [M_CLEAR(), M_HL(`row:${user}`), M_HL(rAt(rated.map((x, q) => (x ? q : -1)).filter((q) => q >= 0)), 'good')],
+      [M_HL(`row:${user}`), M_HL(tgt, 'warn'), M_HL(`col:${item}`, 'warn')],
+      [M_HL(tgt, 'warn'), M_HL(rAt(cands), 'good')],
+      [M_HL(tgt, 'warn'), M_HL(rAt(cands), 'good'), ...cands.map((q) => M_NOTE(cellOf(matrix, u, q), `sim ${dec(isims[j][q])}`))],
+      [M_HL(tgt, 'warn'), M_HL(rAt(cands), 'muted'), M_HL(rAt(top), 'good')],
+      [M_HL(tgt, 'warn'), M_HL(rAt(top), 'bad'), M_HL(rAt(N), 'good')],
+    ];
+    trace.forEach((t, q) => { t.ops = live0[q]; });
     if (!N.length) {
-      trace.push({ label: '`N.size == 0`: no similar item is left, so `return np.nan` and the cell stays blank.', code: 'blank', math: 'blank', vars: { 'N.size': 0 } });
+      trace.push({ label: '`N.size == 0`: no similar item is left, so `return np.nan` and the cell stays blank.', code: 'blank', math: 'blank', vars: { 'N.size': 0 }, ops: [M_HL(tgt, 'bad')] });
       return { centered: null, rating: null, trace };
     }
     const w = N.map((q) => isims[j][q]);
     const s = N.map((q) => C[u][q]);
+    const base = [M_HL(tgt, 'warn'), M_HL(rAt(N), 'good')];
     const num = w.reduce((t, x, q) => t + x * s[q], 0);
     const den = w.reduce((t, x) => t + x, 0);
     const sh = num / den;
     trace.push(
-      { label: `\`N.size\` is ${N.length}, not 0, so the function carries on.`, code: 'blank', math: 'blank', vars: { 'N.size': N.length } },
-      { label: `\`isims[j, N]\` reads row ${item} at the columns in N: the weights.\n\n$\\mathbf{w} = ${vec(w)}$`, code: 'w', math: 'w', vars: { w: pyList(w) } },
+      { label: `\`N.size\` is ${N.length}, not 0, so the function carries on.`, code: 'blank', math: 'blank', vars: { 'N.size': N.length }, ops: base },
+      { label: `\`isims[j, N]\` reads row ${item} at the columns in N: the weights.\n\n$\\mathbf{w} = ${vec(w)}$`, code: 'w', math: 'w', vars: { w: pyList(w) }, ops: base },
       { label: `\`S[u, N]\` reads row ${user} at the same columns: ${user}'s **own** centered ratings of those items.\n\n$\\mathbf{s} = ${vec(s, f)}$`,
-        code: 's', math: 's', vars: { s: pyList(s, st === 'frac' ? fracStr : dec) } },
-      { label: '`w @ s` is a dot product: multiply pairwise, then add.\n\n' + `$${w.map((x, q) => `(${dec(x)})${pp(s[q], f)}`).join(' + ')} = ${dec(num)}$`, code: 'num', math: 'num', vars: { num } },
-      { label: w.length > 1 ? '`w.sum()` adds the weights.\n\n' + `$${w.map((x) => dec(x)).join(' + ')} = ${dec(den)}$` : `\`w.sum()\` adds the weights; with one neighbour it is just $${dec(den)}$.`, code: 'den', math: 'den', vars: { den } },
-      { label: 'Divide: the similarity-weighted average of the user\'s own centered ratings.\n\n' + `$\\hat s = \\frac{${dec(num)}}{${dec(den)}} = ${dec(sh)}$`, code: 'pred', math: 'pred', vars: { s_hat: sh } },
-      { label: `\`mu[u]\` is ${user}'s mean; adding it gives the rating.\n\n$${dec(sh)} + ${tn(mu[u], st)} = ${dec(sh + mu[u])}$`, code: 'mean', math: 'mean', vars: { rating: sh + mu[u] } },
+        code: 's', math: 's', vars: { s: pyList(s, st === 'frac' ? fracStr : dec) }, ops: [...base, ...N.map((q, t) => M_FILL(`${user},${matrix.cols[q]}`, s[t]))] },
+      { label: '`w @ s` is a dot product: multiply pairwise, then add.\n\n' + `$${w.map((x, q) => `(${dec(x)})${pp(s[q], f)}`).join(' + ')} = ${dec(num)}$`, code: 'num', math: 'num', vars: { num }, ops: base },
+      { label: w.length > 1 ? '`w.sum()` adds the weights.\n\n' + `$${w.map((x) => dec(x)).join(' + ')} = ${dec(den)}$` : `\`w.sum()\` adds the weights; with one neighbour it is just $${dec(den)}$.`, code: 'den', math: 'den', vars: { den }, ops: base },
+      { label: 'Divide: the similarity-weighted average of the user\'s own centered ratings.\n\n' + `$\\hat s = \\frac{${dec(num)}}{${dec(den)}} = ${dec(sh)}$`, code: 'pred', math: 'pred', vars: { s_hat: sh }, ops: [...base, M_FILL(`${user},${item}`, sh)] },
+      { label: `\`mu[u]\` is ${user}'s mean; adding it gives the rating.\n\n$${dec(sh)} + ${tn(mu[u], st)} = ${dec(sh + mu[u])}$`, code: 'mean', math: 'mean', vars: { rating: sh + mu[u] }, ops: [M_HL(tgt, 'good'), M_FILL(`${user},${item}`, sh + mu[u]), M_NOTE(tgt, `+ μ ${dec(mu[u])}`)] },
     );
     return { centered: sh, rating: sh + mu[u], trace };
   }
@@ -794,6 +857,9 @@ export default function register(sdk) {
   }
   function dcgCode({ ratings, list, k }) {
     const r = dcgSteps(list.map((id) => ratings[id] ?? 0), k ?? list.length, list);
+    const top = posSel(r.rel.length);
+    const tones = ['accent', 'accent', 'good', 'warn', 'good', 'good']; // rel, pos, gain, disc, terms, add
+    r.steps.forEach((t, q) => { t.ops = [L_HL(top, tones[q])]; });
     return { dcg: r.total, trace: r.steps };
   }
 
@@ -812,13 +878,13 @@ export default function register(sdk) {
       ndcg: v,
       trace: [
         { label: `\`dcg(rel, ${kk})\` (previous section) on the recommended order ${list.slice(0, kk).join(', ')}.\n\n$\\text{rel} = ${vec(d.rel, String)} \\;\\Rightarrow\\; \\text{terms} = ${vec(d.terms)} \\;\\Rightarrow\\; d = ${dec(d.total)}$`,
-          code: 'dcg', math: 'dcg', vars: { d: d.total } },
+          code: 'dcg', math: 'dcg', vars: { d: d.total }, ops: [L_HL(posSel(kk))] },
         { label: '`np.sort(all_rel)` sorts every item\'s true rating, smallest first.\n\n' + `$\\text{all\\_rel} = ${vec(all, String)} \\ (${txt(ids.join(', '))}) \\;\\Rightarrow\\; ${vec(asc, String)}$`,
-          code: 'ideal', math: 'ideal', vars: { 'all_rel': pyList(all, String) } },
+          code: 'ideal', math: 'ideal', vars: { 'all_rel': pyList(all, String) }, ops: [L_HL(ids.map((x) => `item:${x}`), 'muted')] },
         { label: '`[::-1]` reads the array backwards (a slice with step −1): best first, the ideal order.\n\n' + `$\\text{ideal} = ${vec(desc, String)} \\ (${txt(idealIds.join(', '))})$`,
-          code: 'ideal', math: 'ideal', vars: { ideal: pyList(desc, String) } },
+          code: 'ideal', math: 'ideal', vars: { ideal: pyList(desc, String) }, ops: [{ role: 'ranklist', cmd: 'setOrder', args: { order: idealIds } }, L_HL(posSel(ids.length), 'warn')] },
         { label: `\`dcg(ideal, ${kk})\` keeps only the best ${kk}${desc.length > kk ? ` (${desc.slice(kk).join(', ')} drops out)` : ''} and scores them the same way: the IDCG.\n\n$${vec(id.rel, String)} \\;\\Rightarrow\\; \\text{terms} = ${vec(id.terms)} \\;\\Rightarrow\\; i = ${dec(id.total)}$`,
-          code: 'idcg', math: 'idcg', vars: { i: id.total } },
+          code: 'idcg', math: 'idcg', vars: { i: id.total }, ops: [L_HL(posSel(kk), 'good')] },
         { label: 'Divide: how close the recommended list comes to the best possible ordering (1 = perfect).\n\n' + `$\\text{NDCG} = \\frac{${dec(d.total)}}{${dec(id.total)}} = ${+v.toFixed(3)}$`,
           code: 'ndcg', math: 'ndcg', vars: { ndcg: v } },
       ],
@@ -840,6 +906,17 @@ export default function register(sdk) {
     const PP = { rows: P, cols: P };
     const hl = [[pa, pb]];
     const wF = (x) => tn(x, 'frac');
+    const pair = [`row:${a}`, `row:${b}`];
+    const co = matrix.cols.map((c, q) => q).filter((q) => M[pa][q] && M[pb][q]);
+    const coCells = co.flatMap((q) => [cellOf(matrix, pa, q), cellOf(matrix, pb, q)]);
+    const liveOps = [
+      [M_CLEAR(), M_HL(observedCells(matrix), 'good'), M_HL('missing', 'muted')],
+      [M_HL(pair)],
+      [M_HL(pair), M_HL(coCells, 'good'), ...co.map((q, t) => M_NOTE(cellOf(matrix, pb, q), `both ${t + 1}`))],
+      [M_HL(pair), M_HL(coCells, 'good')],
+      [M_HL(pair)],
+      [M_HL(pair), M_HL(coCells, 'good')],
+    ];
     return {
       shrunk: out[pa][pb],
       trace: [
@@ -855,7 +932,7 @@ export default function register(sdk) {
           code: 'shrunk', math: 'shrunk', vars: { [`shrunk[${pa}, ${pb}]`]: out[pa][pb] } },
         { label: `Entry (${a}, ${b}).\n\n$${wF(w[pa][pb])} \\times ${dec(X.sims[pa][pb])} = ${dec(out[pa][pb])}$`,
           code: 'shrunk', math: 'shrunk', vars: { [`shrunk[${pa}, ${pb}]`]: out[pa][pb] } },
-      ],
+      ].map((t, q) => ({ ...t, ops: liveOps[q] })),
     };
   }
 

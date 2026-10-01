@@ -2,6 +2,7 @@ export * from './schemas';
 export * from './widgets';
 export * from './interpolate';
 export * from './anchors';
+export * from './live';
 export * from './expr';
 export * from './bundle';
 export * from './quiz';

@@ -33,6 +33,16 @@ export default function register(sdk) {
   const rowsText = (ids) => (ids.length ? ids.map((i) => `T${i}`).join(', ') : 'no rows');
   const inRows = (ids) => (ids.length ? `${ids.length === 1 ? 'row' : 'rows'} ${rowsText(ids)}` : 'no row');
 
+  // Live-example ops for Math & Code traces. Role `table` = the section's TransactionTable.
+  // highlight is transient (this step only); annotate / clear persist until the trace is rewound.
+  const T_HL = (sel, tone = 'accent') => ({ role: 'table', cmd: 'highlight', args: { sel, tone } });
+  const T_NOTE = (sel, text) => ({ role: 'table', cmd: 'annotate', args: { sel, text } });
+  const T_CLEAR = () => ({ role: 'table', cmd: 'clear' });
+  const rowSel = (ids) => ids.map((id) => `row:${id}`);
+  const chipSel = (t, items) => items.filter((i) => t.items.includes(i)).map((i) => `chip:${t.id}:${i}`);
+  const itemSel = (items) => items.map((i) => `item:${i}`);
+  const hitIds = (transactions, X) => transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
+
   // Count along, one transaction at a time.
   // roles: table (TransactionTable)
   function support({ transactions, itemset }) {
@@ -71,19 +81,21 @@ export default function register(sdk) {
     const X = sortSet(itemset || []);
     const n = transactions.length;
     let count = 0;
-    const trace = [{ label: '`count = 0`: nothing counted yet', code: 'init', math: 'init', vars: { count } }];
+    const trace = [{ label: '`count = 0`: nothing counted yet', code: 'init', math: 'init', vars: { count }, ops: [T_CLEAR()] }];
     for (const t of transactions) {
-      trace.push({ label: `\`for T in transactions\`: T = ${txText(t)}`, code: 'loop', math: 'loop', vars: { T: txText(t), count } });
+      trace.push({ label: `\`for T in transactions\`: T = ${txText(t)}`, code: 'loop', math: 'loop', vars: { T: TX(t), count }, ops: [T_HL([`row:${t.id}`])] });
       const miss = missingOf(X, t);
       const ok = miss.length === 0;
       trace.push({
         label: ok ? `Is ${setText(X)} ⊆ ${TX(t)}? **True**, every item is there` : `Is ${setText(X)} ⊆ ${TX(t)}? **False**: ${miss.join(', ')} missing, so skip`,
-        code: 'test', math: 'test', vars: { subset: ok ? 'True' : 'False', count },
+        code: 'test', math: 'test', vars: { subset: ok ? 'True' : 'False' },
+        ops: [T_HL([`row:${t.id}`], ok ? 'good' : 'bad'), T_HL(chipSel(t, X), 'good'), ...(ok ? [] : [T_NOTE(`row:${t.id}`, `✗ no ${miss.join(', ')}`)])],
       });
-      if (ok) { count++; trace.push({ label: `\`count += 1\` → count = ${count}`, code: 'inc', math: 'inc', vars: { count } }); }
+      if (ok) { count++; trace.push({ label: `\`count += 1\` → count = ${count}`, code: 'inc', math: 'inc', vars: { count }, ops: [T_HL([`row:${t.id}`], 'good'), T_NOTE(`row:${t.id}`, `✓ count = ${count}`)] }); }
     }
-    trace.push({ label: `Loop finished: \`return count\` gives AbsSup = ${count}`, code: 'ret', math: 'ret', vars: { count } });
-    trace.push({ label: `\`rel_support\` = ${count} / len(transactions) = ${count}/${n} = ${r2(count / n)}`, code: 'rel', math: 'rel', vars: { rel: n ? count / n : 0 } });
+    const hits = hitIds(transactions, X);
+    trace.push({ label: `Loop finished: \`return count\` gives AbsSup = ${count}`, code: 'ret', math: 'ret', vars: { count }, ops: [T_HL(rowSel(hits), 'good')] });
+    trace.push({ label: `\`rel_support\` = ${count} / len(transactions) = ${count}/${n} = ${r2(count / n)}`, code: 'rel', math: 'rel', vars: { rel: n ? count / n : 0 }, ops: [T_HL(rowSel(hits), 'good')] });
     return { abs: count, rel: n ? count / n : 0, trace };
   }
 
@@ -146,25 +158,28 @@ export default function register(sdk) {
   // anchors: init, loop, sup, rel, minsup, keep, ret
   function frequentCode({ transactions, itemsets, minsup }) {
     const n = transactions.length;
-    const trace = [{ label: '`frequent = []`: start with an empty answer list', code: 'init', math: 'init', vars: { frequent: [] } }];
+    const trace = [{ label: '`frequent = []`: start with an empty answer list', code: 'init', math: 'init', vars: { frequent: [] }, ops: [T_CLEAR()] }];
     const kept = [];
     for (const X of itemsets) {
-      trace.push({ label: `\`for X in candidates\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) } });
-      const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
+      const hits = hitIds(transactions, X);
+      const inX = (tone) => [T_HL(transactions.flatMap((t) => (hits.includes(t.id) ? chipSel(t, X) : [])), tone)];
+      trace.push({ label: `\`for X in candidates\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) }, ops: [T_CLEAR(), T_HL(itemSel(X))] });
       let sup = hits.length;
-      trace.push({ label: `\`sup = abs_support(X)\`: ${inRows(hits)} → sup = ${sup}`, code: 'sup', math: 'sup', vars: { sup } });
+      trace.push({ label: `\`sup = abs_support(X)\`: ${inRows(hits)} → sup = ${sup}`, code: 'sup', math: 'sup', vars: { sup },
+        ops: [T_HL(rowSel(hits), 'good'), ...inX('good'), ...hits.map((id, q) => T_NOTE(`row:${id}`, `✓ ${q + 1}`))] });
       if (minsup < 1) {
         sup = sup / n;
-        trace.push({ label: `minsup ${minsup} < 1 is relative, so \`sup = ${hits.length} / ${n}\` = ${r2(sup)}`, code: 'rel', math: 'rel', vars: { sup } });
+        trace.push({ label: `minsup ${minsup} < 1 is relative, so \`sup = ${hits.length} / ${n}\` = ${r2(sup)}`, code: 'rel', math: 'rel', vars: { sup }, ops: [T_HL(rowSel(hits), 'good')] });
       }
       const ok = sup >= minsup - EPS;
-      trace.push({ label: `\`sup >= minsup\`: ${r2(sup)} ≥ ${minsup}? **${ok ? 'True' : 'False'}**${ok ? '' : ', so skip it'}`, code: 'minsup', math: 'minsup', vars: { frequent: ok ? 'True' : 'False' } });
+      trace.push({ label: `\`sup >= minsup\`: ${r2(sup)} ≥ ${minsup}? **${ok ? 'True' : 'False'}**${ok ? '' : ', so skip it'}`, code: 'minsup', math: 'minsup', vars: { frequent: ok ? 'True' : 'False' },
+        ops: [T_HL(rowSel(hits), ok ? 'good' : 'bad')] });
       if (ok) {
         kept.push(X);
-        trace.push({ label: `\`frequent.append(X)\` → ${kept.length} frequent so far`, code: 'keep', math: 'keep', vars: { frequent: kept.map(setText) } });
+        trace.push({ label: `\`frequent.append(X)\` → ${kept.length} frequent so far`, code: 'keep', math: 'keep', vars: { frequent: kept.map(setText) }, ops: [T_HL(rowSel(hits), 'good'), ...inX('good')] });
       }
     }
-    trace.push({ label: `\`return frequent\`: ${kept.map(setText).join(', ') || 'none'}`, code: 'ret', math: 'ret', vars: { count: kept.length } });
+    trace.push({ label: `\`return frequent\`: ${kept.map(setText).join(', ') || 'none'}`, code: 'ret', math: 'ret', vars: { count: kept.length }, ops: [T_CLEAR()] });
     return { frequent: kept, count: kept.length, trace };
   }
 
@@ -268,24 +283,25 @@ export default function register(sdk) {
   function bruteForceCode({ transactions, minsup }) {
     const items = orderFor(transactions);
     const thr = threshold(minsup, transactions.length);
-    const trace = [{ label: `\`items\` = the ${items.length} distinct items: ${items.join(', ')}`, code: 'n', math: 'n', vars: { n: items.length } }];
+    const trace = [{ label: `\`items\` = the ${items.length} distinct items: ${items.join(', ')}`, code: 'n', math: 'n', vars: { n: items.length }, ops: [T_CLEAR(), T_HL(itemSel(items))] }];
     let freq = 0;
     for (let k = 1; k <= items.length; k++) {
       const Xs = combinations(items, k);
-      trace.push({ label: `\`for k\`: k = ${k}, so ${Xs.length} combinations of ${k} item${k > 1 ? 's' : ''} to check`, code: 'size', math: 'size', vars: { k } });
+      trace.push({ label: `\`for k\`: k = ${k}, so ${Xs.length} combinations of ${k} item${k > 1 ? 's' : ''} to check`, code: 'size', math: 'size', vars: { k }, ops: [T_CLEAR()] });
       for (const X of Xs) {
-        trace.push({ label: `\`for X in combinations(items, ${k})\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) } });
-        const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
-        trace.push({ label: `\`sup = abs_support(X)\`: ${hits.length ? rowsText(hits) : 'no row'} → sup = ${hits.length}`, code: 'count', math: 'count', vars: { sup: hits.length } });
+        const hits = hitIds(transactions, X);
+        const chips = transactions.flatMap((t) => (hits.includes(t.id) ? chipSel(t, X) : []));
+        trace.push({ label: `\`for X in combinations(items, ${k})\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) }, ops: [T_HL(itemSel(X))] });
+        trace.push({ label: `\`sup = abs_support(X)\`: ${hits.length ? rowsText(hits) : 'no row'} → sup = ${hits.length}`, code: 'count', math: 'count', vars: { sup: hits.length }, ops: [T_HL(itemSel(X), 'warn'), T_HL(rowSel(hits), 'good'), T_HL(chips, 'good')] });
         const ok = hits.length >= thr - EPS && hits.length > 0;
-        trace.push({ label: `\`if sup >= minsup\`: ${hits.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**${ok ? '' : ', not stored'}`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' } });
+        trace.push({ label: `\`if sup >= minsup\`: ${hits.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**${ok ? '' : ', not stored'}`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' }, ops: [T_HL(rowSel(hits), ok ? 'good' : 'bad')] });
         if (ok) {
           freq++;
-          trace.push({ label: `\`frequent[X] = ${hits.length}\`: ${freq} frequent itemset${freq > 1 ? 's' : ''} stored so far`, code: 'keep', math: 'keep', vars: { frequent: freq } });
+          trace.push({ label: `\`frequent[X] = ${hits.length}\`: ${freq} frequent itemset${freq > 1 ? 's' : ''} stored so far`, code: 'keep', math: 'keep', vars: { frequent: freq }, ops: [T_HL(rowSel(hits), 'good'), T_HL(chips, 'good')] });
         }
       }
     }
-    trace.push({ label: `\`return frequent\`: ${freq} frequent itemsets after ${Math.pow(2, items.length) - 1} counts`, code: 'ret', math: 'ret', vars: { frequent: freq } });
+    trace.push({ label: `\`return frequent\`: ${freq} frequent itemsets after ${Math.pow(2, items.length) - 1} counts`, code: 'ret', math: 'ret', vars: { frequent: freq }, ops: [T_CLEAR()] });
     return { count: freq, trace };
   }
 
@@ -406,29 +422,30 @@ export default function register(sdk) {
     const ord = orderFor(transactions, order || APRIORI_ORDER);
     const thr = threshold(minsup, transactions.length);
     let candidates = ord.map((i) => [i]);
-    const trace = [{ label: `\`candidates\` = every single item, in slide-19 order: ${candidates.length} of them`, code: 'level', math: 'level', vars: { candidates: candidates.map(setText) } }];
+    const trace = [{ label: `\`candidates\` = every single item, in slide-19 order: ${candidates.length} of them`, code: 'level', math: 'level', vars: { candidates: candidates.map(setText) }, ops: [T_CLEAR(), T_HL(itemSel(ord))] }];
     let items1 = null;
     let nFreq = 0;
     let k = 1;
     while (true) {
       if (!candidates.length) { trace.push({ label: '`while candidates`: the list is empty, so the loop stops', code: 'while', math: 'while', vars: { candidates: [] } }); break; }
-      trace.push({ label: `\`while candidates\`: ${candidates.length} candidate${candidates.length > 1 ? 's' : ''} of size ${k} to count`, code: 'while', math: 'while', vars: { k } });
+      trace.push({ label: `\`while candidates\`: ${candidates.length} candidate${candidates.length > 1 ? 's' : ''} of size ${k} to count`, code: 'while', math: 'while', vars: { k }, ops: [T_CLEAR()] });
       const level = [];
       for (const X of candidates) {
-        trace.push({ label: `\`for X in candidates\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) } });
-        const hits = transactions.filter((t) => isSubset(X, t.items)).map((t) => t.id);
-        trace.push({ label: `\`sup = abs_support(X)\`: ${hits.length ? rowsText(hits) : 'no row'} → sup = ${hits.length}`, code: 'count', math: 'count', vars: { sup: hits.length } });
+        const hits = hitIds(transactions, X);
+        const chips = transactions.flatMap((t) => (hits.includes(t.id) ? chipSel(t, X) : []));
+        trace.push({ label: `\`for X in candidates\`: X = ${setText(X)}`, code: 'loop', math: 'loop', vars: { X: setText(X) }, ops: [T_HL(itemSel(X))] });
+        trace.push({ label: `\`sup = abs_support(X)\`: ${hits.length ? rowsText(hits) : 'no row'} → sup = ${hits.length}`, code: 'count', math: 'count', vars: { sup: hits.length }, ops: [T_HL(itemSel(X), 'warn'), T_HL(rowSel(hits), 'good'), T_HL(chips, 'good')] });
         const ok = hits.length >= thr - EPS && hits.length > 0;
-        trace.push({ label: `\`if sup >= minsup\`: ${hits.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' } });
+        trace.push({ label: `\`if sup >= minsup\`: ${hits.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' }, ops: [T_HL(rowSel(hits), ok ? 'good' : 'bad')] });
         if (ok) {
           level.push(X);
           nFreq++;
-          trace.push({ label: `store \`frequent[X] = ${hits.length}\` and append X to \`level\``, code: 'keep', math: 'keep', vars: { level: level.map(setText) } });
+          trace.push({ label: `store \`frequent[X] = ${hits.length}\` and append X to \`level\``, code: 'keep', math: 'keep', vars: { level: level.map(setText) }, ops: [T_HL(rowSel(hits), 'good'), T_HL(chips, 'good')] });
         }
       }
       if (items1 === null) {
         items1 = level.map((X) => X[0]);
-        trace.push({ label: `First pass only: \`items1\` = the frequent single items (${items1.join(', ')})`, code: 'items1', math: 'items1', vars: { items1 } });
+        trace.push({ label: `First pass only: \`items1\` = the frequent single items (${items1.join(', ')})`, code: 'items1', math: 'items1', vars: { items1 }, ops: [T_HL(itemSel(items1), 'good')] });
       }
       const next = [];
       for (const X of level) {
@@ -625,25 +642,28 @@ export default function register(sdk) {
     const list = (r) => `[${r.join(', ')}]`;
     const trace = [];
     let nf = 0;
+    // the table shows the database the current call works on: `project` onto its prefix (unproject at the top level)
+    const view = (prefix) => (prefix.length ? { role: 'table', cmd: 'project', args: { prefix } } : { role: 'table', cmd: 'unproject' });
+    const holding = (X) => hitIds(transactions, X);
     function rec(prefix, rows) {
       const items = sortSet([...new Set(rows.flatMap((r) => r))], ord);
-      trace.push({ label: `Call with prefix ${tup(prefix)} and ${rows.length} rows → \`items\` = ${items.length ? items.join(', ') : 'none'}`, code: 'items', math: 'items', vars: { prefix: tup(prefix), items } });
+      trace.push({ label: `Call with prefix ${tup(prefix)} and ${rows.length} rows → \`items\` = ${items.length ? items.join(', ') : 'none'}`, code: 'items', math: 'items', vars: { prefix: tup(prefix), items }, ops: [view(prefix), T_HL(itemSel(items))] });
       for (const i of items) {
-        trace.push({ label: `\`for i in items\`: i = ${i}   (prefix so far ${tup(prefix)})`, code: 'loop', math: 'loop', vars: { i } });
-        const proj = rows.filter((r) => r.includes(i)).map((r) => r.filter((x) => ord.indexOf(x) > ord.indexOf(i)));
-        trace.push({ label: `\`proj\` inside ${tup(prefix)}: ${proj.length} ${proj.length === 1 ? 'row contains' : 'rows contain'} ${i}; items after it → ${proj.map(list).join(' ')}`, code: 'filter', math: 'filter', vars: { proj: proj.map(list) } });
         const P = [...prefix, i];
-        trace.push({ label: `\`P = prefix + (i,)\` = ${tup(P)}`, code: 'prefix', math: 'prefix', vars: { P: tup(P) } });
+        trace.push({ label: `\`for i in items\`: i = ${i}   (prefix so far ${tup(prefix)})`, code: 'loop', math: 'loop', vars: { i }, ops: [view(prefix), T_HL(itemSel([i]))] });
+        const proj = rows.filter((r) => r.includes(i)).map((r) => r.filter((x) => ord.indexOf(x) > ord.indexOf(i)));
+        trace.push({ label: `\`proj\` inside ${tup(prefix)}: ${proj.length} ${proj.length === 1 ? 'row contains' : 'rows contain'} ${i}; items after it → ${proj.map(list).join(' ')}`, code: 'filter', math: 'filter', vars: { proj: proj.map(list) }, ops: [view(prefix), T_HL(rowSel(holding(P)), 'good'), T_HL(itemSel([i]))] });
+        trace.push({ label: `\`P = prefix + (i,)\` = ${tup(P)}`, code: 'prefix', math: 'prefix', vars: { P: tup(P) }, ops: [view(P)] });
         const ok = proj.length >= thr - EPS;
-        trace.push({ label: `\`len(proj) >= minsup\`: ${proj.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**${ok ? '' : ', so move on'}`, code: 'test', math: 'test', vars: { sup: proj.length } });
+        trace.push({ label: `\`len(proj) >= minsup\`: ${proj.length} ≥ ${thr}? **${ok ? 'True' : 'False'}**${ok ? '' : ', so move on'}`, code: 'test', math: 'test', vars: { sup: proj.length }, ops: [T_HL(rowSel(holding(P)), ok ? 'good' : 'bad')] });
         if (ok) {
           nf++;
-          trace.push({ label: `\`out[${tup(P)}] = ${proj.length}\` (${nf} frequent so far)`, code: 'keep', math: 'keep', vars: { found: nf } });
+          trace.push({ label: `\`out[${tup(P)}] = ${proj.length}\` (${nf} frequent so far)`, code: 'keep', math: 'keep', vars: { found: nf }, ops: [T_HL(rowSel(holding(P)), 'good')] });
           trace.push({ label: `Recurse: mine the ${proj.length} projected rows with prefix ${tup(P)}`, code: 'recurse', math: 'recurse', vars: { depth: P.length } });
           rec(P, proj);
         }
       }
-      trace.push({ label: `Items exhausted for prefix ${tup(prefix)}: \`return out\`${prefix.length ? ' to the caller' : ` with ${nf} itemsets`}`, code: 'ret', math: 'ret', vars: { found: nf } });
+      trace.push({ label: `Items exhausted for prefix ${tup(prefix)}: \`return out\`${prefix.length ? ' to the caller' : ` with ${nf} itemsets`}`, code: 'ret', math: 'ret', vars: { found: nf }, ops: [view(prefix)] });
     }
     rec([], transactions.map((t) => sortSet(t.items, ord)));
     return { count: nf, trace };
@@ -691,22 +711,25 @@ export default function register(sdk) {
   function confidenceCode({ transactions, A, B }) {
     const a = sortSet(A), b = sortSet(B);
     let supA = 0, supAB = 0;
-    const trace = [{ label: '`sup_a = sup_ab = 0`: both counters start at zero', code: 'init', math: 'init', vars: { sup_a: 0, sup_ab: 0 } }];
+    const trace = [{ label: '`sup_a = sup_ab = 0`: both counters start at zero', code: 'init', math: 'init', vars: { sup_a: 0, sup_ab: 0 }, ops: [T_CLEAR()] }];
     for (const t of transactions) {
-      trace.push({ label: `\`for T in transactions\`: T = ${txText(t)}`, code: 'loop', math: 'loop', vars: { T: txText(t) } });
+      const row = `row:${t.id}`;
+      trace.push({ label: `\`for T in transactions\`: T = ${txText(t)}`, code: 'loop', math: 'loop', vars: { T: TX(t) }, ops: [T_HL([row])] });
       const missA = missingOf(a, t);
       const hasA = missA.length === 0;
-      trace.push({ label: `A = ${setText(a)} ⊆ ${TX(t)}? **${hasA ? 'True' : 'False'}**${hasA ? '' : ` (${missA.join(', ')} missing): this basket says nothing about the rule`}`, code: 'has-a', math: 'has-a', vars: { has_a: hasA ? 'True' : 'False' } });
+      trace.push({ label: `A = ${setText(a)} ⊆ ${TX(t)}? **${hasA ? 'True' : 'False'}**${hasA ? '' : ` (${missA.join(', ')} missing): this basket says nothing about the rule`}`, code: 'has-a', math: 'has-a', vars: { has_a: hasA ? 'True' : 'False' },
+        ops: [T_HL([row], hasA ? 'accent' : 'muted'), T_HL(chipSel(t, a), 'accent'), ...(hasA ? [] : [T_NOTE(row, 'no A: skipped')])] });
       if (!hasA) continue;
       supA++;
-      trace.push({ label: `\`sup_a += 1\` → sup_a = ${supA}`, code: 'sup-a', math: 'sup-a', vars: { sup_a: supA } });
+      trace.push({ label: `\`sup_a += 1\` → sup_a = ${supA}`, code: 'sup-a', math: 'sup-a', vars: { sup_a: supA }, ops: [T_HL([row]), T_HL(chipSel(t, a), 'accent'), T_NOTE(row, `A ✓ (sup_a = ${supA})`)] });
       const missB = missingOf(b, t);
       const hasB = missB.length === 0;
-      trace.push({ label: `B = ${setText(b)} ⊆ ${TX(t)}? **${hasB ? 'True' : 'False'}**${hasB ? '' : ` (${missB.join(', ')} missing)`}`, code: 'has-b', math: 'has-b', vars: { has_b: hasB ? 'True' : 'False' } });
-      if (hasB) { supAB++; trace.push({ label: `\`sup_ab += 1\` → sup_ab = ${supAB}`, code: 'sup-ab', math: 'sup-ab', vars: { sup_ab: supAB } }); }
+      trace.push({ label: `B = ${setText(b)} ⊆ ${TX(t)}? **${hasB ? 'True' : 'False'}**${hasB ? '' : ` (${missB.join(', ')} missing)`}`, code: 'has-b', math: 'has-b', vars: { has_b: hasB ? 'True' : 'False' },
+        ops: [T_HL([row], hasB ? 'good' : 'bad'), T_HL(chipSel(t, b), 'good'), ...(hasB ? [] : [T_NOTE(row, `A ✓ · B ✗ (no ${missB.join(', ')})`)])] });
+      if (hasB) { supAB++; trace.push({ label: `\`sup_ab += 1\` → sup_ab = ${supAB}`, code: 'sup-ab', math: 'sup-ab', vars: { sup_ab: supAB }, ops: [T_HL([row], 'good'), T_NOTE(row, `A ✓ · B ✓ (sup_ab = ${supAB})`)] }); }
     }
     const conf = supA ? supAB / supA : null;
-    trace.push({ label: `\`return sup_ab / sup_a\` = ${supAB} / ${supA} = ${r2(conf)}`, code: 'ratio', math: 'ratio', vars: { conf } });
+    trace.push({ label: `\`return sup_ab / sup_a\` = ${supAB} / ${supA} = ${r2(conf)}`, code: 'ratio', math: 'ratio', vars: { conf }, ops: [T_HL(rowSel(hitIds(transactions, a)), 'accent'), T_HL(rowSel(hitIds(transactions, [...a, ...b])), 'good')] });
     return { conf, supA, supAB, trace };
   }
 
@@ -815,24 +838,32 @@ export default function register(sdk) {
   // Line-by-line rule generation. anchors: init, itemset, skip, size, split, conf, test, keep, ret
   function rulesCode({ transactions, itemsets, minconf }) {
     const sup = (s) => transactions.filter((t) => isSubset(s, t.items)).length;
-    const trace = [{ label: '`out = []`: no rules yet', code: 'init', math: 'init', vars: { rules: 0 } }];
+    const trace = [{ label: '`out = []`: no rules yet', code: 'init', math: 'init', vars: { rules: 0 }, ops: [T_CLEAR()] }];
     let kept = 0;
+    // rows holding A are accent, rows holding all of I (so A ∪ B) are good; the chips show which part is A and which is B
+    const ruleOps = (A, B, I) => {
+      const hA = hitIds(transactions, A), hI = hitIds(transactions, I);
+      return [T_HL(rowSel(hA)), T_HL(rowSel(hI), 'good'),
+        T_HL(transactions.flatMap((t) => (hA.includes(t.id) ? chipSel(t, A) : [])), 'accent'),
+        T_HL(transactions.flatMap((t) => (hI.includes(t.id) ? chipSel(t, B) : [])), 'good')];
+    };
     for (const I0 of itemsets) {
       const I = sortSet(I0);
       const supI = sup(I);
-      trace.push({ label: `\`for I, sup_I in frequent.items()\`: I = ${setText(I)}, sup_I = ${supI}`, code: 'itemset', math: 'itemset', vars: { I: setText(I), sup_I: supI } });
-      if (I.length < 2) { trace.push({ label: `\`len(I) < 2\`: a single item can't be split into A and B, \`continue\``, code: 'skip', math: 'skip' }); continue; }
+      const hI = hitIds(transactions, I);
+      trace.push({ label: `\`for I, sup_I in frequent.items()\`: I = ${setText(I)}, sup_I = ${supI}`, code: 'itemset', math: 'itemset', vars: { I: setText(I), sup_I: supI }, ops: [T_HL(rowSel(hI), 'good'), T_HL(itemSel(I))] });
+      if (I.length < 2) { trace.push({ label: `\`len(I) < 2\`: a single item can't be split into A and B, \`continue\``, code: 'skip', math: 'skip', ops: [T_HL(itemSel(I), 'muted')] }); continue; }
       for (let k = I.length - 1; k >= 1; k--) {
-        trace.push({ label: `\`for k\`: antecedents with k = ${k} item${k > 1 ? 's' : ''}`, code: 'size', math: 'size', vars: { k } });
+        trace.push({ label: `\`for k\`: antecedents with k = ${k} item${k > 1 ? 's' : ''}`, code: 'size', math: 'size', vars: { k }, ops: [T_HL(rowSel(hI), 'good')] });
         for (const A of combinations(I, k)) {
           const B = I.filter((x) => !A.includes(x));
-          trace.push({ label: `\`for A in combinations\`: A = ${setText(A)}, so B = I − A = ${setText(B)}`, code: 'split', math: 'split', vars: { A: setText(A), B: setText(B) } });
+          trace.push({ label: `\`for A in combinations\`: A = ${setText(A)}, so B = I − A = ${setText(B)}`, code: 'split', math: 'split', vars: { A: setText(A), B: setText(B) }, ops: ruleOps(A, B, I) });
           const supA = sup(A);
           const conf = supI / supA;
-          trace.push({ label: `\`conf = sup_I / frequent[A]\` = ${supI} / ${supA} = ${r2(conf)}`, code: 'conf', math: 'conf', vars: { conf } });
+          trace.push({ label: `\`conf = sup_I / frequent[A]\` = ${supI} / ${supA} = ${r2(conf)}`, code: 'conf', math: 'conf', vars: { conf }, ops: ruleOps(A, B, I) });
           const ok = conf >= minconf - EPS;
-          trace.push({ label: `\`conf >= minconf\`: ${r2(conf)} ≥ ${minconf}? **${ok ? 'True' : 'False'}**${ok ? '' : ', rule dropped'}`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' } });
-          if (ok) { kept++; trace.push({ label: `\`out.append\`: ${setText(A)} → ${setText(B)} (${kept} rules so far)`, code: 'keep', math: 'keep', vars: { rules: kept } }); }
+          trace.push({ label: `\`conf >= minconf\`: ${r2(conf)} ≥ ${minconf}? **${ok ? 'True' : 'False'}**${ok ? '' : ', rule dropped'}`, code: 'test', math: 'test', vars: { test: ok ? 'True' : 'False' }, ops: ruleOps(A, B, I) });
+          if (ok) { kept++; trace.push({ label: `\`out.append\`: ${setText(A)} → ${setText(B)} (${kept} rules so far)`, code: 'keep', math: 'keep', vars: { rules: kept }, ops: ruleOps(A, B, I) }); }
         }
       }
     }
@@ -849,15 +880,17 @@ export default function register(sdk) {
     const relB = hb.length / n;
     const lift = conf === null || relB === 0 ? null : conf / relB;
     const word = lift === null ? 'undefined' : lift > 1 + EPS ? 'positive association' : lift < 1 - EPS ? 'negative association' : 'no association';
+    const chipsOf = (ids, X, tone) => T_HL(transactions.flatMap((t) => (ids.includes(t.id) ? chipSel(t, X) : [])), tone);
+    const all = transactions.map((t) => t.id);
     return {
       lift, conf, relB,
       trace: [
-        { label: `\`n = len(transactions)\` = ${n}`, code: 'n', math: 'n', vars: { n } },
-        { label: `\`sup_a\`: ${setText(sortSet(A))} is in ${rowsText(ha)} → ${ha.length}`, code: 'sup-a', math: 'sup-a', vars: { sup_a: ha.length } },
-        { label: `\`sup_ab\`: ${setText(sortSet([...A, ...B]))} is in ${rowsText(hab)} → ${hab.length}`, code: 'sup-ab', math: 'sup-ab', vars: { sup_ab: hab.length } },
-        { label: `\`conf = sup_ab / sup_a\` = ${hab.length} / ${ha.length} = ${r2(conf)}`, code: 'conf', math: 'conf', vars: { conf } },
-        { label: `\`sup_b\`: ${setText(sortSet(B))} is in ${rowsText(hb)} → ${hb.length}`, code: 'sup-b', math: 'sup-b', vars: { sup_b: hb.length } },
-        { label: `\`rel_b = sup_b / n\` = ${hb.length} / ${n} = ${r2(relB)}`, code: 'relb', math: 'relb', vars: { rel_b: relB } },
+        { label: `\`n = len(transactions)\` = ${n}`, code: 'n', math: 'n', vars: { n }, ops: [T_CLEAR(), T_HL(rowSel(all), 'muted')] },
+        { label: `\`sup_a\`: ${setText(sortSet(A))} is in ${rowsText(ha)} → ${ha.length}`, code: 'sup-a', math: 'sup-a', vars: { sup_a: ha.length }, ops: [T_HL(rowSel(ha)), chipsOf(ha, A, 'accent')] },
+        { label: `\`sup_ab\`: ${setText(sortSet([...A, ...B]))} is in ${rowsText(hab)} → ${hab.length}`, code: 'sup-ab', math: 'sup-ab', vars: { sup_ab: hab.length }, ops: [T_HL(rowSel(hab), 'good'), chipsOf(hab, [...A, ...B], 'good')] },
+        { label: `\`conf = sup_ab / sup_a\` = ${hab.length} / ${ha.length} = ${r2(conf)}`, code: 'conf', math: 'conf', vars: { conf }, ops: [T_HL(rowSel(ha)), T_HL(rowSel(hab), 'good')] },
+        { label: `\`sup_b\`: ${setText(sortSet(B))} is in ${rowsText(hb)} → ${hb.length}`, code: 'sup-b', math: 'sup-b', vars: { sup_b: hb.length }, ops: [T_HL(rowSel(hb), 'warn'), chipsOf(hb, B, 'warn')] },
+        { label: `\`rel_b = sup_b / n\` = ${hb.length} / ${n} = ${r2(relB)}`, code: 'relb', math: 'relb', vars: { rel_b: relB }, ops: [T_HL(rowSel(all), 'muted'), T_HL(rowSel(hb), 'warn')] },
         { label: `\`return conf / rel_b\` = ${r2(conf)} / ${r2(relB)} = ${r2(lift)}: ${word}`, code: 'lift', math: 'lift', vars: { lift } },
       ],
     };
@@ -866,12 +899,18 @@ export default function register(sdk) {
   // Line-by-line leverage and conviction. anchors: rels, lev, conv
   function leverageCode({ transactions, A, B }) {
     const m = ruleMetrics({ transactions, A, B });
+    const ha = hitIds(transactions, A), hb = hitIds(transactions, B), hab = hitIds(transactions, [...A, ...B]);
+    // rows where the rule fires but fails: A without B
+    const fails = ha.filter((id) => !hab.includes(id));
     return {
       leverage: m.leverage, conviction: m.conviction,
       trace: [
-        { label: `Relative supports: A ${r2(m.relA)}, B ${r2(m.relB)}, A ∪ B ${r2(m.relAB)}`, code: 'rels', math: 'rels', vars: { s_a: m.relA, s_b: m.relB, s_ab: m.relAB } },
-        { label: `\`s(A | B) - s(A) * s(B)\` = ${r2(m.relAB)} − ${r2(m.relA)} × ${r2(m.relB)} = ${+m.leverage.toFixed(3)}`, code: 'lev', math: 'lev', vars: { leverage: m.leverage } },
-        { label: m.convictionInfinite ? 'conf = 1, so the rule never fails: conviction = ∞' : `\`(1 - rel_b) / (1 - c)\` = (1 − ${r2(m.relB)}) / (1 − ${r2(m.conf)}) = ${r2(m.conviction)}`, code: 'conv', math: 'conv', vars: { conviction: m.convictionInfinite ? 'inf' : m.conviction } },
+        { label: `Relative supports: A ${r2(m.relA)}, B ${r2(m.relB)}, A ∪ B ${r2(m.relAB)}`, code: 'rels', math: 'rels', vars: { s_a: m.relA, s_b: m.relB, s_ab: m.relAB },
+          ops: [T_CLEAR(), T_HL(rowSel(ha)), T_HL(rowSel(hb), 'warn'), T_HL(rowSel(hab), 'good'),
+            ...transactions.map((t) => T_NOTE(`row:${t.id}`, [ha.includes(t.id) && 'A', hb.includes(t.id) && 'B'].filter(Boolean).join(' + ') || '–'))] },
+        { label: `\`s(A | B) - s(A) * s(B)\` = ${r2(m.relAB)} − ${r2(m.relA)} × ${r2(m.relB)} = ${+m.leverage.toFixed(3)}`, code: 'lev', math: 'lev', vars: { leverage: m.leverage }, ops: [T_HL(rowSel(hab), 'good')] },
+        { label: m.convictionInfinite ? 'conf = 1, so the rule never fails: conviction = ∞' : `\`(1 - rel_b) / (1 - c)\` = (1 − ${r2(m.relB)}) / (1 − ${r2(m.conf)}) = ${r2(m.conviction)}`, code: 'conv', math: 'conv', vars: { conviction: m.convictionInfinite ? 'inf' : m.conviction },
+          ops: [T_HL(rowSel(hab), 'good'), T_HL(rowSel(fails), 'bad')] },
       ],
     };
   }

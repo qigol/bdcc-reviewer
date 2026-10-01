@@ -173,6 +173,8 @@ export const Section = z
     data: z.array(Id).optional(),
     state: z.record(Ident, Value).optional(),
     derive: z.array(Derive).optional(),
+    /** widgets for the live-example panel (default: one widget per dataset in `data`); trace ops target them by id or role */
+    live: z.array(StageWidget).optional(),
     steps: z.array(z.object({ tex: Tex, say: Markdown }).strict()).min(2),
     code: CodeBlock,
     extraCode: z.array(z.object({ lang: z.string().optional(), title: z.string(), source: z.string() }).strict()).optional(),

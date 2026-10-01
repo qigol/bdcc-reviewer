@@ -9,6 +9,13 @@ sections:
     data: [hp4x7]
     derive:
       - { fn: center, in: { matrix: '@hp4x7' }, out: c }
+    live:
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@hp4x7'
+          title: Harry Potter / Twilight / Star Wars ratings
+          showRowMeans: true
     steps:
       - tex: |
           \anchor{rated}{M_{uj} = \begin{cases} \text{T} & r_{uj} \text{ observed} \\ \text{F} & \text{blank} \end{cases}}
@@ -35,7 +42,16 @@ sections:
         import numpy as np
 
         def center(R):
-            """R: users × items ratings; np.nan = not rated"""
+            """Mean-center each user's ratings.
+
+            Args:
+                R: users × items ratings, np.nan where a user did not rate.
+
+            Returns:
+                (S, mu): S = R minus each row's mean (blanks stay np.nan, every
+                row of S sums to 0), and mu = the user means as a 1-D array.
+                Lecture: mu == [10/3, 14/3, 11/3, 3] for users A–D.
+            """
             # @a rated
             # True where a rating exists (~ flips np.isnan)
             M = ~np.isnan(R)
@@ -67,6 +83,11 @@ sections:
           import numpy as np
 
           def center(R):
+              """Same result as the step-by-step version, using np.nanmean.
+
+              Returns:
+                  (S, mu): centered ratings and the user means.
+              """
               mu = np.nanmean(R, axis=1)     # mean of each row, NaN skipped
               S = R - mu[:, None]            # [:, None] turns mu into a column
               return S, mu
@@ -127,7 +148,18 @@ sections:
         import numpy as np
 
         def user_sims(S):
-            """S: centered ratings (np.nan = blank)"""
+            """Pearson similarity of every pair of users, over co-rated items only.
+
+            Cosine of the centered rows, where both sums and both norms run only
+            over the items the two users have both rated.
+
+            Args:
+                S: users × items centered ratings, np.nan = blank.
+
+            Returns:
+                users × users array of similarities in [−1, 1]; 0 where a pair
+                shares no rated item (a norm of 0).
+            """
             # @a mask
             # 1 where rated, 0 where blank
             M = (~np.isnan(S)).astype(float)
@@ -198,6 +230,18 @@ sections:
     state: { user: B, item: c, k: 3 }
     derive:
       - { fn: predict, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user }, out: p }
+    live:
+      - id: k-slider
+        widget: Slider
+        region: top
+        props: { label: 'k (neighbours)', min: 1, max: 4, step: 1 }
+        bind: { value: k }
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@ab5x6'
+          title: Five users × six items
+          showRowMeans: false
     steps:
       - tex: |
           P_u(j) = \{\, v : \anchor{raters}{r_{vj} \text{ observed}},\ \anchor{self}{v \neq u} \,\} \;\to\; \anchor{idx}{\text{their row numbers}}
@@ -221,7 +265,19 @@ sections:
         import numpy as np
 
         def neighbors(S, sims, u, j, k):
-            """rows of u's usable neighbours for item j"""
+            """User u's usable neighbours for item j, as row numbers.
+
+            The k users most similar to u among those who rated j (u excluded),
+            then only the ones with a positive similarity.
+
+            Args:
+                S: centered ratings; sims: user_sims(S).
+                u: row of the target user; j: column of the target item.
+                k: how many neighbours to keep before the sim > 0 filter.
+
+            Returns:
+                1-D int array of rows, most similar first (may be empty).
+            """
             # @a raters
             # who rated item j? (column j of S)
             raters = ~np.isnan(S[:, j])
@@ -274,6 +330,18 @@ sections:
     derive:
       - { fn: predict, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user }, out: p }
       - { fn: predictSheet, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k', mode: user }, out: ps }
+    live:
+      - id: k-slider
+        widget: Slider
+        region: top
+        props: { label: 'k (neighbours)', min: 1, max: 4, step: 1 }
+        bind: { value: k }
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@ab5x6'
+          title: Five users × six items
+          showRowMeans: false
     steps:
       - tex: |
           \anchor{nbrs}{N = N_u(j)} \ (\text{previous section}), \qquad \anchor{blank}{N = \varnothing \;\Rightarrow\; \text{blank}}
@@ -298,7 +366,18 @@ sections:
         import numpy as np
 
         def predict_user_based(S, mu, sims, u, j, k):
-            """mu: user means; sims = user_sims(S)"""
+            """User-based prediction of user u's rating of item j.
+
+            A similarity-weighted average of the neighbours' centered ratings of
+            j, plus u's own mean to undo the centering.
+
+            Args:
+                S: centered ratings; mu: user means; sims: user_sims(S).
+                u, j: row and column of the target cell; k: neighbourhood size.
+
+            Returns:
+                float rating, or np.nan when no neighbour is left.
+            """
             # @a nbrs
             # u's positive top-k neighbours who rated j
             N = neighbors(S, sims, u, j, k)
@@ -387,7 +466,18 @@ sections:
         import numpy as np
 
         def item_sims(S):
-            """S is centered by USER (row) means"""
+            """Pearson similarity of every pair of items, over co-rating users only.
+
+            Same computation as user_sims on the columns. S is centered by USER
+            (row) means, as in the lecture.
+
+            Args:
+                S: users × items centered ratings, np.nan = blank.
+
+            Returns:
+                items × items array of similarities in [−1, 1]; 0 where a pair
+                shares no rater.
+            """
             # @a mask
             # 1 where rated, 0 where blank
             M = (~np.isnan(S)).astype(float)
@@ -460,6 +550,18 @@ sections:
     derive:
       - { fn: predict, in: { matrix: '@hp4x7', user: '@user', item: '@item', k: '@k', mode: item }, out: p }
       - { fn: predictSheet, in: { matrix: '@hp4x7', user: '@user', item: '@item', k: '@k', mode: item }, out: ps }
+    live:
+      - id: k-slider
+        widget: Slider
+        region: top
+        props: { label: 'k (similar items)', min: 1, max: 6, step: 1 }
+        bind: { value: k }
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@hp4x7'
+          title: Harry Potter / Twilight / Star Wars ratings
+          showRowMeans: false
     steps:
       - tex: |
           \text{cands} = \{\, i : \anchor{rated}{r_{ui} \text{ observed}},\ \anchor{self}{i \neq j} \,\} \;\to\; \anchor{idx}{\text{their column numbers}}
@@ -482,7 +584,19 @@ sections:
         import numpy as np
 
         def predict_item_based(S, mu, isims, u, j, k):
-            """isims = item_sims(S)"""
+            """Item-based prediction of user u's rating of item j.
+
+            Takes the k items most similar to j among those u rated (positive
+            similarities only) and averages u's OWN centered ratings of them,
+            weighted by similarity, then adds u's mean back.
+
+            Args:
+                S: centered ratings; mu: user means; isims: item_sims(S).
+                u, j: row and column of the target cell; k: neighbourhood size.
+
+            Returns:
+                float rating, or np.nan when no similar item is left.
+            """
             # @a rated
             # items u rated (row u of S)
             rated = ~np.isnan(S[u])
@@ -568,6 +682,16 @@ sections:
     data: [dcg6]
     derive:
       - { fn: dcg, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 }, out: d }
+    live:
+      - id: ranklist
+        widget: RankList
+        props:
+          items: '@dcg6.items'
+          relevance: '@dcg6.ratings'
+          order: '@dcg6.rec'
+          k: 5
+          showRelevance: true
+          showGain: true
     steps:
       - tex: |
           \anchor{rel}{\mathbf{rel} = (rel_1, \dots, rel_k)}, \qquad \anchor{pos}{\mathbf{i} = (1, 2, \dots, k)}
@@ -591,7 +715,18 @@ sections:
         import numpy as np
 
         def dcg(rel, k):
-            """rel: true relevance, in ranked order"""
+            """Discounted cumulative gain of a ranked list, cut at k.
+
+            Each position i (from 1) contributes (2^rel − 1) / log2(i + 1), so
+            relevant items count more the higher they are ranked.
+
+            Args:
+                rel: true relevance of each recommended item, in ranked order.
+                k: how many positions to score.
+
+            Returns:
+                float: the DCG@k.
+            """
             # @a rel
             # the first k positions, as a float array
             rel = np.asarray(rel[:k], dtype=float)
@@ -640,6 +775,16 @@ sections:
     data: [dcg6]
     derive:
       - { fn: ndcg, in: { ratings: '@dcg6.ratings', list: '@dcg6.rec', k: 5 }, out: n }
+    live:
+      - id: ranklist
+        widget: RankList
+        props:
+          items: '@dcg6.items'
+          relevance: '@dcg6.ratings'
+          order: '@dcg6.rec'
+          k: 5
+          showRelevance: true
+          showGain: true
     steps:
       - tex: |
           \anchor{dcg}{d = \text{DCG}@k(\mathbf{rel})}
@@ -661,7 +806,16 @@ sections:
         import numpy as np
 
         def ndcg(rel, all_rel, k):
-            """all_rel: every item's true relevance"""
+            """Normalized DCG: the list's DCG over the best possible DCG.
+
+            Args:
+                rel: relevance of the recommended items, in ranked order.
+                all_rel: relevance of every item (used to build the ideal list).
+                k: cut-off.
+
+            Returns:
+                float in [0, 1]; 1 means the list is already ideally ordered.
+            """
             # @a dcg
             # DCG of the recommended list
             d = dcg(rel, k)
@@ -705,6 +859,18 @@ sections:
     state: { a: B, b: A, beta: 3 }
     derive:
       - { fn: shrunkSim, in: { matrix: '@hp4x7', a: '@a', b: '@b', mode: user, beta: '@beta' }, out: w }
+    live:
+      - id: beta-slider
+        widget: Slider
+        region: top
+        props: { label: 'β (cap on co-rated items)', min: 1, max: 6, step: 1 }
+        bind: { value: beta }
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@hp4x7'
+          title: Harry Potter / Twilight / Star Wars ratings
+          showRowMeans: false
     steps:
       - tex: |
           \anchor{mask}{M_{uj} \in \{0, 1\}}, \qquad \anchor{both}{|I_u \cap I_v| = \sum_j M_{uj} M_{vj} = (M M^{\top})_{uv}}
@@ -726,7 +892,18 @@ sections:
         import numpy as np
 
         def shrunk_sims(S, sims, beta=3):
-            """sims = user_sims(S)"""
+            """Significance weighting: shrink similarities that rest on few co-rated items.
+
+            Each similarity is multiplied by min(both, β) / β, where `both` is how
+            many items the two users have both rated.
+
+            Args:
+                S: centered ratings; sims: user_sims(S).
+                beta: overlap at which a similarity is trusted in full.
+
+            Returns:
+                users × users array of shrunk similarities.
+            """
             # @a mask
             # 1 where rated, 0 where blank
             M = (~np.isnan(S)).astype(int)

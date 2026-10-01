@@ -13,6 +13,7 @@ import {
 import { WIDGET_BY_NAME, WIDGET_NAMES, COMMON_COMMANDS } from './widgets';
 import { collectInterps, collectRefs, isRef, resolveRefs, interpolate, getPath, wordCount, type Scope } from './interpolate';
 import { texAnchors, parseCodeAnchors } from './anchors';
+import { sectionLiveWidgets, liveRoleTarget, PANE_ROLES } from './live';
 import { parseExpr, varsOf } from './expr';
 import { buildInstance, valuesEqual } from './quiz';
 import type { FileMap } from './bundle';
@@ -433,11 +434,27 @@ export function sectionAnchors(s: Section) {
   return { tex, code, extra, problems: main.problems, lines: main.lines.length };
 }
 
+/** Lines of displayed code, not counting Python docstrings (they document the code; the 30-line limit is about the logic). */
+export function codeLineCount(source: string, lang = 'python'): number {
+  const lines = parseCodeAnchors(source, lang).lines;
+  if (lang !== 'python') return lines.length;
+  let n = 0, inDoc = false;
+  for (const l of lines) {
+    const t = l.trim();
+    const quotes = (t.match(/"""/g) ?? []).length;
+    if (inDoc) { if (quotes % 2 === 1) inDoc = false; continue; }
+    if (t.startsWith('"""')) { if (quotes % 2 === 1) inDoc = true; continue; }
+    n++;
+  }
+  return n;
+}
+
 function checkSection(s: Section, i: number, ctx: Ctx) {
   const file = 'math-code.yaml';
   const p = `sections[${i}]`;
   checkSkills(s.skills, file, `${p}.skills`, ctx);
   const scope = buildScope(ctx, file, p, { data: s.data, state: s.state, derive: s.derive });
+  if (s.live) checkStage(s.live, scope, new Set(Object.keys(s.state ?? {})), file, `${p}.live`, ctx);
   checkText(s.summary, scope, file, `${p}.summary`, ctx);
   s.steps.forEach((st, j) => { checkText(st.tex, scope, file, `${p}.steps[${j}].tex`, ctx); checkText(st.say, scope, file, `${p}.steps[${j}].say`, ctx); });
   if (s.keyFormula && s.keyFormula.includes('{=')) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.keyFormula`, message: 'keyFormula goes to the cheat sheet and must not contain {=…}' });
@@ -583,8 +600,8 @@ export function lintModule(mod: ParsedModule): Issue[] {
     const p = `sections[${i}]`;
     limit(s.summary, 60, 'math-code.yaml', `${p}.summary`, 'section summary');
     if (!s.examTip) w('math-code.yaml', `section "${s.id}" has no examTip`, p);
-    const lines = parseCodeAnchors(s.code.source, s.code.lang ?? 'python').lines.length;
-    if (lines > 30) w('math-code.yaml', `section "${s.id}" code has ${lines} lines (limit 30)`, `${p}.code`);
+    const lines = codeLineCount(s.code.source, s.code.lang ?? 'python');
+    if (lines > 30) w('math-code.yaml', `section "${s.id}" code has ${lines} lines, not counting docstrings (limit 30)`, `${p}.code`);
     const a = sectionAnchors(s);
     if (a.tex.size < 2 && s.steps.length > 2) w('math-code.yaml', `section "${s.id}" has fewer than 2 anchors`, p);
   });
@@ -680,7 +697,7 @@ export async function runLogicChecks(
   }
 
   // derive + trace smoke for scenes, sections, case
-  const checkTrace = (result: any, file: string, path: string, anchorSets?: { tex: Set<string>; code: Set<string>; extra: Set<string> }) => {
+  const checkTrace = (result: any, file: string, path: string, anchorSets?: { tex: Set<string>; code: Set<string>; extra: Set<string> }, liveTargets?: StageWidget[]) => {
     const trace = result?.trace as TraceStep[] | undefined;
     if (!Array.isArray(trace) || !trace.length) { E('logic', file, path, 'trace fn returned no `trace` array'); return; }
     if (trace.length > 400) W('logic', file, path, `trace has ${trace.length} steps (limit 400)`);
@@ -690,6 +707,9 @@ export async function runLogicChecks(
       if (anchorSets) {
         if (st.code && !anchorSets.code.has(st.code) && !anchorSets.extra.has(st.code)) W('logic', file, path, `trace step ${k} lights code anchor "${st.code}" that this section's code does not define`);
         if (st.math && !anchorSets.tex.has(st.math)) W('logic', file, path, `trace step ${k} lights math anchor "${st.math}" that this section's derivation does not define`);
+      }
+      if (liveTargets) for (const op of st.ops ?? []) {
+        if (!PANE_ROLES.has(op.role) && !liveRoleTarget(op.role, liveTargets)) W('logic', file, path, `trace step ${k} has an op for role "${op.role}", which matches no live widget (ids: ${liveTargets.map((w) => w.id).join(', ') || 'none'})`);
       }
     });
   };
@@ -741,9 +761,10 @@ export async function runLogicChecks(
     try {
       const scope = await runDerive(host, s.derive, { ...datasetScope(mod, s.data), ...structuredClone(s.state ?? {}) });
       checkResolved([s.steps, s.summary, s.links], scope, 'math-code.yaml', p);
+      if (s.live) await smokeStage(s.live, scope, 'math-code.yaml', `${p}.live`);
       if (s.trace && fnSet.has(s.trace.fn)) {
         const res = await host.call(s.trace.fn, resolveRefs(s.trace.in, scope));
-        checkTrace(res, 'math-code.yaml', `${p}.trace`, sectionAnchors(s));
+        checkTrace(res, 'math-code.yaml', `${p}.trace`, sectionAnchors(s), sectionLiveWidgets(s, mod.datasets));
       }
     } catch (e: any) { E('logic', 'math-code.yaml', p, `derive/trace failed: ${e?.message ?? e}`); }
   }

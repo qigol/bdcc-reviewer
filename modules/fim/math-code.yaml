@@ -10,6 +10,14 @@ sections:
     state: { X: [bread, milk] }
     derive:
       - { fn: support, in: { transactions: '@grocery5', itemset: '@X' }, out: s }
+    live:
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
+          highlight: '@X'
+          showContainCount: true
     steps:
       - tex: |
           \text{AbsSup}(X) = \anchor{ret}{\left|\{\, \anchor{loop}{T \in D} : \anchor{test}{X \subseteq T} \,\}\right|}
@@ -27,6 +35,16 @@ sections:
       lang: python
       source: |
         def abs_support(X, transactions):
+            """Absolute support: how many transactions contain every item of X.
+
+            Args:
+                X: the itemset, e.g. {"bread", "milk"}.
+                transactions: the database, one collection of items per basket.
+
+            Returns:
+                int: the number of baskets T with X ⊆ T.
+                Lecture: abs_support({"bread", "milk"}, D) == 2.
+            """
             count = 0                     # @a:init
             for T in transactions:        # @a:loop
                 if set(X) <= set(T):      # @a:test
@@ -34,6 +52,12 @@ sections:
             return count                  # @a:ret
 
         def rel_support(X, transactions):
+            """Relative support: the fraction of transactions that contain X.
+
+            Returns:
+                float in [0, 1]: abs_support(X) / |D|.
+                Lecture: rel_support({"bread", "milk"}, D) == 2 / 5 == 0.4.
+            """
             return abs_support(X, transactions) / len(transactions)  # @a:rel
     links:
       - { anchor: init, label: 'count = 0' }
@@ -63,6 +87,12 @@ sections:
       - fn: frequentAmong
         in: { transactions: '@grocery5', minsup: '@minsup', itemsets: [[bread, butter, milk], [bread, butter], [bread, milk], [butter, milk], [bread], [butter], [milk]] }
         out: fa
+    live:
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
     steps:
       - tex: |
           X \text{ is frequent} \iff \anchor{sup}{\text{Sup}(X)} \ge \anchor{minsup}{\text{minsup}}
@@ -83,6 +113,17 @@ sections:
       lang: python
       source: |
         def frequent_itemsets(candidates, transactions, minsup):
+            """Keep the candidate itemsets whose support reaches minsup.
+
+            Args:
+                candidates: itemsets to test.
+                transactions: the database.
+                minsup: an absolute count (≥ 1) or, if below 1, a relative
+                    threshold compared with abs_support / |D|.
+
+            Returns:
+                list: the frequent candidates, in the order they were given.
+            """
             frequent = []                              # @a:init
             for X in candidates:                       # @a:loop
                 sup = abs_support(X, transactions)     # @a:sup
@@ -119,6 +160,12 @@ sections:
     state: { n: 6 }
     derive:
       - { fn: explosion, in: { n: '@n' }, out: ex }
+    live:
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
     steps:
       - tex: |
           \anchor{size}{k = 1, \dots, n}: \quad \anchor{loop}{X \in \tbinom{I}{k}} \;\Rightarrow\; \anchor{count}{\text{Sup}(X)} \;\Rightarrow\; \anchor{test}{\ge \text{minsup}?} \;\Rightarrow\; \anchor{keep}{\text{store } X}
@@ -135,6 +182,15 @@ sections:
         from itertools import combinations
 
         def brute_force(transactions, minsup):
+            """Brute force: count the support of every non-empty itemset.
+
+            Tries all 2^n − 1 combinations of the n distinct items, smallest
+            first, and stores each one whose support reaches minsup.
+
+            Returns:
+                dict: {itemset tuple: absolute support} for every frequent itemset.
+                Lecture (minsup 2): 63 itemsets counted, 11 frequent.
+            """
             items = sorted({i for T in transactions for i in T})   # @a:n
             frequent = {}
             for k in range(1, len(items) + 1):                     # @a:size
@@ -168,6 +224,17 @@ sections:
     state: { minsup: 2 }
     derive:
       - { fn: aprioriRun, in: { transactions: '@grocery5', minsup: '@minsup' }, out: ap }
+    live:
+      - id: minsup-slider
+        widget: Slider
+        region: top
+        props: { label: 'minsup (absolute count)', min: 1, max: 5, step: 1 }
+        bind: { value: minsup }
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
     steps:
       - tex: |
           \text{Sup}(X) < \text{minsup} \;\Rightarrow\; \text{Sup}(Y) < \text{minsup} \quad \forall\, Y \supseteq X
@@ -190,6 +257,20 @@ sections:
         ORDER = ["bread", "butter", "milk", "eggs", "yogurt", "cheese"]  # slide 19
 
         def apriori(transactions, minsup, order=ORDER):
+            """Apriori as taught on slide 19: grow only from frequent itemsets.
+
+            Level 1 is every single item. Each later level extends every frequent
+            itemset by one frequent single item (items1) that comes later in
+            `order`, so supersets of infrequent itemsets are never counted.
+
+            Args:
+                transactions: the database.
+                minsup: absolute support threshold.
+                order: the item order used to extend itemsets (slide 19's listing).
+
+            Returns:
+                dict: {itemset tuple: absolute support} for every frequent itemset.
+            """
             candidates = [(i,) for i in order]                 # @a:level
             frequent, items1 = {}, None
             while candidates:                                  # @a:while
@@ -213,6 +294,15 @@ sections:
           from itertools import combinations
 
           def apriori_classic(transactions, minsup):
+              """Classic Apriori (beyond the slides): join, then prune, then count.
+
+              Joins frequent (k−1)-itemsets that share their first k−2 items, drops
+              any candidate with an infrequent (k−1)-subset, and only then counts
+              support.
+
+              Returns:
+                  dict: {itemset tuple: absolute support} for every frequent itemset.
+              """
               items = sorted({i for T in transactions for i in T})
               L = [(i,) for i in items if abs_support((i,), transactions) >= minsup]
               frequent, k = {X: abs_support(X, transactions) for X in L}, 2
@@ -254,6 +344,17 @@ sections:
     state: { minsup: 2 }
     derive:
       - { fn: fpGrowthRun, in: { transactions: '@grocery5', minsup: '@minsup' }, out: fp }
+    live:
+      - id: minsup-slider
+        widget: Slider
+        region: top
+        props: { label: 'minsup (absolute count)', min: 1, max: 5, step: 1 }
+        bind: { value: minsup }
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
     steps:
       - tex: |
           \anchor{items}{I(D_P)} = \text{items present in } D_P, \qquad \anchor{loop}{\text{for each } i \in I(D_P)}
@@ -273,6 +374,20 @@ sections:
         ORDER = ["bread", "butter", "cheese", "eggs", "milk", "yogurt"]  # alphabetical
 
         def fp_growth(rows, minsup, prefix=(), out=None):
+            """FP-growth by projected databases (recursive, no candidate generation).
+
+            For each item i, keep the rows that contain i, cut them to the items
+            after i, and recurse on that smaller database with prefix + (i,).
+
+            Args:
+                rows: the (projected) database, each row sorted by ORDER.
+                minsup: absolute support threshold.
+                prefix: the itemset this call is extending; () at the top.
+                out: the dict being filled; created on the first call.
+
+            Returns:
+                dict: {itemset tuple: absolute support}. Lecture (minsup 2): 11 itemsets.
+            """
             out = {} if out is None else out
             items = sorted({i for T in rows for i in T}, key=ORDER.index)   # @a:items
             for i in items:                                                 # @a:loop
@@ -313,6 +428,14 @@ sections:
     state: { A: [bread], B: [butter] }
     derive:
       - { fn: confidence, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: c }
+    live:
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
+          highlight: '@A'
+          showContainCount: true
     steps:
       - tex: |
           \text{Conf}(A \rightarrow B) = P(B \mid A)
@@ -330,6 +453,17 @@ sections:
       lang: python
       source: |
         def confidence(A, B, transactions):
+            """Confidence of the rule A → B: of the baskets with A, the share that also have B.
+
+            Args:
+                A: antecedent itemset.
+                B: consequent itemset.
+                transactions: the database.
+
+            Returns:
+                float: Sup(A ∪ B) / Sup(A).
+                Lecture: confidence({"bread"}, {"butter"}, D) == 1 / 2 == 0.5.
+            """
             sup_a = sup_ab = 0                 # @a:init
             for T in transactions:             # @a:loop
                 if set(A) <= set(T):           # @a:has-a
@@ -365,6 +499,17 @@ sections:
     derive:
       - { fn: rules, in: { transactions: '@grocery5', minsup: 2, minconf: '@minconf' }, out: r }
       - { fn: rulesFromItemset, in: { transactions: '@grocery5', itemset: '@I', minconf: '@minconf' }, out: one }
+    live:
+      - id: minconf-slider
+        widget: Slider
+        region: top
+        props: { label: minconf, min: 0, max: 1, step: 0.05 }
+        bind: { value: minconf }
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
     steps:
       - tex: |
           \anchor{init}{R = \emptyset}; \quad \anchor{itemset}{\text{for each frequent } I}, \quad \anchor{skip}{|I| < 2 \Rightarrow \text{skip}}
@@ -384,7 +529,19 @@ sections:
         from itertools import combinations
 
         def rules(frequent, minconf):
-            """frequent: {frozenset(itemset): abs support}"""
+            """Generate every association rule A → I − A that meets minconf.
+
+            Splits each frequent itemset I into antecedent A and consequent
+            I − A, bigger antecedents first. Every support it needs is already
+            in `frequent` (each subset of a frequent itemset is frequent).
+
+            Args:
+                frequent: {frozenset(itemset): absolute support}.
+                minconf: confidence threshold between 0 and 1.
+
+            Returns:
+                list of (A, B, conf) tuples. Lecture: 16 rules tried, 13 kept.
+            """
             out = []                                       # @a:init
             for I, sup_I in frequent.items():              # @a:itemset
                 if len(I) < 2:                             # @a:skip
@@ -429,6 +586,14 @@ sections:
     state: { A: [bread], B: [butter] }
     derive:
       - { fn: lift, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: l }
+    live:
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
+          highlight: '@A'
+          showContainCount: true
     steps:
       - tex: |
           \text{Lift}(A \rightarrow B) = \frac{\anchor{conf}{\text{Conf}(A \rightarrow B)}}{\anchor{relb}{\text{RelSup}(B)}} = \frac{P(B \mid A)}{P(B)}
@@ -446,6 +611,17 @@ sections:
       lang: python
       source: |
         def lift(A, B, transactions):
+            """Lift of A → B: confidence divided by B's overall frequency.
+
+            Args:
+                A, B: itemsets (sets, so A | B is their union).
+                transactions: the database.
+
+            Returns:
+                float: conf(A → B) / RelSup(B). Above 1 = positive association,
+                1 = independent, below 1 = negative.
+                Lecture: lift({"bread"}, {"butter"}, D) == 0.5 / 0.2 == 2.5.
+            """
             n = len(transactions)                        # @a:n
             sup_a = abs_support(A, transactions)         # @a:sup-a
             sup_ab = abs_support(A | B, transactions)    # @a:sup-ab
@@ -482,6 +658,14 @@ sections:
     state: { A: [bread], B: [butter] }
     derive:
       - { fn: ruleMetrics, in: { transactions: '@grocery5', A: '@A', B: '@B' }, out: m }
+    live:
+      - id: table
+        widget: TransactionTable
+        props:
+          transactions: '@grocery5'
+          title: Lecture grocery database
+          highlight: '@A'
+          showContainCount: true
     steps:
       - tex: |
           \anchor{rels}{s(X) = \text{RelSup}(X)}, \qquad \anchor{lev}{\text{Leverage}} = s(A \cup B) - s(A)\,s(B)
@@ -496,6 +680,14 @@ sections:
       lang: python
       source: |
         def leverage_conviction(A, B, transactions):
+            """Leverage and conviction of A → B, from relative supports.
+
+            Returns:
+                (lev, conv):
+                lev = s(A ∪ B) − s(A)·s(B), how far the pair beats independence;
+                conv = (1 − s(B)) / (1 − conf), how often the rule would fail by
+                chance compared with how often it does fail (inf when conf = 1).
+            """
             n = len(transactions)
             s = lambda X: abs_support(X, transactions) / n            # @a:rels
             lev = s(A | B) - s(A) * s(B)                               # @a:lev

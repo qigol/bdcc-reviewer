@@ -29,7 +29,15 @@ sections:
         import numpy as np
 
         def predict(U, V, i, j):
-            """U: m × d user factors, V: d × n item factors"""
+            """Predicted rating of user i for item j: one dot product.
+
+            Args:
+                U: m × d user-factor matrix; V: d × n item-factor matrix.
+                i: user row; j: item column.
+
+            Returns:
+                float: u_i · v_j.
+            """
             # @a u
             # user i's factors: row i of U, shape (d,)
             u_i = U[i]
@@ -44,6 +52,11 @@ sections:
             # @end
 
         def predict_all(U, V):
+            """Every predicted rating at once.
+
+            Returns:
+                m × n array P = U @ V; P[i, j] == predict(U, V, i, j).
+            """
             # @a all
             # every cell at once: (m × d) @ (d × n) → m × n
             return U @ V
@@ -93,7 +106,15 @@ sections:
         import numpy as np
 
         def sse(R, U, V):
-            """R: m × n ratings, np.nan = missing"""
+            """Sum of squared errors over the OBSERVED cells only.
+
+            Args:
+                R: m × n ratings, np.nan = missing; U: m × d; V: d × n.
+
+            Returns:
+                float: Σ (r_ij − u_i · v_j)² over the cells where R has a rating.
+                Lecture: all-ones U and V give SSE = 75 over 22 ratings.
+            """
             # @a pred
             # every prediction at once
             P = U @ V
@@ -121,6 +142,7 @@ sections:
           import numpy as np
 
           def sse(R, U, V):
+              """Same SSE in one line: np.nansum skips the NaN (missing) terms."""
               return np.nansum((R - U @ V) ** 2)   # NaN terms are skipped
     links:
       - { anchor: pred, label: 'P = U @ V' }
@@ -173,7 +195,18 @@ sections:
         import numpy as np
 
         def als_step_V(R, U):
-            """U frozen (m × d) → the best V (d × n)"""
+            """One ALS half-step: with U frozen, find the best V.
+
+            Each item j is its own least-squares regression: features are the
+            frozen U rows of the users who rated j, targets are their ratings.
+
+            Args:
+                R: m × n ratings, np.nan = missing; U: m × d, held fixed.
+
+            Returns:
+                d × n array V. Lecture (U all ones): V's rows are both
+                [1.75, 1.5, 1.8, 1.6, 1.625].
+            """
             # @a init
             # the result, one column per item, filled in below
             V = np.zeros((U.shape[1], R.shape[1]))
@@ -202,6 +235,11 @@ sections:
             return V
 
         def als_step_U(R, V):
+            """The other half-step: with V frozen, find the best U.
+
+            Transposing swaps the roles of users and items, so the V-step code
+            solves for U; the final .T turns the result back into m × d.
+            """
             # @a transpose
             # the same problem with users and items swapped
             return als_step_V(R.T, V.T).T
@@ -233,6 +271,28 @@ sections:
     state: { iters: 3, initKind: ones }
     derive:
       - { fn: als, in: { R: '@r5x5', iters: '@iters', initKind: '@initKind' }, out: run }
+    live:
+      - id: iters-slider
+        widget: Slider
+        region: top
+        props: { label: 'iterations', min: 1, max: 10, step: 1 }
+        bind: { value: iters }
+      - id: init-choice
+        widget: Choice
+        region: top
+        props:
+          label: Starting U
+          style: segmented
+          options:
+            - { value: ones, label: 'all ones (lecture)' }
+            - { value: random, label: random }
+        bind: { value: initKind }
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@r5x5'
+          title: 'Lecture rating matrix (while stepping, the blanks show the current predictions)'
+          showRowMeans: false
     steps:
       - tex: |
           \anchor{init}{U^{(0)}} \;\xrightarrow{\ \anchor{solve-v}{\text{solve } V}\ }\; V^{(1)} \;\xrightarrow{\ \anchor{solve-u}{\text{solve } U}\ }\; U^{(1)} \;\to \cdots \quad (\anchor{loop}{t = 1, \dots, T})
@@ -251,6 +311,18 @@ sections:
         import numpy as np
 
         def als(R, d=2, iters=3, init="ones", seed=0):
+            """Alternating least squares: repeat V-step, U-step.
+
+            Args:
+                R: m × n ratings, np.nan = missing.
+                d: number of latent factors.
+                iters: how many (V-step, U-step) rounds to run.
+                init: "ones" (the lecture) or "random".
+                seed: seed for the random start.
+
+            Returns:
+                (U, V). Prints the SSE after every round; it never goes up.
+            """
             # @a init
             # all ones (the lecture), or random numbers in [0.5, 1.5)
             U = np.ones((R.shape[0], d))
@@ -320,7 +392,18 @@ sections:
         import numpy as np
 
         def update_u(R, U, V, i, s):
-            """exact minimizer of the SSE in the single entry U[i, s]"""
+            """Coordinate descent on one entry: the exact best value of U[i, s].
+
+            With everything else fixed, the SSE is a parabola in U[i, s]; this
+            jumps straight to its minimum, using only the items user i rated.
+
+            Args:
+                R: ratings (np.nan = missing); U, V: current factors.
+                i: user row; s: factor index.
+
+            Returns:
+                U, updated in place.
+            """
             # @a obs
             # the items user i rated
             rated = ~np.isnan(R[i])
@@ -385,10 +468,23 @@ sections:
     code:
       lang: python
       source: |
+        """The lecture's worked example (slides 9–14): x = u11, then y = v11.
+
+        Lecture: x == 2.6 and y ≈ 1.68.
+        """
+
         import numpy as np
 
         def update_v(R, U, V, s, j):
-            """the same recipe for V[s, j], over the users who rated j"""
+            """Coordinate descent on V[s, j]: the same recipe, over item j's raters.
+
+            Args:
+                R: ratings (np.nan = missing); U, V: current factors.
+                s: factor index; j: item column.
+
+            Returns:
+                V, updated in place.
+            """
             # @a obs
             # the users who rated item j
             rated = ~np.isnan(R[:, j])
@@ -474,6 +570,12 @@ sections:
     code:
       lang: python
       source: |
+        """Fill the blanks of R with the latent-factor predictions.
+
+        Fit U and V with ALS, predict every cell with U @ V, and keep the
+        known ratings where they exist.
+        """
+
         import numpy as np
 
         # @a fit
@@ -522,6 +624,18 @@ sections:
       - { fn: als, in: { R: '@r5x5', iters: 10, initKind: random, seed: 7, lambda: '@lambda' }, out: reg }
       - { fn: fillMissing, in: { R: '@r5x5', U: '@reg.U', V: '@reg.V' }, out: fr }
       - { fn: init, in: { R: '@r5x5', d: 2, kind: ones }, out: st }
+    live:
+      - id: lambda-slider
+        widget: Slider
+        region: top
+        props: { label: 'λ', min: 0, max: 5, step: 0.5 }
+        bind: { value: lambda }
+      - id: matrix
+        widget: Matrix
+        props:
+          data: '@r5x5'
+          title: Lecture rating matrix
+          showRowMeans: false
     steps:
       - tex: |
           \begin{gathered} \anchor{init}{V = 0_{d \times n}} \\ \anchor{loop}{\text{for each item } j}: \quad \mathbf{v}_j = \anchor{ridge}{(\anchor{lam}{U_{o}^\top U_{o} + \lambda I})^{-1}\, \anchor{rhs}{U_{o}^\top \mathbf{r}_{o}}} \end{gathered}
@@ -543,7 +657,18 @@ sections:
         import numpy as np
 
         def ridge_step_V(R, U, lam):
-            """the V-step with a penalty lam · ‖v‖² (ridge regression)"""
+            """Regularized V-step: ridge regression for each item.
+
+            Minimizes ‖Uo v − r‖² + λ‖v‖² for every column, which keeps the
+            factors small and always has exactly one solution when λ > 0.
+
+            Args:
+                R: ratings (np.nan = missing); U: m × d, held fixed.
+                lam: penalty strength λ ≥ 0 (0 = the plain least-squares step).
+
+            Returns:
+                d × n array V.
+            """
             # @a init
             # d factors; the result has one column per item
             d = U.shape[1]

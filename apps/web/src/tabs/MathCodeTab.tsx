@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Check, ChevronRight, ExternalLink, Footprints, ListOrdered, Rocket, X, Eye, EyeOff } from 'lucide-react';
-import { resolveRefs, getPath, valuesEqual, datasetScope, type Section } from '@kodigo/schema';
+import { Check, ChevronRight, ExternalLink, Footprints, ListOrdered, Rocket, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { resolveRefs, getPath, valuesEqual, datasetScope, sectionLiveWidgets, liveRoleTarget, PANE_ROLES, type Section, type TraceStep } from '@kodigo/schema';
 import { useModuleCtx } from './ModulePage';
 import { useScope } from '../engine/useScope';
-import { useTracePlayer } from '../engine/trace';
+import { useTracePlayer, traceCommands } from '../engine/trace';
 import { InterpContext, Markdown, Tex, anchorFromEvent, applyAnchorClasses } from '../lib/md';
 import { CodeView, anchorColor } from '../widgets/CodeView';
 import { varsBadge } from '../widgets/Code';
 import { CalloutBox } from '../widgets/Callout';
 import { StageProvider, Stage } from '../engine/Stage';
-import { cn } from '../lib/util';
+import { cn, stableHash } from '../lib/util';
 import { markProgress, setSetting, useModuleProgress } from '../storage/progress';
 import { fmtNum } from '../widgets/common';
 import type { LoadedModule } from '../modules/store';
 import type { StageWidget } from '@kodigo/schema';
+import type { WidgetCommand } from '../engine/types';
 
 export function MathCodeTab() {
   const { mod, base } = useModuleCtx();
@@ -51,37 +52,163 @@ export function MathCodeTab() {
   );
 }
 
-function LiveInputs({ state, setState, labels }: { state: Record<string, any>; setState: (k: string, v: any) => void; labels: Record<string, string> }) {
-  const keys = Object.keys(state);
-  if (!keys.length) return null;
+interface InputHints {
+  /** every item id that appears in a transactions dataset of this section */
+  items: string[];
+  /** row and column labels of the section's matrix datasets */
+  rows: string[];
+  cols: string[];
+}
+
+function inputHints(mod: LoadedModule, data: string[] = []): InputHints {
+  const items = new Set<string>(), rows = new Set<string>(), cols = new Set<string>();
+  for (const id of data) {
+    const ds: any = mod.parsed.datasets[id];
+    if (ds?.kind === 'transactions') ds.transactions.forEach((t: any) => t.items.forEach((i: string) => items.add(i)));
+    if (ds?.kind === 'matrix') { ds.rows.forEach((r: string) => rows.add(r)); ds.cols.forEach((c: string) => cols.add(c)); }
+  }
+  return { items: [...items].sort(), rows: [...rows], cols: [...cols] };
+}
+
+/** A text/number box that commits on Enter or blur, reverts on Escape, and resyncs when the value changes elsewhere. */
+function CommitInput({ value, onCommit, type = 'text', className, validate, title }: {
+  value: string; onCommit: (v: string) => void; type?: string; className?: string; validate?: (v: string) => string | null; title?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { setDraft(value); setErr(null); }, [value]);
+  const commit = () => {
+    if (draft === value) { setErr(null); return; }
+    const e = validate?.(draft) ?? null;
+    setErr(e);
+    if (!e) onCommit(draft);
+  };
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="label">Live inputs</span>
+    <span className="relative inline-flex flex-col">
+      <input
+        type={type} step="any" className={cn('input py-0.5', err && 'border-bad', className)} value={draft} title={err ?? title}
+        onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setErr(null); } }}
+        aria-invalid={!!err}
+      />
+      {err && <span className="absolute left-0 top-full z-20 mt-0.5 whitespace-nowrap rounded bg-bad px-1.5 py-0.5 text-[10px] text-white">{err}</span>}
+    </span>
+  );
+}
+
+function LiveInputs({ state, setState, labels, hints, skip, initial, onReset }: {
+  state: Record<string, any>; setState: (k: string, v: any) => void; labels: Record<string, string>;
+  hints: InputHints; skip: Set<string>; initial: Record<string, any>; onReset: () => void;
+}) {
+  const keys = Object.keys(state).filter((k) => !skip.has(k));
+  const changed = stableHash(state) !== stableHash(initial);
+  if (!keys.length && !changed) return null;
+  const known = new Set([...hints.rows, ...hints.cols]);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm" data-testid="live-inputs">
+      {keys.length > 0 && <span className="label">Live inputs</span>}
       {keys.map((k) => {
         const v = state[k];
-        if (typeof v === 'number') return <label key={k} className="flex items-center gap-1"><span className="font-mono text-xs text-muted">{k}</span><input type="number" className="input w-20 py-0.5" value={v} step="any" onChange={(e) => setState(k, Number(e.target.value))} /></label>;
-        if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return <label key={k} className="flex items-center gap-1"><span className="font-mono text-xs text-muted">{k}</span><input className="input w-40 py-0.5" defaultValue={v.join(', ')} onBlur={(e) => setState(k, e.target.value.split(',').map((x) => x.trim()).filter(Boolean))} title={v.map((x) => labels[x] ?? x).join(', ')} /></label>;
-        if (typeof v === 'string') return <label key={k} className="flex items-center gap-1"><span className="font-mono text-xs text-muted">{k}</span><input className="input w-28 py-0.5" defaultValue={v} onBlur={(e) => setState(k, e.target.value)} /></label>;
+        const name = <span className="font-mono text-xs text-muted">{k}</span>;
+        if (typeof v === 'number') {
+          return (
+            <label key={k} className="flex items-center gap-1">{name}
+              <CommitInput type="number" className="w-20" value={String(v)} onCommit={(t) => setState(k, Number(t))}
+                validate={(t) => (t.trim() === '' || !Number.isFinite(Number(t)) ? 'enter a number' : null)} />
+            </label>
+          );
+        }
+        if (Array.isArray(v) && v.every((x) => typeof x === 'string') && hints.items.length && v.every((x) => hints.items.includes(x))) {
+          // an itemset: toggle items on and off
+          return (
+            <div key={k} className="flex flex-wrap items-center gap-1" role="group" aria-label={`${k} items`}>{name}
+              {hints.items.map((it) => {
+                const on = v.includes(it);
+                return (
+                  <button key={it} type="button" aria-pressed={on}
+                    className={cn('rounded-full border px-2 py-0.5 text-xs transition', on ? 'tone-accent mark-bg font-semibold' : 'border-line bg-panel2 text-muted hover:text-ink')}
+                    title={on && v.length === 1 ? 'An itemset needs at least one item' : undefined}
+                    onClick={() => { if (on && v.length === 1) return; setState(k, on ? v.filter((x) => x !== it) : hints.items.filter((x) => x === it || v.includes(x))); }}>
+                    {labels[it] ?? it}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        }
+        if (typeof v === 'string' && known.has(v)) {
+          // a user or item of the matrix: pick from its labels
+          const opts = hints.rows.includes(v) && !hints.cols.includes(v) ? hints.rows : hints.cols.includes(v) && !hints.rows.includes(v) ? hints.cols : [...hints.rows, ...hints.cols];
+          return (
+            <label key={k} className="flex items-center gap-1">{name}
+              <select className="input w-auto py-0.5" value={v} onChange={(e) => setState(k, e.target.value)}>
+                {opts.map((o) => <option key={o} value={o}>{labels[o] ?? o}</option>)}
+              </select>
+            </label>
+          );
+        }
+        if (Array.isArray(v) && v.every((x) => typeof x === 'string')) {
+          return (
+            <label key={k} className="flex items-center gap-1">{name}
+              <CommitInput className="w-40" value={v.join(', ')} onCommit={(t) => setState(k, t.split(',').map((x) => x.trim()).filter(Boolean))} title={v.map((x) => labels[x] ?? x).join(', ')} />
+            </label>
+          );
+        }
+        if (typeof v === 'string') return <label key={k} className="flex items-center gap-1">{name}<CommitInput className="w-28" value={v} onCommit={(t) => setState(k, t)} /></label>;
         return <span key={k} className="chip font-mono">{k} = {JSON.stringify(v).slice(0, 40)}</span>;
       })}
+      {changed && <button className="btn-ghost btn-sm" onClick={onReset} title="Back to the lecture's values"><RotateCcw size={12} /> Lecture values</button>}
     </div>
   );
 }
 
-function dataWidgets(mod: LoadedModule, ids: string[] = []): StageWidget[] {
-  return ids.map((id): any => {
-    const ds = mod.parsed.datasets[id];
-    if (ds?.kind === 'transactions') return { id: `ds-${id}`, widget: 'TransactionTable', props: { transactions: `@${id}`, title: ds.title ?? id } };
-    if (ds?.kind === 'matrix') return { id: `ds-${id}`, widget: 'Matrix', props: { data: `@${id}`, title: ds.title ?? id, showRowMeans: false } };
-    return { id: `ds-${id}`, widget: 'Text', props: { body: `**${ds?.title ?? id}**: \`${JSON.stringify((ds as any)?.value ?? (ds as any)?.items ?? (ds as any)?.rows ?? '').slice(0, 300)}\`` } };
-  });
+function fmtVar(v: any): string {
+  if (typeof v === 'number') return fmtNum(v, 3);
+  if (Array.isArray(v)) return `[${v.map((x) => (typeof x === 'number' ? fmtNum(x, 3) : String(x))).join(', ')}]`;
+  if (v && typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+/** Debugger-style watch: the latest value of every variable the trace has shown so far; the ones set by this line glow. */
+function VarsWatch({ steps, index }: { steps: TraceStep[]; index: number }) {
+  const { latest, now } = useMemo(() => {
+    const latest: Record<string, any> = {};
+    for (let i = 0; i <= index && i < steps.length; i++) Object.assign(latest, steps[i].vars ?? {});
+    return { latest, now: new Set(Object.keys(steps[index]?.vars ?? {})) };
+  }, [steps, index]);
+  const keys = Object.keys(latest);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid="vars-watch">
+      <span className="label mr-1">Variables</span>
+      {keys.length === 0 && <span className="text-xs text-muted">none yet: press ▶</span>}
+      {keys.map((k) => (
+        <span key={k} className={cn('rounded-md border px-1.5 py-0.5 font-mono text-[11px] transition-colors', now.has(k) ? 'border-warn/60 bg-warn/15 font-semibold text-ink' : 'border-line bg-panel2 text-muted')}>
+          {k} = {fmtVar(latest[k]).slice(0, 80)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The live example's widgets (lecture data by default), driven by the section's state and, while stepping, by the trace's ops. */
+function LivePanel({ mod, section, state, setState, widgets, cmds, className }: {
+  mod: LoadedModule; section: Section; state: Record<string, any>; setState: (k: string, v: any) => void;
+  widgets: StageWidget[]; cmds?: Record<string, WidgetCommand[]>; className?: string;
+}) {
+  // while stepping, the trace decides what lights up, so drop a table's static `highlight`
+  const shown = useMemo(() => (cmds ? widgets.map((w) => (w.props && 'highlight' in w.props ? { ...w, props: { ...w.props, highlight: [], showContainCount: false } } : w)) : widgets), [widgets, !!cmds]);
+  return (
+    <StageProvider mod={mod} spec={{ data: section.data, derive: section.derive }} state={state} setState={setState} cmds={cmds}>
+      <Stage widgets={shown} compact className={className} />
+    </StageProvider>
+  );
 }
 
 function SectionView({ section, next }: { section: Section; next?: Section }) {
   const { mod, base } = useModuleCtx();
   const nav = useNavigate();
   const [state, setStateObj] = useState<Record<string, any>>(() => structuredClone(section.state ?? {}));
-  const setState = (k: string, v: any) => setStateObj((s) => ({ ...s, [k]: v }));
+  const setState = useCallback((k: string, v: any) => setStateObj((s) => ({ ...s, [k]: v })), []);
   const { scope, error } = useScope(mod, { data: section.data, derive: section.derive }, state);
   const [hover, setHover] = useState<string | null>(null);
   const [revealAll, setRevealAll] = useState(true);
@@ -94,6 +221,23 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
   const step = tracing && trace.index >= 0 ? trace.steps[trace.index] : undefined;
   const derivRef = useRef<HTMLDivElement>(null);
   const anchorOrder = section.links.map((l) => l.anchor);
+  const liveWidgets = useMemo(() => sectionLiveWidgets(section, mod.parsed.datasets), [section, mod]);
+  const hints = useMemo(() => inputHints(mod, section.data), [mod, section.data]);
+  // state keys a live widget (Slider, Choice…) already controls don't get a second input box
+  const boundKeys = useMemo(() => new Set(liveWidgets.flatMap((w) => Object.values(w.bind ?? {}))), [liveWidgets]);
+  // the trace's ops, routed from their roles to the live widgets (code/formula roles are the panes themselves)
+  const liveCmds = useMemo(() => {
+    if (!tracing || trace.index < 0) return undefined;
+    const { byRole } = traceCommands(trace.steps, trace.index);
+    const out: Record<string, WidgetCommand[]> = {};
+    for (const [role, list] of Object.entries(byRole)) {
+      if (PANE_ROLES.has(role)) continue;
+      const id = liveRoleTarget(role, liveWidgets);
+      if (id) (out[id] ??= []).push(...list);
+    }
+    return out;
+  }, [tracing, trace.steps, trace.index, liveWidgets]);
+  const hasLive = liveWidgets.length > 0;
 
   useEffect(() => {
     if (mod.preview) return;
@@ -134,19 +278,19 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
           </div>
         )}
 
-        {(section.data?.length || Object.keys(state).length) ? (
-          <div className="card p-3">
+        {(hasLive || Object.keys(state).length) ? (
+          <div className="card p-3" data-testid="live-example">
             <div className="mb-2 flex flex-wrap items-center gap-3">
               <span className="label">Live example (lecture data)</span>
-              <LiveInputs state={state} setState={setState} labels={mod.labels} />
-              {!!section.data?.length && <button className="btn-ghost btn-sm ml-auto" onClick={() => setShowData(!showData)}>{showData ? <EyeOff size={13} /> : <Eye size={13} />} {showData ? 'Hide' : 'Show'} data</button>}
+              <LiveInputs state={state} setState={setState} labels={mod.labels} hints={hints} skip={boundKeys}
+                initial={section.state ?? {}} onReset={() => setStateObj(structuredClone(section.state ?? {}))} />
+              {hasLive && !tracing && <button className="btn-ghost btn-sm ml-auto" onClick={() => setShowData(!showData)}>{showData ? <EyeOff size={13} /> : <Eye size={13} />} {showData ? 'Hide' : 'Show'} data</button>}
             </div>
-            {error && <div className="mb-2 text-xs text-bad">derive error: {error}</div>}
-            {showData && !!section.data?.length && (
-              <StageProvider mod={mod} spec={{ data: section.data }} state={{}}>
-                <Stage widgets={dataWidgets(mod, section.data)} compact className="max-h-[340px] overflow-auto" />
-              </StageProvider>
-            )}
+            {error && <div className="mb-2 text-xs text-bad">These inputs don't work for this example: {error}</div>}
+            {tracing && hasLive
+              ? <div className="text-xs text-muted">While you step through, the live data sits next to the code and follows each line.</div>
+              : showData && hasLive && <LivePanel mod={mod} section={section} state={state} setState={setState} widgets={liveWidgets} className="max-h-[560px] overflow-auto" />}
+            {!hasLive && section.trace && !tracing && <div className="text-xs text-muted">Press <b>Step through</b> to run the code on these inputs, line by line.</div>}
           </div>
         ) : null}
 
@@ -202,7 +346,13 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
                 {codes.map((c, i) => <button key={i} className={cn('btn btn-sm', i === codeTab && 'border-accent/50 bg-accent/10')} onClick={() => setCodeTab(i)}>{c.title}</button>)}
               </div>
             )}
-            <CodeView source={code.source} lang={code.lang} title={codes.length === 1 ? code.title : undefined} hoverAnchor={hover} setHoverAnchor={setHover} activeAnchor={step?.code ?? null} badges={codeTab === 0 ? badges : undefined} anchorOrder={anchorOrder} />
+            <CodeView source={code.source} lang={code.lang} title={codes.length === 1 ? code.title : undefined} hoverAnchor={hover} setHoverAnchor={setHover} activeAnchor={step?.code ?? null} badges={codeTab === 0 ? badges : undefined} anchorOrder={anchorOrder} maxHeight={tracing ? 460 : undefined} followActive={tracing} />
+            {tracing && (
+              <div className="card flex flex-col gap-3 border-warn/40 p-3" data-testid="live-trace">
+                <VarsWatch steps={trace.steps} index={trace.index} />
+                {hasLive && <LivePanel mod={mod} section={section} state={state} setState={setState} widgets={liveWidgets} cmds={liveCmds} className="max-h-[520px] overflow-auto" />}
+              </div>
+            )}
             <div className="text-[11px] text-muted">Hover a colored term or a code line to see its partner. Displayed code is Python; the site computes with the module's logic.js, and the lecture check below confirms both agree with the slides.</div>
           </div>
         </div>

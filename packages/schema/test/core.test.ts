@@ -6,6 +6,7 @@ import {
   parseBundle, formatBundle, readZip, writeZip,
   parseNumber, checkNumeric, checkMulti, checkBlank, checkOrder, checkMatch, valuesEqual,
   WIDGETS, widgetsMarkdown,
+  liveRoleTarget, defaultLiveWidgets, codeLineCount,
 } from '../src/index';
 
 describe('interpolation', () => {
@@ -121,5 +122,29 @@ describe('widget catalog', () => {
     expect(WIDGETS.length).toBe(20);
     for (const w of WIDGETS) expect(w.name).toMatch(/^[A-Z][A-Za-z]+$/);
     expect(widgetsMarkdown()).toContain('## StepPlayer');
+  });
+});
+
+describe('math-code live example', () => {
+  const live = [
+    { id: 'k-slider', widget: 'Slider' },
+    { id: 'ds-r5x5', widget: 'Matrix' },
+    { id: 'rank', widget: 'RankList' },
+  ];
+  it('routes trace roles to live widgets', () => {
+    expect(liveRoleTarget('rank', live)).toBe('rank');
+    expect(liveRoleTarget('r5x5', live)).toBe('ds-r5x5');
+    expect(liveRoleTarget('matrix', live)).toBe('ds-r5x5');
+    expect(liveRoleTarget('data', live)).toBe('k-slider');
+    expect(liveRoleTarget('ranklist', live)).toBe('rank');
+    expect(liveRoleTarget('table', live)).toBeNull();
+  });
+  it('builds one default widget per dataset', () => {
+    const w = defaultLiveWidgets({ g: { id: 'g', kind: 'transactions', transactions: [] } as any, m: { id: 'm', kind: 'matrix', rows: [], cols: [], values: [] } as any }, ['g', 'm']);
+    expect(w.map((x) => [x.id, x.widget])).toEqual([['ds-g', 'TransactionTable'], ['ds-m', 'Matrix']]);
+  });
+  it('does not count docstrings toward the code-length limit', () => {
+    const src = 'def f(x):\n    """Summary.\n\n    Returns:\n        x\n    """\n    return x  # @a:ret\n\ndef g():\n    """One line."""\n    return 1\n';
+    expect(codeLineCount(src)).toBe(5);
   });
 });
