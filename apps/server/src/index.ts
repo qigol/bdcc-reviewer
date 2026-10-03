@@ -150,7 +150,7 @@ app.post<{ Querystring: { allowDowngrade?: string; dryRun?: string } }>('/api/mo
   return reply.code(r.status).send(r);
 });
 
-app.patch<{ Params: { id: string }; Body: { enabled?: boolean; order?: number; current?: string } }>('/api/modules/:id', async (req, reply) => {
+app.patch<{ Params: { id: string }; Body: { enabled?: boolean; order?: number; current?: string; course?: string | null } }>('/api/modules/:id', async (req, reply) => {
   if (!requireAdmin(req, reply)) return;
   await registry.patch(req.params.id, req.body ?? {});
   return { ok: true };

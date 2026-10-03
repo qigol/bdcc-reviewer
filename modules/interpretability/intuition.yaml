@@ -1,0 +1,611 @@
+scenes:
+  - id: global-or-local
+    title: Two kinds of "why"
+    goal: Which question is each interpretability tool built to answer?
+    skills: [global-local, honest-reading]
+    data: [patient]
+    stage:
+      - id: model
+        widget: Readout
+        props:
+          items:
+            - { label: 'forest test accuracy', value: '@patient.accuracy', format: 3, tone: good }
+            - { label: 'test ROC-AUC', value: '@patient.rocAuc', format: 4, tone: good }
+            - { label: 'test tumours', value: '@patient.testRows' }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: q1, label: 'Which features does the forest rely on overall?' }
+            - { id: q2, label: 'Why was patient 205 called malignant?' }
+            - { id: q3, label: 'On average, how does P(benign) change as worst radius grows?' }
+            - { id: q4, label: 'What would have to differ for patient 205 to be called benign?' }
+            - { id: q5, label: 'Which feature, if scrambled, hurts test AUC most?' }
+            - { id: q6, label: 'Which conditions matter right around this one patient?' }
+          bins:
+            - { id: global, label: 'Global: the whole model' }
+            - { id: local, label: 'Local: one prediction' }
+          solution: { q1: global, q2: local, q3: global, q4: local, q5: global, q6: local }
+      - id: note
+        widget: Callout
+        region: side
+        props: { kind: note, title: Class encoding, body: 'Breast Cancer Wisconsin: **0 = malignant, 1 = benign**. Every plot explains P(class 1). Getting this backwards is the easiest way to misread one.' }
+    beats:
+      - say: |
+          A 300-tree random forest classifies tumours from 30 measurements. It is **95.8% accurate** with ROC-AUC **0.995**.
+          Interpretability asks a different question: **why** does it predict what it predicts?
+        gate:
+          type: predict
+          question: 'Should you interpret a model that predicts badly?'
+          options: ['No: its explanations would faithfully describe noise', 'Yes: explanations fix a weak model', 'Only with SHAP', 'Only if it is a tree']
+          answer: 0
+          explain: 'Fit first, check performance, then ask why. A weak or leaking model gets faithful explanations of a bad model.'
+      - say: |
+          **Global** tools give one answer for the whole model: feature importance, permutation importance, partial dependence.
+          **Local** tools give one answer per row, the answer owed to the person the decision is about: SHAP, LIME, counterfactuals.
+      - say: Sort each question by its scope.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Put every question in the right bin.
+          target: bins
+          event: solved
+      - say: |
+          Asking a PDP why one patient got their result is a category error, and so is generalizing one SHAP waterfall to the whole model.
+          **Scope determines method.**
+    takeaway: Global methods describe the model; local methods describe one decision. Pick the tool by the question's scope.
+
+  - id: impurity-credit
+    title: What the trees were built from
+    goal: How does a random forest decide that one feature is "important"?
+    skills: [impurity-importance]
+    data: [tumors, trees, bcimp]
+    state: { impUpTo: 0 }
+    derive:
+      - { fn: treeView, in: { tumors: '@tumors', trees: '@trees' }, out: tv }
+      - { fn: impuritySheet, in: { tumors: '@tumors', trees: '@trees', upTo: '@impUpTo' }, out: is }
+      - { fn: rankImportance, in: { bcimp: '@bcimp', by: builtin }, out: rb }
+    stage:
+      - id: tree
+        widget: Tree
+        props: { root: '@tv.root' }
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@is.rows', cols: '@is.cols', values: '@is.values', format: 3, title: 'Weighted impurity decrease per split', rowHeader: node }
+      - id: sum
+        widget: Matrix
+        region: side
+        props: { data: '@is.summary', format: 3, title: 'Per feature', rowHeader: feature }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: impurityWalk
+          in: { tumors: '@tumors', trees: '@trees' }
+          roles: { sheet: sheet, tree: tree, sum: sum }
+          speed: 0.5
+      - id: real
+        widget: Chart
+        hidden: true
+        props: { kind: bar, series: '@rb.series', yLabel: share of impurity reduction, title: 'Session 6: top 10 built-in importances (real forest) · w. = worst, m. = mean, c.pts = concave points' }
+    beats:
+      - say: |
+          Ten toy tumours and one small tree. Each node shows its **Gini impurity**: $1 - p_B^2 - p_M^2$, 0 when pure, 0.5 at 50/50.
+          The root holds 5 benign and 5 malignant.
+        gate:
+          type: predict
+          question: 'Left child n1 has 4 benign, 2 malignant. Its Gini?'
+          answer: { value: 0.444, tol: 0.005 }
+          explain: '1 − (4/6)² − (2/6)² = 1 − 0.444 − 0.111 = 0.444.'
+      - say: |
+          A split's credit is how much it lowers impurity: parent Gini minus the size-weighted children's Gini, times the
+          share of all rows that reach it. Play both splits.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the two splits and the normalization.
+          target: player
+          event: done
+      - say: Read the per-feature table.
+        set: { impUpTo: 2 }
+        gate:
+          type: predict
+          question: Which feature gets more built-in importance?
+          options: [radius, texture, area, 'they tie']
+          answer: 1
+          explain: 'texture: 0.133 vs 0.083, i.e. 8/13 vs 5/13. The deeper split cleaned up its 6 rows more than the root cleaned up all 10.'
+      - say: |
+          Notice **area**: 0. It is as informative as radius (it is $\pi r^2$), but the tree happened to split on radius. Importance says
+          what the model **built itself out of**, not what the data knows.
+      - say: The real forest's ranking, computed the same way over 300 trees.
+        show: [real]
+        gate:
+          type: predict
+          question: 'The top bar is 0.1457 for worst perimeter. What does that mean?'
+          options: ['14.6% of the total impurity reduction came from splits on it', 'It adds 14.6% to accuracy', 'Larger perimeter means 14.6% more benign', 'It is in 14.6% of the trees']
+          answer: 0
+          explain: 'Relative shares of impurity reduction, summing to 1. No direction, no accuracy units.'
+    takeaway: Built-in importance sums each feature's size-weighted Gini decreases and normalizes; it has no direction and ignores unused twins.
+
+  - id: shuffle-test
+    title: Shuffle a column, watch the score
+    goal: Which features does the model actually need on new data?
+    skills: [permutation-importance]
+    data: [tumors, trees, bcimp]
+    state: { feature: none, perm: reverse }
+    derive:
+      - { fn: shuffleView, in: { tumors: '@tumors', trees: '@trees', which: tree1, feature: '@feature', perm: '@perm' }, out: sv }
+      - { fn: rankImportance, in: { bcimp: '@bcimp', by: perm }, out: rp }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@sv.table', format: 2, title: 'Tree 1 on the toy tumours, one column possibly shuffled' }
+      - id: feat
+        widget: Choice
+        region: side
+        props:
+          label: shuffle
+          options:
+            - { value: none, label: nothing }
+            - { value: radius, label: radius }
+            - { value: texture, label: texture }
+            - { value: area, label: area }
+        bind: { value: feature }
+      - id: how
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: permutation
+          options:
+            - { value: reverse, label: reverse order }
+            - { value: shift, label: shift by one }
+        bind: { value: perm }
+      - id: score
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: accuracy, value: '@sv.acc', format: 2, tone: accent }
+            - { label: drop, value: '@sv.drop', format: 2, tone: bad }
+      - id: real
+        widget: Chart
+        hidden: true
+        props: { kind: bar, series: '@rp.series', yLabel: drop in ROC-AUC, title: 'Session 6: top 10 permutation importances (real forest, test set) · w. = worst, m. = mean, c.pts = concave points' }
+    beats:
+      - say: |
+          **Permutation importance**: keep the fitted model, shuffle one column of held-out data, re-score. Shuffling breaks that column's link to the
+          target and leaves everything else intact. Unshuffled, tree 1 gets 8 of 10 right.
+        gate:
+          type: predict
+          question: 'If we shuffle **area**, which tree 1 never uses, what happens to accuracy?'
+          options: ['Stays 0.8', 'Falls to 0.5', 'Rises to 1', 'Falls to 0']
+          answer: 0
+          explain: The model never looks at area, so its predictions do not change at all.
+      - say: Try it, then shuffle the columns the tree does use.
+        gate:
+          type: when
+          prompt: Find a shuffle that drops accuracy to **0.6**.
+          when: 'sv.acc <= 0.61'
+          hint: Radius or texture, in reverse order.
+      - say: |
+          Reversing radius sends small tumours down the "large" branch and vice versa. But one shuffle is luck: try the other permutation.
+        show: [how]
+        gate:
+          type: predict
+          question: 'With "shift by one", how much does shuffling radius cost?'
+          options: ['0.0', '0.2', '0.4', '0.8']
+          answer: 0
+          explain: Shifting moves each radius to its neighbour, and most neighbours fall on the same side of 14.5. Averaging repeats (here 0.2 and 0) gives 0.1.
+      - say: The real forest, shuffled 10 times per column on the test set, scored by ROC-AUC.
+        show: [real]
+        gate:
+          type: predict
+          question: The top bar is only 0.0044. Does that mean no feature matters?
+          options: ['No: AUC is already 0.995, so there is little room to fall, and twins cover for each other', 'Yes: the forest ignores every feature', 'Yes: permutation importance is broken', 'No: the bars are percentages']
+          answer: 0
+          explain: Read the ranking and relative sizes. Bars are in the metric's own units (AUC lost).
+    takeaway: Permutation importance is the metric lost when one held-out column is shuffled, averaged over repeats. It is measured in the metric's units.
+
+  - id: twins
+    title: Twins hide each other
+    goal: What happens to importance when two features carry the same information?
+    skills: [correlation-trap, permutation-importance, impurity-importance]
+    data: [tumors, trees, bcimp]
+    state: { feature: none }
+    derive:
+      - { fn: shuffleView, in: { tumors: '@tumors', trees: '@trees', which: forest, feature: '@feature', perm: reverse }, out: sv }
+      - { fn: forestImportance, in: { tumors: '@tumors', trees: '@trees' }, out: fi }
+      - { fn: twinsLecture, in: { bcimp: '@bcimp' }, out: tl }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@sv.table', format: 2, title: 'Forest = average of tree 1 (radius) and tree 2 (area)' }
+      - id: bars
+        widget: Chart
+        region: side
+        props: { kind: bar, series: '@fi.bars', yLabel: built-in importance }
+      - id: feat
+        widget: Choice
+        region: side
+        props:
+          label: shuffle (reverse order)
+          options:
+            - { value: none, label: nothing }
+            - { value: radius, label: radius }
+            - { value: area, label: area }
+            - { value: twins, label: radius + area }
+        bind: { value: feature }
+      - id: score
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: accuracy, value: '@sv.acc', format: 2, tone: accent }
+            - { label: drop, value: '@sv.drop', format: 2, tone: bad }
+      - id: real
+        widget: Matrix
+        hidden: true
+        props: { data: '@tl.table', format: 4, title: 'Session 6: the size twins in the real forest', rowHeader: feature }
+    beats:
+      - say: |
+          Area is $\pi r^2$: a perfect twin of radius. Tree 2 is tree 1 with "area ≤ 660" in place of "radius ≤ 14.5". Average them into a forest.
+        gate:
+          type: predict
+          question: 'Tree 1 gives radius 0.385, tree 2 gives area 0.385. The forest averages them. Radius''s built-in importance?'
+          answer: { value: 0.192, tol: 0.005 }
+          explain: '(0.385 + 0)/2 = 0.192. Built-in importance **splits** the credit between twins, so each looks weaker than the size signal really is.'
+      - say: Now shuffle only radius. Tree 1 is broken, tree 2 still sees the true area.
+        gate:
+          type: when
+          prompt: Shuffle **radius** alone.
+          when: 'feature == ''radius'''
+      - say: Accuracy went **up**, from 0.8 to 0.9.
+        gate:
+          type: predict
+          question: What is radius's permutation importance here?
+          options: ['−0.1', '0', '+0.1', '+0.2']
+          answer: 0
+          explain: '0.8 − 0.9 = −0.1. A negative value is noise: the intact twin outvoted the broken tree, and by luck it fixed T7. It does not mean radius is harmful.'
+      - say: Now break both twins with the same shuffle.
+        gate:
+          type: when
+          prompt: Shuffle **radius + area** together.
+          when: 'feature == ''twins'''
+      - say: |
+          Accuracy falls to 0.6: together the twins carry the size signal. Built-in importance **splits** their credit; permutation importance can **erase** it.
+          The real forest shows it too.
+        show: [real]
+        gate:
+          type: predict
+          question: 'Worst radius is 5th by built-in importance. Where is it by permutation importance (out of 30)?'
+          answer: { value: 29 }
+          explain: '29th, at −0.00025: worst perimeter and worst area (correlation > 0.98) cover for it.'
+    takeaway: Near-duplicate features split built-in credit and can erase each other's permutation importance. Shuffle twins together before trusting a ranking.
+
+  - id: pdp-sweep
+    title: Force a value, average the predictions
+    goal: Which way does a feature push the model, on average?
+    skills: [pdp, honest-reading]
+    data: [tumors, trees]
+    state: { v: 13 }
+    derive:
+      - { fn: pdpPoint, in: { tumors: '@tumors', trees: '@trees', which: tree1, feature: radius, v: '@v' }, out: pp }
+      - { fn: pdpBoth, in: { tumors: '@tumors', trees: '@trees', v: '@v' }, out: pb }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@pp.table', format: 3, title: 'Every row forced to the chosen radius (tree 1)' }
+      - id: curve
+        widget: Chart
+        props: { kind: line, series: '@pb.series', xLabel: radius, yLabel: 'average P(benign)', title: Partial dependence on radius }
+      - id: vs
+        widget: Slider
+        region: side
+        props: { label: 'forced radius v', min: 10, max: 20, step: 0.5, format: 1 }
+        bind: { value: v }
+      - id: avg
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'average P(benign)', value: '@pp.avg', format: 3, tone: accent }
+            - { label: 'rows that could not exist', value: '@pp.impossible', tone: bad }
+    beats:
+      - say: |
+          Importance had no sign. A **partial dependence plot** shows direction: pick a value v, force **every** row's radius to v, leave the other
+          columns alone, predict, average. One point of the curve.
+        gate:
+          type: predict
+          question: 'At v = 13 every row takes the left branch. Rows with texture ≤ 20 (T1, T2, T3, T7) get P = 1, the other 6 get 1/3. Average?'
+          answer: { value: 0.6, tol: 0.005 }
+          explain: '(4 × 1 + 6 × 1/3) / 10 = (4 + 2)/10 = 0.6.'
+      - say: Slide v across the threshold.
+        gate:
+          type: when
+          prompt: Find a radius where the average P(benign) drops to **0.25**.
+          when: 'pp.avg < 0.26'
+          hint: The tree splits at 14.5.
+      - say: |
+          A **sharp step** at 14.5: tree models produce steps naturally, so a step is often the model's structure showing, not biology.
+          The forest's curve steps by half as much, because its twin tree still sees each row's real area.
+      - say: Look at the red counter.
+        gate:
+          type: predict
+          question: 'At v = 20, how many of the 10 forced rows could exist (area ≈ π·20² ≈ 1257)?'
+          answer: { value: 1 }
+          explain: 'Only T10 really has radius 20. The other nine keep their small areas: tumours that could never exist, and the model answers anyway.'
+        set: { v: 20 }
+      - say: |
+          A PDP is a statement about the **model**, not the world. It is an **average** that can hide subgroups moving in opposite directions, it ignores
+          correlation, and it is never causal: shrinking the number does not shrink the tumour.
+    takeaway: 'A PDP averages the model''s predictions with one feature forced to each value: direction, not causation, and sometimes over impossible rows.'
+
+  - id: fair-split
+    title: A fair split of the prediction
+    goal: How much did each feature move this one prediction?
+    skills: [shapley]
+    data: [shapgame]
+    state: { shapUpTo: 0 }
+    derive:
+      - { fn: shapleySheet, in: { game: '@shapgame', upTo: '@shapUpTo' }, out: ss }
+      - { fn: shapley, in: { game: '@shapgame' }, out: sh }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@ss.rows', cols: '@ss.cols', values: '@ss.values', format: 2, title: 'Baseline 0.60 → prediction 0.30: what each feature added, in each order', rowHeader: order }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: shapleyWalk
+          in: { game: '@shapgame' }
+          roles: { sheet: sheet }
+          speed: 0.5
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          tex: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[\anchor{gain}{f(S \cup \{j\}) - f(S)}\big]'
+      - id: bars
+        widget: Chart
+        region: side
+        hidden: true
+        props: { kind: bar, series: '@sh.bars', yLabel: 'φ (towards benign)' }
+    beats:
+      - say: |
+          Shapley (1953) split a payout fairly among cooperating players. Swap **players → features** and **payout → prediction minus baseline**.
+          Three features; knowing nothing the model says 0.60; knowing all three it says 0.30.
+      - say: |
+          Reveal the features in the order A → B → C and record how much the prediction moves each time. Knowing only A gives 0.35.
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:gain', tone: accent } }
+        gate:
+          type: predict
+          question: 'How much did A move the prediction when it joined first?'
+          answer: { value: -0.25, tol: 0.005 }
+          explain: '0.35 − 0.60 = −0.25, towards malignant.'
+      - say: But the order is arbitrary. Do all six orders.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the six orderings.
+          target: player
+          event: done
+      - say: Average each column.
+        set: { shapUpTo: 6 }
+        gate:
+          type: predict
+          question: "What is A's Shapley value φ_A?"
+          answer: { value: -0.24, tol: 0.005 }
+          explain: '(−0.25 − 0.25 − 0.22 − 0.25 − 0.22 − 0.25) / 6 = −1.44 / 6 = −0.24.'
+      - say: |
+          φ = (−0.24, +0.03, −0.09) adds to **−0.30**, exactly the baseline-to-prediction gap. That **additivity** is the whole appeal: nothing left over, nothing double-counted.
+        show: [bars]
+    takeaway: A Shapley value is a feature's marginal contribution averaged over every order; the values add exactly to prediction minus baseline.
+
+  - id: waterfall
+    title: Name the class you explain
+    goal: Why was patient 205 called malignant, and what do the signs mean?
+    skills: [shapley, honest-reading]
+    data: [patient]
+    state: { cls: 1 }
+    derive:
+      - { fn: additivity, in: { patient: '@patient', cls: '@cls' }, out: ad }
+    stage:
+      - id: feats
+        widget: Matrix
+        props: { data: '@patient.features', format: 4, title: 'Patient 205 (test row 94): truly malignant, predicted malignant', rowHeader: feature }
+      - id: bars
+        widget: Chart
+        props: { kind: bar, series: '@ad.bars', yLabel: probability, title: 'Baseline + contributions = prediction' }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: class explained
+          options:
+            - { value: 1, label: '1 = benign' }
+            - { value: 0, label: '0 = malignant' }
+        bind: { value: cls }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'baseline + Σφ = prediction', value: '@ad.text', tone: accent }
+      - id: twin
+        widget: Callout
+        region: side
+        hidden: true
+        props: { kind: warn, title: Twins again, body: 'worst area, worst perimeter and worst radius appear as three separate bars, each holding a share of what is really one size signal. Adding them up as three findings overstates the case.' }
+    beats:
+      - say: |
+          The patient chosen is the **least clear-cut** malignant case the forest still gets right: P(benign) = 0.3367. SHAP's baseline
+          is the forest's average P(benign), **0.626**, roughly the benign share of the data.
+        gate:
+          type: predict
+          question: 'The 30 SHAP contributions for class 1 sum to −0.2893. What is baseline + sum?'
+          answer: { value: 0.3367, tol: 0.0005 }
+          explain: '0.626 + (−0.2893) = 0.3367, exactly the forest''s P(benign). Additivity, checked rather than asserted.'
+      - say: |
+          SHAP returns contributions with shape (rows, features, **classes**). The notebook slices class 1 = benign. A negative bar pushes
+          P(benign) **down**, i.e. towards malignant. It does not mean "bad".
+      - say: What if we had sliced class 0 instead?
+        gate:
+          type: when
+          prompt: Explain class **0 = malignant**.
+          when: 'cls == 0'
+      - say: Same model, same patient.
+        gate:
+          type: predict
+          question: 'For class 0, what is the baseline?'
+          answer: { value: 0.374, tol: 0.0005 }
+          explain: '1 − 0.626 = 0.374, and every contribution flips sign: the sum becomes +0.2893 and the prediction 0.6633 = P(malignant).'
+      - say: |
+          Three more cautions. Contributions are credit **inside this model**, not causes. The baseline depends on the background data. And twins split the credit.
+        show: [twin]
+    takeaway: Baseline plus SHAP contributions equals the prediction. Say which class you explain; every sign flips with it, and none is causal.
+
+  - id: local-line
+    title: A straight line, up close
+    goal: Can a simple model stand in for a complicated one around a single row?
+    skills: [lime]
+    data: [lime]
+    state: { sigma: 3 }
+    derive:
+      - { fn: limeFit, in: { x0: 16, sigma: '@sigma' }, out: lf }
+      - { fn: limeRank, in: { lime: '@lime' }, out: lr }
+    stage:
+      - id: plot
+        widget: Chart
+        props: { kind: line, series: '@lf.series', xLabel: radius, yLabel: 'P(benign)', title: 'The model (curve), 7 perturbations of x₀ = 16, and LIME''s weighted line' }
+      - id: pts
+        widget: Matrix
+        props: { data: '@lf.table', format: 3, title: 'Perturbations, model scores, proximity weights' }
+      - id: sig
+        widget: Slider
+        region: side
+        props: { label: 'kernel width σ', min: 0.5, max: 5, step: 0.25, format: 2 }
+        bind: { value: sigma }
+      - id: slope
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'LIME slope b', value: '@lf.b', format: 4, tone: accent }
+            - { label: 'true local slope', value: '@lf.trueSlope', format: 4 }
+      - id: real
+        widget: Matrix
+        hidden: true
+        props: { data: '@lr.table', format: 4, title: 'Session 7: LIME for patient 205 (towards benign)' }
+    beats:
+      - say: |
+          **LIME** perturbs the row, asks the **original** model to score every fake row, weights them by closeness, and fits a small linear model.
+          Here the "complex model" is a smooth curve in radius; we explain the point radius = 16.
+      - say: |
+          Weights come from a proximity kernel $e^{-d^2/\sigma^2}$. With σ = 3, the points at distance 3 still count.
+        gate:
+          type: predict
+          question: 'σ = 3. Weight of the perturbation at radius 19 (distance 3)?'
+          answer: { value: 0.368, tol: 0.005 }
+          explain: 'e^{−9/9} = e^{−1} = 0.368. Far points still pull the line towards where the curve has flattened.'
+      - say: The wide kernel averages over the bend. Make the explanation truly local.
+        gate:
+          type: when
+          prompt: Shrink σ until LIME's slope is within 0.01 of the model's true slope at 16.
+          when: 'lf.gap < 0.01'
+          hint: Narrower kernel.
+      - say: |
+          In a small neighbourhood a straight line is a decent approximation: exactly LIME's claim, and exactly the claim not to over-extend.
+          LIME is **a second model of the first one**, and it never warns you when it fits badly.
+      - say: The notebook's real LIME output for patient 205.
+        show: [real]
+        gate:
+          type: predict
+          question: 'Its top condition is "worst texture ≤ 21.06" with weight +0.047. How should you compare that with SHAP?'
+          options: ['By rank and direction only; LIME weights are surrogate coefficients, not probability shifts', 'Number to number: 0.047 means 4.7 points of probability', 'Not at all; LIME and SHAP explain different classes', 'Only if SHAP is also above 0.04']
+          answer: 0
+          explain: 'Different scales. Also: tabular LIME reports bins ("worst texture ≤ 21.06"), and without a fixed random_state its weights move.'
+    takeaway: LIME fits a proximity-weighted linear surrogate to the model's scores around one row; it is local, approximate and unstable.
+
+  - id: flip-it
+    title: What would flip the prediction?
+    goal: Is a change that flips the model a change that could happen?
+    skills: [counterfactuals, honest-reading]
+    data: [dice]
+    state: { radius: 17.77, area: 989.5, lock: free }
+    derive:
+      - { fn: cfScene, in: { radius: '@radius', area: '@area', lock: '@lock' }, out: m }
+      - { fn: diceCheck, in: { dice: '@dice' }, out: dc }
+    stage:
+      - id: f
+        widget: Formula
+        props: { tex: 's = 8 - 0.3\,({=radius|2}) - 0.004\,({=m.effArea|1}) = {=m.logit|3} \;\Rightarrow\; \text{ {=m.label} }' }
+      - id: rs
+        widget: Slider
+        props: { label: radius, min: 8, max: 22, step: 0.05, format: 2 }
+        bind: { value: radius }
+      - id: as
+        widget: Slider
+        props: { label: area, min: 200, max: 1300, step: 5, format: 0 }
+        bind: { value: area }
+      - id: mode
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: area follows radius?
+          options:
+            - { value: free, label: 'free (like DiCE)' }
+            - { value: geometry, label: 'locked: area = π r²' }
+        bind: { value: lock }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: verdict, value: '@m.verdict', tone: accent }
+            - { label: 'radius implied by area', value: '@m.impliedR', format: 2, tone: warn }
+      - id: real
+        widget: Matrix
+        hidden: true
+        props: { data: '@dc.table', format: 2, title: 'Session 7 DiCE rows: radius implied by perimeter vs by area', rowHeader: row }
+    beats:
+      - say: |
+          SHAP and LIME explain the prediction we already have. A **counterfactual** asks: what would have to be different for the model to say benign?
+          A toy linear model scores patient 205's size twins: radius 17.77, area 989.5.
+        gate:
+          type: predict
+          question: 'Holding radius at 17.77, below what area does the score turn positive?'
+          answer: { value: 667, tol: 1 }
+          explain: '8 − 0.3(17.77) − 0.004A = 0 → A = 2.669 / 0.004 = 667.25.'
+      - say: Find it yourself, the way DiCE's first run did, moving one feature on its own.
+        gate:
+          type: when
+          prompt: Flip the model to benign by changing **area only**.
+          when: 'm.cls == 1 and abs(radius - 17.77) < 0.05'
+          hint: Drag area below about 667.
+      - say: |
+          **Valid**: the model now says benign. But area ≈ 665 implies radius ≈ 14.5, while radius still reads 17.77. **No such tumour exists.** Valid is not plausible.
+      - say: Now insist that area follows the geometry.
+        show: [mode]
+        gate:
+          type: when
+          prompt: Lock area to π r², then find a radius that flips the model.
+          when: 'lock == ''geometry'' and m.cls == 1'
+          hint: Just under 16.
+      - say: The notebook's constrained DiCE run, checked the same way.
+        show: [real]
+        gate:
+          type: predict
+          question: 'Original: perimeter implies radius 18.7, area 17.7 (ratio 1.06). cf1 sets perimeter 57.4, area unchanged. Ratio?'
+          answer: { value: 0.51, tol: 0.01 }
+          explain: '57.4/(2π) = 9.14 vs √(989.5/π) = 17.75; 9.14/17.75 = 0.51. `features_to_vary` controls which columns move, never which combinations are possible.'
+      - say: |
+          And plausible is still not **actionable**: nobody can "reduce worst area to 536". Most of all, a counterfactual describes the model's decision surface,
+          not what would happen to the patient. Shrinking the number does not shrink the tumour.
+    takeaway: A counterfactual flips the model; check separately whether it could exist, whether anyone could act on it, and never read it as causal.

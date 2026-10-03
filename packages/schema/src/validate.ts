@@ -583,6 +583,7 @@ export function lintModule(mod: ParsedModule): Issue[] {
     if (n > max) w(file, `${what} has ${n} words (limit ${max})`, path);
   };
   const m = mod.manifest;
+  if (!m.course?.trim()) w('manifest.yaml', 'no `course`: the site files this module under its default course. Set `course:` (e.g. BDCC) so it lands in the right course menu and quiz pool', 'course');
   if (m.skills.length < 6 || m.skills.length > 12) w('manifest.yaml', `${m.skills.length} skills (guide: 6–12)`, 'skills');
   limit(m.summary, 50, 'manifest.yaml', 'summary', 'summary');
   if (mod.intuition.length < 6 || mod.intuition.length > 10) w('intuition.yaml', `${mod.intuition.length} scenes (guide: 6–10)`);

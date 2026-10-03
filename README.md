@@ -1,16 +1,18 @@
 # Kodigo
 
-A self-hosted, modular study site for **BDCC** (Big Data & Cloud Computing). Each topic is a *module*: a folder of YAML
-and one plain `logic.js` that the site renders into three study tabs and a practice-quiz bank.
+A self-hosted, modular study site for your courses, starting with **BDCC** (Big Data & Cloud Computing). Each topic is a
+*module*: a folder of YAML and one plain `logic.js` that the site renders into three study tabs and a practice-quiz bank.
+Modules belong to a **course** (`course:` in the manifest, e.g. `BDCC`). The top bar has one dropdown per course listing
+its modules, and every quiz stays inside one course.
 
 | Tab | What it is |
 |---|---|
 | **Intuition** | Guided, animated scenes in the style of a 3Blue1Brown video. You predict, drag and tune parameters before each reveal. |
 | **Math & Code** | Derivations side by side with Python. Hovering a formula term lights up the code that computes it, and "Step through" plays the algorithm across both panes. |
 | **Application** | A notebook-style case study (Philippine context) with decisions to make, plus the at-scale version (PySpark). |
-| **Quiz** (global) | Seven question types generated fresh every time, graded with feedback on common mistakes. Spaced repetition, a mistake journal and per-skill mastery are included. |
+| **Quiz** (per course) | Seven question types generated fresh every time, graded with feedback on common mistakes. Spaced repetition, a mistake journal and per-skill mastery are included. |
 
-Three built-in modules reproduce every number in the lecture decks:
+Three built-in BDCC modules reproduce every number in the lecture decks:
 
 | Module | Lecture | Lecture checks |
 |---|---|---|
@@ -33,7 +35,7 @@ docker compose -f docker/compose.yml up -d --build
 # open http://localhost:8080   (Admin: the shield icon, top right)
 ```
 
-Imported modules and module settings (enabled flags, order) go in `./data`, which is mounted at `/data`. The image build runs
+Imported modules and module settings (enabled flags, order, course overrides) go in `./data`, which is mounted at `/data`. The image build runs
 `kodigo validate` on the built-in modules and **fails if any of them is invalid**. The runtime image contains no
 `node_modules`, because esbuild bundles the server into a single file.
 
@@ -43,6 +45,7 @@ Imported modules and module settings (enabled flags, order) go in `./data`, whic
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | |
 | `DATA_DIR` | `/data` | imported modules (`modules/<id>@<version>/`, last 3 versions kept) + `state.json` |
 | `MAX_UPLOAD_MB` | `30` | zip/paste upload limit |
+| `DEFAULT_COURSE` | `BDCC` | course for modules whose manifest has no `course:` (and no course set in Admin) |
 
 ## Development
 
@@ -91,13 +94,13 @@ docker/           Dockerfile, compose.yml
 | Method | Path | Auth | |
 |---|---|---|---|
 | GET | `/api/health` | | liveness |
-| GET | `/api/modules` | | list with meta, enabled, order, health, stored versions |
+| GET | `/api/modules` | | list with meta, course, enabled, order, health, stored versions |
 | GET | `/api/modules/:id/files` · `/files/*` | | all files as JSON · one raw file |
 | GET | `/api/modules/:id/report` | | server-side validation report |
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |
 | POST | `/api/modules` | admin | multipart zip, or JSON `{files: {path: text \| {base64}}}`; `?dryRun=1`, `?allowDowngrade=1` (a downgrade otherwise returns 409) |
-| PATCH | `/api/modules/:id` | admin | `{enabled?, order?, current?}` (`current` rolls back to a stored version) |
+| PATCH | `/api/modules/:id` | admin | `{enabled?, order?, current?, course?}` (`current` rolls back to a stored version; `course` overrides the manifest's course, `""` clears the override) |
 | DELETE | `/api/modules/:id` | admin | imported modules only; built-ins can only be disabled |
 
 ## Writing a new module

@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { validateModule, type FileMap, type ValidationReport, type ParsedModule } from '@kodigo/schema';
 import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
 
-export interface ModuleState { enabled: boolean; order?: number; current?: string }
+export interface ModuleState { enabled: boolean; order?: number; current?: string; /** admin override of manifest.course */ course?: string }
 export interface State { modules: Record<string, ModuleState> }
 
 export interface Health { status: 'pending' | 'valid' | 'warnings' | 'errors'; errors: number; warnings: number; checkedAt?: string }
@@ -20,6 +20,10 @@ export interface ModuleEntry {
   shortTitle: string;
   summary: string;
   order: number;
+  /** course code the module is filed under: admin override → manifest.course → the default course */
+  course: string;
+  /** where `course` came from */
+  courseSource: 'admin' | 'manifest' | 'default';
   color?: string;
   icon?: string;
   enabled: boolean;
@@ -38,6 +42,11 @@ const cmpSemver = (a: string, b: string) => {
   return 0;
 };
 export { cmpSemver };
+
+/** Course for modules whose manifest has no `course` (and no admin override). */
+export const DEFAULT_COURSE = (process.env.DEFAULT_COURSE ?? '').trim() || 'BDCC';
+/** Normalize a course code: trimmed, inner whitespace collapsed; '' means "none". */
+export const normCourse = (c: unknown) => (typeof c === 'string' ? c.trim().replace(/\s+/g, ' ').slice(0, 40) : '');
 
 export class Registry {
   private state: State = { modules: {} };
@@ -170,6 +179,8 @@ export class Registry {
         shortTitle: String(manifest.shortTitle ?? id),
         summary: String(manifest.summary ?? ''),
         order: st?.order ?? Number(manifest.order ?? 1000),
+        course: normCourse(st?.course) || normCourse(manifest.course) || DEFAULT_COURSE,
+        courseSource: normCourse(st?.course) ? 'admin' : normCourse(manifest.course) ? 'manifest' : 'default',
         color: manifest.color,
         icon: manifest.icon,
         enabled: st?.enabled ?? true,
@@ -190,12 +201,18 @@ export class Registry {
     for (const m of await this.list()) await this.report(m.id, true);
   }
 
-  async patch(id: string, p: { enabled?: boolean; order?: number; current?: string }) {
+  async patch(id: string, p: { enabled?: boolean; order?: number; current?: string; course?: string | null }) {
     const r = await this.resolve(id);
     if (!r) throw Object.assign(new Error(`no module ${id}`), { statusCode: 404 });
     const st = (this.state.modules[id] ??= { enabled: true });
     if (p.enabled !== undefined) st.enabled = !!p.enabled;
     if (p.order !== undefined) st.order = Number(p.order);
+    if (p.course !== undefined) {
+      // '' or null clears the override (back to manifest.course / the default course)
+      const c = normCourse(p.course);
+      if (c) st.course = c;
+      else delete st.course;
+    }
     if (p.current !== undefined) {
       const vs = (await this.importedVersions())[id] ?? [];
       if (!vs.includes(p.current)) throw Object.assign(new Error(`version ${p.current} is not stored`), { statusCode: 400 });

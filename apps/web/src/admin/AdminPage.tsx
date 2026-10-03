@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, CheckCircle2, Download, Eye, FileCode2, FileText, GripVertical, KeyRound, Loader2, PlayCircle, Shield, Trash2, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Eye, FileCode2, FileText, GraduationCap, GripVertical, KeyRound, Loader2, PlayCircle, RotateCcw, Shield, Trash2, Upload, XCircle } from 'lucide-react';
 import { formatBundle, validateModule, type ValidationReport } from '@kodigo/schema';
 import { useModuleStore } from '../modules/store';
 import { useSetting } from '../storage/progress';
@@ -13,6 +13,39 @@ import { ImportPanel } from './ImportPanel';
 import { ReportView } from './ReportView';
 import { browserHostFactory } from '../modules/logic';
 import { ModuleIcon } from '../app/icons';
+import { groupByCourse } from '../modules/courses';
+
+/** Which course a module is filed under. Editing it stores an override on the server (the module's files are untouched). */
+function CourseField({ m, token, onChange }: { m: ModuleListEntry; token: string; onChange: () => void }) {
+  const [v, setV] = useState(m.course);
+  const [busy, setBusy] = useState(false);
+  const save = async (course: string | null) => {
+    const next = (course ?? '').trim().replace(/\s+/g, ' ');
+    if (course !== null && (!next || next === m.course)) { setV(m.course); return; }
+    setBusy(true);
+    try { await api.patch(token, m.id, { course: course === null ? '' : next }); onChange(); } catch (e: any) { alert(e.message); setV(m.course); } finally { setBusy(false); }
+  };
+  const src = { admin: 'set here', manifest: 'from manifest', default: 'default course' }[m.courseSource];
+  return (
+    <span className="flex items-center gap-1 text-xs" title={`Course (${src})`}>
+      <GraduationCap size={14} className="text-muted" />
+      <input
+        className="input w-28 py-0.5 text-xs"
+        list="admin-courses"
+        value={v}
+        maxLength={40}
+        disabled={busy}
+        aria-label={`Course of ${m.id}`}
+        data-testid={`admin-course-${m.id}`}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => save(v)}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setV(m.course); (e.target as HTMLInputElement).blur(); } }}
+      />
+      <span className="text-muted">{src}</span>
+      {m.courseSource === 'admin' && <button className="btn-ghost btn-sm px-1" title="Reset to the manifest's course" onClick={() => save(null)}><RotateCcw size={12} /></button>}
+    </span>
+  );
+}
 
 function TokenGate({ onOk }: { onOk: (t: string) => void }) {
   const [t, setT] = useState('');
@@ -54,6 +87,7 @@ function Row({ m, token, onChange, onReport }: { m: ModuleListEntry; token: stri
         <div className="font-medium">{m.title}</div>
         <div className="text-xs text-muted"><code>{m.id}</code> · v{m.version} · {m.origin}{m.origin === 'imported' && m.hasBuiltin ? ' (overrides built-in)' : ''}</div>
       </div>
+      <CourseField key={`${m.course}|${m.courseSource}`} m={m} token={token} onChange={onChange} />
       <Health h={m.health} />
       <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={m.enabled} onChange={(e) => act('toggle', async () => { await api.patch(token, m.id, { enabled: e.target.checked }); onChange(); })} className="accent-[rgb(var(--accent))]" /> enabled</label>
       {m.versions.length > 1 && (
@@ -80,7 +114,9 @@ export function AdminPage() {
   const [tab, setTab] = useState<'modules' | 'import'>('modules');
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   if (!token) return <TokenGate onOk={(t) => setToken(t)} />;
-  const list = store.list;
+  // shown course by course; dragging sets each module's position in its course's menu
+  const groups = groupByCourse(store.list);
+  const list = groups.flatMap((g) => g.modules);
   const onDragEnd = async (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return;
     const ids = list.map((m) => m.id);
@@ -104,10 +140,18 @@ export function AdminPage() {
         <>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={list.map((m) => m.id)} strategy={verticalListSortingStrategy}>
-              <ul className="flex flex-col gap-2">{list.map((m) => <Row key={m.id} m={m} token={token} onChange={() => store.refresh()} onReport={(r, title) => setReport({ r, title })} />)}</ul>
+              <div className="flex flex-col gap-4">
+                {groups.map((g) => (
+                  <div key={g.course}>
+                    <div className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold"><GraduationCap size={15} className="text-accent" /> {g.course} <span className="text-xs font-normal text-muted">{g.modules.length}</span></div>
+                    <ul className="flex flex-col gap-2">{g.modules.map((m) => <Row key={m.id} m={m} token={token} onChange={() => store.refresh()} onReport={(r, title) => setReport({ r, title })} />)}</ul>
+                  </div>
+                ))}
+              </div>
+              <datalist id="admin-courses">{groups.map((g) => <option key={g.course} value={g.course} />)}</datalist>
             </SortableContext>
           </DndContext>
-          <p className="mt-2 text-xs text-muted">Drag to reorder the tab bar. Built-in modules can be disabled but not deleted; importing the same id with a higher version upgrades it (the last 3 versions are kept for rollback).</p>
+          <p className="mt-2 text-xs text-muted">Each course is one dropdown in the top bar; drag to reorder modules inside it. A module's course comes from <code>course:</code> in its manifest; type a different one here to move it (type a new name to start a new course). Built-in modules can be disabled but not deleted; importing the same id with a higher version upgrades it (the last 3 versions are kept for rollback).</p>
           {report && <div className="mt-4"><ReportView report={report.r} title={report.title} /></div>}
         </>
       ) : (

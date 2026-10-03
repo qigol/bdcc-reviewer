@@ -1,0 +1,106 @@
+terms:
+  - id: interpretability
+    term: Interpretability
+    short: Asking why a fitted model predicts what it predicts, rather than only how well it predicts.
+    skills: [global-local]
+  - id: global-explanation
+    term: Global explanation
+    short: One answer for the whole model, e.g. which features it relies on overall; aimed at model owners and auditors.
+    related: [local-explanation]
+    lessonRef: { tab: intuition, id: global-or-local }
+    skills: [global-local]
+  - id: local-explanation
+    term: Local explanation
+    short: One answer per row, explaining a single prediction; owed to the person the decision is about.
+    related: [global-explanation]
+    skills: [global-local]
+  - id: impurity-importance
+    term: Built-in (impurity) importance
+    aka: [feature_importances_, mean decrease in impurity]
+    short: Total impurity reduction a feature achieved across the model's splits, weighted by samples reaching each split, normalized to 1.
+    formula: '\frac{N_t}{N}\Big(G_t - \tfrac{N_L}{N_t}G_L - \tfrac{N_R}{N_t}G_R\Big)'
+    lessonRef: { tab: math-code, id: impurity-importance }
+    skills: [impurity-importance]
+  - id: gini-impurity
+    term: Gini impurity
+    short: Chance that two random labels drawn from a node disagree; 0 for a pure node, 0.5 for a 50/50 two-class node.
+    formula: '1 - \sum_c p_c^2'
+    skills: [impurity-importance]
+  - id: permutation-importance
+    term: Permutation importance
+    short: Drop in a chosen metric on held-out data when one feature's column is shuffled, averaged over repeats.
+    lessonRef: { tab: math-code, id: permutation-importance }
+    skills: [permutation-importance]
+  - id: correlated-features
+    term: Correlated (twin) features
+    short: Features that carry nearly the same information, like worst radius, worst perimeter and worst area (correlation above 0.98).
+    long: Built-in importance splits their credit between them; permutation importance can erase it, because the model recovers through the twin.
+    lessonRef: { tab: intuition, id: twins }
+    skills: [correlation-trap]
+  - id: pdp
+    term: Partial dependence plot (PDP)
+    short: Curve of the model's average prediction as one feature is forced to each grid value for every row.
+    formula: '\hat f_j(v) = \frac{1}{n}\sum_{i=1}^{n} f(x_{i,-j},\, x_j = v)'
+    lessonRef: { tab: intuition, id: pdp-sweep }
+    skills: [pdp]
+  - id: shapley-value
+    term: Shapley value
+    short: A player's average marginal contribution over every order in which the players could join; the only fair split with additivity.
+    formula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[f(S \cup \{j\}) - f(S)\big]'
+    lessonRef: { tab: intuition, id: fair-split }
+    skills: [shapley]
+  - id: shap
+    term: SHAP
+    aka: [SHapley Additive exPlanations]
+    short: Per-feature contributions that move one prediction away from a baseline and add up exactly to it.
+    related: [shapley-value, baseline]
+    skills: [shapley]
+  - id: baseline
+    term: Baseline E[f(x)]
+    short: The model's average prediction over the background data; SHAP contributions start from it.
+    long: Change the background set and every contribution changes. For patient 205 it is 0.626 for P(benign).
+    skills: [shapley]
+  - id: additivity
+    term: Additivity (local accuracy)
+    short: Baseline plus the sum of all SHAP contributions equals the model's prediction for that row, with nothing left over.
+    formula: 'f(x) = E[f(x)] + \sum_j \phi_j'
+    skills: [shapley]
+  - id: tree-explainer
+    term: TreeExplainer
+    short: SHAP's exact, polynomial-time algorithm for tree ensembles, instead of evaluating all 2^30 coalitions.
+    skills: [shapley]
+  - id: lime
+    term: LIME
+    aka: [Local Interpretable Model-agnostic Explanations]
+    short: Fits a simple weighted model to perturbations of one row, scored by the original model, and reads its coefficients.
+    formula: '\xi(x) = \arg\min_{g \in G} \; \mathcal{L}(f, g, \pi_x) + \Omega(g)'
+    lessonRef: { tab: intuition, id: local-line }
+    skills: [lime]
+  - id: surrogate
+    term: Surrogate model
+    short: A second, simpler model trained to mimic the first; its fidelity can be poor and it gives no warning.
+    skills: [lime]
+  - id: proximity-kernel
+    term: Proximity kernel
+    short: The weight LIME gives each perturbed row according to its distance from the row being explained.
+    formula: '\pi_x(z) = e^{-d(x,z)^2/\sigma^2}'
+    skills: [lime]
+  - id: counterfactual
+    term: Counterfactual explanation
+    short: A nearby input the model classifies differently; "what would have to change for the prediction to flip?"
+    formula: '\arg\min_{x^\prime} \; \text{loss}\big(f(x^\prime), y_{\text{target}}\big) + \lambda \, d(x, x^\prime)'
+    lessonRef: { tab: intuition, id: flip-it }
+    skills: [counterfactuals]
+  - id: dice
+    term: DiCE
+    aka: [Diverse Counterfactual Explanations]
+    short: Library that searches for several different counterfactuals at once, adding a diversity term to the objective.
+    skills: [counterfactuals]
+  - id: plausibility
+    term: Plausible vs actionable
+    short: A valid counterfactual flips the model; a plausible one could exist; an actionable one is something a person can bring about.
+    skills: [counterfactuals, honest-reading]
+  - id: not-causal
+    term: Model explanation is not causal
+    short: Perturbing inputs and watching the model react describes the model's decision surface, never what would happen in reality.
+    skills: [honest-reading]

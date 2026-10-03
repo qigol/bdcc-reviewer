@@ -9,6 +9,8 @@ export interface Settings {
   adminToken: string | null;
   lastLocation: { moduleId: string; tab: string; id?: string; beat?: number; path: string; title?: string; at: number } | null;
   showBeyond: boolean;
+  /** the course you were last studying (default for the quiz builder and cheat sheet) */
+  course: string | null;
 }
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
@@ -18,6 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   adminToken: null,
   lastLocation: null,
   showBeyond: true,
+  course: null,
 };
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]> {

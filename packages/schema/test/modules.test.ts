@@ -75,3 +75,22 @@ describe('validator catches broken modules', () => {
     expect(text).toContain('glossary.yaml');
   });
 });
+
+describe('courses', () => {
+  it('every built-in module declares the BDCC course', async () => {
+    for (const id of ['fim', 'nb-cf', 'lf-cf']) {
+      const report = await validateModule(await readModuleDir(path.join(root, id)), { hostFactory, seeds: 1 });
+      expect(report.issues.some((i) => i.path === 'course')).toBe(false);
+    }
+    const f = await fim();
+    expect(String(f['manifest.yaml'])).toMatch(/^course: BDCC$/m);
+  }, 60_000);
+
+  it('warns (but still accepts) a module without a course', async () => {
+    const f = await fim();
+    f['manifest.yaml'] = String(f['manifest.yaml']).replace(/^course:.*\n/m, '');
+    const report = await validateModule(f, { hostFactory, seeds: 2 });
+    expect(report.ok).toBe(true);
+    expect(report.issues.some((i) => i.level === 'warning' && i.step === 'lint' && i.path === 'course')).toBe(true);
+  }, 60_000);
+});

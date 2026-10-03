@@ -1,0 +1,171 @@
+examples:
+  - id: lazy-sagip
+    source: 'Session 2, slide 9'
+    page: 9
+    fn: lazyModel
+    in: { N: 10000, ratePct: 1.41 }
+    expect: { nMin: 141, nMaj: 9859, accuracy: 0.9859, recall: 0, f1: 0 }
+    tol: 0.00005
+  - id: lazy-99-1
+    source: 'Session 2, slide 18'
+    page: 18
+    fn: lazyModel
+    in: { N: 10000, ratePct: 1 }
+    expect: { accuracy: 0.99, recall: 0 }
+  - id: lazy-code
+    source: 'Session 2, slide 9'
+    page: 9
+    fn: lazyCode
+    in: { nMaj: 9859, nMin: 141 }
+    expect: { accuracy: 0.9859, recall: 0 }
+    tol: 0.00005
+  - id: fraud-tally
+    source: 'Session 2, slides 20–21'
+    page: 21
+    fn: confusion
+    in: { table: '@fraud18' }
+    expect: { tp: 2, fn: 2, fp: 1, tn: 13, n: 18 }
+  - id: fraud-tally-walk
+    source: 'Session 2, slides 20–21'
+    page: 21
+    fn: tallyWalk
+    in: { table: '@fraud18' }
+    expect: { tp: 2, fn: 2, fp: 1, tn: 13, steps: 19 }
+    note: One step per transaction (18) plus the closing sum.
+  - id: fraud-metrics
+    source: 'Session 2, slide 22'
+    page: 22
+    fn: metrics
+    in: { tp: 2, fn: 2, fp: 1, tn: 13 }
+    expect: { accuracy: 0.833, precision: 0.67, recall: 0.5, f1: 0.57 }
+    tol: 0.005
+  - id: fraud-metrics-code
+    source: 'Session 2, slide 22'
+    page: 22
+    fn: confusionCode
+    in: { table: '@fraud18' }
+    expect: { tp: 2, fn: 2, fp: 1, tn: 13 }
+  - id: sigla-anthro
+    source: 'Session 2, slide 14'
+    page: 14
+    fn: siglaView
+    in: { sigla: '@sigla', model: anthro }
+    expect: { normal: 0.91, uw: 0.27, sevuw: 0.11 }
+  - id: sigla-marker
+    source: 'Session 2, slide 14'
+    page: 14
+    fn: siglaView
+    in: { sigla: '@sigla', model: marker }
+    expect: { normal: 0.94, uw: 0.29, sevuw: 0, worst: SevUW }
+  - id: sigla-code
+    source: 'Session 2, slide 14'
+    page: 14
+    fn: perClassCode
+    in: { M: '@sigla.marker' }
+    expect: { recalls: [0, 0.29, 0.94, 0.28, 0.61] }
+  - id: adult-ratio
+    source: 'Session 3 notebook, section 3'
+    fn: stratifiedSplit
+    in: { majority: 37155, minority: 11687, testSize: 0.25 }
+    expect: { ratio: 3.2, minRate: 0.239 }
+    tol: 0.05
+  - id: adult-split
+    source: 'Session 3 notebook, section 3'
+    fn: stratifiedSplit
+    in: { majority: 37155, minority: 11687, testSize: 0.25 }
+    expect: { trainRows: 36631, testRows: 12211, trainMinRate: 0.239 }
+    tol: 0.0005
+  - id: adult-rus
+    source: 'Session 3 notebook, technique 1'
+    fn: adultCounts
+    in: { adult: '@adult', method: RUS }
+    expect: { rows: 17530, minProp: 0.5 }
+  - id: adult-ros
+    source: 'Session 3 notebook, technique 2'
+    fn: adultCounts
+    in: { adult: '@adult', method: ROS }
+    expect: { rows: 55732, minProp: 0.5 }
+  - id: adult-pipeline
+    source: 'Session 3 notebook, sections 3 and technique 1'
+    fn: pipelineCode
+    in: { adult: '@adult', method: RUS }
+    expect: { testRows: 12211, testMin: 2922, resampled: 17530 }
+  - id: smote-lambda-0
+    source: 'Session 3 notebook, technique 3'
+    fn: smoteInterp
+    in: { xi: [7, 5], xnb: [9, 3], lambda: 0 }
+    expect: { x: [7, 5] }
+    note: λ = 0 lands on x_i.
+  - id: smote-lambda-1
+    source: 'Session 3 notebook, technique 3'
+    fn: smoteInterp
+    in: { xi: [7, 5], xnb: [9, 3], lambda: 1 }
+    expect: { x: [9, 3] }
+    note: λ = 1 lands on the neighbour.
+  - id: smote-codes
+    source: 'Session 3 notebook, technique 4'
+    fn: smoteInterp
+    in: { xi: [0], xnb: [1], lambda: 0.5 }
+    expect: { x1: 0.5 }
+    note: Married = 0, Divorced = 1, λ = 0.5 gives 0.5, a category that does not exist.
+  - id: toy-smote
+    source: 'Beyond the slides (toy map)'
+    fn: smoteToy
+    in: { toy: '@toy', i: M2, k: 2, nb: M4, lambda: 0.5 }
+    expect: { neighbours: [M1, M4], x: [8, 4] }
+  - id: toy-smote-code
+    source: 'Beyond the slides (toy map)'
+    fn: smoteCode
+    in: { toy: '@toy', i: M2, k: 2, nb: M4, lambda: 0.5 }
+    expect: { x: [8, 4] }
+  - id: toy-knn-walk
+    source: 'Beyond the slides (toy map)'
+    fn: knnWalk
+    in: { toy: '@toy', target: M2, k: 2 }
+    expect: { neighbours: [M1, M4], steps: 5 }
+  - id: toy-smote-nc
+    source: 'Session 3 notebook, technique 4 (illustrative rows)'
+    fn: smoteNC
+    in: { rows: '@snc', i: X, nb: N2, lambda: 0.5 }
+    expect: { age: 39, hours: 55, marital: Married, workclass: Private }
+  - id: toy-smote-nc-code
+    source: 'Session 3 notebook, technique 4 (illustrative rows)'
+    fn: smoteNCCode
+    in: { rows: '@snc', i: X, nb: N2, lambda: 0.5 }
+    expect: { age: 39, marital: Married }
+  - id: toy-adasyn
+    source: 'Beyond the slides (toy map)'
+    fn: adasyn
+    in: { toy: '@toy', k: 3 }
+    expect: { G: 5, deltas: [1, 1, 0, 0, 3], gs: [1, 1, 0, 0, 3], generated: 5 }
+  - id: toy-adasyn-walk
+    source: 'Beyond the slides (toy map)'
+    fn: adasynWalk
+    in: { toy: '@toy', k: 3 }
+    expect: { steps: 7, g.M5: 3 }
+  - id: toy-adasyn-code
+    source: 'Beyond the slides (toy map)'
+    fn: adasynCode
+    in: { toy: '@toy', k: 3 }
+    expect: { g: [1, 1, 0, 0, 3] }
+  - id: toy-rus
+    source: 'Beyond the slides (toy map)'
+    fn: rusCode
+    in: { toy: '@toy' }
+    expect: { rows: 10 }
+  - id: toy-ros
+    source: 'Beyond the slides (toy map)'
+    fn: rosCode
+    in: { toy: '@toy' }
+    expect: { rows: 20 }
+  - id: cost-switch
+    source: 'Session 3 notebook, section 5 (derived)'
+    fn: costCompare
+    in: { results: '@results', ratio: 1 }
+    expect: { best: Baseline }
+    note: When a miss costs the same as a false alarm, the un-resampled baseline makes the fewest total errors.
+  - id: cost-switch-adasyn
+    source: 'Session 3 notebook, section 5 (derived)'
+    fn: costCompare
+    in: { results: '@results', ratio: 5 }
+    expect: { best: ADASYN }

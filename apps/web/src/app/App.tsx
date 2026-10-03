@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { BookMarked, Dumbbell, FileText, Moon, Repeat, Search, Settings as SettingsIcon, Shield, Sun } from 'lucide-react';
-import { enabledModules, useModuleStore } from '../modules/store';
+import { useCourses } from '../modules/courses';
+import { CourseMenu } from './CourseMenu';
+import { getSession } from '../quiz/session';
 import { ModulePage } from '../tabs/ModulePage';
 import { IntuitionTab } from '../tabs/IntuitionTab';
 import { MathCodeTab } from '../tabs/MathCodeTab';
@@ -33,13 +35,14 @@ function useTheme() {
 }
 
 function TopBar({ onSearch }: { onSearch: () => void }) {
-  const { list } = useModuleStore();
-  const mods = enabledModules(list);
+  const { courses } = useCourses();
+  const [openCourse, setOpenCourse] = useState<string | null>(null);
   const due = useDueReviews();
   const { toggle, isDark } = useTheme();
   const loc = useLocation();
   const popup = usePopup();
   const inQuiz = loc.pathname.startsWith('/quiz/run/');
+  const quizCourse = inQuiz ? getSession(loc.pathname.split('/')[3] ?? '')?.course : undefined;
   const item = (to: string, label: React.ReactNode, active?: boolean) => (
     <NavLink to={to} className={({ isActive }) => cn('flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium transition', isActive || active ? 'bg-panel2 text-ink' : 'text-muted hover:text-ink')}>{label}</NavLink>
   );
@@ -48,13 +51,15 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
       <div className="mx-auto flex h-12 max-w-[1400px] items-center gap-1 px-3">
         <Link to="/" className="mr-2 flex items-center gap-2 font-semibold"><img src="/favicon.svg" className="h-6 w-6" alt="" /> <span className="hidden sm:inline">Kodigo</span></Link>
         <nav className="scrollbar-thin flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {mods.map((m) => item(`/m/${m.id}`, <><span className="h-2 w-2 rounded-full" style={{ background: m.color ?? 'rgb(var(--accent))' }} />{m.shortTitle}</>, loc.pathname.startsWith(`/m/${m.id}/`)))}
-          <span className="mx-1 h-5 w-px bg-line" />
+          {courses.map((g) => (
+            <CourseMenu key={g.course} group={g} open={openCourse === g.course} onOpenChange={(o) => setOpenCourse(o ? g.course : null)} />
+          ))}
+          {courses.length > 0 && <span className="mx-1 h-5 w-px shrink-0 bg-line" />}
           {item('/quiz', <><Dumbbell size={15} />Quiz</>, loc.pathname.startsWith('/quiz'))}
           {item('/review', <><Repeat size={15} />Review{due.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{due.length}</span>}</>)}
           {inQuiz
             // mid-quiz: open the glossary over the quiz instead of leaving it
-            ? <button className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:text-ink" onClick={() => popup.open({ title: 'Glossary', src: '/glossary', note: 'Your quiz stays open underneath' })}><BookMarked size={15} />Glossary</button>
+            ? <button className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:text-ink" onClick={() => popup.open({ title: 'Glossary', src: quizCourse ? `/glossary?course=${encodeURIComponent(quizCourse)}` : '/glossary', note: 'Your quiz stays open underneath' })}><BookMarked size={15} />Glossary</button>
             : item('/glossary', <><BookMarked size={15} />Glossary</>)}
         </nav>
         <button className="btn-ghost btn-sm hidden md:inline-flex" onClick={onSearch} title="Search (Ctrl/Cmd-K)"><Search size={15} /><span className="kbd">Ctrl K</span></button>

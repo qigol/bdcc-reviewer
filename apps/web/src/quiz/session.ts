@@ -7,7 +7,7 @@ export const MODE_LABEL: Record<Mode, string> = {
   exam: 'Exam simulation (timed, feedback at the end)',
   review: 'Review due (spaced repetition)',
   weak: 'Weak spots (lowest mastery first)',
-  interleaved: 'Interleaved (mix modules)',
+  interleaved: "Interleaved (mix this course's modules)",
   retry: 'Retry mistakes',
 };
 export const QTYPES = ['mcq', 'multi', 'numeric', 'code-fill', 'match', 'order', 'hand-calc'] as const;
@@ -19,11 +19,15 @@ export interface QuizSession {
   createdAt: number;
   mode: Mode;
   items: SessionItem[];
+  /** every item comes from a module of this course */
+  course?: string;
   timeLimitSec?: number;
   title?: string;
 }
 
 export interface SessionConfig {
+  /** quizzes are course-based: only modules of this course are used */
+  course: string;
   modules: string[];
   types: string[];
   skills: string[]; // 'moduleId:skillId'
@@ -140,8 +144,20 @@ export function pickItems(cands: Candidate[], count: number, opts: { mode: Mode;
   return opts.mode === 'interleaved' || opts.weight ? items : shuffle(items);
 }
 
-export function newSession(mode: Mode, items: SessionItem[], extra: Partial<QuizSession> = {}): QuizSession {
-  const s: QuizSession = { id: Math.random().toString(36).slice(2, 10), createdAt: Date.now(), mode, items, ...extra };
+export class MixedCourseError extends Error {
+  constructor(public courses: string[]) {
+    super(`A quiz can only use modules from one course (got ${courses.join(', ')}).`);
+  }
+}
+
+/**
+ * Create and store a quiz session. Quizzes are course-based: every item must come from a module of
+ * `course` (checked with `courseOf`), otherwise this throws MixedCourseError.
+ */
+export function newSession(mode: Mode, course: string, items: SessionItem[], courseOf: (moduleId: string) => string | undefined, extra: Partial<QuizSession> = {}): QuizSession {
+  const found = [...new Set(items.map((it) => courseOf(it.moduleId) ?? '?'))];
+  if (found.some((c) => c !== course)) throw new MixedCourseError([...new Set([course, ...found])]);
+  const s: QuizSession = { id: Math.random().toString(36).slice(2, 10), createdAt: Date.now(), mode, items, ...extra, course };
   saveSession(s);
   return s;
 }

@@ -1,0 +1,671 @@
+scenes:
+  - id: lazy-model
+    title: The lazy model
+    goal: Would you deploy a 98.6%-accurate model that never finds a single dropout?
+    skills: [accuracy-trap]
+    state: { ratePct: 1.41 }
+    derive:
+      - { fn: lazyModel, in: { N: 10000, ratePct: '@ratePct' }, out: lz }
+    stage:
+      - id: bars
+        widget: Chart
+        props: { kind: bar, series: '@lz.bars', yLabel: learners, title: '10,000 learners' }
+      - id: scores
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'accuracy (%)', value: '@lz.accuracyPct', format: 2, tone: good }
+            - { label: 'dropout recall', value: '@lz.recall', format: 2, tone: bad }
+            - { label: 'dropout F1', value: '@lz.f1', format: 2, tone: bad }
+      - id: rate
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'dropout rate (%)', min: 0.5, max: 50, step: 0.01, format: 2 }
+        bind: { value: ratePct }
+    beats:
+      - say: |
+          **SAGIP** scores every Filipino learner on the risk of not re-enrolling. Dropout is a **rare event**: about **1.41%** of learners.
+          Take 10,000 learners at that rate.
+        gate:
+          type: predict
+          question: How many of the 10,000 drop out?
+          answer: { value: 141 }
+          explain: '1.41% of 10,000 = 0.0141 × 10,000 = 141 dropouts, leaving 9,859 who stay.'
+      - say: |
+          Now the laziest possible model: predict **"stays"** for everyone. No features, no training.
+          It is right on every learner who stays and wrong on every dropout.
+        gate:
+          type: predict
+          question: What accuracy (in %) does the lazy model get?
+          answer: { value: 98.59, tol: 0.01 }
+          explain: '9,859 correct out of 10,000 = 98.59%. That is just the share of the majority class.'
+      - say: |
+          98.59% looks superb. But how many dropouts did it catch? **Recall** asks exactly that: of the real dropouts, what share did the model flag?
+        gate:
+          type: predict
+          question: What is the lazy model's recall on dropouts?
+          options: ['0', '0.0141', '0.9859', '1']
+          answer: 0
+          explain: 'It never predicts "dropout", so it catches 0 of 141: recall 0/141 = 0, and F1 is 0 too.'
+      - say: |
+          Accuracy rewards the model for **ignoring** the class we care about. Now change how rare the minority is.
+        show: [rate]
+        gate:
+          type: when
+          prompt: 'Build the **99 : 1 world** from slide 17: make the lazy model exactly 99% accurate.'
+          when: 'abs(lz.accuracyPct - 99) < 0.05'
+          hint: Accuracy = majority share, so the dropout rate must be 1%.
+      - say: |
+          At 99 : 1 the lazy model scores **99%** with **0%** minority recall. The rarer the class, the **better** a useless model looks.
+          Push the rate to 50% and its accuracy falls to a coin flip.
+        gate:
+          type: when
+          prompt: 'Set the classes to an even 50 : 50 split.'
+          when: 'ratePct >= 49.9'
+          hint: Drag the slider all the way right.
+      - say: |
+          The real question is not "are the classes balanced?" but "does the imbalance let our model **or our metric** ignore the class that matters?"
+    takeaway: When a class is rare, predicting the majority earns high accuracy and zero recall. Always compare accuracy with the majority share.
+
+  - id: tally-fraud
+    title: Tally the fraud table
+    goal: How do 18 predictions turn into the four cells of a confusion matrix?
+    skills: [confusion-matrix]
+    data: [fraud18]
+    state: { tallyUpTo: 0 }
+    derive:
+      - { fn: fraudSheet, in: { table: '@fraud18', upTo: '@tallyUpTo' }, out: fs }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@fs.table', title: 'Slides 19–20: 18 transactions, actual and predicted' }
+      - id: cm
+        widget: Matrix
+        region: side
+        props: { data: '@fs.cm', format: int, title: 'Rows = actual, columns = predicted', rowHeader: actual }
+      - id: count
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: rows tallied, value: '@fs.done' }
+            - { label: correct so far, value: '@fs.correct', tone: good }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: tallyWalk
+          in: { table: '@fraud18' }
+          roles: { table: tbl, cm: cm }
+          speed: 1
+    beats:
+      - say: |
+          A synthetic card-fraud table: 4 frauds among 18 transactions (≈ 22%; real fraud is under 1%). The last two columns are the truth and the classifier's guess.
+          Call **Fraud** the positive class.
+      - say: |
+          Each row lands in one cell. **TP**: fraud caught. **FN**: fraud missed. **FP**: false alarm on a legit one. **TN**: legit cleared.
+        gate:
+          type: predict
+          question: 'T13 is actually Fraud and was predicted Legit. Which cell?'
+          options: [TP, FN, FP, TN]
+          answer: 1
+          explain: 'Actual positive, predicted negative: a **false negative**, a missed fraud.'
+      - say: Now T07, a legitimate transaction made at an odd time.
+        gate:
+          type: predict
+          question: 'T07 is actually Legit but was predicted Fraud. Which cell?'
+          options: [TP, FN, FP, TN]
+          answer: 2
+          explain: 'Actual negative, predicted positive: a **false positive**, a false alarm.'
+      - say: Tally all 18 rows, one at a time.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the tally to the end.
+          target: player
+          event: done
+      - say: Check the bottom-right cell.
+        set: { tallyUpTo: 18 }
+        gate:
+          type: predict
+          question: How many true negatives (TN)?
+          answer: { value: 13 }
+          explain: '18 rows − 2 TP − 2 FN − 1 FP = 13 legit transactions correctly cleared.'
+      - say: |
+          **15 of 18** cells are right, so the model looks strong. But **2 of the 4 real frauds** hide in the FN box. The errors that matter sit in a small corner of the table.
+        do:
+          - { target: cm, cmd: highlight, args: { sel: 'cell:Fraud,Legit', tone: bad } }
+    takeaway: Each (actual, predicted) pair falls in one of TP, FN, FP, TN. The four counts always add up to the number of rows.
+
+  - id: four-metrics
+    title: Four metrics, one matrix
+    goal: How can the same model be 83% accurate and catch only half the fraud?
+    skills: [prf1, confusion-matrix]
+    state: { tp: 2, fp: 1, fstep: 0 }
+    derive:
+      - { fn: sliderMetrics, in: { tp: '@tp', fp: '@fp', pos: 4, neg: 14 }, out: m }
+    stage:
+      - id: cm
+        widget: Matrix
+        props: { data: '@m.cm', format: int, title: '4 frauds, 14 legit', rowHeader: actual }
+      - id: f
+        widget: Formula
+        props:
+          steps:
+            - '\text{Accuracy} = \frac{\anchor{tp}{TP} + TN}{N} = \frac{ {=m.tp} + {=m.tn} }{18} = {=m.accuracy|3}'
+            - '\text{Precision} = \frac{\anchor{tp}{TP}}{TP + \anchor{fp}{FP}} = \frac{ {=m.tp} }{ {=m.tp} + {=m.fp} } = {=m.precision|2}'
+            - '\text{Recall} = \frac{\anchor{tp}{TP}}{TP + \anchor{fn}{FN}} = \frac{ {=m.tp} }{ {=m.tp} + {=m.fn} } = {=m.recall|2}'
+            - 'F_1 = \frac{2PR}{P + R} = \frac{2({=m.precision|2})({=m.recall|2})}{ {=m.precision|2} + {=m.recall|2} } = {=m.f1|2}'
+          step: '@fstep'
+      - id: r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: accuracy, value: '@m.accuracy', format: 3 }
+            - { label: precision, value: '@m.precisionShown', format: 2 }
+            - { label: recall, value: '@m.recall', format: 2, tone: accent }
+            - { label: F1, value: '@m.f1', format: 2 }
+      - id: tp-s
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'frauds caught (TP)', min: 0, max: 4, step: 1 }
+        bind: { value: tp }
+      - id: fp-s
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'false alarms (FP)', min: 0, max: 14, step: 1 }
+        bind: { value: fp }
+    beats:
+      - say: |
+          Slide 21's matrix: TP 2, FN 2, FP 1, TN 13. **Accuracy** counts the diagonal: every correct cell over all 18.
+        gate:
+          type: predict
+          question: What is the accuracy? (as a decimal)
+          answer: { value: 0.833, tol: 0.005 }
+          explain: '(2 + 13) / 18 = 15/18 = 0.833, i.e. 83.3%.'
+      - say: |
+          **Precision** asks: when the model cries fraud, how often is it right? Look down the predicted-Fraud column.
+        set: { fstep: 1 }
+        gate:
+          type: predict
+          question: Precision = ?
+          answer: { value: 0.67, tol: 0.01 }
+          explain: 'TP / (TP + FP) = 2 / (2 + 1) = 0.67. Two of the three alarms were real fraud.'
+      - say: |
+          **Recall** asks: of the real frauds, how many did we catch? Look along the actual-Fraud row.
+        set: { fstep: 2 }
+        gate:
+          type: predict
+          question: Recall = ?
+          answer: { value: 0.5, tol: 0.01 }
+          explain: 'TP / (TP + FN) = 2 / (2 + 2) = 0.50. Half the fraud slipped through.'
+      - say: |
+          **F1** combines them with a harmonic mean, which stays close to the weaker of the two.
+        set: { fstep: 3 }
+        gate:
+          type: predict
+          question: F1 = ?
+          answer: { value: 0.57, tol: 0.01 }
+          explain: '2(0.67)(0.50) / (0.67 + 0.50) = 0.67 / 1.17 = 0.57 (slide 22).'
+      - say: Now you control the model. Catching more fraud usually costs more false alarms.
+        show: [tp-s, fp-s]
+        gate:
+          type: when
+          prompt: Catch **every** fraud while keeping precision at least 0.5.
+          when: 'm.recall == 1 and m.precision >= 0.5'
+          hint: TP = 4. How many false alarms can you afford before precision drops below 4/8?
+      - say: |
+          Slide back to TP = 2, FP = 1. Accuracy hardly moves when you change TP, because only 4 of 18 rows are frauds. **Recall, not accuracy, tells the story that matters.**
+        set: { tp: 2, fp: 1, fstep: 2 }
+    takeaway: 'Same four cells, four questions: accuracy (all rows), precision (alarms), recall (real positives), F1 (balance of P and R).'
+
+  - id: per-class-sigla
+    title: Same model, very different per class
+    goal: Can a model with a decent headline score never catch the class that matters?
+    skills: [per-class]
+    data: [sigla]
+    state: { model: anthro }
+    derive:
+      - { fn: siglaView, in: { sigla: '@sigla', model: '@model' }, out: sv }
+    stage:
+      - id: head
+        widget: Matrix
+        props: { data: '@sigla.headline', format: 2, title: 'Slide 13: SIGLA headline metrics', rowHeader: metric }
+      - id: cmx
+        widget: Matrix
+        props: { data: '@sv.M', format: 2, heatmap: seq, title: 'Slide 14: row-normalized confusion matrix (rows = actual)', rowHeader: actual }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Height input
+          options:
+            - { value: anthro, label: 'Anthropometric (measured)' }
+            - { value: marker, label: 'Marker-derived (estimated)' }
+        bind: { value: model }
+      - id: rec
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'Normal recall', value: '@sv.normal', format: 2, tone: good }
+            - { label: 'Underweight recall', value: '@sv.uw', format: 2, tone: warn }
+            - { label: 'Sev. underweight recall', value: '@sv.sevuw', format: 2, tone: bad }
+      - id: macro-r
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'macro recall', value: '@sv.macroRecall', format: 3, tone: accent }
+    beats:
+      - say: |
+          **SIGLA** estimates a learner's weight and assigns one of five nutritional classes. Its stated priority: catch the **underweight** learners.
+          The headline numbers favour the marker-derived height on every row.
+      - say: |
+          Each row of the matrix is one **actual** class, normalized to sum to 1. So the **diagonal** cell is that class's recall.
+        do:
+          - { target: cmx, cmd: highlight, args: { sel: '@sv.diag', tone: accent } }
+        gate:
+          type: predict
+          question: 'Anthropometric model: what is the recall for Normal?'
+          answer: { value: 0.91, tol: 0.005 }
+          explain: 'Row Normal, column Normal: 0.91. Normal learners are almost always recognized.'
+      - say: Now the class SIGLA cares most about. Read row SevUW.
+        do:
+          - { target: cmx, cmd: highlight, args: { sel: 'row:SevUW', tone: bad } }
+        gate:
+          type: predict
+          question: 'Anthropometric: of the severely underweight learners, what share is predicted correctly?'
+          answer: { value: 0.11, tol: 0.005 }
+          explain: '0.11. The other 0.88 of them are called Underweight or even Normal.'
+      - say: The marker-derived model "matches or slightly beats" the measured one on the headlines.
+        gate:
+          type: when
+          prompt: Switch to the **marker-derived** model.
+          when: 'model == ''marker'''
+      - say: Look at the same row again.
+        gate:
+          type: predict
+          question: 'Marker-derived: recall for Severely Underweight?'
+          options: ['0.00', '0.11', '0.33', '0.67']
+          answer: 0
+          explain: 'The diagonal cell is 0: the marker model **never** catches a severely underweight learner. Its 0.67 goes to Underweight.'
+      - say: |
+          Average the five diagonals with equal weight (**macro recall**, beyond the slides): the "better" marker model actually scores lower.
+        show: [macro-r]
+      - say: |
+          Slide 15's ladder: **overall** performance (macro-F1 ≈ 0.7, fine) → **per-class** (0.94 vs 0.00, very uneven) → **decision-relevant** (we exist to find undernourished learners).
+    takeaway: Read the diagonal of a row-normalized confusion matrix. A good average can hide a class with zero recall.
+
+  - id: resample-counts
+    title: Fewer majority or more minority
+    goal: What do random undersampling and oversampling actually do to the training set?
+    skills: [random-resampling]
+    data: [toy, adult]
+    state: { method: none }
+    derive:
+      - { fn: resampleToy, in: { toy: '@toy', method: '@method' }, out: rt }
+      - { fn: adultCounts, in: { adult: '@adult', method: '@method' }, out: ac }
+    stage:
+      - id: plot
+        widget: Chart
+        props: { kind: scatter, series: '@rt.series', xLabel: x1, yLabel: x2, title: 'Toy training map (10 majority, 5 minority)' }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Resampler
+          options:
+            - { value: none, label: none }
+            - { value: RUS, label: 'undersample (RUS)' }
+            - { value: ROS, label: 'oversample (ROS)' }
+        bind: { value: method }
+      - id: adult-r
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'Adult train rows', value: '@ac.rows', tone: accent }
+            - { label: 'Adult majority', value: '@ac.maj' }
+            - { label: 'Adult minority', value: '@ac.min' }
+            - { label: 'minority share', value: '@ac.minProp', format: 3 }
+      - id: note
+        widget: Text
+        region: side
+        props: { body: 'Toy: {=rt.note}.' }
+    beats:
+      - say: |
+          The Session 3 notebook trains on **Adult Income** (> $50K is the minority, 23.9%). After the 75/25 split the training half has
+          **27,866** majority and **8,765** minority rows. Every technique changes the training data so the learner can't ignore the minority.
+      - say: |
+          **Random undersampling (RUS)** keeps every minority row and throws away random majority rows until the counts match.
+        gate:
+          type: predict
+          question: How many training rows remain after RUS?
+          answer: { value: 17530 }
+          explain: '8,765 minority + 8,765 kept majority = 2 × 8,765 = 17,530 rows (notebook technique 1).'
+      - say: Try it on the toy map.
+        gate:
+          type: when
+          prompt: Choose **undersample (RUS)**.
+          when: 'method == ''RUS'''
+      - say: |
+          Five of the ten blue points are gone: thousands of real rows, in the Adult case. Cheap and fast, but we may have discarded useful signal.
+        gate:
+          type: predict
+          question: How many training rows after **random oversampling** (copy minority rows until they match)?
+          answer: { value: 55732 }
+          explain: '27,866 majority + 27,866 minority = 55,732 rows; 19,101 of the minority rows are copies.'
+      - say: Switch to oversampling on the toy map.
+        gate:
+          type: when
+          prompt: Choose **oversample (ROS)**.
+          when: 'method == ''ROS'''
+      - say: |
+          The new points sit **exactly on top of** existing ones: the minority cloud gets denser, not wider. Nothing is lost, but exact copies invite **overfitting**.
+    takeaway: RUS deletes majority rows (2 × n_min remain); ROS duplicates minority rows (2 × n_maj). Neither creates new locations.
+
+  - id: smote-line
+    title: SMOTE draws on the line
+    goal: How does SMOTE invent minority points instead of copying them?
+    skills: [smote]
+    data: [toy]
+    state: { lam: 0.5, nb: M4, knnUpTo: 0 }
+    derive:
+      - { fn: smoteToy, in: { toy: '@toy', i: M2, k: 2, nb: '@nb', lambda: '@lam' }, out: sm }
+      - { fn: knnSheet, in: { toy: '@toy', target: M2, upTo: '@knnUpTo', k: 2 }, out: ks }
+    stage:
+      - id: plot
+        widget: Chart
+        props: { kind: scatter, series: '@sm.series', xLabel: x1, yLabel: x2, title: 'Oversampling M2 = (7, 5)' }
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@ks.rows', cols: '@ks.cols', values: '@ks.values', format: 0, title: 'Squared distance from M2 to each minority point' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: knnWalk
+          in: { toy: '@toy', target: M2, k: 2 }
+          roles: { sheet: sheet, plot: plot }
+          speed: 0.7
+      - id: f
+        widget: Formula
+        region: side
+        props: { tex: '{=sm.tex}' }
+      - id: lam-s
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'λ', min: 0, max: 1, step: 0.05, format: 2 }
+        bind: { value: lam }
+      - id: nb-c
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: neighbour
+          options:
+            - { value: M1, label: M1 }
+            - { value: M4, label: M4 }
+        bind: { value: nb }
+    beats:
+      - say: |
+          Oversampling stacked copies. **SMOTE** (Synthetic Minority Over-sampling TEchnique) fills the gaps **between** real minority points.
+          Step 1: find the point's nearest **minority** neighbours. We use squared distances: no square roots, same ranking.
+        gate:
+          type: predict
+          question: 'M2 = (7, 5) and M1 = (8, 6). Squared distance?'
+          answer: { value: 2 }
+          explain: '(8 − 7)² + (6 − 5)² = 1 + 1 = 2.'
+      - say: Compute M2's distance to every other minority point.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the four distances.
+          target: player
+          event: done
+      - say: |
+          With k = 2, M2's neighbours are **M1** (2) and **M4** (8). SMOTE picks one at random, then a random $\lambda$ between 0 and 1:
+          $x_{\text{new}} = x_i + \lambda\,(x_{\text{nb}} - x_i)$.
+        set: { knnUpTo: 4 }
+        gate:
+          type: predict
+          question: 'Neighbour M4 = (9, 3), λ = 0.5. What is the new point''s first coordinate?'
+          answer: { value: 8 }
+          explain: '7 + 0.5 × (9 − 7) = 7 + 1 = 8. The second is 5 + 0.5 × (3 − 5) = 4, so x_new = (8, 4).'
+      - say: Drag λ and watch the new point slide along the segment.
+        show: [lam-s, nb-c]
+        gate:
+          type: when
+          prompt: Place the new point at **(8.5, 3.5)**.
+          when: 'abs(sm.x1 - 8.5) < 0.01 and abs(sm.x2 - 3.5) < 0.01'
+          hint: 'With M4: 7 + λ·2 = 8.5.'
+      - say: |
+          $\lambda = 0$ lands on M2 itself, $\lambda = 1$ on the neighbour; anything between is a **genuinely new** location inside the minority region.
+          Risk: a minority point deep in majority territory makes SMOTE draw into the wrong neighbourhood.
+    takeaway: SMOTE puts each new point a random fraction λ of the way from a minority point to one of its k nearest minority neighbours.
+
+  - id: smote-nc-vote
+    title: Categories vote, numbers interpolate
+    goal: What is "halfway between Married and Divorced"?
+    skills: [smote-nc]
+    data: [snc]
+    derive:
+      - { fn: smoteNC, in: { rows: '@snc', i: X, nb: N2, lambda: 0.5 }, out: nc }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@nc.table', title: 'X, its 3 nearest minority neighbours, and the synthetic row' }
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          tex: 'x_{\text{new}} = x_i + \lambda\,(x_{\text{nb}} - x_i), \quad \lambda = 0.5,\ \text{nb} = N2'
+      - id: bins
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: age, label: age }
+            - { id: hours, label: hours-per-week }
+            - { id: edu, label: education-num }
+            - { id: marital, label: marital-status }
+            - { id: workclass, label: workclass }
+            - { id: race, label: race }
+            - { id: sex, label: sex }
+          bins:
+            - { id: interp, label: 'interpolate (numeric)' }
+            - { id: vote, label: 'neighbour vote (categorical)' }
+          solution: { age: interp, hours: interp, edu: interp, marital: vote, workclass: vote, race: vote, sex: vote }
+    beats:
+      - say: |
+          Adult Income mixes **numeric** columns (age, hours-per-week) with **categorical** ones (marital-status, workclass).
+          Plain SMOTE needs numbers, so suppose we code Married = 0, Divorced = 1, Single = 2.
+        gate:
+          type: predict
+          question: 'Plain SMOTE between Married (0) and Divorced (1) with λ = 0.5 gives which code?'
+          answer: { value: 0.5 }
+          explain: '0 + 0.5 × (1 − 0) = 0.5: a marital status that **does not exist**.'
+      - say: |
+          **SMOTE-NC** (Nominal and Continuous) keeps the SMOTE formula for numeric columns. The new row uses neighbour N2 and λ = 0.5.
+        gate:
+          type: predict
+          question: 'X is 40 years old, N2 is 38. Age of the synthetic row?'
+          answer: { value: 39 }
+          explain: '40 + 0.5 × (38 − 40) = 40 − 1 = 39. Hours: 50 + 0.5 × (60 − 50) = 55.'
+      - say: |
+          For each **categorical** column it takes the **most frequent value among X's k minority neighbours**: a vote, not an average.
+        gate:
+          type: predict
+          question: 'N1, N2, N3 are Married, Divorced, Married. Marital status of the synthetic row?'
+          options: [Married, Divorced, 'Single', '0.5 (halfway)']
+          answer: 0
+          explain: 'Married wins 2 votes to 1, even though the interpolation partner N2 is Divorced. Workclass: Private 2, Self-emp 1 → Private.'
+      - say: Which rule does each Adult column follow?
+        show: [bins]
+        gate:
+          type: event
+          prompt: Sort every column into its bin.
+          target: bins
+          event: solved
+      - say: |
+          Every synthetic row now carries a **real** category. That is why the notebook passes SMOTE-NC the categorical column indices and keeps those columns raw.
+    takeaway: 'SMOTE-NC interpolates numeric columns and lets the k neighbours vote on each categorical column, so synthetic rows stay valid.'
+
+  - id: adasyn-hardness
+    title: ADASYN aims at the hard cases
+    goal: Which minority points deserve more synthetic neighbours?
+    skills: [adasyn]
+    data: [toy]
+    state: { adaUpTo: 0 }
+    derive:
+      - { fn: adasynSheet, in: { toy: '@toy', k: 3, upTo: '@adaUpTo' }, out: ad }
+      - { fn: resampleToy, in: { toy: '@toy' }, out: rt }
+    stage:
+      - id: plot
+        widget: Chart
+        props: { kind: scatter, series: '@rt.series', xLabel: x1, yLabel: x2, title: 'Toy map: where is the minority hardest to learn?' }
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@ad.rows', cols: '@ad.cols', values: '@ad.values', format: 2, title: 'ADASYN worksheet (k = 3, G = 5)' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: adasynWalk
+          in: { toy: '@toy', k: 3 }
+          roles: { sheet: sheet, plot: plot }
+          speed: 0.6
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          steps:
+            - 'r_i = \frac{\Delta_i}{k}, \qquad \hat r_i = \frac{r_i}{\sum_j r_j}, \qquad g_i = \hat r_i \cdot G'
+          step: 0
+    beats:
+      - say: |
+          SMOTE spreads its new points **evenly** over the minority. **ADASYN** (Adaptive Synthetic sampling) spends more of its budget where the minority is **hardest to learn**:
+          near majority points. The budget is the gap between the classes, $G = n_{\text{maj}} - n_{\min}$ (imbalanced-learn's default).
+        gate:
+          type: predict
+          question: 'Toy map: 10 majority, 5 minority. G = ?'
+          answer: { value: 5 }
+          explain: '10 − 5 = 5 synthetic points in total.'
+      - say: |
+          For each minority point, look at its k = 3 nearest neighbours among **all** points. $\Delta_i$ = how many are majority.
+          M5 = (3, 0) sits in the bottom-left, among the blue points.
+        gate:
+          type: predict
+          question: 'M5''s 3 nearest neighbours are B10, B8, B7. Δ for M5?'
+          answer: { value: 3 }
+          explain: All three are majority points, so Δ = 3 and r = 3/3 = 1, the hardest possible.
+      - say: Work through all five minority points, then normalize and share out G.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the ADASYN worksheet.
+          target: player
+          event: done
+      - say: Read the last column.
+        set: { adaUpTo: 5 }
+        gate:
+          type: predict
+          question: How many of the 5 synthetic points go to M5?
+          answer: { value: 3 }
+          explain: 'Σr = 1/3 + 1/3 + 0 + 0 + 1 = 5/3, so r̂(M5) = 1 ÷ 5/3 = 0.6 and g = 0.6 × 5 = 3. M1 and M2 get 1 each; M3 and M4 get none.'
+      - say: |
+          But is M5 a hard case or just **noise**? Its new points are drawn towards its minority neighbours, M3 and beyond, straight across majority land.
+        do:
+          - { target: plot, cmd: highlight, args: { sel: 'point:minority,4', tone: bad } }
+      - say: |
+          In the notebook ADASYN had the **highest recall** (0.877) and the **lowest precision** (0.499) of all five: the focus on the border buys catches with false alarms.
+    takeaway: 'ADASYN gives each minority point g_i ∝ Δ_i synthetic points: more where majority neighbours crowd in, including noisy points.'
+
+  - id: choose-by-decision
+    title: No universal winner
+    goal: Which resampler should you pick, and who decides?
+    skills: [choosing, random-resampling]
+    data: [results]
+    state: { ratio: 1 }
+    derive:
+      - { fn: resultsView, in: { results: '@results', cols: [accuracy, balanced_acc, precision, recall, f1, roc_auc, pr_auc] }, out: rv }
+      - { fn: costCompare, in: { results: '@results', pos: 2922, neg: 9289, ratio: '@ratio' }, out: cc }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@rv', format: 3, heatmap: seq, title: 'Session 3 final comparison (same model, same untouched test set)', rowHeader: method }
+      - id: cost
+        widget: Chart
+        hidden: true
+        props: { kind: bar, series: '@cc.bars', yLabel: 'errors × cost', title: 'Test-set cost (FN and FP rebuilt from precision and recall)' }
+      - id: ratio-s
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'cost of a miss ÷ cost of a false alarm', min: 1, max: 6, step: 0.05, format: 2 }
+        bind: { value: ratio }
+      - id: best
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: cheapest method, value: '@cc.best', tone: good }
+      - id: beyond
+        widget: Callout
+        region: side
+        hidden: true
+        props: { kind: beyond, body: 'Cost = ratio × FN + FP. FN and FP are rebuilt from the rounded table (2,922 minority test rows), so they are approximate.' }
+    beats:
+      - say: |
+          Same logistic regression, same untouched test set, six training sets. Read the **recall** column.
+        gate:
+          type: predict
+          question: Which method has the highest recall?
+          options: [Baseline, RUS, SMOTE, ADASYN]
+          answer: 3
+          explain: 'ADASYN, 0.877. Every resampler lifts recall from the baseline''s 0.506 to above 0.82.'
+      - say: Now the **precision** and **ROC-AUC** columns.
+        gate:
+          type: predict
+          question: What happened to ROC-AUC after resampling?
+          options: ['It barely moved (0.875–0.876)', 'It jumped from 0.6 to 0.9', 'It fell by half', 'It became exactly 1']
+          answer: 0
+          explain: 'The model''s **ranking** of people hardly changed. Resampling mostly moves where the decision threshold effectively sits, trading precision for recall.'
+      - say: |
+          So which is "best"? Price the errors. Suppose a missed case costs **r** times as much as a false alarm.
+        show: [cost, ratio-s, best, beyond]
+        gate:
+          type: when
+          prompt: Find a cost ratio where plain **RUS** is the cheapest method.
+          when: 'cc.best == ''RUS'''
+          hint: Between "a miss and an alarm cost the same" and "a miss costs 5×".
+      - say: |
+          At ratio 1 the **baseline** wins, near 2 **RUS** wins, and from about 2.5 up **ADASYN** wins. The metric serves the decision, never the other way around.
+        gate:
+          type: when
+          prompt: Make **ADASYN** the cheapest.
+          when: 'cc.best == ''ADASYN'''
+      - say: |
+          SAGIP and SIGLA: a missed dropout or an undernourished learner costs far more than an extra home visit, so high recall is worth the precision hit.
+          A team drowning in alerts might choose otherwise.
+      - say: One rule never changes, whichever method you choose.
+        gate:
+          type: predict
+          question: Which data may be resampled?
+          options: ['The training split only', 'The whole dataset, before splitting', 'The test split only', 'Both splits separately']
+          answer: 0
+          explain: 'Split first, resample **train only**. The test set must keep the real-world imbalance so the scores stay honest.'
+    takeaway: Every resampler buys minority recall with a different currency. Choose the trade-off your decision's costs call for, and resample only the training split.

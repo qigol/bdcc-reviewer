@@ -168,14 +168,14 @@ bdcc-midterms-reviewer/
 | `/m/:id/intuition/:sceneId` | Guided scene player (deep-linkable) |
 | `/m/:id/math-code/:sectionId` | Split view |
 | `/m/:id/application` | Notebook case study |
-| `/quiz` | Session builder: modules, types, skills, difficulty, count, mode |
+| `/quiz` | Session builder: course (one per quiz), modules, types, skills, difficulty, count, mode |
 | `/quiz/run/:sessionId` | Question runner |
 | `/review` | Spaced-repetition queue and mistake journal |
 | `/glossary` | All terms across modules (searchable, filterable by module) |
-| `/cheatsheet` | Auto-built printable formula sheet (key formulas, exam tips, errata) |
+| `/cheatsheet` | Auto-built printable formula sheet per course (key formulas, exam tips, errata) |
 | `/admin` | Module manager (token-protected) |
 
-The top-level tab bar lists enabled modules in `order`, using `shortTitle` and the module accent color, followed by **Quiz · Review · Glossary**. A command palette (Ctrl/Cmd-K) searches terms, sections, scenes and formulas.
+Modules are grouped into **courses** (manifest `course`, e.g. `BDCC`; Admin can override it, and modules without one go to the server's `DEFAULT_COURSE`). The top bar has **one dropdown per course** that lists its enabled modules in `order` (with `shortTitle` and the module accent color) and links to a quiz on that course, followed by **Quiz · Review · Glossary**. Quizzes are course-based: a session only ever draws from one course's modules, and review/retry queues are split per course. A command palette (Ctrl/Cmd-K) searches terms, sections, scenes and formulas.
 
 ---
 

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, BookMarked, Clock, Flag, RotateCcw, Trophy } from 'lucide-react';
 import type { QuizInstance } from '@kodigo/schema';
 import { useModuleStore, type LoadedModule } from '../modules/store';
+import { useCourses } from '../modules/courses';
 import { getRunState, getSession, instantiate, newSession, randomSeed, saveRunState, QTYPE_LABEL, MODE_LABEL, type QuizSession } from './session';
 import { QuestionView, emptyResponse, grade, isAnswered, type Graded } from './Question';
 import { recordAttempt } from '../storage/progress';
@@ -20,8 +21,10 @@ export function QuizRunner() {
 
 function Runner({ session }: { session: QuizSession }) {
   const store = useModuleStore();
+  const { courseOf } = useCourses();
   const nav = useNavigate();
   const popup = usePopup();
+  const glossarySrc = session.course ? `/glossary?course=${encodeURIComponent(session.course)}` : '/glossary';
   // Restore answers saved for this session (e.g. after opening the lesson or glossary and coming back).
   const [saved] = useState(() => getRunState(session.id));
   const [slots, setSlots] = useState<Slot[]>(() => session.items.map((_, i) => {
@@ -110,7 +113,10 @@ function Runner({ session }: { session: QuizSession }) {
   const retryWrong = () => {
     const items = session.items.filter((_, i) => (slots[i].graded?.score ?? 0) < 1).map((it) => ({ ...it, seed: randomSeed() }));
     if (!items.length) return;
-    const s = newSession('retry', items);
+    // a session is single-course already; older sessions without `course` take their first module's
+    const course = session.course ?? courseOf(items[0].moduleId) ?? '';
+    const same = items.filter((it) => (courseOf(it.moduleId) ?? course) === course);
+    const s = newSession('retry', course, same, (id) => courseOf(id) ?? course, { title: course });
     nav(`/quiz/run/${s.id}`);
   };
 
@@ -123,7 +129,7 @@ function Runner({ session }: { session: QuizSession }) {
   return (
     <div className="mx-auto w-full max-w-[900px] px-4 py-5">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <div className="text-xs font-medium uppercase tracking-wide text-muted">{MODE_LABEL[session.mode] ?? session.mode}</div>
+        <div className="text-xs font-medium uppercase tracking-wide text-muted">{session.course && <span className="text-ink">{session.course} · </span>}{MODE_LABEL[session.mode] ?? session.mode}</div>
         <div className="flex flex-1 gap-1">
           {session.items.map((_, i) => (
             <button key={i} onClick={() => (exam || slots[i].graded || i <= answered) && setIdx(i)} aria-label={`question ${i + 1}`}
@@ -131,7 +137,7 @@ function Runner({ session }: { session: QuizSession }) {
           ))}
         </div>
         {remaining !== null && <span className={cn('flex items-center gap-1 font-mono text-sm', remaining < 60 && 'text-bad')}><Clock size={14} /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</span>}
-        <button className="btn btn-sm" onClick={() => popup.open({ title: 'Glossary', src: '/glossary', note: 'Your quiz stays open underneath' })} data-testid="quiz-glossary"><BookMarked size={13} /> Glossary</button>
+        <button className="btn btn-sm" onClick={() => popup.open({ title: 'Glossary', src: glossarySrc, note: 'Your quiz stays open underneath' })} data-testid="quiz-glossary"><BookMarked size={13} /> Glossary</button>
         {exam && <button className="btn btn-sm" onClick={finishExam}><Flag size={13} /> Finish</button>}
       </div>
       <div className="card p-5" data-testid="question">

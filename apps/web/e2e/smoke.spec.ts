@@ -214,3 +214,49 @@ test('quiz progress survives the nudge popup, the glossary and leaving the page'
   await expect(page.getByText('Question 2 of 5')).toBeVisible({ timeout: 15_000 });
   expect(errors).toEqual([]);
 });
+
+test('modules are grouped by course: top-bar course menu and course-scoped quizzes', async ({ page, request }) => {
+  const errors = collectErrors(page);
+  const list: { id: string; enabled: boolean; course: string; shortTitle: string }[] = await (await request.get('/api/modules')).json();
+  const enabled = list.filter((m) => m.enabled);
+  expect(enabled.every((m) => typeof m.course === 'string' && m.course.length > 0)).toBe(true);
+  const course = enabled[0].course;
+  const inCourse = enabled.filter((m) => m.course === course);
+
+  // the header has one dropdown per course instead of a tab per module
+  await page.goto('/');
+  const header = page.locator('header');
+  await expect(header.getByTestId('course-menu')).toHaveCount(new Set(enabled.map((m) => m.course)).size);
+  for (const m of enabled) await expect(header.getByRole('link', { name: m.shortTitle, exact: true })).toHaveCount(0);
+  const trigger = header.locator(`[data-testid=course-menu][data-course="${course}"]`);
+  await trigger.click();
+  const menu = page.getByRole('menu', { name: `${course} modules` });
+  await expect(menu.getByRole('menuitem')).toHaveCount(inCourse.length + 1); // modules + "Quiz on <course>"
+  await menu.getByRole('menuitem').filter({ hasText: inCourse[0].shortTitle }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/m/${inCourse[0].id}/`));
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(trigger).toContainText(inCourse[0].shortTitle);
+  await expect(page.getByTestId('module-course')).toContainText(course);
+
+  // keyboard: open, move, Escape closes and returns focus
+  await trigger.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  // "Quiz on <course>" opens the builder on that course with only its modules
+  await trigger.click();
+  await page.getByRole('menuitem', { name: `Quiz on ${course}` }).click();
+  await expect(page).toHaveURL(/\/quiz\?course=/);
+  await expect(page.getByTestId('quiz-course').getByRole('radio', { checked: true })).toContainText(course);
+  await page.getByTestId('start-quiz').click();
+  await expect(page.getByTestId('question')).toBeVisible({ timeout: 15_000 });
+  const sessions = await page.evaluate(() => JSON.parse(sessionStorage.getItem('kodigo-sessions') ?? '{}'));
+  const latest: any = Object.values(sessions).sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
+  expect(latest.course).toBe(course);
+  const ids = new Set(inCourse.map((m) => m.id));
+  expect(latest.items.every((it: any) => ids.has(it.moduleId))).toBe(true);
+  expect(errors).toEqual([]);
+});

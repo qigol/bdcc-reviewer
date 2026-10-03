@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BookMarked, Clapperboard, FunctionSquare, Search, Sigma } from 'lucide-react';
 import { useAllModules } from '../modules/useAll';
+import { useCourses } from '../modules/courses';
 import { renderTex } from '../lib/md';
 import { cn } from '../lib/util';
 import { usePopup } from '../lib/popup';
@@ -10,6 +11,7 @@ interface Entry { kind: 'term' | 'section' | 'scene' | 'formula'; title: string;
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { mods } = useAllModules();
+  const { courses, courseOf } = useCourses();
   const nav = useNavigate();
   const loc = useLocation();
   const popup = usePopup();
@@ -17,14 +19,15 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const entries = useMemo<Entry[]>(() => mods.flatMap((m) => {
-    const t = m.parsed.manifest.shortTitle;
+    // with several courses, results say which course they're from (and the course name is searchable)
+    const t = courses.length > 1 ? `${courseOf(m.id) ?? ''} · ${m.parsed.manifest.shortTitle}` : m.parsed.manifest.shortTitle;
     return [
       ...m.parsed.intuition.map((s) => ({ kind: 'scene' as const, title: s.title, sub: `${t} · Intuition · ${s.goal}`, to: `/m/${m.id}/intuition/${s.id}` })),
       ...m.parsed.mathCode.map((s) => ({ kind: 'section' as const, title: s.title, sub: `${t} · Math & Code`, to: `/m/${m.id}/math-code/${s.id}` })),
       ...m.parsed.mathCode.filter((s) => s.keyFormula).map((s) => ({ kind: 'formula' as const, title: s.title, sub: `${t} · formula`, to: `/m/${m.id}/math-code/${s.id}`, tex: s.keyFormula })),
       ...m.parsed.glossary.map((g) => ({ kind: 'term' as const, title: g.term, sub: `${t} · ${g.short}`, to: `/glossary?term=${g.id}` })),
     ];
-  }), [mods]);
+  }), [mods, courses]);
   const ql = q.toLowerCase().trim();
   const results = (ql ? entries.filter((e) => (e.title + ' ' + e.sub).toLowerCase().includes(ql)) : entries.filter((e) => e.kind !== 'formula')).slice(0, 40);
   useEffect(() => { if (open) { setQ(''); setSel(0); setTimeout(() => input.current?.focus(), 10); } }, [open]);

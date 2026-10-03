@@ -1,0 +1,168 @@
+examples:
+  - id: builtin-rank
+    source: 'Session 6 notebook, section 3'
+    fn: rankImportance
+    in: { bcimp: '@bcimp', by: builtin }
+    expect: { ranked.0: worst perimeter, ranked.1: worst area, ranked.2: worst concave points, ranked.3: mean concave points, total: 1 }
+    tol: 0.001
+    note: Impurity importances are normalized, so the 30 values sum to 1.
+  - id: perm-rank
+    source: 'Session 6 notebook, section 4'
+    fn: rankImportance
+    in: { bcimp: '@bcimp', by: perm }
+    expect: { ranked.0: worst perimeter, ranked.1: worst area, ranked.2: worst concave points, ranked.4: worst texture, negatives: 6 }
+  - id: twins-ranks
+    source: 'Session 6 notebook, sections 3–4'
+    fn: twinsLecture
+    in: { bcimp: '@bcimp' }
+    expect: { radiusBuiltinRank: 5, radiusPermRank: 29 }
+    note: worst radius is 5th by built-in importance but 29th of 30 by permutation importance; its twins worst perimeter and worst area cover for it.
+  - id: shapley-phi
+    source: 'Session 7 notebook, section 3'
+    fn: shapley
+    in: { game: '@shapgame' }
+    expect: { A: -0.24, B: 0.03, C: -0.09, total: -0.3, gap: -0.3 }
+  - id: shapley-rows
+    source: 'Session 7 notebook, section 3'
+    fn: shapley
+    in: { game: '@shapgame' }
+    expect: { rows.0.d.A: -0.25, rows.0.d.B: 0.05, rows.0.d.C: -0.1, rows.2.d.A: -0.22, rows.3.d.C: -0.07, rowSums: [-0.3, -0.3, -0.3, -0.3, -0.3, -0.3] }
+    note: Every ordering's three increments add to −0.30.
+  - id: shapley-weights
+    source: 'Session 7 notebook, section 3 (formula)'
+    fn: shapleyWeights
+    in: { game: '@shapgame', player: A }
+    expect: { phi: -0.24 }
+  - id: shapley-walk
+    source: 'Session 7 notebook, section 3'
+    fn: shapleyWalk
+    in: { game: '@shapgame' }
+    expect: { steps: 7, phi.A: -0.24 }
+  - id: shapley-order-code
+    source: 'Session 7 notebook, section 3'
+    fn: shapleyOrderCode
+    in: { game: '@shapgame', player: B }
+    expect: { phi: 0.03 }
+  - id: shapley-weight-code
+    source: 'Session 7 notebook, section 3'
+    fn: shapleyWeightCode
+    in: { game: '@shapgame', player: C }
+    expect: { phi: -0.09 }
+  - id: shap-additivity
+    source: 'Session 7 notebook, section 3 (cell 18)'
+    fn: additivity
+    in: { patient: '@patient', cls: 1 }
+    expect: { base: 0.626, sum: -0.2893, fx: 0.3367 }
+    tol: 0.0005
+  - id: shap-class-flip
+    source: 'Session 7 notebook, section 3 (base_values output)'
+    fn: additivity
+    in: { patient: '@patient', cls: 0 }
+    expect: { base: 0.374, sum: 0.2893, fx: 0.6633 }
+    tol: 0.0005
+  - id: shap-additivity-code
+    source: 'Session 7 notebook, section 3'
+    fn: additivityCode
+    in: { patient: '@patient' }
+    expect: { fx: 0.3367 }
+    tol: 0.0005
+  - id: lime-top
+    source: 'Session 7 notebook, section 4'
+    fn: limeRank
+    in: { lime: '@lime' }
+    expect: { top: worst texture <= 21.06, topWeight: 0.0469, towardMalignant: 4 }
+    tol: 0.0001
+  - id: dice-geometry
+    source: 'Session 7 notebook, section 5 (derived)'
+    fn: diceCheck
+    in: { dice: '@dice' }
+    expect: { baseRatio: 1.06, cf1Ratio: 0.51 }
+    tol: 0.01
+    note: cf1 halves the perimeter but keeps the area, so the two imply radii differing by a factor of 2.
+  - id: toy-impurity
+    source: 'Beyond the slides (toy tree)'
+    fn: impurity
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { radius: 0.3846, texture: 0.6154, area: 0, total: 0.2167 }
+    tol: 0.0005
+    note: 'radius 5/13, texture 8/13: the deeper texture split removes more weighted impurity than the root.'
+  - id: toy-impurity-walk
+    source: 'Beyond the slides (toy tree)'
+    fn: impurityWalk
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { steps: 3 }
+  - id: toy-impurity-code
+    source: 'Beyond the slides (toy tree)'
+    fn: impurityCode
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { importance.radius: 0.3846 }
+    tol: 0.0005
+  - id: toy-forest-importance
+    source: 'Beyond the slides (two twin trees)'
+    fn: forestImportance
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { radius: 0.1923, area: 0.1923, texture: 0.6154 }
+    tol: 0.0005
+    note: The twins split radius's credit in half.
+  - id: toy-perm-tree
+    source: 'Beyond the slides (toy tree)'
+    fn: permImportance
+    in: { tumors: '@tumors', trees: '@trees', which: tree1, features: [radius, area, texture] }
+    expect: { base: 0.8, radius: 0.1, area: 0, texture: 0.1 }
+  - id: toy-perm-forest
+    source: 'Beyond the slides (two twin trees)'
+    fn: permImportance
+    in: { tumors: '@tumors', trees: '@trees', which: forest, features: [radius, area, twins] }
+    expect: { base: 0.8, radius: -0.1, area: -0.1, twins: 0.1 }
+    note: Shuffling one twin even raises accuracy; shuffling both together reveals the shared signal.
+  - id: toy-perm-code
+    source: 'Beyond the slides (toy tree)'
+    fn: permCode
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { base: 0.8, importance.radius: 0.1, importance.texture: 0.1 }
+  - id: toy-pdp
+    source: 'Beyond the slides (toy tree)'
+    fn: pdpBoth
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { tree.0: 0.6, tree.10: 0.25, forest.0: 0.55, forest.10: 0.375 }
+  - id: toy-pdp-code
+    source: 'Beyond the slides (toy tree)'
+    fn: pdpCode
+    in: { tumors: '@tumors', trees: '@trees' }
+    expect: { ys: [0.6, 0.6, 0.25, 0.25] }
+  - id: toy-lime-narrow
+    source: 'Beyond the slides (1-D LIME)'
+    fn: limeFit
+    in: { x0: 16, sigma: 0.5 }
+    expect: { b: -0.2263, trueSlope: -0.2237 }
+    tol: 0.0005
+  - id: toy-lime-wide
+    source: 'Beyond the slides (1-D LIME)'
+    fn: limeFit
+    in: { x0: 16, sigma: 3 }
+    expect: { b: -0.1837 }
+    tol: 0.0005
+  - id: toy-lime-code
+    source: 'Beyond the slides (1-D LIME)'
+    fn: limeCode
+    in: { x0: 16, sigma: 2, deltas: [-2, 0, 2] }
+    expect: { b: -0.2016 }
+    tol: 0.0005
+  - id: toy-cf-area
+    source: 'Beyond the slides (linear counterfactual)'
+    fn: cfOneFeature
+    in: { radius: 17.77, area: 989.5, feature: area }
+    expect: { value: 667.25, impliedR: 14.57, plausible: false }
+    tol: 0.01
+  - id: toy-cf-geometry
+    source: 'Beyond the slides (linear counterfactual)'
+    fn: cfGeometric
+    in: { radius: 17.77 }
+    expect: { r: 15.98, area: 801.8 }
+    tol: 0.05
+  - id: toy-cf-code
+    source: 'Beyond the slides (linear counterfactual)'
+    fn: cfCode
+    in: { radius: 17.77, area: 989.5 }
+    expect: { area: 667.25 }
+    tol: 0.01

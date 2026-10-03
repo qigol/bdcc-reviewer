@@ -1,0 +1,238 @@
+intro: |
+  Dropout risk, fraud, undernutrition, machine failure: the cases that matter are almost always the rare ones. In practice
+  you rarely "fix" imbalance once. You choose a metric that sees the minority, set a threshold the people acting on the
+  model can afford, and only then decide whether resampling or class weights help. This case walks through that order.
+case:
+  id: school-screening
+  title: Screening one school for dropout risk
+  story: |
+    A division office pilots a SAGIP-style risk score in one school. Each of 40 learners has a score from 0 to 1, and we
+    know who actually did not re-enrol: 4 learners (10%). The guidance counsellor can make **8 home visits** this quarter.
+    Which learners should she visit, and how do we judge the model honestly? (Synthetic data.)
+  data: [learners, results]
+  state: { threshold: 0.5, ratio: 1 }
+  derive:
+    - { fn: screening, in: { learners: '@learners', threshold: '@threshold' }, out: sc }
+    - { fn: scoreChart, in: { learners: '@learners', threshold: '@threshold' }, out: ch }
+    - { fn: resultsView, in: { results: '@results', cols: [accuracy, precision, recall, f1, roc_auc, pr_auc] }, out: rv }
+    - { fn: costCompare, in: { results: '@results', pos: 2922, neg: 9289, ratio: '@ratio' }, out: cc }
+  cells:
+    - id: the-data
+      title: Look at the class balance first
+      say: |
+        {=sc.pos} of {=sc.n} learners dropped out, a prevalence of {=sc.prevalence|pct}. Before any model, compute what the
+        lazy "everyone stays" model would score.
+      stage:
+        - id: bal
+          widget: Readout
+          props:
+            items:
+              - { label: learners, value: '@sc.n' }
+              - { label: dropouts, value: '@sc.pos', tone: bad }
+              - { label: 'lazy-model accuracy', value: '@sc.lazyAccuracy', format: 2, tone: warn }
+        - id: syn
+          widget: Callout
+          props: { kind: note, body: 'Synthetic school, in the spirit of SAGIP (TALAAN). The real national dropout rate is about 1.41%; 10% keeps the minority visible on screen.' }
+      decision:
+        prompt: The vendor says the model is "90% accurate". What should you ask next?
+        type: mcq
+        options:
+          - 'What is its recall on dropouts? Predicting "stays" for everyone is already 90% accurate here'
+          - 'Nothing; 90% is an excellent accuracy'
+          - 'Whether it is more than 95% accurate on learners who stay'
+          - 'How many features it uses'
+        answer: 0
+        model: |
+          With 36 of 40 learners staying, a model that never flags anyone scores 36/40 = 90%. Accuracy alone cannot tell a
+          useful model from a lazy one; ask for recall, precision and F1 on the dropout class.
+    - id: threshold
+      title: Choose a threshold
+      say: |
+        Flag every learner whose score is at least the threshold. At {=threshold|2} the model flags {=sc.flagged}, catching
+        {=sc.tp} of {=sc.pos} dropouts (recall {=sc.recall|2}) with {=sc.fp} false alarms (precision {=sc.precisionShown|2}).
+        Slide the threshold and watch recall and precision trade places.
+      stage:
+        - id: thr
+          widget: Slider
+          props: { label: threshold, min: 0.05, max: 0.9, step: 0.05, format: 2 }
+          bind: { value: threshold }
+        - id: scores
+          widget: Chart
+          props: { kind: scatter, series: '@ch.series', xLabel: risk score, yLabel: 'dropout (1) or stays (0)', title: 'Learners by score; the vertical line is the threshold' }
+        - id: cm
+          widget: Matrix
+          props: { data: '@sc.cm', format: int, title: 'Confusion matrix at this threshold', rowHeader: actual }
+        - id: met
+          widget: Readout
+          props:
+            items:
+              - { label: flagged, value: '@sc.flagged' }
+              - { label: recall, value: '@sc.recall', format: 2, tone: accent }
+              - { label: precision, value: '@sc.precisionShown', format: 2 }
+              - { label: F1, value: '@sc.f1', format: 2 }
+              - { label: accuracy, value: '@sc.accuracy', format: 2 }
+      decision:
+        prompt: The counsellor can visit at most 8 learners. Which threshold uses those visits best?
+        type: mcq
+        options:
+          - '0.35: flags 8 and catches 3 of the 4 dropouts'
+          - '0.50: flags 4 and catches 2'
+          - '0.25: catches all 4 but flags more than 8'
+          - '0.90: flags nobody, so no visits are wasted'
+        answer: 0
+        model: |
+          At 0.35 exactly 8 learners are flagged and recall is 0.75. Raising the threshold wastes capacity and misses a
+          dropout; lowering it to catch the fourth dropout (score 0.27) needs more visits than she has. The threshold is a
+          decision about capacity, not a property of the model; SAGIP exposes it as tunable Low/Medium/High tiers.
+    - id: tiers
+      title: Risk tiers instead of one cut-off
+      say: |
+        SAGIP reports Low, Medium and High tiers that DepEd calibrates to its intervention capacity. Here High is a score of
+        at least 0.6 and Medium at least 0.3.
+      stage:
+        - id: tier-t
+          widget: Matrix
+          props: { data: '@sc.tiers', format: int, title: 'Learners and actual dropouts per tier', rowHeader: tier }
+      decision:
+        prompt: How would you use the three tiers in this school?
+        type: open
+        model: |
+          Visit all 3 High-tier learners (2 of them dropped out: precision 0.67). Spend the remaining 5 visits on the Medium
+          tier, which holds 7 learners and 1 dropout. Low has 30 learners and 1 dropout, so blanket visits there would be
+          very low precision; a cheaper action (a text to the family, a teacher check-in) fits it better. Tiers let the
+          action match the confidence.
+    - id: resample-or-not
+      title: Would resampling help?
+      say: |
+        On the Adult Income lab every resampler raised recall from 0.506 to above 0.82 and lowered precision. ROC-AUC and
+        PR-AUC, which measure how well the model **ranks** people, barely moved.
+      stage:
+        - id: res
+          widget: Matrix
+          props: { data: '@rv', format: 3, heatmap: seq, title: 'Session 3 comparison table', rowHeader: method }
+      decision:
+        prompt: What does the unchanged ROC-AUC tell you?
+        type: mcq
+        options:
+          - 'Resampling mostly shifted the effective threshold; the model did not learn a much better ranking'
+          - 'Resampling made the model worse'
+          - 'ROC-AUC is broken on imbalanced data'
+          - 'The test set was resampled by mistake'
+        answer: 0
+        model: |
+          If the ranking is almost the same, lowering the decision threshold on the baseline model would buy a similar
+          recall–precision trade. Resampling is one way to move the trade-off, not a way to create new signal. That is the
+          notebook's "resist the obvious answer".
+    - id: price-errors
+      title: Put a price on each error
+      say: |
+        Suppose a missed case costs {=ratio|2} times as much as a false alarm. Rebuilding FN and FP for the 2,922 minority test
+        rows from each method's precision and recall, the cheapest method is **{=cc.best}**.
+      stage:
+        - id: ratio-s
+          widget: Slider
+          props: { label: 'cost of a miss ÷ cost of a false alarm', min: 1, max: 6, step: 0.05, format: 2 }
+          bind: { value: ratio }
+        - id: costs
+          widget: Matrix
+          props: { data: '@cc.table', format: int, title: 'Approximate test-set errors and cost', rowHeader: method }
+        - id: why
+          widget: Callout
+          props: { kind: beyond, body: 'Cost = ratio × FN + FP is not in the lecture. It makes "choose by the decision" concrete. FN and FP are approximate because the table is rounded.' }
+      decision:
+        prompt: 'For dropout screening a missed learner is judged about 4× as costly as an unnecessary home visit. Which method?'
+        type: mcq
+        options: ['ADASYN', 'Baseline (no resampling)', 'SMOTE-NC', 'It does not matter']
+        answer: 0
+        model: |
+          At ratio 4, ADASYN's extra catches (359 misses vs 1,443 for the baseline) outweigh its extra false alarms. At ratio 1
+          the baseline would win. The answer depends on the cost structure, which is the decision-maker's call, not the data's.
+    - id: honest-check
+      title: Check the evaluation itself
+      say: |
+        A teammate reports recall 0.95 after random oversampling, far above the notebook's 0.83. Their code oversampled
+        the whole dataset, then called `train_test_split`.
+      decision:
+        prompt: What most likely happened?
+        type: mcq
+        options:
+          - 'Copies of the same minority rows landed in both train and test, so the model was tested on rows it had memorized'
+          - 'Oversampling genuinely works better on the full dataset'
+          - 'The test set became more realistic'
+          - 'Recall cannot be inflated by resampling'
+        answer: 0
+        model: |
+          Resampling before the split is leakage: a duplicated (or, with SMOTE, interpolated) minority row can sit in the
+          training set while its twin is in the test set. Split first, stratify, resample only the training half, and keep
+          the test set at its real imbalance.
+atScale:
+  title: Imbalance in production pipelines
+  body: |
+    **Keep resampling inside the training folds.** With cross-validation, resampling outside the loop leaks synthetic or
+    copied rows into validation folds. imbalanced-learn's `Pipeline` applies the sampler only during `fit`.
+
+    **Class weights scale better than rows.** SAGIP used LightGBM's `scale_pos_weight`, which multiplies each dropout's
+    loss instead of creating rows; set it near n_negative / n_positive (about 70 for a 1.41% rate). Logistic regression has
+    `class_weight="balanced"`, Spark ML a `weightCol`.
+
+    **Cost of SMOTE and ADASYN.** Each needs nearest neighbours of every minority row (KD-tree or ball-tree; brute force is
+    O(n_min · n · d)). On millions of rows, undersampling the majority or weighting is usually cheaper, and on the big-data
+    side you can sample the majority per partition.
+
+    **Thresholds are part of the model.** Tune the decision threshold on validation data for the recall or capacity you
+    need, and report the per-class confusion matrix, not only accuracy.
+  code:
+    - lang: python
+      title: imbalanced-learn pipeline in cross-validation
+      source: |
+        from imblearn.pipeline import Pipeline
+        from imblearn.over_sampling import SMOTENC
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+        pipe = Pipeline([
+            ("smote_nc", SMOTENC(categorical_features=categorical_idx, random_state=42)),
+            ("clf", LogisticRegression(max_iter=1000)),   # encoding step omitted for brevity
+        ])
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        recall = cross_val_score(pipe, X_train, y_train, scoring="recall", cv=cv)
+    - lang: python
+      title: Class weights instead of resampling (LightGBM, as in SAGIP)
+      source: |
+        import lightgbm as lgb
+
+        ratio = (y_train == 0).sum() / (y_train == 1).sum()   # about 70 at 1.41% dropout
+        model = lgb.LGBMClassifier(scale_pos_weight=ratio, random_state=42)
+        model.fit(X_train, y_train)
+        risk = model.predict_proba(X_test)[:, 1]              # then cut into Low / Medium / High
+    - lang: python
+      title: PySpark weighted logistic regression
+      source: |
+        from pyspark.sql import functions as F
+        from pyspark.ml.classification import LogisticRegression
+
+        pos = train.filter("label = 1").count(); neg = train.filter("label = 0").count()
+        train = train.withColumn("w", F.when(F.col("label") == 1, neg / pos).otherwise(1.0))
+        lr = LogisticRegression(featuresCol="features", labelCol="label", weightCol="w")
+        model = lr.fit(train)
+tradeoffs:
+  title: The five techniques (plus class weights)
+  columns: [Technique, What it changes, Main advantage, Main risk]
+  rows:
+    - ['Random undersampling', 'Deletes majority rows', 'Fast; tiny training set', 'Throws away real signal']
+    - ['Random oversampling', 'Duplicates minority rows', 'Keeps all data', 'Overfits exact copies']
+    - ['SMOTE', 'Synthesizes points between minority neighbours', 'Smoother boundaries', 'Can invent points in the wrong region']
+    - ['SMOTE-NC', 'SMOTE that votes on categories', 'Correct for mixed data', 'Needs the categorical indices set right']
+    - ['ADASYN', 'More synthetic points near the border', 'Highest recall, adaptive', 'Most false alarms; sensitive to noise']
+    - ['Class weights (beyond the slides)', 'Weights the loss, not the rows', 'No new rows; scales to big data', 'Needs a model that supports weights']
+explainBack:
+  prompt: |
+    Explain to a school principal why a 98% accurate dropout model can be useless, and how you would evaluate and improve
+    it. Use the words recall, precision, confusion matrix and threshold.
+  rubric:
+    - Shows that predicting "stays" for everyone already gives accuracy equal to the majority share
+    - Defines recall as dropouts caught out of all real dropouts, and precision as real dropouts among those flagged
+    - Reads TP, FN, FP, TN from a confusion matrix with dropout as the positive class
+    - Explains that lowering the threshold (or resampling) raises recall at the cost of precision
+    - Says the right trade-off depends on the cost of a missed dropout versus an unnecessary visit, and on capacity
+    - Insists on splitting first and resampling only the training data

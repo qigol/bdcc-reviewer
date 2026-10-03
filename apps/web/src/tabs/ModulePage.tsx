@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { AlertTriangle, Dumbbell, Eye } from 'lucide-react';
+import { AlertTriangle, Dumbbell, Eye, GraduationCap } from 'lucide-react';
 import { useModule, type LoadedModule } from '../modules/store';
+import { useCourses } from '../modules/courses';
+import { setSetting } from '../storage/progress';
 import { Markdown } from '../lib/md';
 import { cn } from '../lib/util';
 import { ModuleIcon } from '../app/icons';
@@ -14,6 +17,10 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
   const loc = useLocation();
   const nav = useNavigate();
   const base = `${preview ? '/preview' : ''}/m/${id}`;
+  const { courseOf } = useCourses();
+  const course = (id && courseOf(id)) || mod?.parsed.manifest.course;
+  // remember the course you're studying (default for the quiz builder and cheat sheet)
+  useEffect(() => { if (!preview && course && id && courseOf(id)) setSetting('course', course); }, [course, preview]);
   if (loading && !mod) return <div className="p-8"><div className="h-8 w-64 animate-pulse rounded bg-panel2" /><div className="mt-4 h-64 animate-pulse rounded-xl bg-panel2" /></div>;
   if (error || !mod) return (
     <div className="mx-auto max-w-2xl p-8">
@@ -40,6 +47,7 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
           <div className="flex min-w-0 flex-1 items-center gap-3 pb-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: m.color ?? 'rgb(var(--accent))' }}><ModuleIcon name={m.icon} size={20} /></div>
             <div className="min-w-0">
+              {course && <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted" data-testid="module-course"><GraduationCap size={12} /> {course}</div>}
               <h1 className="truncate text-lg font-semibold">{m.title}</h1>
               <div className="truncate text-xs text-muted"><Markdown text={m.summary} inline raw /></div>
             </div>

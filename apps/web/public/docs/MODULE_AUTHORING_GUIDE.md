@@ -21,8 +21,9 @@ Build a Kodigo study module from the attached lecture, following MODULE_AUTHORIN
 
 Module id: <kebab-case-id>
 Title: <full title>
-Short title (≤ 12 chars): <tab label>
-Course: BDCC — Sessions <x–y>, dated <yyyy-mm-dd>
+Short title (≤ 12 chars): <course-menu label>
+Course: <course code, e.g. BDCC> (exactly as the course's other modules spell it)
+Lecture: Sessions <x–y>, dated <yyyy-mm-dd>
 Prerequisite modules: <ids, or none>
 Anything my professor emphasized / exam format notes: <optional>
 
@@ -45,7 +46,7 @@ Produce **one module**: a folder of files that teaches one topic three ways and 
 | **Intuition** | guided, animated, interactive scenes in the style of a 3Blue1Brown video; the math is built up *inside* the visuals | `intuition.yaml` |
 | **Math & Code** | derivations side by side with Python; each formula term is linked to the code lines that compute it | `math-code.yaml` |
 | **Application** | a notebook-style case study that ties it all together, plus how it's done at scale | `application.yaml` |
-| **Quiz** (global) | parameterized question templates; numbers change every time | `quiz.yaml` |
+| **Quiz** (per course) | parameterized question templates; numbers change every time | `quiz.yaml` |
 
 Behind them sit `logic.js` (all computation), `datasets/` (all data), `examples.yaml` (the lecture's own numbers, used as tests), `glossary.yaml`, `manifest.yaml`, and `SOURCE_NOTES.md` (your extraction of the source).
 
@@ -218,10 +219,10 @@ interface Manifest {
   id: Id;                          // permanent
   version: string;                 // semver; bump when you revise
   title: string;
-  shortTitle: string;              // ≤ 12 chars (tab label)
+  shortTitle: string;              // ≤ 12 chars (label in the course menu)
   summary: Markdown;               // ≤ 50 words
-  course?: string;                 // e.g. BDCC
-  order?: number;                  // tab order (10, 20, 30…)
+  course?: string;                 // course code, e.g. BDCC. Always set it (see "Courses" below)
+  order?: number;                  // position in the course's menu (10, 20, 30…)
   color?: string;                  // hex accent, e.g. '#0ea5e9'
   icon?: string;                   // a lucide icon name, e.g. shopping-basket, users, grid-3x3
   sources: { title: string; file?: string; sessions?: string; date?: string }[];
@@ -231,6 +232,12 @@ interface Manifest {
   authoring?: { generatedBy?: string; generatedAt?: string; notes?: string };
 }
 ```
+
+**Courses.** `course` is the code of the course the module belongs to, e.g. `BDCC`. The site groups modules by it: the
+top bar has one dropdown per course listing its modules, and **a quiz only ever draws from one course**. Use exactly the
+code the user gives you, with the same spelling and case as the course's other modules, because a different code creates
+a separate course. If `course` is missing, the site files the module under its default course and the validator warns.
+`order` sorts modules inside their course's menu.
 
 ### 5.2 `SOURCE_NOTES.md` (required; not rendered to learners, kept for audit)
 
@@ -942,6 +949,7 @@ Don't invent widgets, props or commands. Instead:
 - [ ] Only catalog widgets, props, commands and selectors are used, and `requires.widgets` matches exactly.
 - [ ] Quotas are met: 6–10 scenes; a predict gate in every scene; interactive gates in ≥ 50% of scenes; ≥ 25 quiz templates; ≥ 2 per skill; type mix per §7.4; ≥ 2 misconceptions per numeric template.
 - [ ] Every lecture number is solved step by step in some scene (no finished tables dropped on stage), and every math-code trace walks each loop iteration line by line (§7.5).
+- [ ] `manifest.course` is set to the course code the user gave (same spelling as that course's other modules).
 - [ ] Every skill appears in manifest, scenes, sections and quiz templates; every `lessonRef` points to an existing id.
 - [ ] Every math-code function has a docstring, and every trace step carries `ops` that show its line on the live-example widgets.
 - [ ] Word limits are respected; there are no placeholder texts, "TODO"s or "…" anywhere.
