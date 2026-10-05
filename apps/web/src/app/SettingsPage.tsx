@@ -27,7 +27,7 @@ export function SettingsPage() {
       <h2 className="mb-2 mt-6 font-semibold">Your progress</h2>
       <p className="mb-2 text-sm text-muted">Progress lives in this browser (IndexedDB). Download it to back it up or move it to another device (e.g. laptop → phone), then import it there. Imports merge; for conflicts, the newer entry wins.</p>
       <div className="card flex flex-wrap items-center gap-2 p-4">
-        <button className="btn" onClick={async () => download(`kodigo-progress-${new Date().toISOString().slice(0, 10)}.json`, await exportProgress(), 'application/json')}><Download size={15} /> Download my progress</button>
+        <button className="btn" onClick={async () => download(`qdigo-progress-${new Date().toISOString().slice(0, 10)}.json`, await exportProgress(), 'application/json')}><Download size={15} /> Download my progress</button>
         <button className="btn" onClick={() => file.current?.click()}><Upload size={15} /> Import progress</button>
         <input ref={file} type="file" accept="application/json" hidden onChange={async (e) => {
           const f = e.target.files?.[0];

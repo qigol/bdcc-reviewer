@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// Smoke test against a running Kodigo server (build first: `pnpm build`).
+// Smoke test against a running Qdigo server (build first: `pnpm build`).
 // By default this starts the bundled server on :8080 with the built-in modules;
 // set KODIGO_URL to test an already running instance instead.
 const url = process.env.KODIGO_URL ?? 'http://localhost:8080';

@@ -1,4 +1,4 @@
-// Kodigo module: lf-cf (Latent-factor Collaborative Filtering: ALS and coordinate descent)
+// Qdigo module: lf-cf (Latent-factor Collaborative Filtering: ALS and coordinate descent)
 // Conventions (see SOURCE_NOTES.md):
 //  - R ≈ P = U·V with U m×d (users × factors) and V d×n (factors × items), as on the slides
 //  - SSE is summed over OBSERVED cells only

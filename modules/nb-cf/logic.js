@@ -1,4 +1,4 @@
-// Kodigo module: nb-cf (Neighborhood-based Collaborative Filtering + DCG/NDCG)
+// Qdigo module: nb-cf (Neighborhood-based Collaborative Filtering + DCG/NDCG)
 // Conventions verified against every table in the deck (see SOURCE_NOTES.md):
 //  - ratings are mean-centered by the USER's mean over the items that user rated
 //  - similarity = cosine of centered vectors over CO-RATED entries only (0 if no overlap or a zero norm)

@@ -1,4 +1,4 @@
-// Kodigo module: class-imbalance (ML2, Sessions 2–3)
+// Qdigo module: class-imbalance (ML2, Sessions 2–3)
 // Every lesson number comes from these pure functions. No randomness outside generators (rng is seeded).
 export default function register(sdk) {
   const { sum, mean } = sdk;

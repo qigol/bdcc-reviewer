@@ -1,4 +1,6 @@
-# Kodigo
+# Qdigo
+
+*Q's got your Qs.*
 
 A self-hosted, modular study site for your courses, starting with **BDCC** (Big Data & Cloud Computing). Each topic is a
 *module*: a folder of YAML and one plain `logic.js` that the site renders into three study tabs and a practice-quiz bank.

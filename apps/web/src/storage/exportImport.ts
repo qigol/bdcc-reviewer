@@ -21,7 +21,7 @@ export async function exportProgress(): Promise<string> {
 /** Merge by key; on conflicts the later updatedAt wins. Attempts and notes are de-duplicated. */
 export async function importProgress(json: string): Promise<{ added: number; updated: number }> {
   const data = JSON.parse(json);
-  if (data?.app !== 'kodigo' || !data.tables) throw new Error('Not a Kodigo progress file');
+  if (data?.app !== 'kodigo' || !data.tables) throw new Error('Not a Qdigo progress file');
   let added = 0, updated = 0;
   const t = data.tables;
   await db.transaction('rw', [db.progress, db.attempts, db.srs, db.mastery, db.notes, db.bookmarks, db.settings], async () => {

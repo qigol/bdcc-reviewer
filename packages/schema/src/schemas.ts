@@ -1,5 +1,5 @@
 /**
- * Zod schemas for the Kodigo module format, schemaVersion 1.
+ * Zod schemas for the Qdigo module format, schemaVersion 1.
  * These implement the normative TypeScript types in MODULE_AUTHORING_GUIDE.md §5.
  */
 import { z } from 'zod';

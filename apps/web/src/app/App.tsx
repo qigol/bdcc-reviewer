@@ -50,7 +50,7 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
   return (
     <header className="no-print sticky top-0 z-30 border-b border-line bg-panel/85 backdrop-blur">
       <div className="mx-auto flex h-12 max-w-[1400px] items-center gap-1 px-3">
-        <Link to="/" className="mr-2 flex items-center gap-2 font-semibold"><img src="/favicon.svg" className="h-6 w-6" alt="" /> <span className="hidden sm:inline">Kodigo</span></Link>
+        <Link to="/" className="mr-2 flex items-center gap-2 font-semibold" title="Qdigo · Q's got your Qs"><img src="/favicon.svg" className="h-6 w-6" alt="" /> <span className="hidden sm:inline">Qdigo</span></Link>
         <nav className="scrollbar-thin flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {courses.map((g) => (
             <CourseMenu key={g.course} group={g} open={openCourse === g.course} onOpenChange={(o) => setOpenCourse(o ? g.course : null)} />

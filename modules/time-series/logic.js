@@ -1,4 +1,4 @@
-// Kodigo module: time-series (ML2, Sessions 10–12)
+// Qdigo module: time-series (ML2, Sessions 10–12)
 // The real Mauna Loa CO₂ and Niño 1+2 series are datasets; every score, autocorrelation and forecast below is
 // recomputed from them. Synthetic teaching series use a seeded generator, so they are identical on every load.
 export default function register(sdk) {
