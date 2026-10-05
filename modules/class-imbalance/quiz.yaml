@@ -10,9 +10,13 @@ templates:
       A dataset has **{=N}** rows, and **{=ratePct}%** of them belong to the minority class. A model predicts the majority
       class for every row. What is its accuracy, in percent?
     answer: { var: accuracyPct, tol: 0.01 }
+    hints:
+      - The model guesses the big group for everyone. Which rows does it get right?
+      - Accuracy = rows it got right ÷ all rows. Here that is (majority rows) ÷ N.
+      - 'First find the minority rows (rate × N), then subtract from N.'
     explanation: |
-      Minority rows: {=nMin}; majority rows: {=nMaj}. The model is right on every majority row:
-      accuracy $= {=nMaj} / {=N} = {=accuracyPct|2}\%$. Its minority recall is 0.
+      Minority rows: {=nMin}; majority rows: {=nMaj}. The model is right on every majority row, so
+      accuracy $= {=nMaj} \div {=N} = {=accuracyPct|2}\%$. It catches no minority rows, so its recall is 0.
 
   - id: lazy-recall-mcq
     type: mcq
@@ -22,14 +26,16 @@ templates:
     lessonRef: { tab: intuition, id: lazy-model }
     prompt: 'On a 99 : 1 dataset a model reports 99% accuracy. What can you conclude?'
     options:
-      - 'Nothing yet: always predicting the majority also gives 99%, with 0% minority recall'
-      - The model has learned the minority class well
-      - The model's minority recall must be at least 0.99
+      - 'Nothing yet: always guessing the big group also gives 99%, with 0% recall on the small group'
+      - The model has learned the small group well
+      - 'The model''s recall on the small group must be at least 0.99'
       - The model is overfitting
     answer: 0
+    hints:
+      - 'What accuracy would a model get if it always guessed the big group on a 99 : 1 dataset?'
     explanation: |
-      Accuracy equal to the majority share is exactly what the lazy model gets (slides 17–18). Check the confusion matrix and
-      the minority recall before believing it.
+      An accuracy equal to the share of the big group is exactly what the lazy model gets (slides 17–18). Look at the
+      confusion matrix and the recall on the small group before believing it.
 
   - id: why-hurts-multi
     type: multi
@@ -37,18 +43,21 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: intuition, id: lazy-model }
-    prompt: Which statements explain why class imbalance hurts (slide 24)? Select all that apply.
+    prompt: Which statements explain why uneven groups cause trouble (slide 24)? Select all that apply.
     options:
-      - Errors on the rare class barely move the overall accuracy
-      - The cheapest way for a learner to look good is to bet on the majority
-      - A single accuracy number can conceal 0% recall on the class that matters
-      - The cost of a missed minority case lives outside the metric
-      - Imbalanced data always contains labelling errors
-      - A balanced dataset guarantees a good model
+      - Mistakes on the rare group barely change the overall accuracy
+      - The easiest way for a model to look good is to always guess the big group
+      - 'A single accuracy number can hide 0% recall on the group that matters'
+      - The real cost of missing a rare case is not part of the score
+      - Uneven data always contains labelling mistakes
+      - Even groups guarantee a good model
     answer: [0, 1, 2, 3]
+    hints:
+      - Think about what happens to accuracy when you miss a few rare cases.
+      - Two of the options claim things imbalance cannot promise.
     explanation: |
-      Imbalance matters when the distribution, the metric or the learning procedure lets us overlook the minority. It says
-      nothing about label errors, and balance alone does not make a model good.
+      Imbalance matters when the data, the score or the way the model learns lets us overlook the small group. It says
+      nothing about labelling mistakes, and even groups alone do not make a model good.
 
   - id: tally-hand
     type: hand-calc
@@ -57,20 +66,24 @@ templates:
     tags: [math]
     generator: confusionQ
     lessonRef: { tab: intuition, id: tally-fraud }
-    prompt: Tally this table into a confusion matrix (positive = `pos`).
+    prompt: 'Sort this table into a confusion matrix. The positive class is `pos`.'
     show:
       - { id: t, widget: Matrix, props: { data: '@table', title: 'actual and predicted labels' } }
     steps:
-      - prompt: 'TP (actual pos, predicted pos)'
+      - prompt: 'TP (really pos, guessed pos)'
         answer: { var: tp, tol: 0 }
-      - prompt: 'FN (actual pos, predicted neg)'
+      - prompt: 'FN (really pos, guessed neg)'
         answer: { var: fn, tol: 0 }
-      - prompt: 'FP (actual neg, predicted pos)'
+      - prompt: 'FP (really neg, guessed pos)'
         answer: { var: fp, tol: 0 }
         misconceptions:
           - { var: fn, feedback: 'That is FN. A false **positive** is a negative row the model called positive.' }
-      - prompt: 'TN (actual neg, predicted neg)'
+      - prompt: 'TN (really neg, guessed neg)'
         answer: { var: tn, tol: 0 }
+    hints:
+      - 'Go row by row. Look at the real answer first, then the guess.'
+      - |
+        The first letter says if the guess was right (True) or wrong (False). The second letter says what was guessed.
     explanation: |
       TP = {=tp}, FN = {=fn}, FP = {=fp}, TN = {=tn}; together {=n} rows. Positives are {=pos}, negatives {=neg}.
 
@@ -86,7 +99,9 @@ templates:
       - ['A fraud the model let through', 'False negative (FN)']
       - ['A legitimate payment flagged as fraud', 'False positive (FP)']
       - ['A legitimate payment cleared', 'True negative (TN)']
-    explanation: The first word says whether the prediction was right; the second says what was predicted.
+    hints:
+      - '"True" or "False" says whether the guess was right. "Positive" or "Negative" says what was guessed.'
+    explanation: The first word says whether the guess was right; the second says what was guessed.
 
   - id: confusion-code
     type: code-fill
@@ -111,7 +126,9 @@ templates:
     blanks:
       '1': { accept: ['fn'] }
       '2': { accept: ['positive'] }
-    explanation: Actual positive but not predicted positive is a miss (FN). Actual negative but predicted positive is a false alarm (FP).
+    explanation: |
+      Really positive but not guessed positive is a miss (FN). Really negative but guessed positive is a false alarm (FP).
+
 
   - id: precision-numeric
     type: numeric
@@ -127,6 +144,9 @@ templates:
     misconceptions:
       - { var: wrongPrecAsRec, feedback: 'That is recall, TP / (TP + FN). Precision divides by the alarms raised, TP + FP.' }
       - { var: wrongTpOverN, feedback: 'You divided by all rows. Precision only looks at the rows predicted positive.' }
+    hints:
+      - Precision only looks at the cases the model flagged as positive.
+      - Precision = TP ÷ (TP + FP).
     explanation: |
       $P = \frac{TP}{TP + FP} = \frac{ {=tp} }{ {=tp} + {=fp} } = {=precision|2}$.
 
@@ -142,6 +162,9 @@ templates:
     misconceptions:
       - { var: wrongRecAsPrec, feedback: 'That is precision. Recall divides by the real positives, TP + FN.' }
       - { var: wrongTpOverN, feedback: 'Recall divides by the actual positives, not by every row.' }
+    hints:
+      - Recall only looks at the cases that really were positive.
+      - Recall = TP ÷ (TP + FN).
     explanation: |
       $R = \frac{TP}{TP + FN} = \frac{ {=tp} }{ {=tp} + {=fn} } = {=recall|2}$: the share of real positives caught.
 
@@ -155,8 +178,11 @@ templates:
     prompt: 'TP = {=tp}, FN = {=fn}, FP = {=fp}, TN = {=tn}. Compute the **F1** score.'
     answer: { var: f1, tol: 0.01 }
     misconceptions:
-      - { var: wrongF1Arith, feedback: 'That is the arithmetic mean (P + R)/2. F1 is the harmonic mean, 2PR/(P + R).' }
-      - { var: accuracy, feedback: 'That is accuracy. F1 ignores TN entirely.' }
+      - {var: wrongF1Arith, feedback: 'That is the normal average (P + R) ÷ 2. F1 uses 2PR ÷ (P + R).'}
+      - {var: accuracy, feedback: 'That is accuracy. F1 ignores TN completely.'}
+    hints:
+      - First compute precision P = TP ÷ (TP + FP) and recall R = TP ÷ (TP + FN).
+      - Then F1 = 2 × P × R ÷ (P + R).
     explanation: |
       P = {=precision|3}, R = {=recall|3}. $F_1 = \frac{2PR}{P + R} = {=f1|3}$.
 
@@ -167,22 +193,30 @@ templates:
     tags: [math]
     generator: confusionQ
     lessonRef: { tab: math-code, id: four-metrics }
-    prompt: Compute the four slide-22 metrics for this confusion matrix (rows = actual, columns = predicted).
+    prompt: |
+      Compute the four scores from slide 22 for this confusion matrix (rows = real answer, columns = guess).
     show:
       - { id: cm, widget: Matrix, props: { data: '@cm', format: int, rowHeader: actual } }
     steps:
       - prompt: Accuracy
         answer: { var: accuracy, tol: 0.01 }
+        hint: Right guesses (TP + TN) ÷ all rows.
       - prompt: Precision
         answer: { var: precision, tol: 0.01 }
         misconceptions:
           - { var: wrongPrecAsRec, feedback: 'That is recall. Precision = TP / (TP + FP).' }
+        hint: TP ÷ everything guessed positive.
       - prompt: Recall
         answer: { var: recall, tol: 0.01 }
+        hint: TP ÷ everything really positive.
       - prompt: F1
         answer: { var: f1, tol: 0.01 }
         misconceptions:
-          - { var: wrongF1Arith, feedback: 'Harmonic, not arithmetic, mean.' }
+          - var: wrongF1Arith
+            feedback: That is the normal average. F1 = 2PR ÷ (P + R).
+        hint: 2 × P × R ÷ (P + R).
+    hints:
+      - 'Find TP, FN, FP and TN in the matrix first. The real-positive row holds TP and FN.'
     explanation: |
       Accuracy $= ({=tp} + {=tn})/{=n} = {=accuracy|3}$; P $= {=tp}/({=tp}+{=fp}) = {=precision|3}$;
       R $= {=tp}/({=tp}+{=fn}) = {=recall|3}$; $F_1 = {=f1|3}$.
@@ -195,15 +229,19 @@ templates:
     generator: confusionQ
     lessonRef: { tab: math-code, id: four-metrics }
     prompt: |
-      TP = {=tp}, FN = {=fn}, FP = {=fp}, TN = {=tn}. The Session 3 notebook also reports **balanced accuracy**, the mean of
-      the recall on each class. Compute it.
+      TP = {=tp}, FN = {=fn}, FP = {=fp}, TN = {=tn}. The Session 3 notebook also reports [[balanced-accuracy|balanced
+      accuracy]]: the average of the recall on each group. Compute it.
     answer: { var: balanced, tol: 0.01 }
     misconceptions:
       - { var: wrongBalancedAcc, feedback: 'That is plain accuracy. Balanced accuracy averages the two per-class recalls.' }
       - { var: recall, feedback: 'That is only the positive-class recall. Average it with TN / (TN + FP).' }
+    hints:
+      - 'You need two recalls, one for the positive group and one for the negative group.'
+      - Positive recall = TP ÷ (TP + FN). Negative recall = TN ÷ (TN + FP).
+      - Add the two and divide by 2.
     explanation: |
-      Recall(pos) = {=recall|3}; recall(neg) = TN/(TN + FP) = {=specificity|3}. Balanced accuracy = their mean = {=balanced|3}.
-      The lazy model would score only 0.5.
+      Recall on positives = {=recall|3}; recall on negatives = TN ÷ (TN + FP) = {=specificity|3}. Balanced accuracy is
+      their average: {=balanced|3}. The lazy model would score only 0.5.
 
   - id: metric-match
     type: match
@@ -219,6 +257,8 @@ templates:
       - ['F1', '$2PR/(P + R)$']
       - ['Balanced accuracy', '$\tfrac12\big(TP/(TP+FN) + TN/(TN+FP)\big)$']
     pick: 4
+    hints:
+      - Precision and recall both have TP on top. Which mistake goes with which?
     explanation: Precision and recall share TP on top; FP goes with precision, FN with recall.
 
   - id: metrics-code
@@ -238,6 +278,8 @@ templates:
     blanks:
       '1': { accept: ['fp'] }
       '2': { accept: ['fn'] }
+    hints:
+      - Precision divides by everything flagged; recall by everything really positive.
     explanation: Precision divides by everything flagged (TP + FP); recall by every real positive (TP + FN).
 
   - id: per-class-recall
@@ -248,14 +290,17 @@ templates:
     generator: perClassQ
     lessonRef: { tab: math-code, id: per-class-recall }
     prompt: |
-      Confusion matrix of counts (rows = actual, columns = predicted) for classes A = Normal, B = Underweight,
-      C = Severely UW. What is the recall for class **{=cls}**?
+      Confusion matrix of counts (rows = real group, columns = guess) for groups A = Normal, B = Underweight,
+      C = Severely Underweight. What is the recall for group **{=cls}**?
     show:
       - { id: m, widget: Matrix, props: { data: '@M', format: int, rowHeader: actual } }
     answer: { var: recall, tol: 0.01 }
     misconceptions:
       - { var: precision, feedback: 'You divided by the column total: that is precision. Recall divides by the row (actual class) total.' }
       - { var: accuracy, feedback: 'That is the overall accuracy. Recall for one class uses only that class''s row.' }
+    hints:
+      - 'Recall for one group uses only that group''s row.'
+      - 'Divide the diagonal box of that row by the row''s total.'
     explanation: |
       Row {=cls}: diagonal {=diag} out of {=rowSum} actual {=cls} cases, so recall $= {=diag}/{=rowSum} = {=recall|3}$.
 
@@ -266,15 +311,19 @@ templates:
     tags: [math]
     generator: perClassQ
     lessonRef: { tab: math-code, id: per-class-recall }
-    prompt: 'For the same kind of matrix, compute the **macro recall** (unweighted mean of the three per-class recalls).'
+    prompt: |
+      For the same kind of matrix, compute the [[macro-average|macro recall]]: the plain average of the three groups' recalls.
     show:
       - { id: m, widget: Matrix, props: { data: '@M', format: int, rowHeader: actual } }
     answer: { var: macroRecall, tol: 0.01 }
     misconceptions:
       - { var: accuracy, feedback: 'That is overall accuracy, which weights classes by size. Macro recall averages the three recalls equally.' }
       - { var: meanPrecision, feedback: 'You averaged precisions (column-based). Use each row''s diagonal / row total.' }
+    hints:
+      - 'Work out each group''s recall first (diagonal box ÷ row total).'
+      - Add the three recalls and divide by 3. Do not weight by group size.
     explanation: |
-      Recalls: ({=recalls|list}) to 3 decimals: macro $= {=macroRecall|3}$. The weakest class is {=worst}.
+      Each group's recall: ({=recalls|list}). Their plain average is $ {=macroRecall|3}$. The weakest group is {=worst}.
 
   - id: sigla-mcq
     type: mcq
@@ -283,16 +332,21 @@ templates:
     tags: [application]
     lessonRef: { tab: intuition, id: per-class-sigla }
     prompt: |
-      SIGLA's marker-derived model matches or beats the anthropometric one on every headline metric (macro-F1 0.69 vs 0.65).
-      Its row-normalized confusion matrix has 0.94 for Normal and 0.00 for Severely Underweight on the diagonal. What is the
+      SIGLA's estimated-height version matches or beats the measured-height one on every overall score (macro-F1 0.69 vs
+      0.65). In its table (rows add up to 1), the diagonal is 0.94 for Normal and 0.00 for Severely Underweight. What is the
       right conclusion?
     options:
-      - 'It never catches a severely underweight learner, the class SIGLA exists to find'
-      - It is the better model, because the headline numbers are higher
-      - It catches 94% of all learners correctly
+      - 'It never catches a severely underweight learner, the group SIGLA exists to find'
+      - 'It is the better model, because the overall scores are higher'
+      - 'It labels 94% of all learners correctly'
       - Its precision for Severely Underweight is 0.94
     answer: 0
-    explanation: Diagonal of a row-normalized matrix = per-class recall. A decent average hid zero recall on the decision-relevant class.
+    hints:
+      - 'In a table whose rows add up to 1, what does the diagonal box tell you?'
+    explanation: |
+      When each row adds up to 1, the diagonal box is that group's recall. A decent average hid zero recall on the
+      group the decision is about.
+
 
   - id: rus-size
     type: numeric
@@ -301,11 +355,15 @@ templates:
     tags: [math]
     generator: resampleQ
     lessonRef: { tab: math-code, id: undersampling }
-    prompt: 'A training set has {=nMaj} majority and {=nMin} minority rows. How many rows remain after random **undersampling** to a 50 : 50 balance?'
+    prompt: |
+      A training set has {=nMaj} majority and {=nMin} minority rows. How many rows are left after random **undersampling** to a 50 : 50 balance?
     answer: { var: rus, tol: 0 }
     misconceptions:
       - { var: wrongDoubleMaj, feedback: 'That is the size after **over**sampling (2 × majority).' }
       - { var: wrongKeepAll, feedback: 'Undersampling removes majority rows; the size must shrink.' }
+    hints:
+      - Undersampling keeps every minority row and removes majority rows.
+      - The majority is cut down to the same size as the minority.
     explanation: |
       Keep all {=nMin} minority rows and {=nMin} majority rows: $2 \times {=nMin} = {=rus}$. {=removed} majority rows are dropped.
 
@@ -316,13 +374,18 @@ templates:
     tags: [math]
     generator: resampleQ
     lessonRef: { tab: math-code, id: oversampling }
-    prompt: '{=nMaj} majority and {=nMin} minority training rows. How many **copies** does random oversampling add to reach 50 : 50?'
+    prompt: |
+      {=nMaj} majority and {=nMin} minority training rows. How many **copies** does random oversampling add to reach 50 : 50?
     answer: { var: added, tol: 0 }
     misconceptions:
       - { var: wrongDoubleMaj, feedback: 'That is the final size. The question asks how many rows are added.' }
       - { var: nMaj, feedback: 'The minority already has some rows; only the gap must be filled.' }
+    hints:
+      - The minority must grow until it is as big as the majority.
+      - How many rows short is the minority?
     explanation: |
-      Fill the gap: ${=nMaj} - {=nMin} = {=added}$ copies, drawn with replacement. Final size $2 \times {=nMaj} = {=ros}$.
+      Fill the gap: ${=nMaj} - {=nMin} = {=added}$ copies (the same row may be copied more than once). Final size
+      $2 \times {=nMaj} = {=ros}$.
 
   - id: rus-code
     type: code-fill
@@ -341,7 +404,11 @@ templates:
     blanks:
       '1': { accept: ['len(minority)', 'minority.size', 'minority.shape[0]'] }
       '2': { accept: ['False'] }
-    explanation: Draw as many majority rows as there are minority rows, without replacement (each row at most once).
+    hints:
+      - How many majority rows should be kept? As many as which group has?
+    explanation: |
+      Pick as many majority rows as there are minority rows, and do not pick any row twice (`replace=False`).
+
 
   - id: technique-match
     type: match
@@ -351,12 +418,21 @@ templates:
     lessonRef: { tab: intuition, id: resample-counts }
     prompt: Match each technique to what it does to the training data (slide 25).
     pairs:
-      - ['Random undersampling', 'Removes some majority examples']
-      - ['Random oversampling', 'Duplicates minority examples']
-      - ['SMOTE', 'Interpolates new minority points between real ones']
-      - ['SMOTE-NC', 'Interpolates numeric columns, votes on categorical ones']
-      - ['ADASYN', 'Makes more synthetic points where the minority is hardest to learn']
-    explanation: Two random techniques (delete or copy), three synthetic ones (between neighbours, mixed data, focused on hard regions).
+      -   - Random undersampling
+          - Removes some majority rows
+      -   - Random oversampling
+          - Copies minority rows
+      -   - SMOTE
+          - Makes new minority points between real ones
+      -   - SMOTE-NC
+          - 'Blends number columns, votes on name columns'
+      -   - ADASYN
+          - Makes more new points where the minority is hardest to learn
+    hints:
+      - Two methods are simple (delete or copy). Three make new points.
+    explanation: |
+      Two simple methods (delete or copy) and three that make new points (between neighbours, for mixed data, aimed at hard areas).
+
 
   - id: smote-coordinate
     type: numeric
@@ -372,6 +448,9 @@ templates:
     misconceptions:
       - { var: wrongRev, feedback: 'You started from the neighbour: x_nb + λ(x_i − x_nb). SMOTE starts at x_i and moves λ towards x_nb.' }
       - { var: wrongScale, feedback: 'λ multiplies the difference (x_nb − x_i), not the neighbour itself.' }
+    hints:
+      - 'Start at x_i, not at the neighbour.'
+      - new = x_i + λ × (neighbour − x_i). Work out the gap first.
     explanation: |
       ${=xi1} + {=lambda} \times ({=xn1} - {=xi1}) = {=xi1} + {=lambda} \times {=diff1} = {=x1|2}$.
 
@@ -383,8 +462,8 @@ templates:
     generator: knnQ
     lessonRef: { tab: intuition, id: smote-line }
     prompt: |
-      Minority point $x_i = ({=xi|list})$. The other minority points are {=pts}. Use squared Euclidean distance, k = 1,
-      and $\lambda = {=lambda}$.
+      Minority point $x_i = ({=xi|list})$. The other minority points are {=pts}. Use squared distance (square each gap,
+      then add), k = 1 (only the nearest neighbour), and $\lambda = {=lambda}$.
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0, title: 'other minority points' } }
     steps:
@@ -394,6 +473,9 @@ templates:
         answer: { var: x1, tol: 0.01 }
       - prompt: Second coordinate of $x_{\text{new}}$
         answer: { var: x2, tol: 0.01 }
+    hints:
+      - Compute the squared distance from x_i to each other point and pick the smallest.
+      - 'Then for each coordinate, new = old + λ × (neighbour − old).'
     explanation: |
       Squared distances: {=d2s}. Nearest: {=nearest} = ({=nb|list}). $x_{\text{new}} = x_i + {=lambda}(x_{\text{nb}} - x_i) = ({=x1|2}, {=x2|2})$.
 
@@ -407,8 +489,10 @@ templates:
     prompt: |
       SMOTE looks for the nearest **minority** neighbour of $x_i = ({=xi|list})$. Candidates: {=pts}. Which is nearest
       (Euclidean distance)?
+    hints:
+      - 'For each candidate, square the gap in each coordinate and add them up.'
     explanation: |
-      Squared distances: {=d2s}. The smallest belongs to **{=nearest}**. (Squared distances give the same ranking as distances.)
+      Squared distances: {=d2s}. The smallest belongs to **{=nearest}**. (Skipping the square root does not change which is closest.)
 
   - id: smote-code
     type: code-fill
@@ -429,6 +513,8 @@ templates:
     blanks:
       '1': { accept: ['k'] }
       '2': { accept: ['X_min[nb] - x_i', 'X_min[nb]-x_i'] }
+    hints:
+      - How many neighbours does SMOTE keep? The function has a parameter for it.
     explanation: Keep the k smallest distances, then move a random fraction λ along the difference from x_i to the neighbour.
 
   - id: smote-order
@@ -440,12 +526,12 @@ templates:
     prompt: Put the steps for creating one SMOTE point in order.
     items:
       - Pick a minority point x_i
-      - Compute its distances to the other minority points
+      - Measure its distance to the other minority points
       - Keep its k nearest minority neighbours
       - Choose one of those neighbours at random
-      - Draw λ uniformly between 0 and 1
-      - 'Set x_new = x_i + λ (x_nb − x_i)'
-    explanation: Neighbours first, then a random partner and a random position on the segment.
+      - Pick a random λ between 0 and 1
+      - Set x_new = x_i + λ (x_nb − x_i)
+    explanation: 'Find the neighbours first, then pick a random partner and a random spot on the line between them.'
 
   - id: smotenc-vote
     type: mcq
@@ -459,9 +545,11 @@ templates:
       partner is {=chosen} ({=chosenMarital}). What marital-status does the synthetic row get?
     show:
       - { id: t, widget: Matrix, props: { data: '@table', title: 'X and its neighbours' } }
+    hints:
+      - Name columns are never averaged. Who gets a say?
     explanation: |
-      Categorical columns take the **most frequent value among the k neighbours**: {=winner}. The interpolation partner does
-      not decide it, and averaging codes would invent a category.
+      Name columns take the **most common value among the k neighbours**: {=winner}. The neighbour used for blending
+      does not decide it, and averaging codes would invent a value that does not exist.
 
   - id: smotenc-numeric
     type: numeric
@@ -470,13 +558,17 @@ templates:
     tags: [math]
     generator: smotencQ
     lessonRef: { tab: math-code, id: smote-nc }
-    prompt: 'SMOTE-NC: X is {=age} years old, its chosen neighbour is {=nbAge}, and λ = {=lambda}. What age does the synthetic row get?'
+    prompt: |
+      SMOTE-NC: person X is {=age} years old, the chosen neighbour is {=nbAge}, and λ = {=lambda}. What age does the new row get?
     answer: { var: newAge, tol: 0.01 }
     misconceptions:
       - { var: wrongRev, feedback: 'Start from X, not from the neighbour: age_X + λ (age_nb − age_X).' }
       - { var: wrongMid, feedback: 'That is always the midpoint. Use the given λ.' }
+    hints:
+      - 'Age is a number column, so it is blended just like SMOTE.'
+      - 'new age = X''s age + λ × (neighbour''s age − X''s age).'
     explanation: |
-      Numeric columns are interpolated as in SMOTE: ${=age} + {=lambda}({=nbAge} - {=age}) = {=newAge|2}$.
+      Number columns are blended as in SMOTE: ${=age} + {=lambda}({=nbAge} - {=age}) = {=newAge|2}$.
 
   - id: smotenc-why
     type: mcq
@@ -486,12 +578,17 @@ templates:
     lessonRef: { tab: intuition, id: smote-nc-vote }
     prompt: Why does the notebook use SMOTE-NC rather than plain SMOTE on Adult Income's raw columns?
     options:
-      - 'Interpolating category codes creates values that are not real categories, e.g. 0.5 between Married and Divorced'
-      - SMOTE-NC makes more synthetic points
-      - Plain SMOTE cannot handle more than two classes
+      - |
+        Blending the codes for names creates values that do not exist, such as 0.5 between Married and Divorced
+      - SMOTE-NC makes more new points
+      - Plain SMOTE cannot handle more than two groups
       - SMOTE-NC does not need nearest neighbours
     answer: 0
-    explanation: You can interpolate an age, not a marital status. SMOTE-NC keeps interpolation for numeric columns and votes on categorical ones.
+    hints:
+      - 'What would "halfway between Married and Divorced" be?'
+    explanation: |
+      You can blend an age, not a marital status. SMOTE-NC blends number columns and holds a vote for name columns.
+
 
   - id: smotenc-code
     type: code-fill
@@ -524,15 +621,20 @@ templates:
     generator: adasynQ
     lessonRef: { tab: math-code, id: adasyn }
     prompt: |
-      ADASYN with k = {=k}. Training set: {=nMaj} majority, {=nMin} minority rows, so $G = {=G}$. The number of majority
-      points among each minority point's k nearest neighbours is: {=deltaList}. How many synthetic points does
+      ADASYN with k = {=k}. Training set: {=nMaj} majority and {=nMin} minority rows, so the total is $G = {=G}$. The number
+      of majority points among each minority point's k nearest neighbours (Δ) is: {=deltaList}. How many new points does
       **{=target}** get?
     answer: { var: g, tol: 0.01 }
     misconceptions:
-      - { var: wrongUnnorm, feedback: 'You used r_i · G without normalizing. Divide r_i by the sum of all r first.' }
-      - { var: wrongUniform, feedback: 'That spreads G evenly (SMOTE-like). ADASYN weights by difficulty.' }
+      - {var: wrongUnnorm, feedback: 'You used r × G without dividing by the total first. Divide r by the sum of all the r values.'}
+      - {var: wrongUniform, feedback: 'That spreads G evenly, like SMOTE. ADASYN gives more to harder points.'}
+    hints:
+      - 'Each point''s hardness is r = Δ ÷ k.'
+      - 'Divide this point''s r by the sum of all the r values. That is its share.'
+      - Multiply its share by G.
     explanation: |
-      $r_{ {=target} } = {=deltaT}/{=k}$, $\sum r = {=sumR|3}$, so $\hat r = {=rhat|3}$ and $g = \hat r \cdot G = {=g|2}$.
+      Hardness $r = {=deltaT} \div {=k}$. All the hardness values add up to {=sumR|3}, so this point's share is
+      $ {=rhat|3}$ and it gets ${=rhat|3} \times G = {=g|2}$ new points.
 
   - id: adasyn-hand
     type: hand-calc
@@ -541,22 +643,29 @@ templates:
     tags: [math]
     generator: adasynQ
     lessonRef: { tab: intuition, id: adasyn-hardness }
-    prompt: 'ADASYN, k = {=k}, {=nMaj} majority and {=nMin} minority rows. Majority neighbours per minority point: {=deltaList}.'
+    prompt: |
+      ADASYN, k = {=k}, {=nMaj} majority and {=nMin} minority rows. Majority neighbours (Δ) for each minority point: {=deltaList}.
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
     steps:
-      - prompt: 'G = ?'
+      - prompt: 'G (the total number of new points) = ?'
         answer: { var: G, tol: 0 }
-      - prompt: 'r for {=target} = Δ/k'
+        hint: Majority count minus minority count.
+      - prompt: 'Hardness r for {=target} = Δ ÷ k'
         answer: { var: rT, tol: 0.01 }
+        hint: 'Use this point''s Δ.'
       - prompt: 'Sum of r over all minority points'
         answer: { var: sumR, tol: 0.01 }
-      - prompt: 'Synthetic points for {=target}'
+        hint: 'Work out r for every point, then add.'
+      - prompt: 'New points for {=target}'
         answer: { var: g, tol: 0.01 }
         misconceptions:
           - { var: wrongUnnorm, feedback: 'Normalize: divide r by the sum of r before multiplying by G.' }
+        hint: (r ÷ sum of r) × G.
+    hints:
+      - Follow the four steps in order. Each answer feeds the next one.
     explanation: |
-      G = {=nMaj} − {=nMin} = {=G}; r = {=deltaT}/{=k} = {=rT|3}; Σr = {=sumR|3}; g = r/Σr · G = {=g|2}.
+      G = {=nMaj} − {=nMin} = {=G}; hardness r = {=deltaT} ÷ {=k} = {=rT|3}; sum of r = {=sumR|3}; new points = (r ÷ sum) × G = {=g|2}.
 
   - id: adasyn-mcq
     type: mcq
@@ -571,7 +680,12 @@ templates:
       - Every minority point equally
       - The minority points furthest from all other points
     answer: 0
-    explanation: 'r_i = Δ_i / k is high when majority points crowd around x_i, so it gets a larger share of G. That includes noisy points.'
+    hints:
+      - ADASYN aims at the points that are hardest to learn. Where are those?
+    explanation: |
+      Hardness r = Δ ÷ k is high when majority points crowd around a minority point, so it gets a bigger share of G.
+      That includes odd, misplaced points (noise).
+
 
   - id: adasyn-code
     type: code-fill
@@ -596,7 +710,7 @@ templates:
     blanks:
       '1': { accept: ['0'] }
       '2': { accept: ['sum(r)', 'np.sum(r)', 'np.array(r).sum()'] }
-    explanation: Δ counts **majority** (label 0) neighbours; dividing by Σr makes the weights sum to 1.
+    explanation: 'Δ counts **majority** (label 0) neighbours; dividing by the sum makes the shares add up to 1.'
 
   - id: adasyn-order
     type: order
@@ -606,12 +720,12 @@ templates:
     lessonRef: { tab: math-code, id: adasyn }
     prompt: Put ADASYN's steps in order.
     items:
-      - 'Set the budget G = n_majority − n_minority'
-      - For each minority point, find its k nearest neighbours among all points
-      - 'Count Δ_i, the majority points among them, and set r_i = Δ_i / k'
-      - 'Normalize: r̂_i = r_i / Σ r_j'
-      - 'Give point i about g_i = r̂_i · G synthetic points'
-      - Create each one SMOTE-style towards a minority neighbour
+      - Set the total G = majority count − minority count
+      - 'For each minority point, find its k nearest neighbours from both groups'
+      - 'Count Δ, the majority points among them, and set hardness r = Δ ÷ k'
+      - 'Divide each r by the sum of all r, so the shares add up to 1'
+      - Give each point about (its share × G) new points
+      - 'Make each one SMOTE-style, towards a minority neighbour'
     explanation: ADASYN only decides how many points each minority row gets; the points themselves are made as in SMOTE.
 
   - id: choose-mcq
@@ -624,12 +738,17 @@ templates:
       A bank's fraud team can review only 50 alerts a day and is already overwhelmed by false alarms. Compared with the
       baseline, ADASYN raises recall but gives the lowest precision. What should guide the choice?
     options:
-      - 'The cost of a missed fraud versus a wasted review: with limited reviewers, protecting precision may matter more'
+      - |
+        The cost of a missed fraud versus a wasted check: with few reviewers, keeping precision up may matter more
       - Always choose the method with the highest recall
       - Always choose the method with the highest accuracy
-      - Always resample, because imbalanced data is bad
+      - 'Always rebalance, because uneven data is bad'
     answer: 0
-    explanation: There is no universally best technique. Each buys recall with a different currency; the decision's costs and capacity decide.
+    hints:
+      - 'What does each wrong guess cost this team, and how many alerts can they handle?'
+    explanation: |
+      No method is best everywhere. Each trades false alarms for catches differently; the costs and the team's capacity decide.
+
 
   - id: results-multi
     type: multi
@@ -639,13 +758,18 @@ templates:
     lessonRef: { tab: intuition, id: choose-by-decision }
     prompt: 'From the Session 3 comparison table, which statements are true? (Baseline recall 0.506, precision 0.683; resamplers recall 0.82–0.88, precision 0.50–0.52; ROC-AUC 0.875–0.876 throughout.)'
     options:
-      - Every resampler raised recall
-      - Every resampler lowered precision
-      - ROC-AUC barely changed, so the ranking the model learned barely changed
-      - Accuracy rose for every resampler
-      - Resampling taught the model a fundamentally better ranking
+      - Every rebalancing method raised recall
+      - Every rebalancing method lowered precision
+      - 'ROC-AUC barely changed, so the way the model ranks people barely changed'
+      - Accuracy rose for every rebalancing method
+      - Rebalancing taught the model a much better ranking
     answer: [0, 1, 2]
-    explanation: Accuracy actually fell (0.826 → 0.76–0.78). Resampling mostly moved the effective threshold, trading precision for recall.
+    hints:
+      - Compare each column for the baseline and for the rebalancing methods.
+      - ROC-AUC measures how well the model ranks people. Did it change much?
+    explanation: |
+      Accuracy actually fell (0.826 → 0.76–0.78). Rebalancing mostly acted like a lower cut-off, trading precision for recall.
+
 
   - id: leakage-mcq
     type: mcq
@@ -655,12 +779,16 @@ templates:
     lessonRef: { tab: math-code, id: honest-pipeline }
     prompt: A student runs `SMOTE().fit_resample(X, y)` on the full data, then `train_test_split`. Recall jumps to 0.96. Why should you distrust it?
     options:
-      - 'Synthetic points built from test rows ended up in training, so the test set is no longer unseen'
-      - SMOTE cannot be used before a split for computational reasons
+      - 'New points built from test rows ended up in training, so the test set is no longer unseen'
+      - SMOTE cannot be used before a split because it is too slow
       - The test set now has too few rows
       - Recall above 0.95 is impossible
     answer: 0
-    explanation: Resample the training split only. The test set must keep the real-world imbalance and share nothing with training.
+    hints:
+      - Where could the new SMOTE points that were built from test rows end up?
+    explanation: |
+      Rebalance the training set only. The test set must keep the real-world imbalance and share nothing with training.
+
 
   - id: pipeline-code
     type: code-fill
@@ -678,7 +806,11 @@ templates:
     blanks:
       '1': { accept: ['y'] }
       '2': { accept: ['X_tr'] }
-    explanation: Stratify on the labels so both halves keep the class ratio, and resample only the training half.
+    hints:
+      - Stratify on the labels. Which data does the rebalancer get?
+    explanation: |
+      Stratify on the labels so both parts keep the same group shares, and rebalance only the training part.
+
 
   - id: pipeline-order
     type: order
@@ -688,12 +820,12 @@ templates:
     lessonRef: { tab: math-code, id: honest-pipeline }
     prompt: Put the honest imbalance workflow in order.
     items:
-      - Split the data into train and test, stratified by class
-      - Resample the training split only
-      - Fit the model on the resampled training data
-      - Predict on the untouched test split
-      - Report per-class recall, precision and F1, then choose by the decision's costs
-    explanation: The test set is never resampled; metrics are read per class.
+      - 'Split the data into training and test sets, stratified by group'
+      - Rebalance the training set only
+      - Train the model on the rebalanced training data
+      - Predict on the untouched test set
+      - 'Report recall, precision and F1 for each group, then choose by what mistakes cost'
+    explanation: 'The test set is never rebalanced, and scores are read group by group.'
 
   - id: test-minority
     type: numeric
@@ -709,9 +841,12 @@ templates:
     misconceptions:
       - { var: wrongNoSplit, feedback: 'You undersampled the full data. Split first: only the training minority rows count.' }
       - { var: wrongTestMin, feedback: 'That is the test-set minority. RUS keeps 2 × the training minority.' }
+    hints:
+      - Split first. How many minority rows go to the test set?
+      - The rest of the minority is in the training set. Undersampling keeps 2 × that.
     explanation: |
       Test minority $= {=testPct}\% \times {=minority} = {=testMin}$, so the training minority is {=trainMin}.
-      RUS keeps $2 \times {=trainMin} = {=rus}$ rows.
+      Undersampling keeps $2 \times {=trainMin} = {=rus}$ rows.
 
   - id: cost-numeric
     type: numeric
@@ -727,5 +862,8 @@ templates:
     misconceptions:
       - { var: swapA, feedback: 'You swapped the costs: misses (FN) carry the higher cost.' }
       - { var: wrongFnOnlyA, feedback: 'False alarms cost something too; add them.' }
+    hints:
+      - 'Each miss (FN) costs one amount, each false alarm (FP) another.'
+      - Total = misses × cost of a miss + false alarms × cost of a false alarm.
     explanation: |
       Cost = {=cFN} × FN + {=cFP} × FP = {=cFN} × {=fnA} + {=fpA} = {=costA}. (Model B would cost {=costB}, so {=better} is cheaper.)

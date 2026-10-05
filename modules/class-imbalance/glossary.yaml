@@ -1,143 +1,220 @@
 terms:
+  - id: classifier
+    term: Classifier
+    aka: [model, classification model]
+    short: A program that learns from past examples and then sorts each new case into one group, such as "stays" or "drops out".
+    long: |
+      You give it many examples where the answer is already known. It finds patterns in them, then uses those patterns to
+      guess the answer for new cases. Its guess is called a **prediction**.
+    related: [feature]
+    skills: [accuracy-trap]
+  - id: feature
+    term: Feature
+    aka: [features, column]
+    short: One piece of information the classifier reads about each case, such as a learner's attendance, age or grades.
+    related: [classifier, categorical-feature]
+    skills: [accuracy-trap]
   - id: class-imbalance
     term: Class imbalance
-    aka: [imbalanced data]
-    short: One class has far fewer examples than another, so a learner and its metrics can ignore the rare class.
+    aka: [imbalanced data, imbalanced]
+    short: When one group in the data is much smaller than the other, so it is easy to overlook the small group.
     long: |
-      Imbalance matters when the distribution, the metric or the learning procedure lets us overlook poor performance on
-      the class that drives the decision (Session 2, slide 5). Dropout (1.41%), fraud (< 1%) and severe undernutrition are typical.
+      Imbalance is a problem when the data, the score we use, or the way the model learns lets us ignore how badly we do on
+      the group that matters (Session 2, slide 5). Dropout (1.41% of learners), fraud (under 1% of payments) and severe
+      undernutrition are typical examples.
     related: [minority-class, majority-class, imbalance-ratio]
-    lessonRef: { tab: intuition, id: lazy-model }
     skills: [accuracy-trap]
   - id: minority-class
     term: Minority class
-    short: The rare class, usually the one the decision is about (dropout, fraud, >50K). Treated as the positive class.
-    related: [majority-class, class-imbalance]
+    aka: [minority]
+    short: The small, rare group in the data. It is usually the group we care about most, like dropouts or fraud.
+    related: [majority-class, class-imbalance, positive-class]
     skills: [accuracy-trap]
   - id: majority-class
     term: Majority class
-    short: The common class that dominates the data and therefore dominates accuracy.
+    aka: [majority]
+    short: The big, common group in the data, like learners who stay in school or normal payments.
     related: [minority-class]
     skills: [accuracy-trap]
   - id: imbalance-ratio
     term: Imbalance ratio
-    short: 'Majority count divided by minority count, written as "r : 1". Adult Income is 37,155 / 11,687 ≈ 3.2 : 1.'
+    aka: ['99 : 1']
+    short: 'How many majority cases there are for each minority case, written "r : 1". Example: 99 stay for every 1 dropout is 99 : 1.'
     formula: '\frac{n_{\text{majority}}}{n_{\text{minority}}}'
     skills: [random-resampling]
-  - id: accuracy-paradox
-    term: Accuracy trap
-    aka: [accuracy paradox, lazy model]
-    short: A model that always predicts the majority scores high accuracy while catching none of the rare class.
-    long: 'On 10,000 learners at 1.41% dropout, always predicting "stays" is 98.59% accurate with 0% dropout recall (slide 9).'
-    lessonRef: { tab: intuition, id: lazy-model }
-    related: [accuracy, recall]
-    skills: [accuracy-trap]
-  - id: confusion-matrix
-    term: Confusion matrix
-    short: Table counting predictions by actual class (rows) and predicted class (columns); its four cells are TP, FN, FP, TN.
-    lessonRef: { tab: intuition, id: tally-fraud }
-    related: [true-positive, false-negative, false-positive, true-negative]
-    skills: [confusion-matrix]
-  - id: true-positive
-    term: True positive (TP)
-    short: A minority case the model flagged correctly, e.g. a fraud it caught.
-    related: [false-negative]
-    skills: [confusion-matrix]
-  - id: false-negative
-    term: False negative (FN)
-    short: A minority case the model missed by predicting the majority, e.g. an undetected fraud or dropout.
-    related: [true-positive, recall]
-    skills: [confusion-matrix]
-  - id: false-positive
-    term: False positive (FP)
-    short: A majority case wrongly flagged as minority, i.e. a false alarm.
-    related: [precision]
-    skills: [confusion-matrix]
-  - id: true-negative
-    term: True negative (TN)
-    short: A majority case correctly left alone, e.g. a legitimate transaction cleared.
-    skills: [confusion-matrix]
   - id: accuracy
     term: Accuracy
-    short: Share of all predictions that are correct, (TP + TN) / total. Dominated by the majority when classes are imbalanced.
+    short: The share of all guesses that were right. With rare cases it mostly measures how well the common group is handled.
     formula: '\frac{TP + TN}{TP + TN + FP + FN}'
-    skills: [prf1]
-  - id: precision
-    term: Precision
-    short: Of the cases the model flagged, the share that really are minority, TP / (TP + FP). Low precision means many false alarms.
-    formula: '\frac{TP}{TP + FP}'
-    lessonRef: { tab: math-code, id: four-metrics }
+    related: [recall, accuracy-paradox]
     skills: [prf1]
   - id: recall
     term: Recall
     aka: [sensitivity, true positive rate]
-    short: Of the real minority cases, the share the model caught, TP / (TP + FN). Low recall means many misses.
+    short: Out of all the real cases we were hunting for, the share the model actually caught. Low recall means many misses.
     formula: '\frac{TP}{TP + FN}'
-    lessonRef: { tab: math-code, id: four-metrics }
+    related: [precision, false-negative]
+    skills: [prf1]
+  - id: accuracy-paradox
+    term: Accuracy trap
+    aka: [accuracy paradox]
+    short: A do-nothing model that always guesses the common group scores high accuracy yet never catches a single rare case.
+    long: 'With 10,000 learners and a 1.41% dropout rate, always guessing "stays" is 98.59% accurate but catches 0 dropouts (slide 9).'
+    related: [accuracy, recall]
+    skills: [accuracy-trap]
+  - id: positive-class
+    term: Positive class
+    aka: [positive]
+    short: The group we are trying to find, such as fraud. "Positive" means "flagged as the thing we hunt", not "good".
+    related: [minority-class, true-positive]
+    skills: [confusion-matrix]
+  - id: confusion-matrix
+    term: Confusion matrix
+    short: A small scoreboard that counts each guess by its real answer (rows) and the model's guess (columns). Its four boxes are TP, FN, FP, TN.
+    related: [true-positive, false-negative, false-positive, true-negative]
+    skills: [confusion-matrix]
+  - id: true-positive
+    term: True positive (TP)
+    aka: [true positive, true positives, TP]
+    short: A real case of what we hunt that the model correctly flagged, for example a fraud it caught.
+    related: [false-negative]
+    skills: [confusion-matrix]
+  - id: false-negative
+    term: False negative (FN)
+    aka: [false negative, false negatives, FN]
+    short: A real case of what we hunt that the model missed, for example a fraud it let through.
+    related: [true-positive, recall]
+    skills: [confusion-matrix]
+  - id: false-positive
+    term: False positive (FP)
+    aka: [false positive, false positives, FP, false alarm]
+    short: A normal case the model wrongly flagged, in other words a false alarm.
+    related: [precision]
+    skills: [confusion-matrix]
+  - id: true-negative
+    term: True negative (TN)
+    aka: [true negative, true negatives, TN]
+    short: A normal case the model correctly left alone, for example a real payment it cleared.
+    skills: [confusion-matrix]
+  - id: precision
+    term: Precision
+    short: Out of all the cases the model flagged, the share that were real. Low precision means many false alarms.
+    formula: '\frac{TP}{TP + FP}'
+    related: [recall, false-positive]
     skills: [prf1]
   - id: f1
     term: F1 score
-    short: Harmonic mean of precision and recall; it is pulled toward the smaller of the two.
+    aka: [F1]
+    short: One number that combines precision and recall. It stays close to the weaker of the two, so both must be good.
+    long: |
+      F1 uses a special kind of average called the harmonic mean: $2PR/(P+R)$. If precision is 0.9 and recall is 0.1, a
+      normal average says 0.5, but F1 says 0.18, because one of them is poor.
     formula: '2 \cdot \frac{P \cdot R}{P + R}'
     skills: [prf1]
   - id: balanced-accuracy
     term: Balanced accuracy
-    short: Average of the recall on each class, so a lazy majority-guesser scores only 0.5 on two classes.
+    short: Take the recall on each group and average them, so the small group counts as much as the big one.
     formula: '\tfrac12\left(\frac{TP}{TP+FN} + \frac{TN}{TN+FP}\right)'
+    related: [recall, accuracy]
     skills: [prf1]
   - id: per-class-recall
     term: Per-class recall
-    short: Recall computed separately for every class; the diagonal of a row-normalized confusion matrix.
-    lessonRef: { tab: intuition, id: per-class-sigla }
+    aka: [recall per class, recall for each class]
+    short: Recall worked out separately for every group. In a table where each row adds up to 1, it is the diagonal box.
     related: [macro-average]
     skills: [per-class]
   - id: macro-average
     term: Macro average
-    short: Unweighted mean of a metric over classes, so a rare class counts as much as a common one.
+    aka: [macro recall, macro-F1]
+    short: A plain average over groups that gives every group the same weight, however many cases it has.
     skills: [per-class]
+  - id: training-set
+    term: Training set
+    aka: [training data, training split, training half]
+    short: The part of the data the model learns from. Any rebalancing is done on this part only.
+    related: [test-set, stratified-split]
+    skills: [random-resampling]
+  - id: test-set
+    term: Test set
+    aka: [test data, test split]
+    short: Data kept aside and never shown during learning, used at the end to check how well the model really does.
+    related: [training-set, resampling-leakage]
+    skills: [choosing]
   - id: random-undersampling
     term: Random undersampling (RUS)
-    short: Throw away randomly chosen majority rows until both classes have the minority's count.
+    aka: [random undersampling, undersampling, RUS]
+    short: Throw away randomly chosen majority cases until both groups are the same size as the minority.
     formula: 'n_{\text{majority}}^{\text{kept}} = n_{\text{minority}}'
-    lessonRef: { tab: math-code, id: undersampling }
     skills: [random-resampling]
   - id: random-oversampling
     term: Random oversampling (ROS)
-    short: Copy randomly chosen minority rows, with replacement, until both classes have the majority's count.
+    aka: [random oversampling, oversampling, ROS]
+    short: Make extra copies of randomly chosen minority cases until both groups are the same size as the majority.
     formula: 'n_{\text{minority}}^{\text{new}} = n_{\text{majority}}'
-    lessonRef: { tab: math-code, id: oversampling }
     skills: [random-resampling]
+  - id: overfitting
+    term: Overfitting
+    aka: [overfit, memorize]
+    short: When a model memorizes the exact examples it learned from instead of the general pattern, so it does worse on new cases.
+    skills: [random-resampling]
+  - id: nearest-neighbour
+    term: Nearest neighbour
+    aka: [nearest neighbours, neighbours, k nearest]
+    short: The points closest to a given point on the map. "k nearest neighbours" means the k closest ones.
+    related: [smote]
+    skills: [smote]
   - id: smote
     term: SMOTE
     aka: [Synthetic Minority Over-sampling TEchnique]
-    short: Creates new minority points on the line segment between a minority point and one of its nearest minority neighbours.
+    short: Makes new minority points by placing them on the straight line between a real minority point and a nearby minority point.
     formula: 'x_{\text{new}} = x_i + \lambda\,(x_{\text{nb}} - x_i)'
-    lessonRef: { tab: intuition, id: smote-line }
+    related: [nearest-neighbour, random-oversampling]
     skills: [smote]
+  - id: categorical-feature
+    term: Categorical feature
+    aka: [categorical, category, categories]
+    short: A feature whose values are names rather than numbers, such as marital status (Married, Divorced, Single).
+    related: [feature, smote-nc]
+    skills: [smote-nc]
   - id: smote-nc
     term: SMOTE-NC
     aka: [SMOTE for Nominal and Continuous features]
-    short: SMOTE for mixed data; numeric columns are interpolated, categorical columns take the neighbours' most frequent value.
-    lessonRef: { tab: intuition, id: smote-nc-vote }
+    short: SMOTE for data with both number and name columns. Numbers are blended; names are chosen by a vote of the neighbours.
+    related: [smote, categorical-feature]
     skills: [smote-nc]
   - id: adasyn
     term: ADASYN
     aka: [Adaptive Synthetic sampling]
-    short: Like SMOTE, but each minority point gets synthetic neighbours in proportion to how many majority points surround it.
+    short: Like SMOTE, but minority points surrounded by many majority points get more new points, because they are harder to learn.
     formula: 'r_i = \frac{\Delta_i}{k}, \quad \hat r_i = \frac{r_i}{\sum_j r_j}'
-    lessonRef: { tab: intuition, id: adasyn-hardness }
+    related: [smote]
     skills: [adasyn]
+  - id: decision-threshold
+    term: Decision threshold
+    aka: [threshold, cut-off]
+    short: The cut-off score above which the model flags a case. Lowering it catches more cases but raises more false alarms.
+    related: [roc-auc, recall, precision]
+    skills: [choosing]
+  - id: roc-auc
+    term: ROC-AUC
+    aka: [AUC, PR-AUC]
+    short: A score from 0.5 (random) to 1 (perfect) for how well the model ranks real cases above normal ones, at any threshold.
+    related: [decision-threshold]
+    skills: [choosing]
   - id: stratified-split
     term: Stratified split
-    short: A train/test split that keeps each class's proportion the same in both halves.
+    aka: [stratify, stratified]
+    short: Splitting data into training and test parts so that each part keeps the same share of each group.
+    related: [training-set, test-set]
     skills: [choosing]
   - id: resampling-leakage
     term: Resampling leakage
-    short: Resampling before splitting, so copies or blends of test rows reach training and test scores become optimistic.
-    lessonRef: { tab: math-code, id: honest-pipeline }
+    aka: [leakage, leak]
+    short: Rebalancing before splitting, so copies of test cases sneak into training and the test score looks better than it really is.
+    related: [test-set]
     skills: [choosing]
   - id: class-weights
     term: Class weights
-    aka: [scale_pos_weight, class_weight="balanced"]
-    short: Making each minority example count more in the training loss instead of changing the rows, as SAGIP did in LightGBM.
+    aka: [class weight, scale_pos_weight, class_weight="balanced"]
+    short: Telling the model that mistakes on the minority count more, instead of adding or removing rows. SAGIP did this.
     skills: [choosing]

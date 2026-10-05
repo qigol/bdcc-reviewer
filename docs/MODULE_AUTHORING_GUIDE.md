@@ -40,7 +40,7 @@ Import it via **Admin → Import → Paste LLM output**. If validation fails, cl
 
 ## 1. Your task (for the LLM)
 
-Produce **one module**: a folder of files that **teaches** one topic, not just reviews it. A learner who has never seen the lecture should be able to follow the module's Path from the first scene to the mastery check and come out able to do everything the lecture's examples do, by hand. The site does the guiding: it sequences the lessons, checks every prediction, hands out fresh practice questions, gives hints, and tracks mastery. Your job is to supply the content those features run on.
+Produce **one module**: a folder of files that **teaches** one topic, not just reviews it. A learner who has never seen the lecture, and who knows **nothing** of the subject beyond everyday words, should be able to follow the module's Path from the first scene to the mastery check and come out able to do everything the lecture's examples do, by hand. Write for that learner (§7.6). The site does the guiding: it sequences the lessons, checks every prediction, hands out fresh practice questions, gives hints, and tracks mastery. Your job is to supply the content those features run on.
 
 | Tab | Purpose | File |
 |---|---|---|
@@ -1279,6 +1279,35 @@ A learner should be able to reproduce **every** number in the lecture with penci
 
 **Tests.** Add an `examples` entry for every walk fn (how many cases it visits and its final result), so a later edit can't quietly shorten the count-along.
 
+### 7.6 Plain language: the learner starts from zero
+
+Assume the learner knows **nothing** about the subject: not the course's earlier sessions, not its jargon, not the
+libraries. They can read, do school arithmetic and follow a picture. Every module stands on its own, even when other
+modules in the same course define the same words. Learners report modules as "hard to understand" far more often because
+of unexplained words than because of hard ideas.
+
+- **Basics are terms too.** The words an expert stops noticing are the ones that lose a beginner: *model / classifier,
+  feature, training set, test set, prediction, probability, correlation, p-value, decision tree, regression, residual,
+  threshold*. If the lecture leans on one, give it a glossary entry and `define` it in an early beat, before the topic's
+  own terms build on it.
+- **Explain every symbol the first time it appears,** in words, in the same beat: "$y_t$ ('y at time t') is the value
+  now", "λ ('lambda') is a random number between 0 and 1", "Δ means 'change'". Name Greek letters when you introduce them.
+- **Short sentences, everyday words.** Aim for 8–15 words per sentence and one idea per sentence. Prefer *use* to
+  *utilize*, *about* to *approximately*, *mixed* to *heterogeneous*, *copy* to *duplicate*, *make* to *synthesize*.
+  Keep the technical word when it is the term being taught; replace it everywhere else.
+- **Say what a term does before what it is called.** "Copy random minority rows until the groups are equal. This is
+  **random oversampling**." The name is a label for an idea the learner already has.
+- **No unexplained acronyms or names.** Spell out an acronym once (ROC-AUC, SAGIP, ADF) and say in a few words what it is
+  for. Library and function names (`rolling(3)`, `TreeExplainer`) need a plain-language gloss the first time.
+- **Goals and quiz prompts are learner-facing too.** A scene `goal` asks its question in everyday words and does not use
+  the terms the scene is about to teach. Prompts, options, hints and explanations use only terms already defined on the
+  Path (or link them with `[[term-id]]`).
+- **Glossary `short`s are for beginners.** One plain sentence a newcomer could repeat to a friend. Put the formula in
+  `formula` and the nuance in `long`, not in `short`.
+- **Check the order on the Path, not just in the file.** A Math section appears right after the first scene that covers
+  all its skills (§7.0). Its summary must not link a term that a later scene defines; if it would, move the definition
+  earlier or adjust the scene's `skills`.
+
 ---
 
 ## 8. Correctness rules (what the validator and a careful reviewer check)
@@ -1374,6 +1403,7 @@ Don't invent widgets, props or commands. Instead:
 - [ ] `manifest.course` is set to the course code the user gave (same spelling as that course's other modules), and `guide: 2` and `workbench` are set.
 - [ ] 3–6 `objectives`, each a checkable "can do" sentence tied to skills; together they cover every skill.
 - [ ] Every glossary term is `define`d in exactly one beat, at its first use, and that beat's narration names it; later mentions use `[[term-id]]` (§7.1a).
+- [ ] A complete beginner could follow it (§7.6): basic words (model, feature, training/test set, probability, correlation…) are glossary terms defined early; every symbol and acronym is explained the first time; goals and prompts use only words already taught; sentences are short and plain.
 - [ ] ≥ 3 `practice` gates and ≥ 2 `reflect` gates; every math section has `tryIt`; at least half the templates (and every numeric, hand-calc, journal-entry, schedule-fill) have `hints`.
 - [ ] Journal workbench: every section has a `journal` pane; every lecture entry and statement appears; account titles match the lecture exactly; every entry balances; amounts are positive.
 - [ ] Every skill appears in manifest, scenes, sections and quiz templates; every `lessonRef` points to an existing id.
@@ -1395,6 +1425,7 @@ Don't invent widgets, props or commands. Instead:
 - Computation embedded in YAML: all numbers come from `logic.js` or datasets.
 - Renaming IDs when revising. Add new ones and retire old ones instead (removed IDs simply stop appearing).
 - Double-quoted TeX in YAML (`"\frac"` breaks). Use `|` or single quotes.
+- Writing for a classmate instead of a beginner: jargon from earlier sessions ("held-out", "metric", "node", "H₀") used as if known, Greek letters and subscripts never read aloud, scene goals that use the very terms the scene teaches (§7.6).
 - Defining terms in a glossary-dump beat ("Here are the key terms: …") instead of at the moment the picture shows each one, or using a term in narration before the beat that defines it.
 - A `practice` gate before the scene has shown the computation once (the learner has nothing to imitate), or a `reflect` prompt that just asks for a definition.
 - Journal: an account title spelled differently in the quiz than in the lesson; a static entry whose sides should flip with the inputs (build it in logic.js); negative amounts instead of the opposite side; unquoted titles containing commas in YAML flow maps (`{ title: 'Job cost sheet, Job 101' }`).

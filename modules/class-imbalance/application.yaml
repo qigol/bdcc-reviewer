@@ -1,14 +1,14 @@
 intro: |
-  Dropout risk, fraud, undernutrition, machine failure: the cases that matter are almost always the rare ones. In practice
-  you rarely "fix" imbalance once. You choose a metric that sees the minority, set a threshold the people acting on the
-  model can afford, and only then decide whether resampling or class weights help. This case walks through that order.
+  Dropouts, fraud, undernutrition, machine breakdowns: the cases that matter are almost always the rare ones. In real
+  work you do not just "fix" the imbalance once. You pick a score that sees the rare group, choose a cut-off the people
+  acting on it can handle, and only then ask whether rebalancing or class weights help. This case follows that order.
 case:
   id: school-screening
   title: Screening one school for dropout risk
   story: |
-    A division office pilots a SAGIP-style risk score in one school. Each of 40 learners has a score from 0 to 1, and we
-    know who actually did not re-enrol: 4 learners (10%). The guidance counsellor can make **8 home visits** this quarter.
-    Which learners should she visit, and how do we judge the model honestly? (Synthetic data.)
+    A division office tries a SAGIP-style dropout-risk score in one school. Each of 40 learners gets a score from 0 to 1,
+    and we know who actually did not come back: 4 learners (10%). The guidance counsellor can make **8 home visits**
+    this quarter. Which learners should she visit, and how do we judge the model fairly? (Made-up data.)
   data: [learners, results]
   state: { threshold: 0.5, ratio: 1 }
   derive:
@@ -20,8 +20,8 @@ case:
     - id: the-data
       title: Look at the class balance first
       say: |
-        {=sc.pos} of {=sc.n} learners dropped out, a prevalence of {=sc.prevalence|pct}. Before any model, compute what the
-        lazy "everyone stays" model would score.
+        {=sc.pos} of {=sc.n} learners dropped out, which is {=sc.prevalence|pct}. Before looking at any model, work out what
+        the lazy "everyone stays" model would score.
       stage:
         - id: bal
           widget: Readout
@@ -43,14 +43,14 @@ case:
           - 'How many features it uses'
         answer: 0
         model: |
-          With 36 of 40 learners staying, a model that never flags anyone scores 36/40 = 90%. Accuracy alone cannot tell a
-          useful model from a lazy one; ask for recall, precision and F1 on the dropout class.
+          36 of 40 learners stay, so a model that never flags anyone already scores 36 ÷ 40 = 90%. Accuracy alone cannot
+          tell a useful model from a lazy one. Ask for [[recall]], [[precision]] and [[f1|F1]] on the dropout group.
     - id: threshold
-      title: Choose a threshold
+      title: Choose a cut-off
       say: |
-        Flag every learner whose score is at least the threshold. At {=threshold|2} the model flags {=sc.flagged}, catching
-        {=sc.tp} of {=sc.pos} dropouts (recall {=sc.recall|2}) with {=sc.fp} false alarms (precision {=sc.precisionShown|2}).
-        Slide the threshold and watch recall and precision trade places.
+        Flag every learner whose score is at or above the [[decision-threshold|threshold]]. At {=threshold|2} the model
+        flags {=sc.flagged}, catching {=sc.tp} of {=sc.pos} dropouts (recall {=sc.recall|2}) with {=sc.fp} false alarms
+        (precision {=sc.precisionShown|2}). Move the slider and watch recall and precision trade places.
       stage:
         - id: thr
           widget: Slider
@@ -81,14 +81,14 @@ case:
           - '0.90: flags nobody, so no visits are wasted'
         answer: 0
         model: |
-          At 0.35 exactly 8 learners are flagged and recall is 0.75. Raising the threshold wastes capacity and misses a
-          dropout; lowering it to catch the fourth dropout (score 0.27) needs more visits than she has. The threshold is a
-          decision about capacity, not a property of the model; SAGIP exposes it as tunable Low/Medium/High tiers.
+          At 0.35 exactly 8 learners are flagged and recall is 0.75. A higher cut-off wastes visits and misses a dropout. A
+          lower one catches the fourth dropout (score 0.27) but needs more visits than she has. The cut-off is a decision
+          about capacity, not part of the model itself. SAGIP shows it as Low/Medium/High levels you can adjust.
     - id: tiers
-      title: Risk tiers instead of one cut-off
+      title: Risk levels instead of one cut-off
       say: |
-        SAGIP reports Low, Medium and High tiers that DepEd calibrates to its intervention capacity. Here High is a score of
-        at least 0.6 and Medium at least 0.3.
+        SAGIP reports Low, Medium and High risk levels, which DepEd sets to match how many learners it can help. Here High
+        means a score of at least 0.6, and Medium at least 0.3.
       stage:
         - id: tier-t
           widget: Matrix
@@ -102,10 +102,10 @@ case:
           very low precision; a cheaper action (a text to the family, a teacher check-in) fits it better. Tiers let the
           action match the confidence.
     - id: resample-or-not
-      title: Would resampling help?
+      title: Would rebalancing help?
       say: |
-        On the Adult Income lab every resampler raised recall from 0.506 to above 0.82 and lowered precision. ROC-AUC and
-        PR-AUC, which measure how well the model **ranks** people, barely moved.
+        In the Adult Income lab, every rebalancing method raised recall from 0.506 to above 0.82 and lowered precision.
+        [[roc-auc|ROC-AUC]] and PR-AUC, which measure how well the model **ranks** people, barely moved.
       stage:
         - id: res
           widget: Matrix
@@ -120,14 +120,14 @@ case:
           - 'The test set was resampled by mistake'
         answer: 0
         model: |
-          If the ranking is almost the same, lowering the decision threshold on the baseline model would buy a similar
-          recall–precision trade. Resampling is one way to move the trade-off, not a way to create new signal. That is the
-          notebook's "resist the obvious answer".
+          If the ranking is almost the same, simply lowering the cut-off on the original model would give a similar
+          trade between recall and precision. Rebalancing is one way to move that trade, not a way to find new information.
+          That is the notebook's lesson: "resist the obvious answer".
     - id: price-errors
       title: Put a price on each error
       say: |
-        Suppose a missed case costs {=ratio|2} times as much as a false alarm. Rebuilding FN and FP for the 2,922 minority test
-        rows from each method's precision and recall, the cheapest method is **{=cc.best}**.
+        Suppose a missed case costs {=ratio|2} times as much as a false alarm. Working out FN and FP for the 2,922 minority
+        test rows from each method's precision and recall, the cheapest method is **{=cc.best}**.
       stage:
         - id: ratio-s
           widget: Slider
@@ -151,7 +151,7 @@ case:
       title: Check the evaluation itself
       say: |
         A teammate reports recall 0.95 after random oversampling, far above the notebook's 0.83. Their code oversampled
-        the whole dataset, then called `train_test_split`.
+        the whole dataset first, and only then split it with `train_test_split`.
       decision:
         prompt: What most likely happened?
         type: mcq
@@ -162,25 +162,25 @@ case:
           - 'Recall cannot be inflated by resampling'
         answer: 0
         model: |
-          Resampling before the split is leakage: a duplicated (or, with SMOTE, interpolated) minority row can sit in the
-          training set while its twin is in the test set. Split first, stratify, resample only the training half, and keep
-          the test set at its real imbalance.
+          Rebalancing before the split is [[resampling-leakage|leakage]]: a copied (or, with SMOTE, blended) minority row
+          can sit in the training set while its twin is in the test set. Split first, stratify, rebalance only the
+          training set, and keep the test set at its real imbalance.
 atScale:
   title: Imbalance in production pipelines
   body: |
-    **Keep resampling inside the training folds.** With cross-validation, resampling outside the loop leaks synthetic or
-    copied rows into validation folds. imbalanced-learn's `Pipeline` applies the sampler only during `fit`.
+    **Keep rebalancing inside the training folds.** In cross-validation (testing on several slices of the data in turn),
+    rebalancing outside the loop leaks copied or made-up rows into the slice being tested. imbalanced-learn's `Pipeline`
+    applies the rebalancer only while fitting.
 
-    **Class weights scale better than rows.** SAGIP used LightGBM's `scale_pos_weight`, which multiplies each dropout's
-    loss instead of creating rows; set it near n_negative / n_positive (about 70 for a 1.41% rate). Logistic regression has
-    `class_weight="balanced"`, Spark ML a `weightCol`.
+    **Class weights scale better than extra rows.** SAGIP used LightGBM's `scale_pos_weight`, which makes each dropout's
+    mistakes count more instead of adding rows. Set it near (negatives ÷ positives), about 70 for a 1.41% rate. Logistic
+    regression has `class_weight="balanced"`, and Spark ML has a `weightCol`.
 
-    **Cost of SMOTE and ADASYN.** Each needs nearest neighbours of every minority row (KD-tree or ball-tree; brute force is
-    O(n_min · n · d)). On millions of rows, undersampling the majority or weighting is usually cheaper, and on the big-data
-    side you can sample the majority per partition.
+    **SMOTE and ADASYN are slow on huge data.** They must find the nearest neighbours of every minority row. On millions
+    of rows, undersampling the majority or using weights is usually cheaper.
 
-    **Thresholds are part of the model.** Tune the decision threshold on validation data for the recall or capacity you
-    need, and report the per-class confusion matrix, not only accuracy.
+    **The cut-off is part of the model.** Tune the decision threshold on validation data for the recall or capacity you
+    need, and report the confusion matrix for each group, not just accuracy.
   code:
     - lang: python
       title: imbalanced-learn pipeline in cross-validation
@@ -227,12 +227,14 @@ tradeoffs:
     - ['Class weights (beyond the slides)', 'Weights the loss, not the rows', 'No new rows; scales to big data', 'Needs a model that supports weights']
 explainBack:
   prompt: |
-    Explain to a school principal why a 98% accurate dropout model can be useless, and how you would evaluate and improve
+    Explain to a school principal why a 98% accurate dropout model can be useless, and how you would check and improve
     it. Use the words recall, precision, confusion matrix and threshold.
   rubric:
-    - Shows that predicting "stays" for everyone already gives accuracy equal to the majority share
-    - Defines recall as dropouts caught out of all real dropouts, and precision as real dropouts among those flagged
-    - Reads TP, FN, FP, TN from a confusion matrix with dropout as the positive class
-    - Explains that lowering the threshold (or resampling) raises recall at the cost of precision
-    - Says the right trade-off depends on the cost of a missed dropout versus an unnecessary visit, and on capacity
-    - Insists on splitting first and resampling only the training data
+    - 'Shows that guessing "stays" for everyone already gives an accuracy equal to the share who stay'
+    - |
+      Explains recall as dropouts caught out of all real dropouts, and precision as real dropouts out of those flagged
+    - 'Reads TP, FN, FP and TN from a confusion matrix with dropout as the positive class'
+    - Explains that lowering the threshold (or rebalancing) raises recall but lowers precision
+    - |
+      Says the right trade-off depends on what a missed dropout costs compared with an unneeded visit, and on capacity
+    - Insists on splitting first and rebalancing only the training data
