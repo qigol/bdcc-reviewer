@@ -1,14 +1,14 @@
 intro: |
-  Utilities, retailers, hospitals and transport agencies all plan on monthly forecasts. The workflow is the same as for
-  CO₂, only shorter and noisier: look at the structure, split by date, set the naive bar, decide how to remove trend and
-  season, and only then fit a model, checking every feature for leakage. Here you do it with 40 months of data.
+  Power companies, shops, hospitals and transport agencies all plan with monthly forecasts. The steps are the same as for
+  CO₂, just shorter and noisier: look at the patterns, split by date, set the naive bar, decide how to handle trend and
+  season, and only then fit a model, checking every input for leakage. Here you do it with 40 months of data.
 case:
   id: coop-demand
   title: Planning power purchases for an electric cooperative
   story: |
-    A provincial electric cooperative buys power a year ahead. Its sales (GWh per month) grow as new households connect,
-    and peak every hot season (April–June) when air-conditioners run. You have January 2022 to April 2025. Hold out the last
-    12 months, find the honest baseline, and decide whether a lag-feature regression earns its place. (Synthetic data.)
+    A provincial electric cooperative buys power a year ahead. Its monthly sales (in GWh) grow as new households connect,
+    and peak every hot season (April–June) when air-conditioners run. You have January 2022 to April 2025. Hide the last
+    12 months, find the honest baseline, and decide whether a lag-column regression is worth using. (Made-up data.)
   data: [coop]
   state: { method: naive, feats: lag1, dlag: 1 }
   derive:
@@ -21,8 +21,8 @@ case:
     - id: look
       title: Look before you model
       say: |
-        Two structures are visible: a **trend** (new connections) and a **season** (the April–June peak). The remainder is
-        month-to-month noise. Name the structures before choosing a method.
+        Two patterns are visible: a [[trend|trend]] (new connections) and [[seasonality|seasonality]] (the April–June peak).
+        The [[remainder|remainder]] is month-to-month noise. Name the patterns before choosing a method.
       stage:
         - id: plot
           widget: Chart
@@ -38,12 +38,12 @@ case:
         answer: 0
         model: |
           Buying power for May at the yearly average would leave the cooperative short at the peak, and repeating last May
-          would ignore a year of new connections. A forecast that misses either structure will be visibly, diagnosably wrong.
+          would ignore a year of new connections. A forecast that misses either pattern will be clearly and visibly wrong.
     - id: split
       title: Split by date
       say: |
         Train on {=av.trainFrom} → {=av.trainTo} ({=av.train} months), test on {=av.testFrom} → {=av.testTo}
-        ({=av.test} months). Twelve test months cover one full season, so every month of the year is scored once.
+        ({=av.test} months). Twelve test months cover one full year, so every month of the year is scored once.
       decision:
         prompt: A teammate suggests `train_test_split(X, y, test_size=0.3)` "to be safe". What do you say?
         type: mcq
@@ -53,11 +53,13 @@ case:
           - 'Yes, as long as we set random_state'
           - 'Only if we also standardize the features'
         answer: 0
-        model: Never split a time series at random. Train on the past, test on the future; order is the signal.
+        model: |
+          Never split a time series at random. Learn from the past, test on the future; the order is the information.
     - id: baselines
       title: Set the bar
       say: |
-        Forecasting all 12 test months from April 2024, the {=method} forecast scores MAE {=ab.mae|2} GWh (MAPE {=ab.mape|1}%).
+        Forecasting all 12 test months from April 2024, the {=method} forecast scores [[mae|MAE]] {=ab.mae|2} GWh
+        ([[mape|MAPE]] {=ab.mape|1}%).
       stage:
         - id: m
           widget: Choice
@@ -81,14 +83,15 @@ case:
         prompt: Seasonal naive (MAE 4.19) beats naive (5.14) here, unlike CO₂. Why might that be?
         type: open
         model: |
-          Here the seasonal swing (about ±6 GWh) is large compared with one year of growth (about 4 GWh), so getting the shape
-          right matters more than getting the level right. For CO₂ the yearly growth (≈ 1.5 ppm) dominated the misses of the
-          seasonal naive forecast. Seasonal naive still sits low every month: it forgets the year of growth.
+          Here the yearly swing (about ±6 GWh) is big compared with one year of growth (about 4 GWh), so getting the shape
+          right matters more than getting the level right. For CO₂ the yearly growth (about 1.5 ppm) caused most of the
+          seasonal naive's misses. Seasonal naive still sits low every month: it forgets a year of growth.
     - id: stationarity
       title: Remove trend and season
       say: |
-        Differencing once removes the trend; the season survives. Compare the autocorrelation of the first difference with
-        that of the seasonal difference $\Delta_{12}$. Lag-1 ACF {=aa.r1|2}, lag-12 ACF {=aa.r12|2} on {=aa.n} training values.
+        One [[differencing|difference]] removes the trend; the season survives. Compare the autocorrelation of the first
+        difference with that of the seasonal difference $\Delta_{12}$. Lag-1 ACF {=aa.r1|2}, lag-12 ACF {=aa.r12|2} on
+        {=aa.n} training values.
       stage:
         - id: dl
           widget: Choice
@@ -114,13 +117,13 @@ case:
           - 'Shuffle the data to remove the pattern'
         answer: 0
         model: |
-          First differencing removes the trend, not the season. ARIMA(p,d,q) has no seasonal letter; Δ₁₂ or SARIMA does.
-          With only 27 differenced training months, though, the ACF itself is noisy: use it as a hint, not a verdict.
+          One difference removes the trend, not the season. ARIMA(p,d,q) has no yearly part; Δ₁₂ or SARIMA does. With only
+          27 differenced training months, though, the ACF itself is noisy: treat it as a hint, not a verdict.
     - id: regression
       title: Lag-feature regression
       say: |
-        One-step-ahead regression trained on {=al.trainRows} rows: MAE {=al.mae|2} GWh. The one-step naive forecast
-        (last month's actual) scores {=n1.mae|2}; compare one-step with one-step.
+        One-step-ahead [[linear-regression|regression]] trained on {=al.trainRows} rows: MAE {=al.mae|2} GWh. The one-step
+        naive forecast (last month's real value) scores {=n1.mae|2}. Compare one-step with one-step.
       stage:
         - id: f
           widget: Choice
@@ -158,31 +161,32 @@ case:
     - id: one-step-trap
       title: One step is not twelve
       say: |
-        The cooperative must commit to purchases **12 months ahead**. lag_1 needs last month's actual sales, which will not
+        The cooperative must commit to purchases **12 months ahead**. lag_1 needs last month's real sales, which will not
         exist yet for most of the year.
       decision:
         prompt: How should you compare the regression with the baselines for this decision?
         type: open
         model: |
-          On the same setup. The baselines in cell 3 forecast all 12 months from April 2024 (multi-step); the regression
-          used real data up to each previous month (one-step), which is easier. For a year-ahead plan, either use only
-          features known 12 months in advance (lag_12 and beyond, the month, the trend) or feed the model its own forecasts
-          recursively, and score it multi-step against the multi-step baselines.
+          Compare them on the same setup. The baselines in cell 3 forecast all 12 months from April 2024 (multi-step); the
+          regression used real data up to each previous month (one-step), which is easier. For a year-ahead plan, either use
+          only inputs known 12 months in advance (lag_12 and older, the month, the trend) or feed the model its own forecasts
+          one step at a time, and score it multi-step against the multi-step baselines.
 atScale:
   title: Forecasting many series
   body: |
-    **Thousands of series.** A retailer or utility forecasts per store, per feeder, per product. Classical models (ARIMA,
-    exponential smoothing) are fitted per series in parallel; libraries like statsforecast fit them on all cores, and on Spark
-    you group by series id and apply a fitting function per group.
+    **Thousands of series.** A retailer or power company forecasts per store, per line, per product. Classic models
+    (ARIMA, exponential smoothing) are fitted to each series separately, in parallel; libraries like statsforecast use
+    every processor core, and on Spark you group by series id and fit one model per group.
 
-    **Global ML models.** A single gradient-boosted model trained on lag features from all series at once (the M5 competition's
-    winning recipe) shares strength across series. The leakage rules are identical: every feature must be known at forecast time.
+    **One ML model for all series.** A single gradient-boosted model trained on lag columns from every series at once
+    (the winning recipe of the M5 competition) learns from all of them together. The leakage rules are the same: every
+    input must be known at forecast time.
 
-    **Backtesting.** One train/test cut is one opinion. Use rolling-origin evaluation (`TimeSeriesSplit`): train on the past,
-    test on the next block, move the cut forward, repeat.
+    **Backtesting.** One train/test cut is one opinion. Use rolling-origin evaluation (`TimeSeriesSplit`): train on the
+    past, test on the next block, move the cut forward, and repeat.
 
-    **Foundation models.** TimesFM-class models (Session 10, slide 4) forecast series they have never seen, zero-shot.
-    They still have to beat the naive baseline on your held-out months.
+    **Foundation models.** TimesFM-style models (Session 10, slide 4) forecast series they have never seen before. They
+    still have to beat the naive forecast on your hidden months.
   code:
     - lang: python
       title: Rolling-origin backtest with scikit-learn
@@ -230,9 +234,12 @@ explainBack:
     Explain to the cooperative's general manager how you would build and check a monthly sales forecast, and why you would
     not trust a model that scores far better than the naive forecast without checking for leakage.
   rubric:
-    - Names trend and seasonality and how each baseline captures only one of them
-    - Insists on a chronological split, never a random one
-    - Uses MAE, RMSE or MAPE on held-out months and compares models on the same (one-step or multi-step) setup
-    - Explains differencing (first and seasonal) or lag/month features as ways to handle trend and season
-    - Describes leakage (a feature containing the target, or training on the future) and why a near-perfect score is a warning sign
-    - Mentions checking residuals or the ACF for structure the model missed
+    - 'Names trend and seasonality, and says each simple baseline captures only one of them'
+    - 'Insists on splitting by date, never at random'
+    - |
+      Scores forecasts with MAE, RMSE or MAPE on hidden months, comparing models on the same (one-step or multi-step) setup
+    - |
+      Explains differencing (first and seasonal) or lag and month columns as ways to handle trend and season
+    - |
+      Describes leakage (an input that contains the answer, or training on the future) and why a near-perfect score is a warning sign
+    - Mentions checking the residuals or the ACF for patterns the model missed

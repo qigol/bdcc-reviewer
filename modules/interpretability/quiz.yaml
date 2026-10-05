@@ -12,15 +12,20 @@ templates:
     steps:
       - prompt: Gini impurity of the node before the split
         answer: { var: giniT, tol: 0.005 }
+        hint: 'Use the node''s shares of benign and malignant: 1 − p_B² − p_M².'
       - prompt: 'Size-weighted Gini of the two children'
         answer: { var: child, tol: 0.005 }
         misconceptions:
           - { var: wrongNoChildWeights, feedback: 'Weight each child by its share of the node''s rows, N_L/N_t and N_R/N_t, not ½ each.' }
+        hint: 'Work out each child''s Gini, then weight each by its share of the node''s cases.'
       - prompt: Impurity decrease credited to this split
         answer: { var: decrease, tol: 0.005 }
+        hint: 'Node Gini minus the weighted children''s Gini.'
+    hints:
+      - Gini measures how mixed a group is. Start with the group before the split.
     explanation: |
-      Node: {=b} B, {=m} M → $1 - p_B^2 - p_M^2 = {=giniT|3}$. Children: $\tfrac{ {=nL} }{ {=nt} }({=giniL|3}) + \tfrac{ {=nR} }{ {=nt} }({=giniR|3}) = {=child|3}$.
-      Decrease $= {=giniT|3} - {=child|3} = {=decrease|3}$.
+      Node: {=b} benign, {=m} malignant, so $1 - p_B^2 - p_M^2 = {=giniT|3}$. The two groups, weighted by size:
+      $\tfrac{ {=nL} }{ {=nt} }({=giniL|3}) + \tfrac{ {=nR} }{ {=nt} }({=giniR|3}) = {=child|3}$. Reduction $= {=giniT|3} - {=child|3} = {=decrease|3}$.
 
   - id: impurity-decrease
     type: numeric
@@ -30,12 +35,17 @@ templates:
     generator: giniQ
     lessonRef: { tab: math-code, id: impurity-importance }
     prompt: |
-      A split deep in a tree is reached by {=nt} of the tree's {=N} training rows ({=b} benign, {=m} malignant). It sends
-      {=nL} rows left ({=bL} B, {=mL} M) and {=nR} right ({=bR} B, {=mR} M). What weighted impurity decrease does it add to its feature?
+      A question deep in a tree is reached by {=nt} of the tree's {=N} training cases ({=b} benign, {=m} malignant). It sends
+      {=nL} cases left ({=bL} B, {=mL} M) and {=nR} right ({=bR} B, {=mR} M). How much weighted mixing reduction does it add
+      to its feature?
     answer: { var: decrease, tol: 0.005 }
     misconceptions:
-      - { var: wrongNoNodeWeight, feedback: 'Multiply by N_t/N: a split that sees only part of the data earns proportionally less.' }
-      - { var: wrongNoChildWeights, feedback: 'Weight the children by size, not ½ each.' }
+      - {var: wrongNoNodeWeight, feedback: 'Multiply by N_t/N: a question that sees only part of the data earns that much less.'}
+      - {var: wrongNoChildWeights, feedback: 'Weight the two groups by their size, not ½ each.'}
+    hints:
+      - First compute the Gini of the node and of each child group.
+      - Mixing reduction = node Gini − (size-weighted Gini of the children).
+      - 'Finally multiply by the share of all cases that reach this node, N_t ÷ N.'
     explanation: |
       $\tfrac{ {=nt} }{ {=N} }\big({=giniT|3} - {=child|3}\big) = {=decrease|4}$.
 
@@ -47,15 +57,18 @@ templates:
     generator: impurityQ
     lessonRef: { tab: math-code, id: impurity-importance }
     prompt: |
-      A tree's splits and their weighted impurity decreases: {=splits}. What is the built-in importance of **{=target}**?
+      A tree's questions and how much each reduced the weighted mixing: {=splits}. What is the built-in importance of **{=target}**?
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 2 } }
     answer: { var: imp, tol: 0.005 }
     misconceptions:
-      - { var: wrongRaw, feedback: 'Normalize: divide the feature''s summed decrease by the total over all features.' }
-      - { var: wrongFirst, feedback: 'Add every split on this feature before dividing.' }
+      - {var: wrongRaw, feedback: 'Divide this feature''s total by the total over all features.'}
+      - {var: wrongFirst, feedback: 'Add every question on this feature before dividing.'}
+    hints:
+      - Add up all the reductions from questions on this feature.
+      - Divide that by the sum of the reductions for every feature.
     explanation: |
-      raw({=target}) = {=raw|2}; total = {=total|2}; importance = {=raw|2} / {=total|2} = {=imp|3}.
+      This feature's total = {=raw|2}; total for all features = {=total|2}; importance = {=raw|2} ÷ {=total|2} = {=imp|3}.
 
   - id: builtin-limits
     type: multi
@@ -66,11 +79,16 @@ templates:
     prompt: What does built-in (impurity) importance **not** tell you? Select all that apply.
     options:
       - Whether larger values push towards benign or malignant
-      - How the model generalizes to new data (it is computed on training data)
+      - How well the model does on new data (it is worked out on the training data)
       - How much accuracy the feature is worth
-      - Which features the model's splits used most
+      - 'Which features the model''s questions used most'
     answer: [0, 1, 2]
-    explanation: It answers only "what did the model build itself out of?" in shares of impurity reduction. No direction, no accuracy units, training data only.
+    hints:
+      - What three things would you want to know that a list of shares cannot tell you?
+    explanation: |
+      It only answers "what was the model built from?", as shares of mixing removed. No direction, no accuracy units,
+      and it uses the training data only.
+
 
   - id: perm-numeric
     type: numeric
@@ -80,14 +98,16 @@ templates:
     generator: permQ
     lessonRef: { tab: math-code, id: permutation-importance }
     prompt: |
-      Test {=metric} is {=base}. After shuffling one feature {=reps} times, the {=metric} values are {=shuffledList}.
-      What is that feature's permutation importance?
+      The test {=metric} is {=base}. After shuffling one feature {=reps} times, the {=metric} values are {=shuffledList}. What is that feature's permutation importance?
     answer: { var: imp, tol: 0.001 }
     misconceptions:
       - { var: wrongSign, feedback: 'Importance is baseline − shuffled score, so a drop is positive.' }
       - { var: wrongFirst, feedback: 'Average over all repeats; one shuffle is luck.' }
+    hints:
+      - First average the shuffled scores.
+      - Importance = original score − average shuffled score.
     explanation: |
-      Mean shuffled score {=meanShuffled|4}; importance = {=base} − {=meanShuffled|4} = {=imp|4}.
+      Average shuffled score {=meanShuffled|4}; importance = {=base} − {=meanShuffled|4} = {=imp|4}.
 
   - id: perm-negative
     type: mcq
@@ -97,12 +117,16 @@ templates:
     lessonRef: { tab: intuition, id: twins }
     prompt: A feature has permutation importance −0.0003. What should you do?
     options:
-      - 'Treat it as noise around zero; check for correlated twins before concluding anything'
+      - Treat it as noise around zero; check for twin features before concluding anything
       - Delete the feature because it hurts the model
-      - Report that the feature lowers the model's accuracy
+      - 'Report that the feature lowers the model''s accuracy'
       - Re-run until the value is positive
     answer: 0
-    explanation: Shuffling made the score marginally better by chance, often because a twin covered for it. It is not a signal to delete.
+    hints:
+      - Could a shuffle make the score slightly better just by chance?
+    explanation: |
+      Shuffling made the score very slightly better by luck, often because a twin covered for it. It is not a reason to delete the feature.
+
 
   - id: builtin-vs-perm
     type: match
@@ -112,14 +136,22 @@ templates:
     lessonRef: { tab: math-code, id: permutation-importance }
     prompt: Complete the Session 6 comparison of the two importances.
     pairs:
-      - ['Built-in importance: data used', 'The training data']
-      - ['Permutation importance: data used', 'Held-out (test) data']
-      - ['Built-in importance: units', 'Shares of the total impurity reduction']
-      - ['Permutation importance: units', 'Loss in the chosen metric']
-      - ['Built-in importance: cost', 'Free: comes with the fitted forest']
-      - ['Permutation importance: cost', 'Re-scoring the held-out set many times']
+      -   - 'Built-in importance: data used'
+          - The training data
+      -   - 'Permutation importance: data used'
+          - The test data
+      -   - 'Built-in importance: units'
+          - Shares of the total mixing removed
+      -   - 'Permutation importance: units'
+          - Drop in the chosen score
+      -   - 'Built-in importance: cost'
+          - 'Free: comes with the trained forest'
+      -   - 'Permutation importance: cost'
+          - Scoring the test set many times
     pick: 4
-    explanation: Built-in describes how the model was built; permutation describes what it needs on held-out data, in metric units.
+    explanation: |
+      Built-in shows how the model was built; permutation shows what it needs on test data, in the score's own units.
+
 
   - id: perm-code
     type: code-fill
@@ -144,7 +176,9 @@ templates:
     blanks:
       '1': { accept: ['perm'] }
       '2': { accept: ['base - s', 'base-s'] }
-    explanation: Reorder one column with the permutation, re-score without refitting, and record baseline − shuffled score.
+    hints:
+      - 'Which values get rearranged, and is the model retrained?'
+    explanation: 'Rearrange one column, score again without retraining, and record original score − shuffled score.'
 
   - id: twins-mcq
     type: mcq
@@ -154,12 +188,17 @@ templates:
     lessonRef: { tab: intuition, id: twins }
     prompt: 'worst radius is 5th by built-in importance but 29th of 30 by permutation importance. The best explanation?'
     options:
-      - 'Its near-duplicates (worst perimeter, worst area) carry the same signal, so shuffling it alone costs almost nothing'
+      - |
+        Its look-alikes (worst perimeter, worst area) carry the same information, so shuffling it alone costs almost nothing
       - Built-in importance is wrong and should be ignored
-      - worst radius only matters on the training data, so it is overfit
-      - Permutation importance cannot handle continuous features
+      - 'worst radius only matters on the training data, so it is overfit'
+      - Permutation importance cannot handle number features
     answer: 0
-    explanation: Built-in importance splits credit between twins; permutation importance can erase it, because the model recovers through the twins.
+    hints:
+      - What happens when you scramble one twin but the model can still read the others?
+    explanation: |
+      Built-in importance shares credit between twins; permutation importance can wipe it out, because the model still sees the other twins.
+
 
   - id: twins-multi
     type: multi
@@ -169,13 +208,17 @@ templates:
     lessonRef: { tab: math-code, id: correlated-twins }
     prompt: Two features are near-perfect twins. Which statements are true?
     options:
-      - Built-in importance tends to split the credit between them
+      - Built-in importance tends to share the credit between them
       - Shuffling one of them can leave the score almost unchanged
-      - Shuffling both together can reveal the signal they share
-      - Their SHAP values can be added up as independent evidence
-      - A PDP that forces one twin can create rows that could never exist
+      - Shuffling both together can reveal the information they share
+      - Their SHAP values can be added up as separate evidence
+      - A PDP that sets one twin can create cases that could never exist
     answer: [0, 1, 2, 4]
-    explanation: Twins split credit (built-in, SHAP), hide each other (permutation), and break PDPs and counterfactuals by producing impossible combinations.
+    hints:
+      - 'Think about built-in importance, shuffling, SHAP and PDPs one at a time.'
+    explanation: |
+      Twins share credit (built-in, SHAP), hide each other (shuffling), and make PDPs and counterfactuals produce impossible cases.
+
 
   - id: pdp-numeric
     type: numeric
@@ -184,17 +227,17 @@ templates:
     tags: [math]
     generator: pdpQ
     lessonRef: { tab: math-code, id: partial-dependence }
-    prompt: |
-      Model: {=rule}. Compute the partial dependence on radius at **radius = {=v}** over the rows below.
+    prompt: 'Model: {=rule}. Compute the partial dependence on radius at **radius = {=v}** over the cases below.'
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
     answer: { var: pd, tol: 0.005 }
     misconceptions:
-      - { var: wrongOwn, feedback: 'You averaged the predictions at each row''s own radius. A PDP forces every row to the same radius v.' }
-      - { var: wrongSingle, feedback: 'Average over all rows, not just one.' }
-    explanation: |
-      With every radius set to {=v}, the predictions are ({=ps|list}); their mean is {=pd|3}.
-
+      - {var: wrongOwn, feedback: 'You averaged the answers at each case''s own radius. A PDP gives every case the same radius v.'}
+      - {var: wrongSingle, feedback: 'Average over all the cases, not just one.'}
+    hints:
+      - Give every case the radius v and keep its other features.
+      - 'Run each changed case through the rule, then average the answers.'
+    explanation: 'With every radius set to {=v}, the model''s answers are ({=ps|list}); their average is {=pd|3}.'
   - id: pdp-hand
     type: hand-calc
     skills: [pdp]
@@ -206,15 +249,17 @@ templates:
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
     steps:
-      - prompt: 'Prediction for R1 with its radius forced to {=v} (its texture is {=r1tex})'
+      - prompt: 'Answer for R1 with its radius set to {=v} (its texture is {=r1tex})'
         answer: { var: p1, tol: 0.005 }
-      - prompt: 'The PDP value at {=v} (average over all rows)'
+        hint: 'Follow the rule with radius = v and R1''s own texture.'
+      - prompt: 'The PDP value at {=v} (the average over all cases)'
         answer: { var: pd, tol: 0.005 }
         misconceptions:
           - { var: wrongOwn, feedback: 'Force every row to radius {=v}; do not use their own radii.' }
-    explanation: |
-      Forced predictions ({=ps|list}), average {=pd|3}.
-
+        hint: 'Do the same for every case, then average.'
+    hints:
+      - Every case gets the same radius; only their other features differ.
+    explanation: 'Answers with radius set to {=v}: ({=ps|list}); average {=pd|3}.'
   - id: pdp-read
     type: mcq
     skills: [pdp, honest-reading]
@@ -228,7 +273,11 @@ templates:
       - Every patient's benign probability falls as concave points rise
       - Concave points is the most important feature
     answer: 0
-    explanation: 'A PDP is an average statement about the model: not causal, not per patient, and not a ranking.'
+    hints:
+      - 'A PDP is an average of the model''s answers. Does it say anything about causes or about each patient?'
+    explanation: |
+      A PDP is an average statement about the model. It is not about causes, not about each patient, and not a ranking.
+
 
   - id: pdp-caveats
     type: multi
@@ -238,13 +287,17 @@ templates:
     lessonRef: { tab: math-code, id: partial-dependence }
     prompt: Which are genuine limitations of a PDP (Session 6)? Select all that apply.
     options:
-      - It averages, so two subgroups moving in opposite directions can cancel to a flat line
-      - Forcing one feature while others stay put can create impossible rows
-      - The ends of the curve may rest on very few real rows
+      - 'It averages, so two groups moving in opposite directions can cancel out to a flat line'
+      - Setting one feature while the others stay put can create impossible cases
+      - The ends of the curve may rest on very few real cases
       - It cannot show direction
       - It is not causal
     answer: [0, 1, 2, 4]
-    explanation: Direction is exactly what a PDP adds over importance. Its limits are averaging, impossible rows, thin data at the ends, and no causality.
+    hints:
+      - 'One option names exactly what a PDP is good for, not a limitation.'
+    explanation: |
+      Direction is exactly what a PDP adds over importance. Its limits are averaging, impossible cases, few cases at the ends, and no causes.
+
 
   - id: pdp-code
     type: code-fill
@@ -265,7 +318,9 @@ templates:
     blanks:
       '1': { accept: ['v'] }
       '2': { accept: ['mean'] }
-    explanation: Every row gets the same value v; the PDP point is the mean of the predicted P(class 1).
+    hints:
+      - Every row gets the same value. Which column changes?
+    explanation: Every row gets the same value v; the PDP point is the average predicted P(class 1).
 
   - id: shapley-2
     type: numeric
@@ -275,14 +330,17 @@ templates:
     generator: shapleyQ
     lessonRef: { tab: math-code, id: shapley-orderings }
     prompt: |
-      Two features. The model outputs v(∅) = {=vNone}, v(A) = {=vA}, v(B) = {=vB}, v(A, B) = {=vAB}.
-      What is A's Shapley value?
+      Two features. The model answers v(none) = {=vNone}, v(A) = {=vA}, v(B) = {=vB}, v(A and B) = {=vAB}. What is A's Shapley value?
     answer: { var: phiA, tol: 0.005 }
     misconceptions:
-      - { var: wrongFirst, feedback: 'That is A''s contribution only when it comes first. Average it with A''s contribution when it joins after B.' }
-      - { var: wrongLast, feedback: 'That is A''s contribution only when it comes last. Average over both orders.' }
+      - {var: wrongFirst, feedback: 'That is what A adds only when it comes first. Average it with what A adds when it joins after B.'}
+      - {var: wrongLast, feedback: 'That is what A adds only when it comes last. Average over both orders.'}
+    hints:
+      - 'There are two orders: A then B, or B then A.'
+      - 'A first: v(A) − v(none). A second: v(A and B) − v(B). Average the two.'
     explanation: |
-      Order A, B: $v(A) - v(\varnothing) = {=vA} - {=vNone}$. Order B, A: $v(AB) - v(B) = {=vAB} - {=vB}$. Average: $\phi_A = {=phiA|3}$.
+      Order A then B: A adds $v(A) - v(\text{none}) = {=vA} - {=vNone}$. Order B then A: A adds $v(AB) - v(B) = {=vAB} - {=vB}$.
+      Average: $\phi_A = {=phiA|3}$.
 
   - id: shapley-hand
     type: hand-calc
@@ -291,16 +349,22 @@ templates:
     tags: [math]
     generator: shapleyQ
     lessonRef: { tab: intuition, id: fair-split }
-    prompt: 'v(∅) = {=vNone}, v(A) = {=vA}, v(B) = {=vB}, v(A, B) = {=vAB}. Compute φ_A over both orderings.'
+    prompt: 'v(none) = {=vNone}, v(A) = {=vA}, v(B) = {=vB}, v(A and B) = {=vAB}. Compute φ_A over both orders.'
     steps:
-      - prompt: "A's marginal contribution when A comes first"
+      - prompt: "What A adds when A comes first"
         answer: { var: wrongFirst, tol: 0.005 }
-      - prompt: "A's marginal contribution when A comes second"
+        hint: v(A) − v(none).
+      - prompt: "What A adds when A comes second"
         answer: { var: wrongLast, tol: 0.005 }
+        hint: v(A and B) − v(B).
       - prompt: 'φ_A'
         answer: { var: phiA, tol: 0.005 }
-      - prompt: 'φ_A + φ_B (it should equal v(A, B) − v(∅))'
+        hint: Average the two.
+      - prompt: 'φ_A + φ_B (it should equal v(A and B) − v(none))'
         answer: { var: sumCheck, tol: 0.005 }
+        hint: Work out φ_B the same way and add.
+    hints:
+      - Write down both orders first.
     explanation: |
       $\phi_A = \tfrac12[({=vA} - {=vNone}) + ({=vAB} - {=vB})] = {=phiA|3}$; $\phi_B = {=phiB|3}$; their sum ${=sumCheck|3} = {=vAB} - {=vNone}$.
 
@@ -312,14 +376,18 @@ templates:
     generator: shapleyQ
     lessonRef: { tab: math-code, id: shapley-formula }
     prompt: |
-      Three features. v(∅) = {=vNone}, v(A) = {=vA}, v(B) = {=vB}, v(C) = {=vC}, v(AB) = {=vAB}, v(AC) = {=vAC},
+      Three features. v(none) = {=vNone}, v(A) = {=vA}, v(B) = {=vB}, v(C) = {=vC}, v(AB) = {=vAB}, v(AC) = {=vAC},
       v(BC) = {=vBC}, v(ABC) = {=vABC}. Compute φ_A.
     answer: { var: phiA, tol: 0.005 }
     misconceptions:
-      - { var: wrongFirst, feedback: 'Only the "A first" ordering. Use weights 1/3, 1/6, 1/6, 1/3 over S = ∅, {B}, {C}, {B, C}.' }
-      - { var: wrongLast, feedback: 'Only the "A last" ordering. Average over all subsets with the Shapley weights.' }
+      - {var: wrongFirst, feedback: "That is only the \"A first\" order. Use weights 1/3, 1/6, 1/6, 1/3 for \"known before A\" = none, B, C, both.\n"}
+      - {var: wrongLast, feedback: 'That is only the "A last" order. Average over all four sets with the Shapley weights.'}
+    hints:
+      - 'Four cases for what is known before A: nothing, only B, only C, or B and C.'
+      - 'Their weights are 1/3, 1/6, 1/6 and 1/3.'
+      - 'For each case, A adds v(with A) − v(without A).'
     explanation: |
-      $\phi_A = \tfrac13(v_A - v_\varnothing) + \tfrac16(v_{AB} - v_B) + \tfrac16(v_{AC} - v_C) + \tfrac13(v_{ABC} - v_{BC}) = {=phiA|3}$.
+      $\phi_A = \tfrac13(v_A - v_{\text{none}}) + \tfrac16(v_{AB} - v_B) + \tfrac16(v_{AC} - v_C) + \tfrac13(v_{ABC} - v_{BC}) = {=phiA|3}$.
 
   - id: shapley-weights-match
     type: match
@@ -333,7 +401,11 @@ templates:
       - ['$(|F| - |S| - 1)!$', 'Orderings of the features that come after j']
       - ['$|F|!$', 'All orderings of the features']
       - ['$f(S \cup \{j\}) - f(S)$', 'How much the prediction moved when j joined']
-    explanation: The weight is the fraction of all orderings in which exactly S precedes j, so every ordering counts once.
+    hints:
+      - '"n!" counts the orders of n things.'
+    explanation: |
+      The weight is the share of all orders in which exactly the features in S come before j, so every order counts once.
+
 
   - id: additivity-missing
     type: numeric
@@ -343,12 +415,15 @@ templates:
     generator: additivityQ
     lessonRef: { tab: math-code, id: shap-additivity }
     prompt: |
-      For one patient, the baseline E[f(x)] is {=base} and the model predicts {=fx|2} for class 1 (benign). SHAP values: {=list}.
+      For one patient, the baseline is {=base} and the model predicts {=fx|2} for class 1 (benign). SHAP values: {=list}.
       What is the missing contribution of **{=missingName}**?
     answer: { var: missing, tol: 0.005 }
     misconceptions:
       - { var: wrongNoBase, feedback: 'Subtract the baseline too: prediction = baseline + all contributions.' }
       - { var: wrongSign, feedback: 'Check the sign: contributions must add up to prediction − baseline.' }
+    hints:
+      - Prediction = baseline + the sum of all contributions.
+      - Missing = prediction − baseline − (sum of the known contributions).
     explanation: |
       Additivity: $f(x) = E[f(x)] + \sum \phi_j$, so the missing one is ${=fx|2} - {=base} - (\text{the others}) = {=missing|2}$.
 
@@ -365,8 +440,11 @@ templates:
     misconceptions:
       - { var: first, feedback: 'Every sign flips when you switch class: P(malignant) = 1 − P(benign).' }
       - { var: baseMal, feedback: 'That is the class-0 baseline, not the contribution.' }
+    hints:
+      - P(malignant) = 1 − P(benign). What happens to each push?
     explanation: |
-      For a binary classifier, $\phi_j^{(0)} = -\phi_j^{(1)} = {=flipped|2}$. The model is unchanged; only the question changed.
+      With two classes, P(malignant) = 1 − P(benign), so every push flips: $\phi^{(0)} = -\phi^{(1)} = {=flipped|2}$. The
+      model is unchanged; only the question changed.
 
   - id: shap-slice-code
     type: code-fill
@@ -385,6 +463,8 @@ templates:
     blanks:
       '1': { accept: ['1'] }
       '2': { accept: ['sum'] }
+    hints:
+      - The last axis of the SHAP array is the class.
     explanation: The last axis is the class. Baseline + sum of contributions must equal the model's P(benign).
 
   - id: lime-slope
@@ -395,16 +475,19 @@ templates:
     generator: limeQ
     lessonRef: { tab: math-code, id: lime-surrogate }
     prompt: |
-      LIME (1-D) scored three perturbations with the original model and weighted them by proximity (table). Compute the
-      weighted least-squares slope.
+      LIME (one feature) asked the real model about three changed copies and weighted them by closeness (table). Compute the weighted straight-line slope.
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 2 } }
     answer: { var: b, tol: 0.005 }
     misconceptions:
-      - { var: unweighted, feedback: 'You ignored the weights. Use weighted means and weighted sums.' }
+      - {var: unweighted, feedback: 'You ignored the weights. Use weighted averages and weighted sums.'}
       - { var: wrongEnds, feedback: 'That is the slope between the two end points only.' }
+    hints:
+      - 'First the weighted averages: x̄ = Σwx ÷ Σw and ȳ = Σwy ÷ Σw.'
+      - Then b = Σw(x − x̄)(y − ȳ) ÷ Σw(x − x̄)².
     explanation: |
-      $\bar x = {=xbar|3}$, $\bar y = {=ybar|3}$; $b = \frac{\sum w(x - \bar x)(y - \bar y)}{\sum w (x - \bar x)^2} = \frac{ {=sxy|4} }{ {=sxx|4} } = {=b|3}$.
+      Weighted averages: $\bar x = {=xbar|3}$, $\bar y = {=ybar|3}$. Slope
+      $b = \frac{\sum w(x - \bar x)(y - \bar y)}{\sum w (x - \bar x)^2} = \frac{ {=sxy|4} }{ {=sxx|4} } = {=b|3}$.
 
   - id: lime-mcq
     type: mcq
@@ -414,12 +497,18 @@ templates:
     lessonRef: { tab: intuition, id: local-line }
     prompt: What is a LIME weight such as +0.047 for "worst texture ≤ 21.06"?
     options:
-      - 'A coefficient of a simple weighted model fitted around this one row; compare it with SHAP only by rank and sign'
+      - |
+        A weight in a simple stand-in model fitted around this one case; compare it with SHAP only by order and sign
       - The change in P(benign) caused by worst texture
-      - The forest's own internal weight for worst texture
-      - The feature's global importance
+      - 'The forest''s own internal weight for worst texture'
+      - 'The feature''s importance for the whole model'
     answer: 0
-    explanation: LIME is a second model of the first one, local to one row, on binned conditions; its weights are not probability shifts and are not stable across runs.
+    hints:
+      - LIME fits its own small model. Whose number is the weight?
+    explanation: |
+      LIME is a second model of the first one, built around one case using ranges like "≤ 21.06". Its weights are not
+      changes in probability and can change between runs.
+
 
   - id: lime-order
     type: order
@@ -429,12 +518,12 @@ templates:
     lessonRef: { tab: math-code, id: lime-surrogate }
     prompt: Put LIME's procedure in order.
     items:
-      - Generate many perturbed copies of the row to explain
-      - Score every perturbed copy with the original model
-      - Weight each copy by its closeness to the original row
-      - Fit a simple (linear) model to the weighted copies
-      - Read the simple model's coefficients as the explanation
-    explanation: Perturb, score, weight, fit, read.
+      - Make many slightly changed copies of the case to explain
+      - Ask the original model to answer every copy
+      - Weight each copy by how close it is to the original case
+      - Fit a simple (straight-line) model to the weighted copies
+      - 'Read the simple model''s weights as the explanation'
+    explanation: 'Change, ask, weight, fit, read.'
 
   - id: lime-code
     type: code-fill
@@ -454,7 +543,9 @@ templates:
     blanks:
       '1': { accept: ['f'] }
       '2': { accept: ['w'] }
-    explanation: The original model scores the perturbations, and every sum is weighted by proximity.
+    hints:
+      - 'Which model answers the copies, and what multiplies every sum?'
+    explanation: 'The original model answers the changed copies, and every sum is weighted by closeness.'
 
   - id: cf-numeric
     type: numeric
@@ -470,8 +561,12 @@ templates:
     misconceptions:
       - { var: wrongSign, feedback: 'Wrong direction: with a negative weight, the feature must go down to raise the score.' }
       - { var: wrongNoWeight, feedback: 'Divide the score gap by the feature''s weight.' }
+    hints:
+      - The score must rise from its current value to 0.
+      - Each unit of the feature changes the score by its weight. Change needed = gap ÷ weight.
     explanation: |
-      The score must rise by {=s} → 0, and each unit of {=feature} changes it by its weight, so {=feature} moves by {=change|2} to {=target|2}.
+      The score must rise by {=s} to reach 0. Each unit of {=feature} changes the score by its weight, so {=feature}
+      must move by {=change|2}, to {=target|2}.
 
   - id: cf-valid-plausible
     type: mcq
@@ -481,12 +576,16 @@ templates:
     lessonRef: { tab: intuition, id: flip-it }
     prompt: 'DiCE returns a counterfactual that halves worst perimeter (117.7 → 57.4) but leaves worst area at 989.5. The forest calls it benign. Which is true?'
     options:
-      - 'It is valid (it flips the model) but not plausible: perimeter and area are geometrically locked'
+      - 'It is valid (it flips the model) but not plausible: perimeter and area are tied together by geometry'
       - 'It is valid and plausible, so it is a good treatment target'
-      - 'It is invalid because the model is wrong'
-      - 'It is causal evidence that perimeter drives malignancy'
+      - It is invalid because the model is wrong
+      - It proves that perimeter causes malignancy
     answer: 0
-    explanation: Valid is not plausible, plausible is not actionable, and none of it is causal. `features_to_vary` cannot express which combinations are possible.
+    hints:
+      - Can perimeter halve while area stays the same?
+    explanation: |
+      Valid is not plausible, plausible is not actionable, and none of it shows a cause. Choosing which columns may change cannot rule out impossible combinations.
+
 
   - id: cf-terms-match
     type: match
@@ -500,7 +599,9 @@ templates:
       - ['Plausible', 'A row like it could exist in reality']
       - ['Actionable', 'A person could actually bring the change about']
       - ['Causal', 'Changing it in reality would change the outcome; never established by the model']
-    explanation: Counterfactuals are valid by construction; plausibility and actionability must be checked separately; causality never follows.
+    explanation: |
+      Counterfactuals are always valid; whether they are plausible or actionable must be checked separately; they never show a cause.
+
 
   - id: method-match
     type: match
@@ -527,12 +628,14 @@ templates:
     lessonRef: { tab: intuition, id: global-or-local }
     prompt: A patient asks why her result came out malignant. A colleague shows her the PDP of worst radius. What is wrong?
     options:
-      - 'Scope: a PDP is a global average over all rows, not an explanation of her prediction'
+      - 'Wrong size of question: a PDP is an average over all cases, not an explanation of her result'
       - Nothing; the PDP explains every patient
       - PDPs can only be shown to auditors
       - The PDP should be replaced by built-in importance
     answer: 0
-    explanation: Use a local method (SHAP, LIME, counterfactual) for one decision. Scope determines method.
+    explanation: |
+      For one decision, use a local tool (SHAP, LIME, counterfactual). The size of the question decides the tool.
+
 
   - id: causal-mcq
     type: mcq
@@ -542,12 +645,14 @@ templates:
     lessonRef: { tab: intuition, id: flip-it }
     prompt: Why can none of SHAP, LIME, PDPs or counterfactuals support a causal claim?
     options:
-      - 'They all perturb inputs and watch the model react, which only ever describes the model'
+      - 'They all change inputs and watch the model react, which only ever describes the model'
       - Because the forest has too many trees
       - Because the data set is too small
-      - They can, if accuracy is above 95%
+      - 'They can, if accuracy is above 95%'
     answer: 0
-    explanation: Interpretability describes the fitted model, which is its point and its limit.
+    hints:
+      - What do all four methods do to get their answer?
+    explanation: These tools describe the trained model. That is their purpose and their limit.
 
   - id: encoding-multi
     type: multi
@@ -557,13 +662,15 @@ templates:
     lessonRef: { tab: intuition, id: waterfall }
     prompt: In the Session 7 notebook (0 = malignant, 1 = benign), the SHAP waterfall for class 1 shows worst area at −0.16. Which statements are true?
     options:
-      - worst area pushed this patient's P(benign) down by about 0.16
-      - Explained for class 0, the same bar would be +0.16
+      - 'worst area pushed this patient''s P(benign) down by about 0.16'
+      - 'Explained for class 0, the same bar would be +0.16'
       - worst area caused the tumour to be malignant
-      - The bar's sign depends on which class was sliced
+      - 'The bar''s sign depends on which class was picked'
       - '"Negative" means the feature is bad for the patient'
     answer: [0, 1, 3]
-    explanation: Negative means "towards class 0" for the sliced class. Switching class flips every sign. Nothing here is causal or evaluative.
+    explanation: |
+      Negative means "towards class 0" for the class you picked. Switching class flips every sign. Nothing here is a cause or a judgement.
+
 
   - id: global-order
     type: order
@@ -573,13 +680,15 @@ templates:
     lessonRef: { tab: application, id: worth-it }
     prompt: Put a responsible interpretation workflow in order.
     items:
-      - Fit the model and check it predicts well on held-out data
-      - Rank features globally (built-in and permutation importance)
-      - Check correlations among the top features
-      - Look at the shape of the top features with PDPs
-      - Explain individual decisions locally (SHAP, LIME, counterfactuals), naming the class
-      - Report every explanation as a statement about the model, not about causes
-    explanation: Rank first, then look at shape; then go local. Interpret only models worth interpreting.
+      - Train the model and check it does well on the test set
+      - Rank features for the whole model (built-in and permutation importance)
+      - Check which top features move together (twins)
+      - Look at the direction of the top features with PDPs
+      - 'Explain single decisions (SHAP, LIME, counterfactuals), naming the class'
+      - 'Report every explanation as a statement about the model, not about causes'
+    explanation: |
+      Rank features first, then look at direction, then explain single cases. Only explain models that work.
+
 
   - id: impurity-code
     type: code-fill
@@ -601,4 +710,7 @@ templates:
     blanks:
       '1': { accept: ['len(y)'] }
       '2': { accept: ['total'] }
-    explanation: Each split is weighted by the share of training rows reaching it, and the per-feature sums are normalized to 1.
+    hints:
+      - Each question is scaled by the share of cases that reach it.
+    explanation: |
+      Each question is weighted by the share of training cases that reach it, and each feature's total is divided by the overall total so they sum to 1.

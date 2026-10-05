@@ -3,8 +3,9 @@ sections:
     title: The lazy baseline
     skills: [accuracy-trap]
     summary: |
-      A "model" that predicts the majority class for every row needs no training at all. Its accuracy equals the majority
-      share, and its recall on the minority is exactly zero. Any real model has to beat this, on the metric that matters.
+      The "lazy model" guesses the big group for everyone and never reads a single [[feature]]. Its
+      [[accuracy|accuracy]] is just the share of the big group, and its [[recall|recall]] on the rare group is zero. Any
+      real model must beat it on the score that matters.
     keyFormula: '\text{Accuracy}_{\text{lazy}} = \frac{n_{\text{maj}}}{N}, \qquad \text{Recall}_{\text{lazy}} = 0'
     state: { nMaj: 9859, nMin: 141 }
     derive:
@@ -21,16 +22,17 @@ sections:
     steps:
       - tex: |
           \anchor{n}{N = n_{\text{maj}} + n_{\text{min}}}
-        say: Count everyone. The lazy model never looks at a feature.
+        say: |
+          Count everyone. $n_{\text{maj}}$ is the size of the big group, $n_{\text{min}}$ the size of the small one.
       - tex: |
           \anchor{acc}{\text{Accuracy} = \frac{n_{\text{maj}}}{N}}
-        say: It labels every row "majority", so it is right exactly on the majority rows.
+        say: 'It guesses "big group" every time, so it is right on exactly the big-group rows.'
       - tex: |
           \anchor{tp}{TP = 0} \;\Rightarrow\; \anchor{rec}{\text{Recall} = \frac{TP}{TP + FN} = \frac{0}{n_{\text{min}}} = 0}
-        say: It never says "minority", so it never catches one.
+        say: 'It never guesses "small group", so it catches none of them. TP (caught cases) is 0, so recall is 0.'
       - tex: |
           \text{Accuracy} = \frac{ {=nMaj} }{ {=nMaj} + {=nMin} } = {=lz.accuracy|4}, \qquad \text{Recall} = {=lz.recall}
-        say: 'Slide 9: 10,000 learners at the reported 1.41% dropout rate.'
+        say: 'Slide 9: 10,000 learners with a 1.41% dropout rate.'
     code:
       lang: python
       source: |
@@ -58,16 +60,22 @@ sections:
     trace: { fn: lazyCode, in: { nMaj: '@nMaj', nMin: '@nMin' } }
     examples: [lazy-sagip, lazy-99-1, lazy-code]
     pitfalls:
-      - A high accuracy on imbalanced data is not evidence of learning. Compare it with the majority share first.
-      - '"98.6% accurate" and "never finds a dropout" can both be true of the same model.'
-    examTip: 'Before praising an accuracy, compute n_maj / N; a model must beat that and still have non-zero minority recall.'
+      - |
+        A high accuracy on uneven data does not prove the model learned anything. First compare it with the share of the big group.
+      - '"98.6% accurate" and "never finds a dropout" can both be true about the same model.'
+    examTip: |
+      Before praising an accuracy, divide the big group by the total. A useful model must beat that and catch at least some rare cases.
 
+
+    tryIt:
+      - lazy-accuracy
+      - lazy-recall-mcq
   - id: confusion-tally
     title: Tallying the confusion matrix
     skills: [confusion-matrix]
     summary: |
-      Walk through the rows once. Each (actual, predicted) pair lands in exactly one of four cells: caught fraud (TP),
-      missed fraud (FN), false alarm (FP) or correct legit (TN). The four counts always add up to the number of rows.
+      Go through the rows once. Each pair (real answer, guess) lands in exactly one of four boxes: fraud caught (TP), fraud
+      missed (FN), false alarm (FP) or normal payment cleared (TN). The four counts always add up to the number of rows.
     keyFormula: '\begin{pmatrix} TP & FN \\ FP & TN \end{pmatrix}, \qquad TP + FN + FP + TN = N'
     data: [fraud18]
     derive:
@@ -84,7 +92,7 @@ sections:
     steps:
       - tex: |
           \anchor{init}{TP = FN = FP = TN = 0}
-        say: Four counters, all at zero.
+        say: Start four counters at zero.
       - tex: |
           \anchor{loop}{\text{for each row } (a_i, \hat y_i):} \quad
           \begin{cases}
@@ -93,10 +101,11 @@ sections:
             \anchor{fp}{FP \mathrel{+}= 1} & a_i = -,\ \hat y_i = + \\
             \anchor{tn}{TN \mathrel{+}= 1} & a_i = -,\ \hat y_i = -
           \end{cases}
-        say: 'Positive (+) = Fraud, the minority. Exactly one case is true for each row.'
+        say: |
+          For each row, $a_i$ is the real answer and $\hat y_i$ ("y-hat") is the guess. + means Fraud, the [[positive-class|positive class]]. Exactly one line applies.
       - tex: |
           \anchor{ret}{\begin{pmatrix} TP & FN \\ FP & TN \end{pmatrix}} = \begin{pmatrix} {=c.tp} & {=c.fn} \\ {=c.fp} & {=c.tn} \end{pmatrix}, \qquad {=c.tp} + {=c.fn} + {=c.fp} + {=c.tn} = {=c.n}
-        say: 'Slide 21: almost every cell is right, but 2 of the 4 frauds sit in FN.'
+        say: 'Slide 21: most guesses are right, but 2 of the 4 frauds sit in the FN box.'
     code:
       lang: python
       source: |
@@ -143,17 +152,22 @@ sections:
     trace: { fn: confusionCode, in: { table: '@fraud18' } }
     examples: [fraud-tally, fraud-tally-walk, fraud-metrics-code]
     pitfalls:
-      - 'sklearn orders labels alphabetically or numerically unless you pass `labels=`; with 0/1 labels the matrix is [[TN, FP], [FN, TP]], the mirror of slide 21.'
-      - The four cells must add up to the number of rows; check it.
-    examTip: 'Name the positive class first, then fill the row of real positives (TP, FN) before the row of real negatives (FP, TN).'
+      - |
+        scikit-learn sorts the labels itself unless you pass `labels=`. With 0/1 labels you get [[TN, FP], [FN, TP]], the mirror image of slide 21.
+      - The four boxes must add up to the number of rows. Always check.
+    examTip: |
+      Decide which group is "positive" first. Fill the real-positive row (TP, FN) before the real-negative row (FP, TN).
 
+
+    tryIt:
+      - tally-hand
+      - confusion-code
   - id: four-metrics
     title: Accuracy, precision, recall, F1
     skills: [prf1]
     summary: |
-      All four come from the same four cells. Accuracy uses the diagonal. Precision looks down the "predicted positive"
-      column (how trustworthy is an alarm?). Recall looks along the "actually positive" row (how many did we catch?). F1 is
-      their harmonic mean.
+      All four scores come from the same four boxes. Accuracy uses every right guess. [[precision|Precision]] looks only
+      at the cases the model flagged. [[recall|Recall]] looks only at the real cases. [[f1|F1]] combines precision and recall.
     keyFormula: 'P = \frac{TP}{TP + FP}, \quad R = \frac{TP}{TP + FN}, \quad F_1 = \frac{2PR}{P + R}'
     state: { tp: 2, fn: 2, fp: 1, tn: 13 }
     derive:
@@ -174,16 +188,18 @@ sections:
     steps:
       - tex: |
           \anchor{acc}{\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}}
-        say: The diagonal over everything. Dominated by TN when the minority is rare.
+        say: |
+          Right guesses divided by all guesses. When the rare group is tiny, TN (normal cases cleared) makes up most of it.
       - tex: |
           \anchor{prec}{\text{Precision} = \frac{TP}{TP + FP}} \qquad \anchor{rec}{\text{Recall} = \frac{TP}{TP + FN}}
-        say: Same numerator, different denominators. Precision divides by alarms raised, recall by real positives.
+        say: |
+          Both have TP on top. Precision divides by everything the model flagged; recall divides by everything that was really positive.
       - tex: |
           \anchor{f1}{F_1 = 2 \cdot \frac{P \cdot R}{P + R}}
-        say: The harmonic mean punishes imbalance between P and R; F1 sits closer to the smaller one.
+        say: A special average that stays close to the smaller of precision (P) and recall (R).
       - tex: |
           \frac{ {=tp} + {=tn} }{ {=m.n} } = {=m.accuracy|3}, \quad P = \frac{ {=tp} }{ {=tp} + {=fp} } = {=m.precision|2}, \quad R = \frac{ {=tp} }{ {=tp} + {=fn} } = {=m.recall|2}, \quad F_1 = {=m.f1|2}
-        say: 'Slide 22: 83.3% accuracy, yet only half the fraud is caught.'
+        say: 'Slide 22: 83.3% accuracy, yet only half of the fraud is caught.'
     code:
       lang: python
       source: |
@@ -215,24 +231,32 @@ sections:
           rec = recall_score(y_true, y_pred, zero_division=0)
           f1 = f1_score(y_true, y_pred, zero_division=0)
     links:
-      - { anchor: acc, label: accuracy, say: 'Uses all four cells; the majority dominates it.' }
-      - { anchor: prec, label: precision, say: 'Down the predicted-positive column: TP and FP.' }
-      - { anchor: rec, label: recall, say: 'Along the actual-positive row: TP and FN.' }
+      - {anchor: acc, label: accuracy, say: 'Uses all four boxes; the big group dominates it.'}
+      - {anchor: prec, label: precision, say: 'Looks down the "guessed Fraud" column: TP and FP.'}
+      - {anchor: rec, label: recall, say: 'Looks along the "really Fraud" row: TP and FN.'}
       - { anchor: f1, label: F1 }
     trace: { fn: metricsCode, in: { tp: '@tp', fn: '@fn', fp: '@fp', tn: '@tn' } }
     examples: [fraud-metrics]
     pitfalls:
-      - Precision and recall share the numerator TP; mixing up their denominators is the most common slip.
-      - 'F1 is not the arithmetic mean: (0.67 + 0.50)/2 = 0.58, but F1 = 0.57.'
-      - With no predicted positives precision is 0/0; the notebook sets `zero_division=0`.
-    examTip: 'Write P = TP/(TP+FP) and R = TP/(TP+FN) side by side before plugging in; FP goes with precision, FN with recall.'
+      - |
+        Precision and recall share the top number, TP. Mixing up their bottom numbers is the most common slip.
+      - 'F1 is not the normal average: (0.67 + 0.50) ÷ 2 = 0.58, but F1 = 0.57.'
+      - 'If the model flags nothing, precision is 0 ÷ 0. The notebook then reports 0 (`zero_division=0`).'
+    examTip: |
+      Write P = TP/(TP+FP) and R = TP/(TP+FN) side by side before plugging in. FP goes with precision, FN with recall.
 
+
+    tryIt:
+      - recall-numeric
+      - f1-numeric
+      - metrics-code
   - id: per-class-recall
     title: Per-class recall
     skills: [per-class]
     summary: |
-      With several classes, compute recall for each one. In a row-normalized confusion matrix every row sums to 1, so the
-      diagonal **is** the per-class recall. A macro average weights every class equally, so a collapsed rare class shows up.
+      With more than two groups, work out recall for each group. If every row of the table adds up to 1, the diagonal box
+      of each row **is** that group's recall. The [[macro-average|macro average]] gives every group equal weight, so a
+      forgotten rare group shows up.
     keyFormula: '\text{Recall}_c = \frac{C_{cc}}{\sum_j C_{cj}}, \qquad \text{Macro} = \frac{1}{K}\sum_c \text{Recall}_c'
     data: [sigla]
     state: { model: marker }
@@ -260,16 +284,18 @@ sections:
     steps:
       - tex: |
           \anchor{row}{\tilde C_{cj} = \frac{C_{cj}}{\sum_{j} C_{cj}}}
-        say: Row-normalize counts so each row (an actual class) sums to 1. Slide 14 is already in this form.
+        say: |
+          Divide each box by its row total, so each row (one real group) adds up to 1. Slide 14 is already like this.
       - tex: |
           \anchor{loop}{\text{for each class } c:} \quad \anchor{diag}{\text{Recall}_c = \tilde C_{cc}}
-        say: The diagonal cell is the share of class c that was predicted as c.
+        say: The diagonal box is the share of group c that was labelled as c.
       - tex: |
           \anchor{macro}{\text{Macro recall} = \frac{1}{K}\sum_{c=1}^{K} \text{Recall}_c}
-        say: Every class counts once, whatever its size (beyond the slides).
+        say: |
+          Add the K recalls and divide by K, the number of groups. Every group counts once, whatever its size (beyond the slides).
       - tex: |
           \text{Sev. UW} = {=sv.sevuw|2}, \quad \text{UW} = {=sv.uw|2}, \quad \text{Normal} = {=sv.normal|2}, \quad \text{Macro} = {=sv.macroRecall|3}
-        say: 'Switch the input: marker-derived height never catches Severely Underweight.'
+        say: 'Switch the input: the estimated-height version never catches Severely Underweight.'
     code:
       lang: python
       source: |
@@ -295,23 +321,30 @@ sections:
             macro = sum(recalls.values()) / len(recalls)   # @a:macro
             return recalls, macro
     links:
-      - { anchor: row, label: 'row-normalize', say: 'Divide each row by its total; rows then sum to 1.' }
+      - {anchor: row, label: 'row-normalize', say: 'Divide each row by its total, so rows add up to 1.'}
       - { anchor: loop, label: 'one class at a time' }
       - { anchor: diag, label: 'diagonal = recall' }
       - { anchor: macro, label: 'macro average' }
     trace: { fn: perClassCode, in: { M: '@sv.M' } }
     examples: [sigla-anthro, sigla-marker, sigla-code]
     pitfalls:
-      - A row-normalized matrix shows recall on the diagonal; a column-normalized one would show precision. Check which way it sums to 1.
-      - Overall or headline numbers can improve while the class that matters collapses (SIGLA marker vs anthropometric).
-    examTip: 'Find the class the decision is about and read its row; its diagonal cell is the recall you report.'
+      - |
+        If rows add up to 1, the diagonal shows recall. If columns add up to 1, it shows precision. Check which way first.
+      - |
+        Overall scores can improve while the group that matters collapses (SIGLA estimated vs measured height).
+    examTip: |
+      Find the group the decision is about, read its row, and report its diagonal box as that group's recall.
 
+
+    tryIt:
+      - per-class-recall
+      - macro-recall
   - id: undersampling
     title: Random undersampling
     skills: [random-resampling]
     summary: |
-      Keep every minority row and a random subset of majority rows of the same size. No new data is created; the
-      training set shrinks to twice the minority count. Fast, but it throws real majority information away.
+      Keep every minority row, plus the same number of majority rows picked at random. Nothing new is made; the
+      [[training-set|training set]] shrinks to twice the minority count. Quick, but real information is thrown away.
     keyFormula: 'n_{\text{majority}}^{\text{kept}} = n_{\text{minority}}'
     data: [toy, adult]
     derive:
@@ -331,16 +364,16 @@ sections:
     steps:
       - tex: |
           \anchor{min}{I_{\min} = \{\, i : y_i = 1 \,\}} \qquad \anchor{maj}{I_{\text{maj}} = \{\, i : y_i = 0 \,\}}
-        say: Split the row indices by class.
+        say: 'Make two lists of row numbers: the minority rows ($y_i = 1$) and the majority rows ($y_i = 0$).'
       - tex: |
           \anchor{draw}{K \subset I_{\text{maj}}, \ |K| = |I_{\min}|} \ \text{(drawn without replacement)}
-        say: A random subset of the majority, as large as the minority.
+        say: 'Pick, at random, as many majority rows as there are minority rows. Each row can be picked only once.'
       - tex: |
           \anchor{join}{D' = I_{\min} \cup K}, \qquad |D'| = 2\,n_{\min}
-        say: Half minority, half majority.
+        say: 'Put them together. Half the rows are minority, half majority.'
       - tex: |
           \text{Adult: } 2 \times {=ac.trainMin} = {=ac.rows} \text{ rows}, \quad {=ac.removed} \text{ majority rows discarded}
-        say: 'Notebook technique 1: 17,530 training rows, minority now 50%.'
+        say: 'Notebook technique 1: 17,530 training rows, now 50% minority.'
     code:
       lang: python
       source: |
@@ -378,16 +411,20 @@ sections:
     trace: { fn: rusCode, in: { toy: '@toy' } }
     examples: [adult-rus, toy-rus]
     pitfalls:
-      - RUS can discard thousands of informative majority rows; risky when data is scarce.
-      - Resample the training split only. The test set must keep the real-world imbalance.
-    examTip: 'RUS size = 2 × n_minority (training set); ROS size = 2 × n_majority.'
+      - 'Undersampling can throw away thousands of useful majority rows, which hurts when data is scarce.'
+      - 'Rebalance the training set only. The [[test-set|test set]] must keep the real-world imbalance.'
+    examTip: 'After undersampling: 2 × the minority count. After oversampling: 2 × the majority count.'
 
+    tryIt:
+      - rus-size
+      - rus-code
   - id: oversampling
     title: Random oversampling
     skills: [random-resampling]
     summary: |
-      Keep every row and add random copies of minority rows, drawn with replacement, until the minority matches the
-      majority. Nothing is lost, but the copies sit on exactly the same spots, which invites overfitting to them.
+      Keep every row and add random copies of minority rows until the minority matches the majority. The same row may be
+      copied more than once. Nothing is lost, but the copies sit on exactly the same spots, which invites
+      [[overfitting|overfitting]].
     keyFormula: 'n_{\text{minority}}^{\text{new}} = n_{\text{majority}}'
     data: [toy, adult]
     derive:
@@ -407,16 +444,16 @@ sections:
     steps:
       - tex: |
           \anchor{min}{I_{\min}}, \ \anchor{maj}{I_{\text{maj}}}: \quad \text{need } n_{\text{maj}} - n_{\min} \text{ extra minority rows}
-        say: The gap between the classes is what we must fill.
+        say: The gap between the two groups is how many extra minority rows we need.
       - tex: |
           \anchor{draw}{E = (e_1, \dots, e_{n_{\text{maj}} - n_{\min}}),\ e_t \sim \text{Uniform}(I_{\min})} \ \text{(with replacement)}
-        say: The same row may be drawn more than once.
+        say: 'Pick that many minority rows at random. The same row may be picked again ("with replacement").'
       - tex: |
           \anchor{join}{D' = D \cup E}, \qquad |D'| = 2\,n_{\text{maj}}
-        say: Every original row stays; the minority now matches the majority.
+        say: 'Every original row stays, and now the minority matches the majority.'
       - tex: |
           \text{Adult: } 2 \times {=ac.trainMaj} = {=ac.rows} \text{ rows}, \quad {=ac.added} \text{ copies}
-        say: 'Notebook technique 2: 55,732 training rows, minority now 50%.'
+        say: 'Notebook technique 2: 55,732 training rows, now 50% minority.'
     code:
       lang: python
       source: |
@@ -455,16 +492,20 @@ sections:
     trace: { fn: rosCode, in: { toy: '@toy' } }
     examples: [adult-ros, toy-ros]
     pitfalls:
-      - Copies add no new locations; the minority cloud gets denser, not wider.
-      - 'If you oversample before splitting, copies of a training row can land in the test set: leakage.'
-    examTip: 'Copies added = n_majority − n_minority; final size = 2 × n_majority.'
+      - 'Copies add no new spots on the map. The minority cloud gets denser, not wider.'
+      - |
+        If you oversample before splitting, copies of one row can end up in both training and test: that is [[resampling-leakage|leakage]].
+    examTip: 'Copies added = majority count − minority count. Final size = 2 × majority count.'
 
+    tryIt:
+      - ros-copies
   - id: smote
     title: SMOTE
     skills: [smote]
     summary: |
-      For a minority point, find its k nearest minority neighbours, pick one at random, and place a new point a random
-      fraction λ of the way towards it. New points fill the gaps between real minority points instead of stacking on them.
+      Take a minority point, find its k [[nearest-neighbour|nearest minority neighbours]], pick one at random, and put a
+      new point a random fraction λ of the way towards it. New points fill the gaps between real minority points instead
+      of stacking on top of them.
     keyFormula: 'x_{\text{new}} = x_i + \lambda\,(x_{\text{nb}} - x_i), \quad \lambda \sim U(0, 1)'
     data: [toy]
     state: { lam: 0.5, nb: M4 }
@@ -494,19 +535,21 @@ sections:
     steps:
       - tex: |
           \anchor{dist}{d^2(x_i, x_j) = \sum_f (x_{jf} - x_{if})^2} \quad (j \text{ minority},\ j \ne i)
-        say: Distances to the other minority points only. Squared distances rank the same as distances.
+        say: |
+          Squared distance: for each feature f, square the gap, then add them up. Only other minority points count.
       - tex: |
           \anchor{knn}{N_k(x_i) = \text{the } k \text{ smallest } d^2}
-        say: The k nearest minority neighbours (imbalanced-learn's default is k = 5; the toy uses k = 2).
+        say: |
+          Keep the k points with the smallest distances (imbalanced-learn uses k = 5; the practice map uses k = 2).
       - tex: |
           \anchor{pick}{x_{\text{nb}} \in N_k(x_i) \text{ at random}}, \qquad \anchor{lam}{\lambda \sim U(0, 1)}
-        say: 'λ = 0 lands on x_i, λ = 1 on the neighbour; anything in between is genuinely new.'
+        say: 'Pick one of them at random, and a random λ between 0 and 1.'
       - tex: |
           \anchor{new}{x_{\text{new}} = x_i + \lambda\,(x_{\text{nb}} - x_i)}
-        say: A point on the segment between two real minority points.
+        say: Start at $x_i$ and move λ of the way towards the neighbour.
       - tex: |
           {=sm.tex}
-        say: 'Toy map: M2''s neighbours are M1 (d² = 2) and M4 (d² = 8).'
+        say: 'Practice map: M2''s two nearest are M1 (squared distance 2) and M4 (8).'
     code:
       lang: python
       source: |
@@ -549,17 +592,22 @@ sections:
     trace: { fn: smoteCode, in: { toy: '@toy', i: M2, k: 2, nb: '@nb', lambda: '@lam' } }
     examples: [smote-lambda-0, smote-lambda-1, toy-smote, toy-smote-code, toy-knn-walk]
     pitfalls:
-      - 'The direction is x_nb − x_i, starting from x_i. Writing x_nb + λ(x_i − x_nb) gives the mirror point.'
-      - SMOTE needs numeric features. Interpolating category codes produces categories that do not exist.
-      - Minority points inside majority territory can make SMOTE synthesize into the wrong neighbourhood.
-    examTip: 'Do each coordinate separately: new = old + λ·(neighbour − old).'
+      - |
+        Start from x_i and move towards the neighbour: x_i + λ(x_nb − x_i). Starting from the neighbour gives a mirror-image point.
+      - SMOTE needs numbers. Blending codes for names creates values that do not exist.
+      - A minority point sitting among majority points can make SMOTE create points in the wrong area.
+    examTip: 'Do one coordinate at a time: new = old + λ × (neighbour − old).'
 
+    tryIt:
+      - smote-hand
+      - smote-code
   - id: smote-nc
     title: SMOTE-NC
     skills: [smote-nc]
     summary: |
-      Mixed data needs two rules. Numeric columns are interpolated exactly as in SMOTE. Each categorical column takes the
-      most frequent value among the point's minority neighbours: a vote, not an average, so every synthetic row has real categories.
+      Data with both numbers and names needs two rules. Number columns are blended exactly as in SMOTE. Each
+      [[categorical-feature|name column]] takes the most common value among the point's minority neighbours: a vote, not
+      an average, so every new row has real values.
     keyFormula: 'x^{\text{num}}_{\text{new}} = x^{\text{num}}_i + \lambda\,(x^{\text{num}}_{\text{nb}} - x^{\text{num}}_i), \qquad x^{\text{cat}}_{\text{new}} = \operatorname{mode}\{x^{\text{cat}}_j : j \in N_k(x_i)\}'
     data: [snc]
     derive:
@@ -572,16 +620,16 @@ sections:
     steps:
       - tex: |
           \anchor{numloop}{\text{for each numeric column } f:} \quad \anchor{interp}{x_{\text{new},f} = x_{i,f} + \lambda\,(x_{\text{nb},f} - x_{i,f})}
-        say: Ages and hours can be interpolated; halfway between 30 and 40 is 35.
+        say: Ages and hours can be blended; halfway between 30 and 40 is 35.
       - tex: |
           \anchor{catloop}{\text{for each categorical column } f:} \quad \anchor{votes}{\text{count } x_{j,f},\ j \in N_k(x_i)}
-        say: Halfway between Married and Divorced is nonsense, so count the neighbours' values instead.
+        say: 'Halfway between Married and Divorced makes no sense, so count the neighbours'' values instead.'
       - tex: |
           \anchor{mode}{x_{\text{new},f} = \text{the most frequent value}}
-        say: The vote is over all k neighbours, not only the one chosen for interpolation.
+        say: 'The most common value wins. All k neighbours vote, not just the one used for blending.'
       - tex: |
           \text{age} = 40 + 0.5(38 - 40) = {=nc.age}, \quad \text{marital} = \text{mode}(\text{ {=nc.maritalVotes} }) = \text{ {=nc.marital} }
-        say: 'The chosen neighbour N2 is Divorced, yet the new row is Married: 2 votes to 1.'
+        say: 'The blending partner N2 is Divorced, yet the new row is Married: 2 votes to 1.'
     code:
       lang: python
       source: |
@@ -625,17 +673,19 @@ sections:
     trace: { fn: smoteNCCode, in: { rows: '@snc', i: X, nb: N2, lambda: 0.5 } }
     examples: [smote-codes, toy-smote-nc, toy-smote-nc-code]
     pitfalls:
-      - Passing the wrong categorical indices makes SMOTE-NC interpolate a category or vote on a number.
-      - The categorical value comes from the neighbours' vote, not from the chosen neighbour.
-    examTip: 'For each column ask: can I average it? Yes → interpolate. No → majority vote of the k neighbours.'
+      - Telling SMOTE-NC the wrong columns makes it blend a name or vote on a number.
+      - 'The name value comes from the neighbours'' vote, not from the one neighbour used for blending.'
+    examTip: 'For each column ask: can I average it? Yes: blend. No: majority vote of the k neighbours.'
 
+    tryIt:
+      - smotenc-vote
+      - smotenc-code
   - id: adasyn
     title: ADASYN
     skills: [adasyn]
     summary: |
-      ADASYN decides how many SMOTE-style points each minority point gets. Points whose k nearest neighbours are mostly
-      majority are "hard" (high r_i) and receive more. The total budget G = n_maj − n_min (imbalanced-learn's default) is
-      shared out in proportion to the normalized hardness r̂_i.
+      ADASYN decides how many SMOTE-style points each minority point gets. Points whose nearest neighbours are mostly
+      majority are "hard" and get more. The total, G = majority − minority, is shared out in proportion to each point's hardness.
     keyFormula: 'r_i = \frac{\Delta_i}{k}, \quad \hat r_i = \frac{r_i}{\sum_j r_j}, \quad g_i = \hat r_i \cdot G'
     data: [toy]
     derive:
@@ -648,22 +698,23 @@ sections:
     steps:
       - tex: |
           \anchor{budget}{G = (n_{\text{maj}} - n_{\min}) \cdot \beta}, \quad \beta = 1
-        say: How many synthetic points to make in total (β = 1 aims for balance).
+        say: 'How many new points to make in total. β = 1 means "make the groups equal".'
       - tex: |
           \anchor{knn}{N_k(x_i)} = k \text{ nearest among all points}
-        say: Unlike SMOTE's neighbour search, difficulty looks at both classes.
+        say: 'Unlike SMOTE, these neighbours can be from either group.'
       - tex: |
           \anchor{delta}{\Delta_i = \#\{\, j \in N_k(x_i) : y_j = 0 \,\}}
-        say: Count the majority points among them.
+        say: 'Δ ("delta") counts how many of them are majority.'
       - tex: |
           \anchor{r}{r_i = \frac{\Delta_i}{k}}, \qquad \anchor{rhat}{\hat r_i = \frac{r_i}{\sum_j r_j}}
-        say: 'Notebook technique 5: a hardness score, then normalized to sum to 1.'
+        say: |
+          Hardness $r_i$ is Δ divided by k. Then divide each by the total so they add up to 1 ($\hat r_i$, "r-hat").
       - tex: |
           \anchor{g}{g_i = \hat r_i \cdot G}
-        say: Each minority point then makes g_i SMOTE points towards its minority neighbours.
+        say: Each minority point then makes $g_i$ new SMOTE points towards its minority neighbours.
       - tex: |
           G = {=ad.G}, \quad \Delta = ({=ad.deltas|list}), \quad g = ({=ad.gs|list})
-        say: 'Toy map: M5, buried in the majority, gets 3 of the 5 new points.'
+        say: 'Practice map: M5, buried among the majority, gets 3 of the 5 new points.'
     code:
       lang: python
       source: |
@@ -710,17 +761,22 @@ sections:
     trace: { fn: adasynCode, in: { toy: '@toy', k: 3 } }
     examples: [toy-adasyn, toy-adasyn-walk, toy-adasyn-code]
     pitfalls:
-      - 'Forgetting to normalize: r_i · G does not add up to G.'
-      - A minority point surrounded by majority may be noise; ADASYN gives it the most synthetic points anyway.
-      - Rounding means the total may miss G by a little; the final minority share need not be exactly 50%.
-    examTip: 'List Δ_i for every minority point, divide by their sum (k cancels), multiply by G.'
+      - 'Forgetting to divide by the total: r_i × G will not add up to G.'
+      - |
+        A minority point surrounded by majority points may just be noise, yet ADASYN gives it the most new points.
+      - 'Rounding means the total can miss G slightly, so the final minority share need not be exactly 50%.'
+    examTip: 'List Δ for every minority point, divide each by their sum (k cancels out), then multiply by G.'
 
+    tryIt:
+      - adasyn-hand
+      - adasyn-code
   - id: honest-pipeline
     title: Split first, resample train only
     skills: [choosing]
     summary: |
-      The test set must look like the real world, so split before touching anything, stratify so both halves keep the
-      class ratio, resample only the training half, and score on the untouched test set with the metric the decision needs.
+      The [[test-set|test set]] must look like the real world. So split first, with a [[stratified-split|stratified split]]
+      so both parts keep the group shares; rebalance only the training part; then score on the untouched test set with the
+      score your decision needs.
     keyFormula: 'D \to (D_{\text{train}}, D_{\text{test}}) \to \text{resample}(D_{\text{train}}) \to \text{fit} \to \text{score on } D_{\text{test}}'
     data: [adult]
     state: { method: RUS }
@@ -745,10 +801,10 @@ sections:
         say: 'Split first: 12,211 test rows, 23.9% minority, the same as the full data.'
       - tex: |
           \anchor{resample}{D_{\text{train}} \to D'_{\text{train}}} \quad \text{(the test set is never resampled)}
-        say: Resampling the test set would score the model on a world that does not exist.
+        say: Rebalancing the test set would grade the model on a world that does not exist.
       - tex: |
           \anchor{fit}{\hat f = \text{fit}(D'_{\text{train}})}, \qquad \anchor{score}{\text{score}(\hat f, D_{\text{test}})}
-        say: Same model, same untouched test set, so methods are comparable.
+        say: 'Same model, same untouched test set, so the methods can be compared fairly.'
     code:
       lang: python
       source: |
@@ -791,7 +847,13 @@ sections:
     trace: { fn: pipelineCode, in: { adult: '@adult', method: '@method' } }
     examples: [adult-split, adult-ratio, adult-pipeline]
     pitfalls:
-      - 'Resampling before the split leaks copies (ROS) or blends (SMOTE) of test rows into training: optimistic scores.'
-      - Without `stratify=y`, a small minority can end up badly under-represented in the test set.
-      - The notebook deliberately leaves `class_weight` off to isolate the effect of the sampler.
-    examTip: 'Split → resample (train) → fit → evaluate (test). Anything resampled after the split never touches the test rows.'
+      - |
+        Rebalancing before the split leaks copies (ROS) or blends (SMOTE) of test rows into training, so scores look too good.
+      - 'Without `stratify=y`, a small minority can end up badly under-represented in the test set.'
+      - |
+        The notebook leaves [[class-weights|class weights]] off on purpose, to see the effect of rebalancing alone.
+    examTip: |
+      Split → rebalance (training only) → fit → score (test). Rows rebalanced after the split never touch the test set.
+    tryIt:
+      - test-minority
+      - pipeline-code

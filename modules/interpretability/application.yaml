@@ -1,14 +1,14 @@
 intro: |
-  An accurate model is not yet a trustworthy one. Before a model touches decisions about people, someone has to check
-  that it is accurate for reasons we would accept, explain individual decisions to the people affected, and say plainly
-  what those explanations cannot claim. This case runs the whole Session 6–7 toolkit on one forest as a pre-deployment review.
+  A model that is often right is not yet a model we can trust. Before it affects decisions about people, someone must
+  check that it is right for reasons we would accept, explain single decisions to the people affected, and say plainly
+  what those explanations cannot claim. This case runs the whole Session 6–7 toolkit on one forest as a review before use.
 case:
   id: hospital-review
   title: Reviewing the tumour classifier before a pilot
   story: |
-    A provincial hospital wants to pilot the Session 6–7 random forest (300 trees, Breast Cancer Wisconsin, 1 = benign) as
-    a second reader for biopsy measurements. You are asked for a short review: what does the model rely on, which way do its
-    features push, and how would we explain one patient's result to her clinician?
+    A provincial hospital wants to try the Session 6–7 random forest (300 trees, Breast Cancer Wisconsin, 1 = benign) as a
+    second opinion on biopsy measurements. You are asked for a short review: what does the model rely on, which way do its
+    features push, and how would we explain one patient's result to her doctor?
   data: [patient, bcimp, tumors, trees, lime, dice]
   state: { by: builtin, cls: 1 }
   derive:
@@ -22,8 +22,8 @@ case:
     - id: worth-it
       title: Is it worth interpreting?
       say: |
-        On 143 held-out tumours the forest is {=patient.accuracy|pct1} accurate with ROC-AUC {=patient.rocAuc|4}. Interpretation
-        only makes sense for a model worth interpreting; otherwise the explanations faithfully describe noise.
+        On 143 test tumours the forest is {=patient.accuracy|pct1} accurate with [[roc-auc|ROC-AUC]] {=patient.rocAuc|4}.
+        Explaining only makes sense for a model worth explaining; otherwise you just describe its mistakes in detail.
       stage:
         - id: perf
           widget: Readout
@@ -42,13 +42,14 @@ case:
           - 'None: accurate models need no review'
         answer: 0
         model: |
-          That is the interpretability block's guiding question (Session 10 deck). Accuracy says the model works on this test
-          set; interpretation checks whether it works for reasons that will hold up and that we can defend.
+          That is the guiding question of this block (Session 10 deck). Accuracy says the model works on this test set.
+          Interpretation checks whether it works for reasons that will hold up and that we can defend.
     - id: what-it-relies-on
       title: What does it rely on?
       say: |
-        Two global rankings. Built-in importance is impurity reduction on the training data; permutation importance is test
-        ROC-AUC lost when a column is shuffled. The top three agree: worst perimeter, worst area, worst concave points.
+        Two whole-model rankings. [[impurity-importance|Built-in importance]] is mixing reduction on the training data;
+        [[permutation-importance|permutation importance]] is test ROC-AUC lost when a column is shuffled. The top three
+        agree: worst perimeter, worst area, worst concave points.
       stage:
         - id: by
           widget: Choice
@@ -65,13 +66,13 @@ case:
         prompt: A colleague writes "worst perimeter increases benign probability by 14.6%". Correct it.
         type: open
         model: |
-          0.146 is worst perimeter's share of the forest's total impurity reduction, not a probability change, and importance
-          has no direction at all. To say which way it pushes, look at a PDP; to say it for one patient, look at SHAP.
+          0.146 is worst perimeter's share of the forest's total mixing reduction, not a change in probability, and
+          importance has no direction at all. To say which way it pushes, look at a PDP; for one patient, look at SHAP.
     - id: twins-check
       title: The size twins
       say: |
         worst radius is 5th by built-in importance but 29th of 30 by permutation importance. worst radius, worst perimeter
-        and worst area correlate above 0.98.
+        and worst area are [[correlated-features|twins]]: their correlation is above 0.98.
       stage:
         - id: tw
           widget: Matrix
@@ -86,13 +87,13 @@ case:
           - 'No: built-in importance is always right'
         answer: 0
         model: |
-          Built-in importance splits credit among twins; permutation importance can erase it, because the model recovers
-          through the twins. Neither is lying. Judge the group, not one member.
+          Built-in importance shares credit among twins; permutation importance can wipe it out, because the model still
+          sees the other twins. Neither is lying. Judge the group, not one member.
     - id: direction
       title: Which way does size push?
       say: |
-        A PDP sweeps one feature for every row and averages P(benign). On the toy trees, forcing radius above the 14.5 split
-        drops the average from 0.6 to 0.25; in the twin forest the step is half as tall.
+        A [[pdp|PDP]] gives every case the same value of one feature and averages P(benign). On the toy trees, setting
+        radius above the 14.5 question drops the average from 0.6 to 0.25; in the twin forest the step is half as tall.
       stage:
         - id: pdpc
           widget: Chart
@@ -107,12 +108,12 @@ case:
           - 'The PDP is wrong because it has a step'
         answer: 0
         model: |
-          The curve says "when this model sees a larger radius it outputs a lower benign probability". It cannot license
-          "shrink this number and the patient improves", and it averages over rows that could not exist.
+          The curve says "when this model sees a larger radius it gives a lower benign probability". It cannot support
+          "shrink this number and the patient gets better", and it averages over cases that could not exist.
     - id: one-patient
       title: Explaining one patient
       say: |
-        Patient 205 is truly malignant and predicted malignant, the least clear-cut such case: P(benign) {=patient.pBenign}.
+        Patient 205 is really malignant and predicted malignant, the least clear-cut such case: P(benign) {=patient.pBenign}.
         For class {=cls}, baseline {=ad.base|4} plus contributions {=ad.sum|4} gives {=ad.fx|4}.
       stage:
         - id: cls
@@ -133,15 +134,15 @@ case:
         prompt: SHAP and LIME rank this patient's features differently. What do you report?
         type: open
         model: |
-          Both, with their scope: SHAP splits this prediction exactly (additive, but credit shared among twins); LIME is a local
-          linear surrogate on binned conditions whose weights are on a different scale and move without a fixed seed. Where
-          they agree (size and concavity features pushing towards malignant) we can speak with more confidence; where they
-          disagree, the disagreement is itself a measure of how much confidence the explanation supports.
+          Report both, with what each can claim. SHAP splits this prediction exactly (it adds up, but twins share credit).
+          LIME is a straight-line stand-in on ranges, on a different scale, and changes without a fixed seed. Where they agree
+          (size and dent features pushing towards malignant) we can speak with more confidence; where they disagree, that
+          disagreement itself tells us how much confidence the explanation deserves.
     - id: what-would-change
       title: What would have flipped it?
       say: |
-        DiCE found nearby inputs the forest calls benign. Checking each row's geometry, {=dc.implausible|list} imply two
-        different radii from perimeter and from area.
+        DiCE found nearby cases the forest calls benign. Checking each one's geometry, {=dc.implausible|list} give two
+        different radii, one from perimeter and one from area.
       stage:
         - id: dc-t
           widget: Matrix
@@ -159,23 +160,23 @@ case:
           - '"The patient is almost benign."'
         answer: 0
         model: |
-          Valid is not plausible (area changed while perimeter did not), plausible is not actionable (nobody can set an area),
-          and a counterfactual is never causal. Say what the model would do, and nothing about the patient's biology.
+          Valid is not plausible (area changed while perimeter did not), plausible is not actionable (nobody can set an
+          area), and a counterfactual is never a cause. Say what the model would do, and nothing about the patient's body.
 atScale:
   title: Interpretability on real systems
   body: |
-    **SHAP at scale.** TreeExplainer is exact and polynomial in tree depth, so it runs on millions of rows for gradient-boosted
-    trees; LightGBM and XGBoost can return SHAP values themselves (`pred_contrib=True`). For model-agnostic KernelSHAP, sample a
-    small background set (100–1,000 rows): cost grows with background size × rows explained.
+    **SHAP on big data.** TreeExplainer is exact and fast for tree models, so it runs on millions of rows; LightGBM and
+    XGBoost can return SHAP values themselves (`pred_contrib=True`). For models that are not trees (KernelSHAP), use a
+    small background set (100–1,000 rows), because the cost grows with background size × rows explained.
 
-    **Permutation importance** refits nothing but re-scores the whole held-out set n_features × n_repeats times; parallelize with
-    `n_jobs` and score on a sample. Group correlated features and permute them together.
+    **Permutation importance** retrains nothing but re-scores the whole test set (number of features × repeats) times.
+    Run it in parallel with `n_jobs` and score on a sample. Shuffle look-alike features together.
 
-    **Monitoring.** Log global importances and per-decision SHAP values with each model version. A sudden shift in which features
-    carry the predictions is an early warning of drift or leakage.
+    **Monitoring.** Save the global importances and per-decision SHAP values with each model version. A sudden change in
+    which features carry the predictions is an early warning that the data has shifted or something is leaking.
 
-    **Documentation.** Record the explained class, the background data, the seeds (LIME, DiCE) and the known twins with every
-    explanation you publish.
+    **Documentation.** With every explanation you publish, record the class explained, the background data, the random
+    seeds (LIME, DiCE) and the known twins.
   code:
     - lang: python
       title: SHAP values straight from LightGBM
@@ -213,11 +214,14 @@ tradeoffs:
 explainBack:
   prompt: |
     A doctor asks why the model called her patient malignant and what the patient could do to be classified benign.
-    Explain what you can and cannot tell her, using SHAP, the class encoding, counterfactuals and the word "causal".
+    Explain what you can and cannot tell her, using SHAP, the class coding, counterfactuals and the word "causal".
   rubric:
-    - States which class the explanation is for (1 = benign) and that negative contributions push towards malignant
-    - Explains additivity, baseline plus contributions equals the predicted probability
-    - Mentions that correlated size features share credit, so their bars are not independent findings
-    - Says a counterfactual is a model input that flips the prediction, and checks whether it is plausible and actionable
-    - 'Refuses to give causal advice ("shrink the tumour"); all methods describe the model, not the patient'
-    - Notes that LIME or SHAP may disagree and that disagreement limits confidence
+    - |
+      Says which class the explanation is for (1 = benign) and that negative contributions push towards malignant
+    - Explains that the baseline plus all contributions equals the predicted probability
+    - 'Mentions that look-alike size features share credit, so their bars are not separate findings'
+    - |
+      Says a counterfactual is a changed input that flips the model, and checks whether it could exist and could be acted on
+    - |
+      Refuses to give causal advice ("shrink the tumour"); every method describes the model, not the patient
+    - 'Notes that LIME and SHAP can disagree, and that disagreement limits how confident we can be'

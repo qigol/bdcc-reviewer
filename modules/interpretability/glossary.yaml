@@ -1,106 +1,165 @@
 terms:
+  - id: feature
+    term: Feature
+    aka: [features, measurement, column]
+    short: One piece of information the model reads about each case. Here, one of 30 measurements of a tumour, like its radius.
+    skills: [global-local]
+  - id: decision-tree
+    term: Decision tree
+    aka: [tree, trees]
+    short: A model that works like a flowchart of yes/no questions about the features, ending in an answer at the bottom.
+    long: |
+      Each question box is a **node**. A question such as "radius ≤ 14.5?" **splits** the cases into a "yes" branch and a
+      "no" branch. The boxes at the bottom, with no more questions, give the prediction.
+    related: [random-forest]
+    skills: [impurity-importance]
+  - id: random-forest
+    term: Random forest
+    aka: [forest]
+    short: Many decision trees, each trained a little differently, whose answers are averaged into one prediction.
+    related: [decision-tree]
+    skills: [global-local]
+  - id: predicted-probability
+    term: Predicted probability
+    aka: ['P(benign)', probability]
+    short: The model's answer as a chance from 0 to 1. P(benign) = 0.34 means "34% likely to be harmless".
+    long: |
+      In this dataset **0 = malignant** (cancer) and **1 = benign** (harmless). Unless we say otherwise, every number
+      explains P(benign), the chance of class 1.
+    skills: [honest-reading]
+  - id: test-set
+    term: Test set
+    aka: [held-out data, test data, held-out]
+    short: Cases kept aside while the model learns, then used to check how well it does on data it has never seen.
+    skills: [permutation-importance]
+  - id: roc-auc
+    term: ROC-AUC
+    aka: [AUC]
+    short: A score from 0.5 (random guessing) to 1 (perfect) for how well the model ranks benign cases above malignant ones.
+    related: [test-set]
+    skills: [permutation-importance]
   - id: interpretability
     term: Interpretability
-    short: Asking why a fitted model predicts what it predicts, rather than only how well it predicts.
+    short: Asking why a trained model predicts what it predicts, not only how often it is right.
     skills: [global-local]
   - id: global-explanation
     term: Global explanation
-    short: One answer for the whole model, e.g. which features it relies on overall; aimed at model owners and auditors.
+    aka: [global]
+    short: One answer about the whole model, such as which features it relies on overall. Useful for model builders and auditors.
     related: [local-explanation]
-    lessonRef: { tab: intuition, id: global-or-local }
     skills: [global-local]
   - id: local-explanation
     term: Local explanation
-    short: One answer per row, explaining a single prediction; owed to the person the decision is about.
+    aka: [local]
+    short: An answer about one single prediction, such as why this patient got this result. Owed to the person affected.
     related: [global-explanation]
     skills: [global-local]
-  - id: impurity-importance
-    term: Built-in (impurity) importance
-    aka: [feature_importances_, mean decrease in impurity]
-    short: Total impurity reduction a feature achieved across the model's splits, weighted by samples reaching each split, normalized to 1.
-    formula: '\frac{N_t}{N}\Big(G_t - \tfrac{N_L}{N_t}G_L - \tfrac{N_R}{N_t}G_R\Big)'
-    lessonRef: { tab: math-code, id: impurity-importance }
-    skills: [impurity-importance]
   - id: gini-impurity
     term: Gini impurity
-    short: Chance that two random labels drawn from a node disagree; 0 for a pure node, 0.5 for a 50/50 two-class node.
+    aka: [Gini]
+    short: How mixed a group of cases is. 0 means all one class; 0.5 means a 50/50 mix of two classes.
+    long: |
+      It is the chance that two cases picked at random from the group have different labels: $1 - p_B^2 - p_M^2$, where
+      $p_B$ and $p_M$ are the shares of benign and malignant cases.
     formula: '1 - \sum_c p_c^2'
+    skills: [impurity-importance]
+  - id: impurity-importance
+    term: Built-in (impurity) importance
+    aka: [built-in importance, feature_importances_, mean decrease in impurity]
+    short: How much a feature's questions made the tree's groups less mixed, added up over all splits and scaled to sum to 1.
+    long: |
+      Each split gets credit for how much it lowers Gini impurity. A split deep in the tree sees fewer cases, so its credit is
+      scaled down by the share of cases that reach it.
+    formula: '\frac{N_t}{N}\Big(G_t - \tfrac{N_L}{N_t}G_L - \tfrac{N_R}{N_t}G_R\Big)'
+    related: [gini-impurity, permutation-importance]
     skills: [impurity-importance]
   - id: permutation-importance
     term: Permutation importance
-    short: Drop in a chosen metric on held-out data when one feature's column is shuffled, averaged over repeats.
-    lessonRef: { tab: math-code, id: permutation-importance }
+    aka: [permutation]
+    short: How much the model's test score drops when one feature's column is shuffled, averaged over several shuffles.
+    related: [impurity-importance, test-set]
     skills: [permutation-importance]
   - id: correlated-features
     term: Correlated (twin) features
-    short: Features that carry nearly the same information, like worst radius, worst perimeter and worst area (correlation above 0.98).
-    long: Built-in importance splits their credit between them; permutation importance can erase it, because the model recovers through the twin.
-    lessonRef: { tab: intuition, id: twins }
+    aka: [twin features, twins, twin, correlated features, near-duplicate]
+    short: Features that carry almost the same information, like worst radius, worst perimeter and worst area (correlation above 0.98).
+    long: Built-in importance splits their credit between them. Permutation importance can erase it, because the model still sees the twin.
     skills: [correlation-trap]
   - id: pdp
     term: Partial dependence plot (PDP)
-    short: Curve of the model's average prediction as one feature is forced to each grid value for every row.
+    aka: [partial dependence plot, partial dependence, PDP]
+    short: A curve of the model's average prediction when one feature is set to each value in turn for every case.
     formula: '\hat f_j(v) = \frac{1}{n}\sum_{i=1}^{n} f(x_{i,-j},\, x_j = v)'
-    lessonRef: { tab: intuition, id: pdp-sweep }
     skills: [pdp]
+  - id: not-causal
+    term: Model explanation is not causal
+    aka: [not causal, causal, causes]
+    short: Changing inputs and watching the model react only tells you about the model, never what would happen in real life.
+    skills: [honest-reading]
   - id: shapley-value
     term: Shapley value
-    short: A player's average marginal contribution over every order in which the players could join; the only fair split with additivity.
+    aka: [Shapley]
+    short: A fair share of credit for one player, found by averaging what they added over every order in which players could join.
     formula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[f(S \cup \{j\}) - f(S)\big]'
-    lessonRef: { tab: intuition, id: fair-split }
+    skills: [shapley]
+  - id: additivity
+    term: Additivity (local accuracy)
+    aka: [additivity, adds up]
+    short: The starting value plus all the features' contributions equals the model's prediction exactly, with nothing left over.
+    formula: 'f(x) = E[f(x)] + \sum_j \phi_j'
     skills: [shapley]
   - id: shap
     term: SHAP
     aka: [SHapley Additive exPlanations]
-    short: Per-feature contributions that move one prediction away from a baseline and add up exactly to it.
+    short: A method that splits one prediction into one contribution per feature, using Shapley values, starting from a baseline.
     related: [shapley-value, baseline]
     skills: [shapley]
   - id: baseline
     term: Baseline E[f(x)]
-    short: The model's average prediction over the background data; SHAP contributions start from it.
-    long: Change the background set and every contribution changes. For patient 205 it is 0.626 for P(benign).
-    skills: [shapley]
-  - id: additivity
-    term: Additivity (local accuracy)
-    short: Baseline plus the sum of all SHAP contributions equals the model's prediction for that row, with nothing left over.
-    formula: 'f(x) = E[f(x)] + \sum_j \phi_j'
+    aka: [baseline]
+    short: The model's average prediction over a set of background cases. SHAP contributions start from it.
+    long: Change the background cases and every contribution changes. For patient 205 it is 0.626 for P(benign).
     skills: [shapley]
   - id: tree-explainer
     term: TreeExplainer
-    short: SHAP's exact, polynomial-time algorithm for tree ensembles, instead of evaluating all 2^30 coalitions.
+    short: SHAP's fast, exact shortcut for tree models, so it does not have to try every combination of 30 features.
     skills: [shapley]
+  - id: linear-model
+    term: Linear model
+    aka: [straight line, linear]
+    short: A model that adds up each feature times a fixed weight. On a graph with one feature, it is a straight line.
+    skills: [lime]
   - id: lime
     term: LIME
     aka: [Local Interpretable Model-agnostic Explanations]
-    short: Fits a simple weighted model to perturbations of one row, scored by the original model, and reads its coefficients.
+    short: Explains one prediction by fitting a simple straight-line model to slightly changed copies of that one case.
     formula: '\xi(x) = \arg\min_{g \in G} \; \mathcal{L}(f, g, \pi_x) + \Omega(g)'
-    lessonRef: { tab: intuition, id: local-line }
-    skills: [lime]
-  - id: surrogate
-    term: Surrogate model
-    short: A second, simpler model trained to mimic the first; its fidelity can be poor and it gives no warning.
+    related: [surrogate, linear-model]
     skills: [lime]
   - id: proximity-kernel
     term: Proximity kernel
-    short: The weight LIME gives each perturbed row according to its distance from the row being explained.
+    aka: [kernel]
+    short: The rule that gives each changed copy a weight by how close it is to the case being explained. Closer counts more.
     formula: '\pi_x(z) = e^{-d(x,z)^2/\sigma^2}'
+    skills: [lime]
+  - id: surrogate
+    term: Surrogate model
+    aka: [surrogate, stand-in]
+    short: A second, simpler model built to copy the first one. It can copy it badly and will not warn you.
     skills: [lime]
   - id: counterfactual
     term: Counterfactual explanation
-    short: A nearby input the model classifies differently; "what would have to change for the prediction to flip?"
+    aka: [counterfactual, counterfactuals]
+    short: 'A nearby version of the case that the model would label differently: "what would have to change to flip the answer?"'
     formula: '\arg\min_{x^\prime} \; \text{loss}\big(f(x^\prime), y_{\text{target}}\big) + \lambda \, d(x, x^\prime)'
-    lessonRef: { tab: intuition, id: flip-it }
-    skills: [counterfactuals]
-  - id: dice
-    term: DiCE
-    aka: [Diverse Counterfactual Explanations]
-    short: Library that searches for several different counterfactuals at once, adding a diversity term to the objective.
     skills: [counterfactuals]
   - id: plausibility
     term: Plausible vs actionable
-    short: A valid counterfactual flips the model; a plausible one could exist; an actionable one is something a person can bring about.
+    aka: [plausible, actionable, valid]
+    short: Valid means it flips the model. Plausible means such a case could exist. Actionable means a person could make it happen.
     skills: [counterfactuals, honest-reading]
-  - id: not-causal
-    term: Model explanation is not causal
-    short: Perturbing inputs and watching the model react describes the model's decision surface, never what would happen in reality.
-    skills: [honest-reading]
+  - id: dice
+    term: DiCE
+    aka: [Diverse Counterfactual Explanations]
+    short: A Python library that searches for several different counterfactuals for one case at once.
+    skills: [counterfactuals]

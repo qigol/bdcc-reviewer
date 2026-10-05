@@ -4,9 +4,9 @@ sections:
     skills: [ts-structure]
     beyondSlides: true
     summary: |
-      Slide 13's mental model, made concrete with classical additive decomposition (what statsmodels'
-      seasonal_decompose does): a centred 12-month moving average estimates the trend, the average detrended value of
-      each calendar month estimates the season, and the remainder is what is left.
+      Slide 13's idea, made concrete (this is what statsmodels' `seasonal_decompose` does). A 12-month moving average
+      centred on the month estimates the [[trend|trend]]. The average left-over for each calendar month estimates the
+      [[seasonality|season]]. The [[remainder|remainder]] is what is left.
     keyFormula: 'y_t \approx T_t + S_t + R_t'
     data: [co2]
     state: { month: '1999-06' }
@@ -24,19 +24,20 @@ sections:
     steps:
       - tex: |
           \anchor{window}{y_{t-6}, \dots, y_{t+6}} \ \text{(13 months, ends weighted } \tfrac12)
-        say: A centred window spanning exactly one year, so the season averages out.
+        say: 'A window of one full year centred on the month, so the yearly ups and downs cancel out.'
       - tex: |
           \anchor{trend}{T_t = \tfrac{1}{12}\Big(\tfrac12 y_{t-6} + \sum_{k=-5}^{5} y_{t+k} + \tfrac12 y_{t+6}\Big)}
-        say: The trend is that 2×12 moving average.
+        say: The trend is the average over that window (the two end months count half each).
       - tex: |
           \anchor{detrend}{d_t = y_t - T_t} \qquad \anchor{season}{S_m = \overline{d}_{\text{month } m} - \tfrac{1}{12}\sum_{m'} \overline{d}_{m'}}
-        say: Average the detrended values of each calendar month, then centre the 12 effects so they sum to 0.
+        say: |
+          Take out the trend, then average what is left for each calendar month. Shift the 12 results so they add up to 0.
       - tex: |
           \anchor{rem}{R_t = y_t - T_t - S_t}
-        say: The remainder is everything trend and season do not explain.
+        say: The remainder is everything the trend and the season do not explain.
       - tex: |
           {=month}: \ {=dc.y|3} = {=dc.T|3} + ({=dc.S|3}) + ({=dc.R|3})
-        say: '"≈, not =": a way of looking, not a theory of how CO₂ is generated (slide 13).'
+        say: '"≈, not =": a way of looking at the data, not a theory of how CO₂ is made (slide 13).'
     code:
       lang: python
       source: |
@@ -78,16 +79,24 @@ sections:
       - { anchor: rem, label: 'remainder' }
     trace: { fn: decomposeCode, in: { co2: '@co2', month: '@month' } }
     pitfalls:
-      - Seasonal is not cyclic. Seasonal patterns have a fixed, calendar-linked period; business and sunspot cycles do not.
-      - Some series multiply (y = T × S × R) rather than add; their seasonal swings grow with the level.
-    examTip: 'Name the three parts by what a forecaster would use: the level/direction (trend), last year''s shape (season), the rest (remainder).'
+      - |
+        Seasonal is not cyclic. Seasonal patterns have a fixed calendar length; business and sunspot cycles do not.
+      - |
+        Some series multiply their pieces (y = T × S × R) instead of adding them; their swings grow as the level grows.
+    examTip: |
+      Name the three pieces by what a forecaster would use: the direction (trend), last year's shape (season), the rest (remainder).
 
+
+    tryIt:
+      - structure-mcq
+      - additive-multi
   - id: lag-notation
     title: Lags
     skills: [lags]
     summary: |
-      Subscripts mean **when**, not which row. y_t is the value at time t, y_(t−1) one step earlier, y_(t−k) k steps
-      earlier. The unit of k is one step of the data, so k = 12 is a year for monthly data and k = 4 for quarterly data.
+      The small number under y means **when**, not which row. $y_t$ is the value now, $y_{t-1}$ one step earlier,
+      $y_{t-k}$ k steps earlier. k counts steps of the data, so k = 12 is a year for monthly data and k = 4 for
+      quarterly data.
     keyFormula: 'y_{t-k} = \text{the value } k \text{ steps before } t'
     data: [lagrows]
     derive:
@@ -99,13 +108,13 @@ sections:
     steps:
       - tex: |
           \anchor{shift}{\text{lag}_k[t] = y[t - k]}
-        say: In pandas, `shift(k)` moves the column down k rows.
+        say: 'In pandas, `shift(k)` moves the whole column down k rows.'
       - tex: |
           \anchor{lag1}{y_{t-1}} = \text{last month}, \qquad \anchor{lag12}{y_{t-12}} = \text{same month last year}
-        say: Lag 12 captures the season; lag 1 the current level.
+        say: Lag 12 brings in the yearly shape; lag 1 brings in the current level.
       - tex: |
           t = \text{Jun 1999}: \quad y_t = 370.2, \quad y_{t-1} = 370.8, \quad y_{t-12} = 368.8
-        say: May 1999's value reappears as June's lag 1 and as May 2000's lag 12.
+        say: 'May 1999''s value shows up again as June''s lag 1 and as May 2000''s lag 12.'
     code:
       lang: python
       source: |
@@ -135,16 +144,22 @@ sections:
     trace: { fn: lagCode, in: { rows: '@lagrows' } }
     examples: [lag-jun-1999, lag-apr-1999-12, lag-may-1999-12]
     pitfalls:
-      - 'k counts steps of the data: for quarterly data y_(t−4) is a year ago; for daily data y_(t−7) is a week ago.'
-      - The first k rows of a lag column are empty; they must be dropped before fitting.
-    examTip: '"Lag" only ever means one thing: how far backward in time you are looking, in steps of the data.'
+      - |
+        k counts steps of the data: for quarterly data, t − 4 is a year ago; for daily data, t − 7 is a week ago.
+      - The first k rows of a lag column are empty and must be dropped before fitting a model.
+    examTip: '"Lag" only ever means one thing: how far back in time you are looking, in steps of the data.'
 
+    tryIt:
+      - lag-numeric
+      - lag-units
+      - lag-code
   - id: chrono-split
     title: Chronological split
     skills: [chrono-split]
     summary: |
-      Never shuffle a time series and never split it at random. A random split lets the model train on next year to
-      predict last year, so the score looks excellent and means nothing. Cut at a date: the past trains, the future tests.
+      Never shuffle a time series and never split it at random. A random split lets the model learn from next year to
+      "predict" last year, so the score looks excellent and means nothing. Cut at a date: the past is the
+      [[training-set|training set]], the future the [[test-set|test set]].
     keyFormula: '\text{train} = \{\, t \le T_{\text{cut}} \,\}, \qquad \text{test} = \{\, t > T_{\text{cut}} \,\}'
     data: [co2]
     derive:
@@ -160,13 +175,14 @@ sections:
     steps:
       - tex: |
           \anchor{cut}{T_{\text{cut}} = \text{1997-12}}
-        say: A date, not a random fraction.
+        say: 'A date, not a random share of the rows.'
       - tex: |
           \anchor{train}{\text{train: } 1959\text{-}01 \to 1997\text{-}12} \qquad \anchor{test}{\text{test: } 1998\text{-}01 \to 2001\text{-}12}
         say: 'Session 11: 468 training months and 48 hidden test months.'
       - tex: |
           {=cs.train} + {=cs.test} = 516 \text{ months}
-        say: 'The test months climb above the training maximum ({=cs.trainMax}) in {=cs.testAboveMax} of 48 months, which matters for tree models.'
+        say: |
+          In {=cs.testAboveMax} of the 48 test months, CO₂ is above the highest training value ({=cs.trainMax}). That matters for tree models, which cannot predict above what they have seen.
     code:
       lang: python
       source: |
@@ -201,17 +217,21 @@ sections:
     errata:
       - 'Slide 14 says the chronological split is built "properly in Session 4". The deck''s own slide 2 places time series in Sessions 10–13; it is built in the Session 11 notebook.'
     pitfalls:
-      - '`train_test_split(..., shuffle=True)` is scikit-learn''s default. On a time series it leaks the future into training.'
-      - Building lag features before splitting is fine, because `shift()` only looks backward.
+      - |
+        `train_test_split(..., shuffle=True)` is scikit-learn's default. On a time series it lets the future into training.
+      - 'Making lag columns before splitting is fine, because `shift()` only looks backward.'
     examTip: 'If any training row is later than any test row, the split is wrong.'
 
+    tryIt:
+      - random-split-mcq
+      - forest-mcq
   - id: differencing
     title: Differencing
     skills: [differencing]
     summary: |
-      Stop asking "what is the value?" and start asking "how much did it change?". Differencing removes a trend at the cost
-      of one observation, and every forecast you make afterwards is a forecast of change. A seasonal difference subtracts
-      the value one season back.
+      Stop asking "what is the value?" and start asking "how much did it change?". [[differencing|Differencing]] removes a
+      trend at the cost of one value, and every forecast afterwards is a forecast of change. A
+      [[seasonal-difference|seasonal difference]] subtracts the value from one season back.
     keyFormula: '\Delta y_t = y_t - y_{t-1}, \qquad \Delta_{12}\, y_t = y_t - y_{t-12}'
     data: [annual, co2]
     derive:
@@ -228,16 +248,17 @@ sections:
     steps:
       - tex: |
           \anchor{lag}{(y_t,\ y_{t-1})}
-        say: Pair each value with the previous one.
+        say: Pair each value with the one before it.
       - tex: |
           \anchor{sub}{\Delta y_t = y_t - y_{t-1}}
-        say: '1960: 316.9 − 316.0 = +0.9. The left column climbs forever; the right column sits around +0.7.'
+        say: '1960: 316.9 − 316.0 = +0.9. The left column climbs forever; the right column stays around +0.7.'
       - tex: |
           \anchor{lose}{n \text{ values} \to n - 1 \text{ changes}}
-        say: The first year has nothing before it. You lose one observation and never get it back.
+        say: The first year has nothing before it. You lose one value and never get it back.
       - tex: |
           \Delta y = ({=ad.diffs|list}), \quad \bar{\Delta y} = {=ad.mean|2}; \qquad \text{monthly: } {=td.nd} \text{ changes, mean } {=td.mean|3}
-        say: 'Seasonality survives first differencing: the monthly changes still oscillate every 12 months. Removing it needs Δ₁₂.'
+        say: |
+          The yearly pattern survives one difference: monthly changes still rise and fall every 12 months. Removing it needs Δ₁₂.
     code:
       lang: python
       source: |
@@ -269,16 +290,22 @@ sections:
     trace: { fn: diffCode, in: { annual: '@annual' } }
     examples: [annual-diff, annual-diff-code, annual-diff-walk, train-diff]
     pitfalls:
-      - Difference as little as necessary. Over-differencing manufactures patterns and inflates forecast variance.
-      - A forecast of Δy must be undone (added back to the last level) to give a forecast of y.
-    examTip: 'Write the differenced column one row lower than the original: the first row is always empty.'
+      - |
+        Difference as little as needed. Differencing too much creates patterns and makes forecasts less certain.
+      - A forecast of the change must be added back to the last real value to give a forecast of the value.
+    examTip: 'Write the differenced column one row lower than the original: its first row is always empty.'
 
+    tryIt:
+      - diff-numeric
+      - seasonal-diff-numeric
+      - diff-code
   - id: baselines
     title: Naive and seasonal naive forecasts
     skills: [baselines]
     summary: |
-      Before any model, set the bar. The naive forecast repeats the last value; the seasonal naive repeats the value from
-      the same month last year. Each captures exactly one structure: naive gets the level, seasonal naive the season.
+      Before any model, set the bar. The [[naive-forecast|naive forecast]] repeats the last value; the
+      [[seasonal-naive|seasonal naive]] repeats the value from the same month last year. Each catches one pattern only:
+      naive gets the level, seasonal naive the yearly shape.
     keyFormula: '\hat y_{t+h \mid t} = y_t \quad \text{(naive)}, \qquad \hat y_{t+h \mid t} = y_{t+h-m} \quad \text{(seasonal naive)}'
     data: [co2, arima]
     derive:
@@ -290,16 +317,17 @@ sections:
     steps:
       - tex: |
           \anchor{last}{y_T = y_{\text{1997-12}} = 364.25}
-        say: Everything starts from the end of training.
+        say: Everything starts from the last training value.
       - tex: |
           \anchor{naive}{\hat y_{T+h} = y_T \ \ \text{for every } h}
-        say: '"Whatever the latest value is, use that." A horizontal line.'
+        say: '"Whatever the latest value is, use that." A flat line.'
       - tex: |
           \anchor{season}{\text{last season} = (y_{T-11}, \dots, y_T)} \qquad \anchor{copy}{\hat y_{T+1+i} = \text{last season}[\, i \bmod 12 \,]}
-        say: '"Look at the same time last season." For horizons beyond a year the notebook keeps repeating 1997.'
+        say: |
+          "Look at the same month last year." For forecasts more than a year ahead, the notebook keeps repeating 1997.
       - tex: |
           \hat y_{\text{1998-01}} = 363.125 \ (\text{from 1997-01}), \qquad \hat y_{\text{1999-01}} = 363.125 \ (\text{still 1997-01})
-        say: Right shape, but parked about 2 ppm low and drifting further below each year.
+        say: 'Right shape, but about 2 ppm too low and sinking further every year.'
     code:
       lang: python
       source: |
@@ -329,16 +357,23 @@ sections:
     trace: { fn: baselineCode, in: { co2: '@co2' } }
     examples: [naive-value, snaive-values]
     pitfalls:
-      - More information is not automatically better. Seasonal naive scored worse than naive here because it forgets that each year sits higher.
-      - Any model must beat the naive baseline on the test set to have earned its complexity.
-    examTip: 'Seasonal naive for horizon h copies the training value from month (h − 1) mod 12 of the last season.'
+      - |
+        More information is not automatically better. Seasonal naive scored worse than naive here because it forgets that each year sits higher.
+      - Any model must beat the naive forecast on the test set before it is worth its extra complexity.
+    examTip: |
+      For a forecast h months ahead, seasonal naive copies month number (h − 1) mod 12 of last year (0 = January).
 
+
+    tryIt:
+      - snaive-numeric
+      - baseline-code
   - id: forecast-metrics
     title: MAE, RMSE and MAPE
     skills: [forecast-metrics, baselines]
     summary: |
-      Score only the held-out months. MAE is the typical miss in the series' units; RMSE squares before averaging, so big
-      misses weigh more; MAPE divides by the actual value, giving a unit-free percentage that breaks near zero.
+      Score only the hidden months. [[mae|MAE]] is the typical miss in the series' units. [[rmse|RMSE]] squares the
+      misses before averaging, so big misses count more. [[mape|MAPE]] divides by the real value, giving a percentage
+      that breaks down near zero.
     keyFormula: '\text{MAE} = \tfrac1n\sum|e_t|, \quad \text{RMSE} = \sqrt{\tfrac1n\sum e_t^2}, \quad \text{MAPE} = \tfrac{100}{n}\sum\left|\tfrac{e_t}{y_t}\right|, \quad e_t = y_t - \hat y_t'
     data: [co2]
     state: { method: naive }
@@ -360,16 +395,16 @@ sections:
     steps:
       - tex: |
           \anchor{err}{e_t = y_t - \hat y_t}
-        say: One error per held-out month.
+        say: One miss per hidden month (real value minus forecast).
       - tex: |
           \anchor{abs}{|e_t|} \qquad \anchor{sq}{e_t^2} \qquad \anchor{pct}{\left|\tfrac{e_t}{y_t}\right|}
         say: Three ways to measure each miss.
       - tex: |
           \anchor{avg}{\text{MAE} = \overline{|e|},\ \ \text{RMSE} = \sqrt{\overline{e^2}},\ \ \text{MAPE} = 100\,\overline{|e/y|}}
-        say: Average over the 48 months (and take the root for RMSE).
+        say: Average over the 48 months (and take the square root for RMSE).
       - tex: |
           \text{MAE} = {=ms.mae|3}
-        say: 'Naive 4.527 / 5.103 / 1.224%; seasonal naive 5.063 / 5.312 / 1.371%.'
+        say: 'Naive: 4.527 / 5.103 / 1.224%. Seasonal naive: 5.063 / 5.312 / 1.371%.'
     code:
       lang: python
       source: |
@@ -415,16 +450,24 @@ sections:
     trace: { fn: metricsCode, in: { co2: '@co2', method: '@method' } }
     examples: [naive-scores, snaive-scores, metrics-code, mae-walk]
     pitfalls:
-      - MAPE divides by the actual value, not the forecast, and becomes unstable when actual values are near zero.
-      - RMSE ≥ MAE always; a large gap means a few big misses.
-    examTip: 'MAE and RMSE are in the series'' units (ppm); MAPE is a percentage, so it compares across series.'
+      - |
+        MAPE divides by the real value, not the forecast, and becomes unreliable when real values are near zero.
+      - RMSE is always at least as big as MAE; a large gap means a few big misses.
+    examTip: |
+      MAE and RMSE are in the series' units (ppm); MAPE is a percentage, so it compares across different series.
 
+
+    tryIt:
+      - metrics-hand
+      - rmse-numeric
+      - mape-numeric
   - id: acf
     title: Autocorrelation (ACF)
     skills: [autocorrelation]
     summary: |
-      How much does the present resemble the past, and how far back does the resemblance reach? The ACF correlates the
-      series with a copy of itself shifted k steps, one number per lag, using one overall mean and one shared denominator.
+      How much does the present look like the past, and how far back does that reach? The
+      [[autocorrelation|ACF]] correlates the series with a copy of itself shifted k steps: one number per lag, using one
+      overall average and one shared bottom number.
     keyFormula: 'r_k = \frac{\sum_{t=k+1}^{n}(y_t - \bar y)(y_{t-k} - \bar y)}{\sum_{t=1}^{n}(y_t - \bar y)^2}'
     data: [co2]
     derive:
@@ -439,16 +482,17 @@ sections:
     steps:
       - tex: |
           \anchor{mean}{\bar y = \tfrac1n \textstyle\sum_t y_t}
-        say: One mean for the whole series.
+        say: One average for the whole series.
       - tex: |
           \anchor{den}{\textstyle\sum_{t=1}^{n}(y_t - \bar y)^2}
-        say: One denominator for every lag.
+        say: One bottom number for every lag.
       - tex: |
           \anchor{num}{\textstyle\sum_{t=k+1}^{n}(y_t - \bar y)(y_{t-k} - \bar y)} \qquad \anchor{rk}{r_k = \frac{\text{num}_k}{\text{den}}}
         say: Only n − k pairs exist at lag k.
       - tex: |
           r_1 = {=ac.lag1|3}, \quad r_2 = {=ac.lag2|3}, \quad r_6 = {=ac.lag6|3}, \quad r_{12} = {=ac.lag12|3}
-        say: 'Strong at 1 and enormous at 12: the yearly cycle survives differencing; the negative arch around 6 is its other half.'
+        say: |
+          Strong at lag 1 and huge at lag 12: the yearly pattern survives differencing. The dip around lag 6 is its other half.
     code:
       lang: python
       source: |
@@ -489,18 +533,23 @@ sections:
     trace: { fn: acfCode, in: { co2: '@co2', lags: [1, 2, 12] } }
     examples: [acf-diff, acf-code, nino-lag1, nino-lag6, nino-lag12]
     pitfalls:
-      - 'The shaded band (±1.96/√n) is roughly where a spike lands by chance.'
-      - 'An ACF that decays slowly and never dies out says "not stationary yet": increase d.'
-      - Large spikes at 12 and 24 are seasonal structure that ARIMA(p, d, q) has no term for.
-    examTip: 'PACF cuts off after k while ACF decays → p ≈ k. ACF cuts off after k while PACF decays → q ≈ k. Both decay → small p and q.'
+      - The shaded band (±1.96/√n) shows roughly where a bar could land by pure chance.
+      - 'An ACF that fades very slowly and never dies out says "not stationary yet": difference again.'
+      - 'Big bars at lags 12 and 24 are a yearly pattern that ARIMA(p, d, q) has no part for.'
+    examTip: |
+      PACF stops after lag k while ACF fades → p ≈ k. ACF stops after lag k while PACF fades → q ≈ k. Both fade → small p and q.
 
+
+    tryIt:
+      - acf-hand
+      - acf-code
   - id: adf
     title: Reading an ADF test
     skills: [stationarity]
     summary: |
-      The augmented Dickey–Fuller test asks whether a series behaves like a random walk (a unit root). H₀ is "unit root".
-      A small p-value (statistic below the critical value) rejects it, which is evidence consistent with stationarity,
-      never proof. The answer depends on the specification you ran.
+      The [[adf-test|ADF test]] asks whether a series wanders like a [[random-walk|random walk]]. Its default assumption
+      (H₀) is "it does". A small [[p-value|p-value]] (statistic below the cut-off) rejects H₀, which suggests the series is
+      stationary but never proves it. The answer also depends on which version of the test you ran.
     keyFormula: 'H_0:\ y_t = y_{t-1} + \varepsilon_t \ (\text{unit root}); \quad \text{reject if } p < 0.05 \iff \text{statistic} < \text{critical value}'
     data: [adf]
     derive:
@@ -512,16 +561,17 @@ sections:
     steps:
       - tex: |
           \anchor{hyp}{H_0: \text{unit root} \quad H_1: \text{no unit root}}
-        say: Does the series correct itself after moving away, or do changes permanently shift its path?
+        say: 'Does the series pull back after it moves away, or does every move shift its path for good?'
       - tex: |
           \anchor{stat}{\text{statistic} < \text{critical value}?} \qquad \anchor{pval}{p < 0.05?}
-        say: Two views of the same decision. More negative = stronger evidence against H₀.
+        say: |
+          Two views of the same decision. The more negative the statistic, the stronger the evidence against H₀.
       - tex: |
           \anchor{decide}{\text{reject} \Rightarrow \text{consistent with stationarity}; \ \text{fail to reject} \not\Rightarrow \text{non-stationary}}
-        say: Hypothesis tests never prove H₀ or H₁.
+        say: A test never proves H₀ or its opposite.
       - tex: |
           \text{level, c: } 2.287 > -2.868,\ p = 0.9989; \quad \text{differenced, c: } -4.237 < -2.868,\ p = 0.0006 \Rightarrow d = 1
-        say: 'The trend specification ("ct") moves the statistic to −2.168 but p = 0.508 still fails to reject.'
+        say: 'The version with a trend ("ct") moves the statistic to −2.168, but p = 0.508 still does not reject.'
     code:
       lang: python
       source: |
@@ -552,18 +602,22 @@ sections:
     trace: { fn: adfCode, in: { adf: '@adf' } }
     examples: [adf-decisions]
     pitfalls:
-      - 'Failing to reject is not proof of non-stationarity; rejecting is not proof of stationarity.'
-      - 'Always report the specification: "c" (level), "ct" (level + trend). Same data, different answers.'
-      - The statistic must fall **below** the (negative) critical value to reject.
-    examTip: 'Read p first: p < 0.05 → reject the unit root → differencing (more) is not needed.'
+      - |
+        Not rejecting H₀ does not prove the series is non-stationary; rejecting does not prove it is stationary.
+      - 'Always say which version you ran: "c" (level) or "ct" (level + trend). Same data, different answers.'
+      - 'The statistic must fall **below** the (negative) cut-off to reject.'
+    examTip: 'Read p first: p < 0.05 → reject H₀ → no more differencing needed.'
 
+    tryIt:
+      - adf-mcq
+      - stationarity-multi
   - id: arima-forecast
     title: ARIMA(1, 1, 1) with drift, forecast by hand
     skills: [arima, differencing]
     summary: |
-      d comes from the ADF test, p and q from the ACF/PACF. After one difference the changes have mean c (the drift), and
-      their deviations follow ARMA(1,1): the last change (AR) and the last shock (MA). Forecast the change, add it to the
-      last level, repeat; future shocks are forecast as 0.
+      d comes from the ADF test, p and q from the ACF and PACF. After one difference, the changes average c (the
+      [[drift|drift]]) and move around it using the last change (AR) and the last surprise (MA). Forecast the change, add
+      it to the last value, repeat. Future surprises are set to 0.
     keyFormula: '\Delta\hat y_{T+h} = c + \phi\,(\Delta y_{T+h-1} - c) + \theta\,\varepsilon_{T+h-1}, \qquad \hat y_{T+h} = \hat y_{T+h-1} + \Delta\hat y_{T+h}'
     data: [co2, arima]
     derive:
@@ -575,13 +629,15 @@ sections:
     steps:
       - tex: |
           \anchor{diff}{w_t = \Delta y_t = y_t - y_{t-1}} \quad (d = 1)
-        say: 'I: the model works on changes, because the ADF test said the level is not stationary.'
+        say: |
+          I (the d part): the model works on changes, because the ADF test said the values themselves are not stationary.
       - tex: |
           \anchor{drift}{c = 0.1156} \qquad \anchor{ar}{\phi\,(\Delta y_{t-1} - c),\ \phi = 0.5744} \qquad \anchor{ma}{\theta\,\varepsilon_{t-1},\ \theta = 0.3733}
-        say: 'AR: recent changes persist. MA: part of last period''s surprise carries over. σ² = 0.6001 is the error variance, not a term.'
+        say: |
+          AR: recent changes carry on. MA: part of the last surprise carries over. σ² = 0.6001 is the size of the surprises, not a term.
       - tex: |
           \anchor{undiff}{\hat y_{T+1} = y_T + \Delta\hat y_{T+1}} = 364.25 + 0.1156 + 0.5744(1.87 - 0.1156) + 0.3733(0.7249) = 365.64
-        say: 'January 1998. Then 366.49 and 367.03, with the shock term 0 from step 2 on.'
+        say: 'January 1998. Then 366.49 and 367.03, with the surprise term set to 0 from step 2 on.'
     code:
       lang: python
       source: |
@@ -627,17 +683,23 @@ sections:
     errata:
       - 'Session 11 §5 writes the fitted model as Δy_t = 0.1156 + 0.5744 Δy_(t−1) + ε_t + 0.3733 ε_(t−1). In statsmodels, 0.1156 is the **mean** of Δy, so the equation''s constant is 0.1156 × (1 − 0.5744) = 0.049. Used as written, 0.1156 forecasts 365.71 for January 1998, not the notebook''s own 365.64.'
     pitfalls:
-      - Forecasts of Δy must be added back to the last level.
-      - 'The residual ACF still spikes at lag 12 (≈ 0.58): the model is good but diagnosably incomplete. The fix is SARIMA, ARIMA(p,d,q)(P,D,Q)₁₂.'
-      - AR, MA, ARMA and ARIMA are one model assembled piece by piece, not four competitors.
-    examTip: 'Read ARIMA(1,1,1) aloud: one past value (of the change), one difference, one past shock.'
+      - Forecasts of the change must be added back to the last value.
+      - |
+        The residuals' ACF still spikes at lag 12 (about 0.58): the model is good but clearly incomplete. The fix is SARIMA, ARIMA(p,d,q)(P,D,Q)₁₂.
+      - 'AR, MA, ARMA and ARIMA are one model built up piece by piece, not four rival models.'
+    examTip: 'Read ARIMA(1,1,1) aloud: one past change, one difference, one past surprise.'
 
+    tryIt:
+      - arima-numeric
+      - arima-hand
+      - arima-code
   - id: lag-regression
     title: Lag features for linear regression
     skills: [lag-features, chrono-split]
     summary: |
-      A regression does not know its rows happen in order, so give it time as columns: lags (`shift`), a leak-free rolling
-      mean (shift **then** roll), and month dummies. Drop rows with missing lags, split by date, fit, and forecast one month ahead.
+      A regression does not know its rows are in time order, so give it time as columns: [[lag-feature|lag columns]]
+      (`shift`), a safe rolling mean (shift **then** roll), and one 0/1 column per month. Drop rows with missing lags, split
+      by date, fit, and forecast one month ahead.
     keyFormula: '\hat y_t = f\big(y_{t-1}, y_{t-2}, \ldots,\ x_{t,1}, x_{t,2}, \ldots\big)'
     data: [co2, notebook]
     derive:
@@ -653,13 +715,14 @@ sections:
     steps:
       - tex: |
           \anchor{lags}{\text{lag}_k[t] = y_{t-k}, \ k = 1, \dots, 12}
-        say: 'Machine learning is unchanged. Only the representation of the series changed.'
+        say: 'The machine learning is unchanged. Only how the series is laid out as a table changed.'
       - tex: |
           \anchor{roll}{\text{roll\_mean\_3}_t = \tfrac13(y_{t-1} + y_{t-2} + y_{t-3})}
-        say: '`rolling(3)` alone would include y_t itself: leakage. Shift first.'
+        say: '`rolling(3)` on its own would include y_t itself: that is leakage. Shift first.'
       - tex: |
           \anchor{month}{\text{month\_2}, \dots, \text{month\_12} \in \{0, 1\}} \qquad \anchor{drop}{516 \to 504 \text{ rows}}
-        say: One-hot months, because a linear model would read 1–12 as a straight line. The first 12 rows lack lags.
+        say: |
+          One 0/1 column per month, because a linear model would read the numbers 1–12 as a straight line. The first 12 rows have no lag_12, so they are dropped.
       - tex: |
           \anchor{split}{\text{train: 1960-01} \to \text{1997-12}\ (456)} \qquad \anchor{fit}{\hat f = \text{OLS}(X_{\text{train}}, y_{\text{train}})}
         say: 'Past only (A) 0.509; past + months (B) 0.222; all 12 lags (C) 0.232. The month columns did the work.'
@@ -706,7 +769,15 @@ sections:
     trace: { fn: featuresCode, in: { co2: '@co2' } }
     examples: [features-first-rows, features-walk, features-code, lr-a, lr-b, lr-c, lr-lag1, lr-leaky]
     pitfalls:
-      - '`rolling(3).mean()` without `shift(1)` puts y_t into its own feature: MAE drops to 0 and means nothing.'
-      - 'A random forest cannot predict above its highest training target (366.68), so with a trend it fails on a chronological split (MAE 3.174) while a shuffled split hides this (0.515).'
-      - With lag_1 needing last month's real value, these are one-step-ahead forecasts; compare them only with one-step baselines.
-    examTip: 'For every feature ask: could I have known this value before the month I am predicting? If not, it leaks.'
+      - |
+        `rolling(3).mean()` without `shift(1)` puts y_t into its own input: MAE drops to 0 and means nothing.
+      - |
+        A random forest cannot predict above its highest training value (366.68), so with a trend it fails a split by date (MAE 3.174) while a shuffled split hides this (0.515).
+      - |
+        lag_1 needs last month's real value, so these are one-step-ahead forecasts. Compare them only with one-step baselines.
+    examTip: |
+      For every input column ask: could I have known this value before the month I am predicting? If not, it leaks.
+    tryIt:
+      - roll-numeric
+      - roll-code
+      - leak-mcq

@@ -3,9 +3,9 @@ sections:
     title: Built-in (impurity) importance
     skills: [impurity-importance]
     summary: |
-      Every split lowers the Gini impurity of the rows it separates. Weight that drop by the share of training rows that
-      reach the split, add the drops up per feature, and normalize so they sum to 1. That is `feature_importances_`:
-      what the model built itself out of, with no direction.
+      Every question in a tree (a split) makes its groups less mixed, measured by [[gini-impurity|Gini impurity]]. Scale
+      that drop by the share of training cases that reach the question, add the drops up per feature, and divide by the
+      total so they sum to 1. That is `feature_importances_`: what the model was built from, with no direction.
     keyFormula: 'I_f = \frac{\sum_{t:\,\text{split on } f} \frac{N_t}{N}\big(G_t - \frac{N_L}{N_t}G_L - \frac{N_R}{N_t}G_R\big)}{\sum_{t} \frac{N_t}{N}\big(G_t - \frac{N_L}{N_t}G_L - \frac{N_R}{N_t}G_R\big)}'
     data: [tumors, trees]
     derive:
@@ -25,19 +25,22 @@ sections:
     steps:
       - tex: |
           \anchor{gini}{G_t = 1 - \sum_c p_c^2}
-        say: 'Gini impurity of a node: 0 when pure, 0.5 at 50/50. The root holds 5 benign and 5 malignant tumours, so 0.5.'
+        say: |
+          Gini of a group: 0 when it is all one kind, 0.5 at a 50/50 mix. The top group holds 5 benign and 5 malignant tumours, so 0.5.
       - tex: |
           \anchor{child}{\tfrac{N_L}{N_t}\,G_L + \tfrac{N_R}{N_t}\,G_R}
-        say: The impurity left after the split, each child weighted by its size.
+        say: |
+          How mixed the two new groups still are, each weighted by its size ($N_L$ and $N_R$ cases out of $N_t$).
       - tex: |
           \anchor{weight}{\Delta_t = \tfrac{N_t}{N}\Big(G_t - \tfrac{N_L}{N_t}G_L - \tfrac{N_R}{N_t}G_R\Big)} \qquad \anchor{add}{\text{raw}_f = \sum_{t \text{ splits on } f} \Delta_t}
-        say: A split deep in the tree only sees N_t of the N rows, so its drop counts proportionally less.
+        say: 'A question low in the tree only sees $N_t$ of the $N$ cases, so its drop counts that much less.'
       - tex: |
           \anchor{norm}{I_f = \frac{\text{raw}_f}{\sum_g \text{raw}_g}}
-        say: Shares of the total impurity removed, so they sum to 1. Not a share of accuracy.
+        say: 'Divide by the total so the shares sum to 1. These are shares of mixing removed, not of accuracy.'
       - tex: |
           \text{root: } \tfrac{10}{10}(0.5 - 0.417) = 0.083, \quad \text{n1: } \tfrac{6}{10}(0.444 - 0.222) = 0.133 \;\Rightarrow\; I_{\text{radius}} = {=im.radius|3},\ I_{\text{texture}} = {=im.texture|3}
-        say: The deeper texture split earns more credit than the root split on radius. Area, never used, gets 0.
+        say: |
+          The lower texture question earns more credit than the top question on radius. Area is never asked about, so it gets 0.
     code:
       lang: python
       source: |
@@ -84,18 +87,25 @@ sections:
     trace: { fn: impurityCode, in: { tumors: '@tumors', trees: '@trees' } }
     examples: [toy-impurity, toy-impurity-code, toy-forest-importance, builtin-rank]
     pitfalls:
-      - 'No direction: a large importance says nothing about whether larger values push towards benign or malignant.'
-      - It is computed on training data, so it describes how the model was built, not how it generalizes.
-      - Features with many distinct values get more chances to look good, even on noise.
-    examTip: 'Write N_t/N in front of every split''s Gini drop; the root has N_t/N = 1, deeper splits less.'
+      - 'No direction: a big importance does not say whether larger values push towards benign or malignant.'
+      - |
+        It is computed on the training data, so it shows how the model was built, not how well it does on new cases.
+      - 'Features with many different values get more chances to look useful, even when they are just noise.'
+    examTip: |
+      Write N_t/N in front of every question's Gini drop. For the top question N_t/N = 1; lower questions get less.
 
+
+    tryIt:
+      - gini-hand
+      - impurity-normalize
+      - impurity-code
   - id: permutation-importance
     title: Permutation importance
     skills: [permutation-importance]
     summary: |
-      Keep the fitted model. On held-out data, shuffle one column, which breaks its link to the target while leaving every
-      other column intact, and re-score. The drop in the metric is the importance, measured in the metric's own units.
-      Repeat with several shuffles and average, because one shuffle is luck.
+      Keep the trained model. On the [[test-set|test set]], shuffle one column, which cuts its link to the right answer but
+      keeps every other column as it was, and score again. The drop in the score is the importance, in the score's own
+      units. Repeat with several shuffles and average, because one shuffle can be lucky.
     keyFormula: 'I_j = s_0 - \frac{1}{K}\sum_{k=1}^{K} s\big(f, X^{(j,\pi_k)}, y\big)'
     data: [tumors, trees]
     derive:
@@ -116,16 +126,19 @@ sections:
     steps:
       - tex: |
           \anchor{base}{s_0 = \text{score}(f, X, y)}
-        say: Score the model once on untouched held-out data. The notebook uses test ROC-AUC; the toy uses accuracy.
+        say: |
+          Score the model once on the untouched test data. The notebook uses [[roc-auc|ROC-AUC]]; the toy uses accuracy.
       - tex: |
           \anchor{shuffle}{X^{(j,\pi)} = X \text{ with column } j \text{ reordered by } \pi} \qquad \anchor{score}{s_{j,\pi} = \text{score}\big(f, X^{(j,\pi)}, y\big)}
-        say: Nothing is refitted. Only the predictions change.
+        say: 'Nothing is retrained. Only the model''s answers change.'
       - tex: |
           \anchor{drop}{d_{j,\pi} = s_0 - s_{j,\pi}} \qquad \anchor{avg}{I_j = \tfrac{1}{K}\sum_{k} d_{j,\pi_k}}
-        say: Big average drop → the model needed the feature. Near zero → it gets by without it, given everything else.
+        say: |
+          A big average drop means the model needed the feature. Near zero means it manages without it, given the others.
       - tex: |
           s_0 = {=pi.base}, \quad I_{\text{radius}} = {=pi.radius|2}, \quad I_{\text{texture}} = {=pi.texture|2}, \quad I_{\text{area}} = {=pi.area|2}
-        say: 'Area is never used by tree 1, so shuffling it changes nothing. The "shift" shuffle happens to cost radius nothing: one shuffle is luck.'
+        say: |
+          Tree 1 never asks about area, so shuffling it changes nothing. The "shift" shuffle happens to cost radius nothing: one shuffle can be luck.
     code:
       lang: python
       source: |
@@ -173,18 +186,24 @@ sections:
     trace: { fn: permCode, in: { tumors: '@tumors', trees: '@trees' } }
     examples: [toy-perm-tree, toy-perm-code, perm-rank]
     pitfalls:
-      - Units are the metric's own (here accuracy; in the notebook ROC-AUC), so bars are directly comparable across features.
-      - A slightly negative value means the shuffle happened to help; it is noise, not a reason to delete the feature.
-      - With a baseline AUC of 0.99 there is little room to fall, so all bars are small; read the ranking.
-    examTip: 'Importance = baseline score − mean shuffled score. Positive means the model relied on the column.'
+      - |
+        The units are the score's own (accuracy here, ROC-AUC in the notebook), so bars can be compared across features.
+      - |
+        A slightly negative value means the shuffle happened to help. It is noise, not a reason to delete the feature.
+      - |
+        When the test score is already 0.99 there is little room to fall, so every bar is small. Read the order.
+    examTip: 'Importance = original score − average shuffled score. Positive means the model relied on the column.'
 
+    tryIt:
+      - perm-numeric
+      - perm-code
   - id: correlated-twins
     title: Correlated features split or erase credit
     skills: [correlation-trap, impurity-importance, permutation-importance]
     summary: |
-      When two features carry the same information, a forest uses one here and the other there, so built-in importance
-      splits the credit. Shuffle only one and the model recovers through its twin, so permutation importance can drop to
-      zero or below. Shuffle the twins together to see what they carry jointly.
+      When two features carry the same information ([[correlated-features|twins]]), a forest uses one here and the other
+      there, so built-in importance splits the credit. Shuffle only one and the model gets by with its twin, so permutation
+      importance can fall to zero or below. Shuffle the twins together to see what they carry jointly.
     keyFormula: 'I_{\text{radius}} \approx 0 \ \text{and}\ I_{\text{area}} \approx 0 \ \not\Rightarrow\ I_{\{\text{radius},\,\text{area}\}} \approx 0'
     data: [tumors, trees, bcimp]
     derive:
@@ -204,16 +223,18 @@ sections:
     steps:
       - tex: |
           \anchor{avg}{P_{\text{forest}} = \tfrac12\big(P_{\text{tree 1}}(\text{radius}, \text{texture}) + P_{\text{tree 2}}(\text{area}, \text{texture})\big)}
-        say: Two trees with the same shape, one splitting on radius and one on area. Built-in importance gives each twin half of the credit.
+        say: |
+          Two trees with the same shape, one asking about radius and one about area. Built-in importance gives each twin half the credit.
       - tex: |
           \anchor{base}{s_0 = 0.8} \qquad \anchor{one}{\text{shuffle radius only}} \;\Rightarrow\; \text{tree 2 still knows the size}
-        say: The broken tree is outvoted by its intact twin.
+        say: The confused tree is outvoted by its healthy twin.
       - tex: |
           \anchor{both}{\text{shuffle radius and area with the same } \pi} \;\Rightarrow\; \text{both trees lose the size}
-        say: Permuting the pair together measures what they carry jointly.
+        say: Shuffling the pair together measures what they carry between them.
       - tex: |
           \anchor{drops}{I_{\text{radius}} = {=ts.radiusForest|2}, \quad I_{\text{radius+area}} = {=ts.twinsForest|2}}
-        say: 'The real forest shows the same thing: worst radius is 5th by built-in importance but 29th of 30 by permutation (−0.00025).'
+        say: |
+          The real forest does the same: worst radius is 5th by built-in importance but 29th of 30 by permutation (−0.00025).
     code:
       lang: python
       source: |
@@ -247,17 +268,24 @@ sections:
     trace: { fn: twinsCode, in: { tumors: '@tumors', trees: '@trees' } }
     examples: [toy-perm-forest, twins-ranks, toy-forest-importance]
     pitfalls:
-      - Built-in importance splits the credit between near-duplicates; permutation importance can erase it. Neither is lying; they answer different questions.
-      - Adding up three twins' SHAP or built-in shares as if they were three independent findings overstates the case.
-      - Check correlations before trusting any ranking.
-    examTip: 'If two features correlate above ~0.9, shuffle them together (or drop one) before reading permutation importance.'
+      - |
+        Built-in importance splits the credit between look-alikes; permutation importance can wipe it out. Neither is lying; they answer different questions.
+      - |
+        Adding up three twins' SHAP or built-in shares as if they were three separate findings overstates the case.
+      - Check which features move together before trusting any ranking.
+    examTip: |
+      If two features have a correlation above about 0.9, shuffle them together (or drop one) before reading permutation importance.
 
+
+    tryIt:
+      - twins-mcq
+      - twins-multi
   - id: partial-dependence
     title: Partial dependence
     skills: [pdp, global-local]
     summary: |
-      Importance ranks features but has no sign. A PDP shows direction: for each grid value v, force every row's feature to
-      v, leave the other columns alone, predict, and average. Plot the averages against the grid.
+      Importance ranks features but has no direction. A [[pdp|PDP]] shows direction: for each value v, give every case that
+      value of the feature, leave its other columns alone, ask the model, and average. Plot the averages against v.
     keyFormula: '\hat f_j(v) = \frac{1}{n}\sum_{i=1}^{n} f\big(x_{i,-j},\, x_j = v\big)'
     data: [tumors, trees]
     derive:
@@ -273,16 +301,19 @@ sections:
     steps:
       - tex: |
           \anchor{grid}{v \in \{v_1, \dots, v_m\}} \ \text{spanning the observed range}
-        say: The grid; real PDPs mark the data's deciles so you can see where the curve is built from few rows.
+        say: |
+          The values to try. Real PDPs mark where the data actually lies, so you can see where the curve rests on few cases.
       - tex: |
           \anchor{force}{x_{i,j} \leftarrow v \ \text{for every row } i}
-        say: Other columns are left as they are, which can create rows that could never exist (radius 18 with area 380).
+        say: |
+          Other columns stay as they are, which can create cases that could never exist (radius 18 with area 380).
       - tex: |
           \anchor{predict}{f(x_{i,-j}, v)} \qquad \anchor{avg}{\hat f_j(v) = \tfrac{1}{n}\sum_i f(x_{i,-j}, v)}
-        say: Average P(benign) over all rows. One point of the curve.
+        say: Average P(benign) over all cases. That is one point of the curve.
       - tex: |
           \hat f(12) = \hat f(14) = 0.6, \qquad \hat f(16) = \hat f(18) = 0.25
-        say: 'A step at the split threshold 14.5: tree models produce steps, which is the model''s structure showing, not biology.'
+        say: |
+          A step at the tree's question, 14.5. Trees always make steps; it shows how the model is built, not biology.
     code:
       lang: python
       source: |
@@ -324,18 +355,23 @@ sections:
     trace: { fn: pdpCode, in: { tumors: '@tumors', trees: '@trees' } }
     examples: [toy-pdp, toy-pdp-code]
     pitfalls:
-      - The y-axis is the average P(class 1). With 1 = benign, a downward slope means "more malignant".
-      - An average can hide two subgroups moving in opposite directions; a flat PDP is not proof of no effect.
-      - 'Not causal: it says what this model outputs for forced inputs, some of them impossible.'
-    examTip: 'Read a PDP as "when this model sees larger x, its average prediction goes …", never "x causes …".'
+      - 'The y-axis is the average P(class 1). With 1 = benign, a downward slope means "more malignant".'
+      - |
+        An average can hide two groups moving in opposite directions. A flat PDP does not prove there is no effect.
+      - '[[not-causal|Not causal]]: it says what this model outputs for set inputs, some of them impossible.'
+    examTip: 'Read a PDP as "when this model sees larger x, its average answer goes …", never "x causes …".'
 
+    tryIt:
+      - pdp-numeric
+      - pdp-hand
+      - pdp-code
   - id: shapley-orderings
     title: Shapley values by orderings
     skills: [shapley]
     summary: |
-      Add the features one at a time in some order and record how much the prediction moves when feature j joins.
-      Average that marginal contribution over every possible order. The average is j's Shapley value, and the values of
-      all features add up exactly to prediction minus baseline.
+      Add the features one at a time in some order and note how much the prediction moves when feature j joins. Average
+      that over every possible order. The average is j's [[shapley-value|Shapley value]], and all the features' values add
+      up exactly to the prediction minus the starting value.
     keyFormula: '\phi_j = \frac{1}{|F|!}\sum_{\text{orders } \sigma} \big[v(\text{before}_\sigma(j) \cup \{j\}) - v(\text{before}_\sigma(j))\big]'
     data: [shapgame]
     state: { player: A }
@@ -357,16 +393,16 @@ sections:
     steps:
       - tex: |
           \anchor{orders}{\sigma \in \text{all } 3! = 6 \text{ orderings of } \{A, B, C\}}
-        say: Every order in which the features could be revealed.
+        say: Every order in which the features could be revealed. With 3 features there are 3 × 2 × 1 = 6.
       - tex: |
           \anchor{before}{S = \text{features before } j \text{ in } \sigma} \qquad \anchor{after}{S \cup \{j\}}
-        say: v(S) is the model's output when only the features in S are known.
+        say: 'v(S) is the model''s answer when only the features in the set S are known.'
       - tex: |
           \anchor{delta}{\Delta_\sigma(j) = v(S \cup \{j\}) - v(S)} \qquad \anchor{avg}{\phi_j = \tfrac{1}{6}\sum_\sigma \Delta_\sigma(j)}
-        say: How much the prediction moved when j joined what was already known.
+        say: How much the answer moved when j joined the features already known. Then average over the orders.
       - tex: |
           \phi_A = \tfrac{-0.25 - 0.25 - 0.22 - 0.25 - 0.22 - 0.25}{6} = -0.24, \quad \phi_B = +0.03, \quad \phi_C = -0.09, \quad \textstyle\sum \phi = -0.30 = 0.30 - 0.60
-        say: The notebook's table. Every row sums to −0.30, so the averages do too.
+        say: 'The notebook''s table. Every row adds up to −0.30, so the averages do too.'
     code:
       lang: python
       source: |
@@ -397,16 +433,19 @@ sections:
     trace: { fn: shapleyOrderCode, in: { game: '@shapgame', player: '@player' } }
     examples: [shapley-phi, shapley-rows, shapley-order-code, shapley-walk]
     pitfalls:
-      - Using only one ordering (e.g. "A first") gives −0.25 for A, not its Shapley value −0.24.
-      - The contributions add to f(x) − baseline, not to f(x).
-    examTip: 'Check your table: each ordering''s increments must sum to prediction − baseline.'
+      - 'Using only one order (say "A first") gives −0.25 for A, not its Shapley value −0.24.'
+      - 'The contributions add up to f(x) − start, not to f(x) itself.'
+    examTip: 'Check your table: each order''s steps must add up to prediction − start.'
 
+    tryIt:
+      - shapley-hand
+      - shapley-3
   - id: shapley-formula
     title: The Shapley formula
     skills: [shapley]
     summary: |
-      The same value without listing orderings: sum over subsets S of the other features. The factorial weight is the
-      fraction of orderings in which exactly S comes before j, so every ordering is counted once.
+      The same value without listing every order: add up over each set S of the other features. The factorial weight is
+      the share of orders in which exactly the features in S come before j, so every order is counted once.
     keyFormula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[f(S \cup \{j\}) - f(S)\big]'
     data: [shapgame]
     state: { player: A }
@@ -428,16 +467,18 @@ sections:
     steps:
       - tex: |
           \anchor{subsets}{S \subseteq F \setminus \{j\}}
-        say: With 3 features, j has 4 possible "already known" sets.
+        say: 'With 3 features, j has 4 possible sets of "features already known".'
       - tex: |
           \anchor{weight}{w(S) = \frac{|S|!\,(|F| - |S| - 1)!}{|F|!}}
-        say: '|S|! orderings of the features before j times (|F| − |S| − 1)! orderings of those after, out of |F|! in all.'
+        say: |
+          Orders of the features before j (|S|!) times orders of those after j, out of all orders (|F|!). "n!" means n × (n−1) × … × 1.
       - tex: |
           \anchor{gain}{f(S \cup \{j\}) - f(S)} \qquad \anchor{term}{w(S)\,\big[f(S \cup \{j\}) - f(S)\big]}
-        say: Ignore the factorials and read the bracket. The weights only make every ordering count once.
+        say: Ignore the factorials and read the bracket. The weights only make sure every order counts once.
       - tex: |
           \anchor{phi}{\phi_A = \tfrac{2}{6}(-0.25) + \tfrac{1}{6}(-0.22) + \tfrac{1}{6}(-0.22) + \tfrac{2}{6}(-0.25) = {=sw.phi|3}}
-        say: 'For the selected feature the four terms sum to φ. With 30 features there are 2^29 subsets per feature; TreeExplainer avoids that.'
+        say: |
+          For the chosen feature the four terms add up to φ. With 30 features there are over 500 million sets per feature; TreeExplainer avoids that.
     code:
       lang: python
       source: |
@@ -473,16 +514,21 @@ sections:
     trace: { fn: shapleyWeightCode, in: { game: '@shapgame', player: '@player' } }
     examples: [shapley-weights, shapley-weight-code]
     pitfalls:
-      - 'The weights for |F| = 3 are 2/6, 1/6, 1/6, 2/6 and must sum to 1.'
-      - The empty set and the full set of others both appear; S never contains j itself.
-    examTip: 'For 3 features: φ_j = (1/3)·gain(∅) + (1/6)·gain(one other) + (1/6)·gain(the other) + (1/3)·gain(both).'
+      - 'With 3 features the weights are 2/6, 1/6, 1/6, 2/6, and they must add up to 1.'
+      - The empty set and the set of all the others both appear; S never contains j itself.
+    examTip: |
+      For 3 features: φ_j = (1/3)·gain(none) + (1/6)·gain(one other) + (1/6)·gain(the other) + (1/3)·gain(both).
 
+
+    tryIt:
+      - shapley-3
+      - shapley-weights-match
   - id: shap-additivity
     title: SHAP additivity and the class you explain
     skills: [shapley, honest-reading, global-local]
     summary: |
-      For one row, the baseline E[f(x)] plus all the SHAP contributions equals the model's prediction exactly. Every sign
-      is relative to the class you chose: explain class 0 instead and every contribution flips, with the model unchanged.
+      For one case, the [[baseline|baseline]] plus all the SHAP contributions equals the model's prediction exactly. Every
+      sign depends on the class you chose: explain class 0 instead and every contribution flips, with the model unchanged.
     keyFormula: 'f(x) = E[f(x)] + \sum_{j=1}^{M} \phi_j'
     data: [patient]
     state: { cls: 1 }
@@ -507,19 +553,19 @@ sections:
     steps:
       - tex: |
           \anchor{explain}{\Phi = \text{TreeExplainer}(f)(X_{\text{test}})} \in \mathbb{R}^{143 \times 30 \times 2}
-        say: One contribution per row, per feature, per class.
+        say: 'One contribution per case, per feature, per class.'
       - tex: |
           \anchor{slice}{\phi = \Phi[\,94, :, 1\,]} \quad (\text{class } 1 = \text{benign})
-        say: Slicing the wrong axis is the most common way to produce a confident, backwards explanation.
+        say: 'Picking the wrong class here is the most common way to get a confident, backwards explanation.'
       - tex: |
           \anchor{base}{E[f(x)] = 0.626} \qquad \anchor{add}{\textstyle\sum_j \phi_j = -0.2893}
-        say: The baseline is roughly the benign share of the background data.
+        say: The baseline is about the share of benign cases in the background data.
       - tex: |
           \anchor{check}{0.626 + (-0.2893) = 0.3367 = f(x)}
-        say: Additivity, checked rather than asserted.
+        say: 'Additivity, checked rather than assumed.'
       - tex: |
           \text{class } {=cls}: \quad {=ad.base|4} + ({=ad.sum|4}) = {=ad.fx|4}
-        say: For class 0 the baseline is 1 − 0.626 = 0.374 and every φ changes sign.
+        say: For class 0 the baseline is 1 − 0.626 = 0.374 and every contribution changes sign.
     code:
       lang: python
       source: |
@@ -550,18 +596,22 @@ sections:
     trace: { fn: additivityCode, in: { patient: '@patient' } }
     examples: [shap-additivity, shap-class-flip, shap-additivity-code]
     pitfalls:
-      - Negative is not "bad"; it means "pushed towards class 0" for the class you sliced.
+      - 'Negative is not "bad". It means "pushed towards class 0" for the class you picked.'
       - The baseline depends on the background data; change it and every contribution changes.
-      - A SHAP contribution describes how this model distributes credit, not a causal effect.
-    examTip: 'Always say which class: "towards benign (class 1)". Flipping the class flips every sign.'
+      - 'A SHAP contribution shows how this model shares out credit, not a cause.'
+    examTip: 'Always name the class: "towards benign (class 1)". Switching the class flips every sign.'
 
+    tryIt:
+      - additivity-missing
+      - class-flip
+      - shap-slice-code
   - id: lime-surrogate
     title: LIME's local surrogate
     skills: [lime]
     summary: |
-      Perturb the row, ask the original model to score every perturbation, weight each by its closeness to the row, and fit a
-      weighted linear model. Its slope is the explanation. A narrow kernel makes the line match the model's local slope; a wide
-      one averages over a region where the model bends.
+      Make slightly changed copies of the case, ask the real model to answer each, weight each copy by how close it is,
+      and fit a weighted straight line. Its slope is the explanation. A narrow [[proximity-kernel|kernel]] makes the line
+      match the model's slope right at the case; a wide one blurs over a region where the model bends.
     keyFormula: '\xi(x) = \arg\min_{g \in G} \sum_{z} \pi_x(z)\,\big(f(z) - g(z)\big)^2 + \Omega(g), \quad \pi_x(z) = e^{-(z - x)^2/\sigma^2}'
     state: { sigma: 2 }
     derive:
@@ -583,19 +633,19 @@ sections:
     steps:
       - tex: |
           \anchor{sample}{z_k = x_0 + \delta_k}
-        say: Many slightly perturbed copies of the row (here three, for hand computation).
+        say: 'Several slightly changed copies of the case (here three, so you can work it by hand).'
       - tex: |
           \anchor{predict}{f(z_k)} \text{ from the original model}
-        say: The forest scores every fake row; LIME never looks inside it.
+        say: The real model answers every copy; LIME never looks inside it.
       - tex: |
           \anchor{kernel}{\pi_k = e^{-(z_k - x_0)^2/\sigma^2}}
-        say: '"Local", made arithmetic: nearby rows count heavily, distant ones barely at all.'
+        say: '"Local" as arithmetic: nearby copies count a lot, distant ones barely at all.'
       - tex: |
           \anchor{wls}{\bar z = \frac{\sum \pi_k z_k}{\sum \pi_k},\ \bar f = \frac{\sum \pi_k f(z_k)}{\sum \pi_k}} \qquad \anchor{coef}{b = \frac{\sum \pi_k (z_k - \bar z)(f_k - \bar f)}{\sum \pi_k (z_k - \bar z)^2}}
-        say: Weighted least squares. The coefficient b is the explanation.
+        say: A weighted straight-line fit. Its slope b is the explanation.
       - tex: |
           \sigma = {=sigma}: \quad b = {=lf.b|4} \quad \text{vs} \quad f'(16) = {=lf.trueSlope|4}
-        say: Shrink σ and the surrogate's slope approaches the model's own local slope.
+        say: 'Shrink σ and the stand-in line''s slope gets close to the model''s own slope at 16.'
     code:
       lang: python
       source: |
@@ -639,18 +689,24 @@ sections:
     trace: { fn: limeCode, in: { x0: 16, sigma: '@sigma', deltas: [-2, 0, 2] } }
     examples: [toy-lime-narrow, toy-lime-wide, toy-lime-code, lime-top]
     pitfalls:
-      - LIME weights are surrogate coefficients, not probability shifts; compare them with SHAP only by rank and sign.
-      - Tabular LIME explains bin membership ("worst perimeter between 97.62 and 124.97"), not the raw feature.
-      - Without a fixed random_state the weights, and sometimes their order, change from run to run.
-    examTip: 'The weighted slope uses weighted means; with equal weights it reduces to the ordinary least-squares slope.'
+      - |
+        LIME weights belong to the stand-in line, not to probabilities. Compare them with SHAP only by order and sign.
+      - 'LIME on tables explains ranges ("worst perimeter between 97.62 and 124.97"), not the raw feature.'
+      - 'Without a fixed random seed the weights, and sometimes their order, change from run to run.'
+    examTip: |
+      The weighted slope uses weighted averages. With equal weights it becomes the ordinary straight-line slope.
 
+
+    tryIt:
+      - lime-slope
+      - lime-code
   - id: counterfactual-search
     title: Counterfactuals
     skills: [counterfactuals, honest-reading]
     summary: |
-      A counterfactual is a nearby input the model classifies the other way. For a linear score it can be solved exactly:
-      hold every other feature, find where the score crosses the boundary. Valid (it flips the model) is not the same as
-      plausible (it could exist) or actionable (someone could bring it about).
+      A [[counterfactual|counterfactual]] is a nearby case the model labels the other way. For a straight-line score you can
+      solve it exactly: keep every other feature fixed and find where the score crosses zero. Valid (it flips the model) is
+      not the same as plausible (it could exist) or actionable (someone could make it happen).
     keyFormula: 'x_j^\ast = -\frac{w_0 + \sum_{k \ne j} w_k x_k}{w_j}'
     state: { radius: 17.77, area: 989.5 }
     derive:
@@ -667,13 +723,13 @@ sections:
     steps:
       - tex: |
           \anchor{score}{s(x) = 8 - 0.3\,r - 0.004\,A}, \quad \text{benign if } s > 0
-        say: A toy linear model on the two size twins (radius r, area A).
+        say: 'A toy straight-line model on the two size twins (radius r, area A). Positive score means benign.'
       - tex: |
           \anchor{solve}{s = 0 \;\Rightarrow\; A^\ast = -\frac{8 - 0.3\,r}{-0.004}}
-        say: Hold radius fixed and solve for the area on the boundary.
+        say: Keep radius fixed and solve for the area that puts the score exactly at zero.
       - tex: |
           \anchor{check}{A < A^\ast \Rightarrow s > 0 \Rightarrow \text{benign}} \qquad \anchor{plaus}{r_A = \sqrt{A^\ast/\pi} \overset{?}{=} r}
-        say: Valid. But a tumour with radius 17.77 cannot have an area that implies radius 14.6.
+        say: Valid. But a tumour with radius 17.77 cannot have an area that means radius 14.6.
       - tex: |
           r = {=radius}: \quad A^\ast = {=one.value|1}, \quad \sqrt{A^\ast/\pi} = {=one.impliedR|2}
         say: 'DiCE did the same on the real forest: cf1 halves worst perimeter and leaves worst area at 989.5.'
@@ -719,7 +775,10 @@ sections:
     trace: { fn: cfCode, in: { radius: '@radius', area: '@area' } }
     examples: [toy-cf-area, toy-cf-geometry, toy-cf-code, dice-geometry]
     pitfalls:
-      - '`features_to_vary` controls which columns may move, never which combinations are possible.'
-      - '"Reduce worst area to 536" is not an intervention anyone can perform; changeable is not actionable.'
-      - A counterfactual describes the model's decision surface, not what would happen to the patient.
-    examTip: 'For a linear score, the one-feature counterfactual is (boundary − rest of the score) / that feature''s weight.'
+      - '`features_to_vary` controls which columns may change, never which combinations are possible.'
+      - '"Reduce worst area to 536" is not something anyone can do. Changeable is not actionable.'
+      - 'A counterfactual describes the model''s decision, not what would happen to the patient.'
+    examTip: 'For a straight-line score: change in a feature = (gap to zero) ÷ that feature''s weight.'
+    tryIt:
+      - cf-numeric
+      - cf-valid-plausible
