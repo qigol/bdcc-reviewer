@@ -1,3 +1,4 @@
+import { workbenchTabLabel } from '@kodigo/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BookMarked, Clapperboard, FunctionSquare, Search, Sigma } from 'lucide-react';
@@ -23,7 +24,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const t = courses.length > 1 ? `${courseOf(m.id) ?? ''} · ${m.parsed.manifest.shortTitle}` : m.parsed.manifest.shortTitle;
     return [
       ...m.parsed.intuition.map((s) => ({ kind: 'scene' as const, title: s.title, sub: `${t} · Intuition · ${s.goal}`, to: `/m/${m.id}/intuition/${s.id}` })),
-      ...m.parsed.mathCode.map((s) => ({ kind: 'section' as const, title: s.title, sub: `${t} · Math & Code`, to: `/m/${m.id}/math-code/${s.id}` })),
+      ...m.parsed.mathCode.map((s) => ({ kind: 'section' as const, title: s.title, sub: `${t} · ${workbenchTabLabel(m.parsed.manifest)}`, to: `/m/${m.id}/math-code/${s.id}` })),
       ...m.parsed.mathCode.filter((s) => s.keyFormula).map((s) => ({ kind: 'formula' as const, title: s.title, sub: `${t} · formula`, to: `/m/${m.id}/math-code/${s.id}`, tex: s.keyFormula })),
       ...m.parsed.glossary.map((g) => ({ kind: 'term' as const, title: g.term, sub: `${t} · ${g.short}`, to: `/glossary?term=${g.id}` })),
     ];

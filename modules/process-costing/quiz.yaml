@@ -1,0 +1,512 @@
+templates:
+  # ------------------------------------------------------------------ basics
+  - id: system-mcq
+    type: mcq
+    skills: [pc-basics]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-average }
+    prompt: A Bulacan flour mill grinds wheat into identical 25-kg sacks of flour, around the clock. Which costing system fits, and why?
+    options:
+      - Process costing, because the output is continuous and identical, so an average cost per sack is accurate
+      - Job-order costing, because every sack should have its own cost sheet
+      - Job-order costing, because flour mills have large overhead
+      - Process costing, because flour mills have no direct labor
+    answer: 0
+    hints: [Is one sack different from the next?]
+    explanation: Identical, continuous output is costed by averaging a department's cost over its output. The amount of overhead or labor doesn't decide the system.
+
+  - id: conversion-mcq
+    type: mcq
+    skills: [pc-basics]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: pc-basics }
+    prompt: Why does process costing combine direct labor and factory overhead into a single conversion cost category?
+    options:
+      - In a continuous process they are incurred together and evenly, so tracking them apart adds little value
+      - Because direct labor is always smaller than overhead
+      - Because materials are always added at the end of the process
+      - Because conversion costs are period costs, not product costs
+    answer: 0
+    hints: [Think about when labor and overhead are incurred in a continuous process.]
+    explanation: Labor and overhead move together through the process, so one conversion category (with one equivalent-unit count) is enough. Both remain product costs.
+
+  - id: hybrid-mcq
+    type: mcq
+    skills: [pc-basics]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-average }
+    prompt: A garment factory sews thousands of identical school uniforms but also produces a single custom batch of jerseys for a basketball team. What system fits best?
+    options:
+      - Operation (hybrid) costing, process costing for the uniforms and job-order costing for the custom batch
+      - Process costing for everything, since it is one factory
+      - Job-order costing for everything, since some output is custom
+      - Neither; garment factories use activity-based costing only
+    answer: 0
+    hints: [The choice can be made product line by product line.]
+    explanation: The choice follows the output, not the factory. Standard uniforms are averaged; the custom batch is a job.
+
+  - id: basics-match
+    type: match
+    skills: [pc-basics]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: pc-basics }
+    prompt: Match each feature to the costing system it describes.
+    pairs:
+      - ['Costs averaged across a department', 'Process costing']
+      - ['Costs traced to a specific job', 'Job-order costing']
+      - ['Cost-of-production report', 'Key record in process costing']
+      - ['Job cost sheet', 'Key record in job-order costing']
+      - ['Direct labor + overhead', 'Conversion cost']
+    explanation: Process costing averages by department and reports on a cost-of-production report; job-order costing traces to jobs on job cost sheets.
+
+  # ------------------------------------------------------------------ physical flow
+  - id: flow-numeric
+    type: numeric
+    skills: [physical-flow]
+    difficulty: 1
+    tags: [math]
+    generator: flowQ
+    lessonRef: { tab: math-code, id: physical-flow }
+    prompt: 'A department began the period with {=beg|comma} units in process and had {=given}. {=askText}'
+    answer: { var: answer, tol: 0.5 }
+    hints:
+      - Beginning WIP + units started = units completed + ending WIP.
+      - Solve the equation for the missing quantity.
+    explanation: '${=beg|comma} + {=started|comma} = {=completed|comma} + {=end|comma}$. Both sides equal ${=completed|comma} + {=end|comma}$ units.'
+
+  - id: flow-mcq
+    type: mcq
+    skills: [physical-flow]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: count-the-units }
+    prompt: A department had 2,000 units in beginning WIP and started 20,000. It completed 17,500 and counts 3,800 in ending WIP. What should the accountant conclude?
+    options:
+      - 700 units are unaccounted for, through spoilage, shrinkage or a counting error, and must be investigated
+      - The flow balances, so the report can proceed
+      - Ending WIP must be 3,800 + 700 = 4,500, so the count should be changed
+      - Units started must have been 19,300
+    answer: 0
+    hints: ['Compare 2,000 + 20,000 with 17,500 + 3,800.']
+    explanation: 22,000 units to account for vs 21,300 accounted for. The physical flow equation exposes 700 lost units; they are investigated, not plugged.
+
+  # ------------------------------------------------------------------ equivalent units
+  - id: eu-numeric
+    type: numeric
+    skills: [equiv-units]
+    difficulty: 1
+    tags: [math]
+    generator: euQ
+    lessonRef: { tab: math-code, id: equiv-units }
+    prompt: |
+      A department with no beginning WIP completed {=completed|comma} units. Its {=endUnits|comma} ending-WIP units are
+      {=conv|pct} complete as to conversion. How many equivalent units of **conversion** did it produce?
+    answer: { var: euConv, tol: 0.5 }
+    hints:
+      - Completed units count 100%.
+      - Ending WIP counts at its percent complete.
+    explanation: 'EU (conversion) $= {=completed|comma} + {=endUnits|comma} \times {=conv|pct} = {=euConv|comma}$.'
+
+  - id: eu-mat-numeric
+    type: numeric
+    skills: [equiv-units]
+    difficulty: 2
+    tags: [math]
+    generator: euQ
+    lessonRef: { tab: math-code, id: equiv-units }
+    prompt: |
+      Materials are {=timingTxt}; conversion is incurred evenly. With no beginning WIP, {=completed|comma} units were
+      completed and {=endUnits|comma} remain in ending WIP, {=conv|pct} converted. How many equivalent units of
+      **materials**?
+    answer: { var: euMat, tol: 0.5 }
+    misconceptions:
+      - { var: wrongSamePct, feedback: 'You used the conversion percent for materials. Ask when the materials enter the process.' }
+    hints:
+      - At the start → ending WIP is 100% complete for materials; at the end → 0%; evenly → the same as conversion.
+    explanation: 'Ending WIP is {=matPct|pct} complete for materials, so EU $= {=completed|comma} + {=endUnits|comma} \times {=matPct|pct} = {=euMat|comma}$.'
+
+  - id: timing-match
+    type: match
+    skills: [equiv-units]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: partly-done }
+    prompt: Match when materials are added to how complete ending WIP is as to materials.
+    pairs:
+      - ['Materials added at the start', 'Ending WIP is 100% complete for materials']
+      - ['Materials added at the end', 'Ending WIP is 0% complete for materials']
+      - ['Materials added evenly', 'Same percent as conversion']
+      - ['Units completed and transferred out', '100% complete for every category']
+    explanation: The point at which each cost element enters the process sets ending WIP's percent complete for it.
+
+  - id: eu-trap-mcq
+    type: multi
+    skills: [equiv-units]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: equiv-units }
+    prompt: Which of these are errors when computing equivalent units? Select all that apply.
+    options:
+      - Using the same percentage of completion for materials and conversion without checking when materials are added
+      - Counting completed units at less than 100%
+      - Mixing up beginning WIP's percent with ending WIP's percent
+      - Computing materials and conversion equivalent units separately
+    answer: [0, 1, 2]
+    hints: [Slide 32 lists the most common student errors.]
+    explanation: The first three are the classic traps. Computing each category separately is exactly what you should do.
+
+  # ------------------------------------------------------------------ five steps
+  - id: steps-order
+    type: order
+    skills: [five-steps]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: five-steps }
+    prompt: Put the five steps of a process-costing solution in order.
+    items:
+      - Summarize the physical flow of units
+      - Compute equivalent units for each cost category
+      - Summarize total costs to account for, by category
+      - Compute the cost per equivalent unit
+      - Assign costs to completed units and ending WIP, and reconcile
+    explanation: Units first, then equivalent units, then pesos, then unit costs, then assignment with the reconciliation check.
+
+  - id: reconcile-order
+    type: order
+    skills: [five-steps]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: when-it-breaks }
+    prompt: A report's completed cost plus ending WIP does not equal the costs to account for. Order the checks from first to last.
+    items:
+      - Re-check that the physical flow (Step 1) balances
+      - Re-check the equivalent units and their percents (Step 2)
+      - Re-check each division of cost by equivalent units (Step 4)
+      - Recompute the assignment and confirm it reconciles (Step 5)
+    explanation: Slide 68 works backward cheapest-first. An error in the unit count would carry into every later step.
+
+  - id: unit-cost-numeric
+    type: numeric
+    skills: [five-steps]
+    difficulty: 1
+    tags: [math]
+    generator: waQ
+    lessonRef: { tab: math-code, id: five-steps }
+    prompt: |
+      No beginning WIP. {=completed|comma} units were completed; {=endU|comma} remain, all materials and {=endConv|pct}
+      converted. Costs added: materials {=addMat|money}, conversion {=addConv|money}. What is the **combined** cost per
+      equivalent unit?
+    answer: { var: combined, tol: 0.005 }
+    hints:
+      - Compute equivalent units for materials and for conversion separately.
+      - Divide each category's cost by its own EU, then add.
+    explanation: |
+      EU: materials {=euMat|comma}, conversion {=euConv|comma}. Unit costs ${=addMat|comma} \div {=euMat|comma} = {=unitMat|2f}$ and
+      ${=addConv|comma} \div {=euConv|comma} = {=unitConv|2f}$; combined ${=combined|money2}$.
+
+  - id: report-fill
+    type: schedule-fill
+    skills: [five-steps]
+    difficulty: 2
+    tags: [journal]
+    generator: reportQ
+    lessonRef: { tab: math-code, id: five-steps }
+    prompt: |
+      {=begText} {=completed|comma} units were completed; {=endU|comma} remain, all materials and {=endConv|pct}
+      converted. Unit costs ({=method}): materials {=unitMat|money2}, conversion {=unitConv|money2} per equivalent unit.
+      Complete Step 5.
+    rows: '@assign'
+    hints:
+      - Completed units carry the combined unit cost.
+      - Ending WIP is costed category by category on its own equivalent units.
+    explanation: |
+      Completed $= {=completedCost|money}$. Ending WIP: materials ${=endU|comma} \times {=unitMat|2f}$, conversion
+      ${=endU|comma} \times {=endConv|pct} \times {=unitConv|2f}$, total {=endWip|money}; together they equal {=total|money}.
+
+  - id: report-numeric
+    type: numeric
+    skills: [five-steps, fifo]
+    difficulty: 3
+    tags: [math]
+    generator: reportQ
+    lessonRef: { tab: math-code, id: fifo }
+    prompt: |
+      Using **{=method}**: {=begText} {=started|comma} units were started and {=completed|comma} completed; {=endU|comma}
+      remain, all materials and {=endConv|pct} converted. Costs added: materials {=addMat|money}, conversion
+      {=addConv|money}. What is the cost of the units completed and transferred out?
+    answer: { var: completedCost, tol: 1 }
+    hints:
+      - Compute the equivalent units and unit costs for the method named.
+      - Under FIFO, completed cost = beginning WIP cost + cost to finish it + started-and-completed units × unit cost.
+    explanation: 'Unit costs: materials {=unitMat|money2}, conversion {=unitConv|money2}. Cost transferred out $= {=completedCost|money}$; ending WIP {=endWip|money}; total {=total|money}.'
+
+  # ------------------------------------------------------------------ weighted-average
+  - id: wa-eu-numeric
+    type: numeric
+    skills: [weighted-avg]
+    difficulty: 1
+    tags: [math]
+    generator: waQ
+    lessonRef: { tab: math-code, id: weighted-avg }
+    prompt: |
+      Using the weighted-average method: {=begText} {=completed|comma} units were completed; {=endU|comma} are in ending
+      WIP, {=endConv|pct} converted. What are the equivalent units of **conversion**?
+    answer: { var: euConv, tol: 0.5 }
+    hints:
+      - Weighted-average EU = completed + ending WIP × percent.
+      - Beginning WIP's percent does not enter the formula.
+    explanation: '${=completed|comma} + {=endU|comma} \times {=endConv|pct} = {=euConv|comma}$.'
+
+  - id: wa-handcalc
+    type: hand-calc
+    skills: [weighted-avg]
+    difficulty: 2
+    tags: [math]
+    generator: waQ
+    lessonRef: { tab: math-code, id: weighted-avg }
+    prompt: |
+      Weighted-average method. {=begText} Costs added this period: materials {=addMat|money}, conversion {=addConv|money}.
+      {=completed|comma} units completed; {=endU|comma} in ending WIP, all materials and {=endConv|pct} converted.
+    steps:
+      - prompt: Equivalent units, materials
+        answer: { var: euMat, tol: 0.5 }
+        hint: Completed + ending WIP × 100%.
+      - prompt: Equivalent units, conversion
+        answer: { var: euConv, tol: 0.5 }
+        misconceptions:
+          - { var: wrongFifoConv, feedback: 'That subtracts beginning WIP''s prior work, which is FIFO. Weighted-average does not.' }
+      - prompt: Cost per equivalent unit, conversion (₱)
+        answer: { var: unitConv, tol: 0.005 }
+        misconceptions:
+          - { var: wrongAddedOnly, feedback: 'Weighted-average adds beginning WIP cost to the current cost before dividing.' }
+        hint: (Beginning conversion cost + added conversion cost) ÷ conversion EU.
+      - prompt: Cost of units completed and transferred out (₱)
+        answer: { var: completedCost, tol: 1 }
+        hint: Completed units × combined unit cost.
+    hints:
+      - Keep materials and conversion in separate columns.
+    explanation: |
+      EU {=euMat|comma} and {=euConv|comma}; unit costs {=unitMat|money2} and {=unitConv|money2} (combined {=combined|money2});
+      completed $= {=completed|comma} \times {=combined|2f} = {=completedCost|money}$.
+
+  - id: wa-qty-fill
+    type: schedule-fill
+    skills: [weighted-avg]
+    difficulty: 2
+    tags: [journal]
+    generator: waQ
+    lessonRef: { tab: math-code, id: weighted-avg }
+    prompt: Complete the weighted-average quantity schedule (Steps 1–2). Fill in the equivalent-units row.
+    columns: [Physical units, Materials, Conversion]
+    rows: '@rows'
+    hints:
+      - Add the completed row and the ending-WIP row in each column.
+    explanation: 'Equivalent units: materials {=euMat|comma}, conversion {=euConv|comma}.'
+
+  - id: transfer-je
+    type: journal-entry
+    skills: [transferred-in, weighted-avg]
+    difficulty: 1
+    tags: [journal]
+    generator: waQ
+    lessonRef: { tab: math-code, id: transfer-entries }
+    prompt: |
+      The Mixing Department's weighted-average report shows {=completedCost|money} of cost for units completed this
+      period. The units move on to the Packaging Department. Record the transfer.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Cost moves from one department's Work-in-Process to the next one's.
+      - Only the last department transfers to Finished Goods Inventory.
+    explanation: 'Debit Work-in-Process – Packaging Department and credit Work-in-Process – Mixing Department for {=completedCost|money}.'
+
+  # ------------------------------------------------------------------ FIFO
+  - id: fifo-eu-numeric
+    type: numeric
+    skills: [fifo]
+    difficulty: 1
+    tags: [math]
+    generator: fifoQ
+    lessonRef: { tab: math-code, id: fifo }
+    prompt: |
+      Using FIFO: {=begText} {=completed|comma} units were completed; {=endU|comma} are in ending WIP,
+      {=endConv|pct} converted. What are the FIFO equivalent units of **conversion**?
+    answer: { var: euConv, tol: 0.5 }
+    hints:
+      - Start from the weighted-average EU.
+      - Subtract the conversion work done on beginning WIP last period.
+    explanation: 'Weighted-average {=waEuConv|comma} − ${=begU|comma} \times {=begConv|pct}$ = {=euConv|comma}.'
+
+  - id: fifo-unit-numeric
+    type: numeric
+    skills: [fifo]
+    difficulty: 2
+    tags: [math]
+    generator: fifoQ
+    lessonRef: { tab: math-code, id: fifo }
+    prompt: |
+      FIFO. {=begText} Conversion cost added this period was {=addConv|money}. {=completed|comma} units were completed;
+      {=endU|comma} remain, {=endConv|pct} converted. What is the FIFO conversion cost per equivalent unit?
+    answer: { var: unitConv, tol: 0.005 }
+    hints:
+      - FIFO divides only the current period's cost.
+      - FIFO EU = completed + ending WIP × % − beginning WIP × % done last period.
+    explanation: 'FIFO conversion EU {=euConv|comma}; unit cost ${=addConv|comma} \div {=euConv|comma} = {=unitConv|money2}$.'
+
+  - id: fifo-handcalc
+    type: hand-calc
+    skills: [fifo]
+    difficulty: 3
+    tags: [math]
+    generator: fifoQ
+    lessonRef: { tab: math-code, id: fifo }
+    prompt: |
+      FIFO. {=begText} Costs added: materials {=addMat|money}, conversion {=addConv|money}. {=completed|comma} units
+      completed; {=endU|comma} in ending WIP, {=endConv|pct} converted.
+    steps:
+      - prompt: Units started and completed
+        answer: { var: sc, tol: 0.5 }
+        hint: Completed − beginning WIP units.
+      - prompt: FIFO equivalent units, conversion
+        answer: { var: euConv, tol: 0.5 }
+        misconceptions:
+          - { var: waEuConv, feedback: 'That is the weighted-average count; subtract beginning WIP''s prior work.' }
+      - prompt: FIFO cost per equivalent unit, conversion (₱)
+        answer: { var: unitConv, tol: 0.005 }
+        misconceptions:
+          - { var: wrongWaUnitConv, feedback: 'FIFO excludes beginning WIP cost from the unit cost.' }
+      - prompt: Cost of units completed and transferred out (₱)
+        answer: { var: completedCost, tol: 1 }
+        hint: Beginning WIP cost + cost to finish it + started-and-completed × combined unit cost.
+    hints:
+      - Under FIFO, beginning WIP is finished first and its cost kept separate.
+    explanation: |
+      Started and completed {=sc|comma}; FIFO EU {=euMat|comma} (materials) and {=euConv|comma} (conversion); unit costs
+      {=unitMat|money2} and {=unitConv|money2}. Transferred out $= {=begCost|comma} + \text{cost to finish} + {=sc|comma} \times {=combined|2f} = {=completedCost|money}$.
+
+  - id: fifo-qty-fill
+    type: schedule-fill
+    skills: [fifo]
+    difficulty: 2
+    tags: [journal]
+    generator: fifoQ
+    lessonRef: { tab: math-code, id: fifo }
+    prompt: Complete the FIFO quantity schedule. Fill in the work to finish beginning WIP and the equivalent-units total.
+    columns: [Physical units, Materials, Conversion]
+    rows: '@rows'
+    hints:
+      - Work to finish beginning WIP = beginning units × (100% − percent already done).
+    explanation: 'Work to finish beginning WIP: {=toFinishMat|comma} materials, {=toFinishConv|comma} conversion. FIFO EU: {=euMat|comma} and {=euConv|comma}.'
+
+  - id: method-mcq
+    type: mcq
+    skills: [choose-method]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: when-it-breaks }
+    prompt: A coconut-oil mill's copra prices jumped 30% this month. The plant manager wants to judge this month's processing efficiency without last month's cheaper copra mixed in. Which method should the cost report use?
+    options:
+      - FIFO, because it keeps beginning WIP's older cost out of the current unit cost
+      - Weighted-average, because it blends the two months into one cost
+      - Either; the methods always give the same unit cost
+      - Weighted-average, because FIFO cannot handle beginning WIP
+    answer: 0
+    hints: [Which method's unit cost contains only current-period cost?]
+    explanation: FIFO isolates the current period. Weighted-average would dilute the price spike with last month's cheaper cost.
+
+  - id: method-multi
+    type: multi
+    skills: [choose-method, fifo]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: fifo }
+    prompt: Which statements about FIFO versus weighted-average are true? Select all that apply.
+    options:
+      - FIFO equivalent units are never larger than weighted-average equivalent units
+      - The "costs to account for" total is the same under both methods
+      - Ending WIP is costed at the current period's unit costs under FIFO
+      - Weighted-average unit costs contain only current-period costs
+    answer: [0, 1, 2]
+    hints: [Slide 59 and the supplemental comparison table list the differences.]
+    explanation: Total cost to account for is identical; FIFO subtracts prior work (so its EU are smaller or equal) and uses current costs only. Weighted-average unit costs include beginning WIP cost.
+
+  - id: method-match
+    type: match
+    skills: [choose-method]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: fifo }
+    prompt: Match each description to the method.
+    pairs:
+      - ['Blends beginning WIP cost with current cost', 'Weighted-average']
+      - ['Keeps beginning WIP cost separate', 'FIFO']
+      - ['Simpler; the common default when costs are stable', 'Weighted-average, in practice']
+      - ['Preferred for cost control when costs swing', 'FIFO, for control']
+    explanation: Weighted-average blends and is simpler; FIFO separates and gives sharper current-period visibility.
+
+  # ------------------------------------------------------------------ transferred-in
+  - id: ti-handcalc
+    type: hand-calc
+    skills: [transferred-in]
+    difficulty: 2
+    tags: [math]
+    generator: tiQ
+    lessonRef: { tab: math-code, id: transferred-in }
+    prompt: |
+      A second department receives {=tiUnits|comma} units costing {=tiCost|money} from Department 1 (no beginning WIP). It
+      adds its materials {=matTxt} ({=addMat|money}) and converts evenly ({=addConv|money}). {=completed|comma} units are
+      completed; {=endU|comma} remain, {=conv|pct} converted. Use weighted-average.
+    steps:
+      - prompt: Equivalent units, transferred-in
+        answer: { var: euTi, tol: 0.5 }
+        misconceptions:
+          - { var: wrongTiPartial, feedback: 'Transferred-in units are 100% complete for TI cost, whatever their conversion.' }
+      - prompt: Equivalent units, materials
+        answer: { var: euMat, tol: 0.5 }
+      - prompt: Combined cost per equivalent unit (₱)
+        answer: { var: combined, tol: 0.005 }
+        misconceptions:
+          - { var: wrongNoTi, feedback: Include the transferred-in unit cost. }
+      - prompt: Cost transferred to Finished Goods (₱)
+        answer: { var: completedCost, tol: 0.5 }
+    hints:
+      - Treat transferred-in cost like materials added at the very start.
+    explanation: |
+      EU: TI {=euTi|comma}, materials {=euMat|comma}, conversion {=euConv|comma}. Unit costs {=unitTi|money2} +
+      {=unitMat|money2} + {=unitConv|money2} = {=combined|money2}; completed $= {=completed|comma} \times {=combined|2f} = {=completedCost|money}$.
+
+  - id: ti-numeric
+    type: numeric
+    skills: [transferred-in]
+    difficulty: 2
+    tags: [math]
+    generator: tiQ
+    lessonRef: { tab: math-code, id: transferred-in }
+    prompt: |
+      Department 2 received {=tiUnits|comma} units at {=tiCost|money}; its own materials ({=addMat|money}) are added
+      {=matTxt}; conversion ({=addConv|money}) is incurred evenly. {=completed|comma} units were completed and
+      {=endU|comma} remain, {=conv|pct} converted. No beginning WIP. What is the cost of ending WIP?
+    answer: { var: endWip, tol: 0.5 }
+    misconceptions:
+      - { value: 0, feedback: Ending WIP still carries its transferred-in cost and its conversion. }
+    hints:
+      - Ending WIP carries TI cost at 100%, materials only if they were added at the start, and conversion at its percent.
+    explanation: 'Unit costs TI {=unitTi|money2}, materials {=unitMat|money2}, conversion {=unitConv|money2}. Ending WIP $= {=endWip|money}$.'
+
+  - id: ti-je
+    type: journal-entry
+    skills: [transferred-in]
+    difficulty: 1
+    tags: [journal]
+    generator: tiQ
+    lessonRef: { tab: math-code, id: transferred-in }
+    prompt: The Blending Department is the last department. Its report shows {=completedCost|money} for units completed this period. Record the transfer.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - The last department sends its output to finished goods.
+    explanation: 'Debit Finished Goods Inventory and credit Work-in-Process – Blending Department for {=completedCost|money}.'

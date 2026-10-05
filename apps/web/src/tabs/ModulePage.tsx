@@ -4,7 +4,8 @@ import { AlertTriangle, Dumbbell, Eye, GraduationCap } from 'lucide-react';
 import { useModule, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
 import { setSetting } from '../storage/progress';
-import { Markdown } from '../lib/md';
+import { Markdown, GlossaryProvider } from '../lib/md';
+import { workbenchTabLabel } from '@kodigo/schema';
 import { cn } from '../lib/util';
 import { ModuleIcon } from '../app/icons';
 
@@ -32,8 +33,9 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
   );
   const m = mod.parsed.manifest;
   const tabs = [
+    { to: 'path', label: 'Path' },
     { to: 'intuition', label: 'Intuition' },
-    { to: 'math-code', label: 'Math & Code' },
+    { to: 'math-code', label: workbenchTabLabel(m) },
     { to: 'application', label: 'Application' },
   ];
   const errors = mod.issues.filter((i) => i.level === 'error');
@@ -67,7 +69,9 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
         </div>
         {errors.length > 0 && <div className="mx-auto max-w-[1400px] px-4 pb-2 text-xs text-warn">⚠ This module has {errors.length} validation error(s); some parts may not render. See Admin → Run checks.</div>}
       </div>
-      <Outlet context={{ mod, base } satisfies ModuleOutletCtx} />
+      <GlossaryProvider terms={mod.parsed.glossary}>
+        <Outlet context={{ mod, base } satisfies ModuleOutletCtx} />
+      </GlossaryProvider>
     </div>
   );
 }

@@ -1,0 +1,147 @@
+intro: |
+  Any plant that makes both standard and custom products faces the same question: is the custom work as profitable as
+  the single overhead rate says? This case takes a Cebu kitchenware maker from its machine-hour rate to a four-pool ABC
+  system, then uses the new costs to answer a real bid.
+case:
+  id: cebu-kitchenware
+  title: Cebu Kitchenware re-costs its product lines
+  story: |
+    Cebu Kitchenware Co. makes standard pots in long runs, premium cookware sets in medium batches, and custom orders for
+    hotels and resorts in small, design-heavy batches. Overhead of ₱2,720,000 is applied at one rate per machine hour.
+    Sales says the hotel line is the most profitable; the new controller is not so sure. All figures are synthetic.
+  data: [cebu]
+  state: { system: trad }
+  derive:
+    - { fn: compare, in: { products: '@cebu.products', pools: '@cebu.pools', baseLabel: '@cebu.baseLabel' }, out: cc }
+    - { fn: compareView, in: { products: '@cebu.products', pools: '@cebu.pools', baseLabel: '@cebu.baseLabel', system: '@system' }, out: cv }
+    - { fn: hierarchy, in: { pools: '@cebu.pools', facility: '@cebu.facility' }, out: hy }
+    - { fn: bid, in: { products: '@cebu.products', pools: '@cebu.pools', bid: '@cebu.bid' }, out: bd }
+  cells:
+    - id: old-rate
+      title: The old machine-hour rate
+      say: |
+        ₱2,720,000 over 32,000 machine hours is {=cc.tradRate|money} an hour. Standard pots take half an hour each, premium
+        sets one hour, hotel pieces two hours.
+      stage:
+        - id: pick
+          widget: Choice
+          props:
+            label: Overhead assigned with
+            options:
+              - { value: trad, label: One machine-hour rate }
+              - { value: abc, label: Four activity pools }
+          bind: { value: system }
+        - { id: view, widget: Schedule, props: { title: 'Per unit, {=cv.label}', columns: '@cv.columns', rows: '@cv.rows' } }
+      decision:
+        prompt: Under the single rate, which product line shows the highest margin?
+        type: mcq
+        options: ['Hotel custom orders (45%)', 'Premium sets (44%)', 'Standard pots (33%)', 'All three are equal']
+        answer: 0
+        model: 'Hotel: $(2{,}400 - 1{,}320) \div 2{,}400 = 45\%$. That is the figure Sales has been quoting.'
+    - id: pools
+      title: Four pools, four drivers
+      say: |
+        Interviews and activity logs split overhead into machining (per machine hour), setups, inspections and design
+        changes. The hotel line runs 240 of the 400 setups and 40 of the 60 design changes on 4% of the units.
+      stage:
+        - { id: rates, widget: Schedule, props: { title: Activity rates, columns: '@cc.rateColumns', rows: '@cc.rateRows' } }
+        - { id: hier, widget: Schedule, props: { title: Overhead by level of the hierarchy, rows: '@hy.rows' } }
+      decision:
+        prompt: Plant administration (₱400,000) has no driver that links it to products. What should the controller do with it?
+        type: mcq
+        options:
+          - Report it separately as facility-level cost, outside the product costs
+          - Add it to the machining pool
+          - Spread it equally over the three product lines
+          - Charge it all to the hotel line
+        answer: 0
+        model: Facility-level costs keep the plant running but don't vary with any product's activity; allocating them would reintroduce distortion.
+    - id: abc-costs
+      title: The ABC unit costs
+      say: |
+        Under ABC, standard pots carry {=cc.abcOH.standard|money2} of overhead, premium sets {=cc.abcOH.premium|money2} and
+        hotel pieces {=cc.abcOH.hotel|money2}.
+      stage:
+        - { id: as, widget: Schedule, props: { title: Overhead assigned under ABC, columns: '@cc.columns', rows: '@cc.assignRows' } }
+        - { id: cr, widget: Schedule, props: { title: Unit costs and margins, columns: '@cc.columns', rows: '@cc.costRows' } }
+      decision:
+        prompt: What happened to the hotel line's margin, and why?
+        type: open
+        model: |
+          It fell from 45% to about 31%. The hotel line uses 60% of the setups and two-thirds of the design changes, which
+          the machine-hour rate spread mostly onto standard pots. Standard pots were overcosted by ₱18.70 a unit and are
+          more profitable than reported (37% rather than 33%).
+    - id: bid
+      title: A resort chain's order
+      say: |
+        A resort chain wants 500 custom pieces: ₱1,150 of materials and labor each, 1,000 machine hours, 30 setups, 120
+        inspections and 8 design changes. A competitor has quoted ₱1,450 a piece.
+      stage:
+        - { id: bl, widget: Schedule, props: { title: 'Overhead for the order (ABC)', rows: '@bd.lineRows' } }
+        - { id: br, widget: Schedule, props: { title: The order priced two ways, columns: '@bd.columns', rows: '@bd.rows' } }
+      decision:
+        prompt: Sales wants to match the competitor's ₱1,450. Should Cebu Kitchenware take the order at that price?
+        type: mcq
+        options:
+          - No; the order really costs ₱1,520 a piece, so ₱1,450 loses ₱70 a piece
+          - Yes; at ₱1,320 a piece the order still earns ₱130 a piece
+          - Yes; any price above materials and labor is profitable
+          - No; ₱1,450 is below the ₱1,650 quote, so the margin would be too thin
+        answer: 0
+        model: 'ABC overhead is ₱185,000, or ₱370 a piece, so the full cost is ₱1,520. Matching ₱1,450 would lose $500 \times 70 = ₱35{,}000$. The machine-hour rate (₱170 a piece) would have hidden the loss.'
+    - id: response
+      title: What to do about the hotel line
+      say: The owners don't want to abandon hotels; the line brings prestige and repeat business.
+      decision:
+        prompt: Using the ABC data, suggest two ways to make custom hotel work profitable without dropping it.
+        type: open
+        model: |
+          Attack the drivers: offer a catalogue of pre-designed hotel pieces to cut design changes, and set minimum order
+          sizes or batch scheduling to cut setups per unit. Price the rest honestly: quote custom orders from ABC costs,
+          with explicit charges for design changes and small runs.
+    - id: keep-it
+      title: Is ABC worth keeping?
+      say: The controller's ABC model took a month of interviews and needs quarterly updates.
+      decision:
+        prompt: Is ABC worth the ongoing cost for Cebu Kitchenware?
+        type: open
+        model: |
+          Yes. Overhead is large (₱2.7 million), the three lines differ sharply in setups and design work, and real pricing
+          decisions (bids like the resort order) depend on the result. Four pools are enough; the company doesn't need a
+          20-pool system, and the ERP can collect the setup, inspection and design-change counts.
+atScale:
+  title: ABC in practice
+  body: |
+    **Design.** A cost accountant and the operations managers map activities with interviews, time studies and the ERP's
+    logs, then regroup overhead accounts into a handful of pools (four to six capture most of the accuracy). Drivers are
+    chosen for cause and effect; the data to count them (setups, inspections, change orders) usually already exists in
+    production and quality systems.
+
+    **Running it.** Activity rates are set from the budget at the start of the year, like a POHR. The ERP (SAP CO's
+    activity types, Oracle, or Odoo with analytic accounts; a spreadsheet model in smaller firms) multiplies each order's
+    driver counts by the rates. Facility-level costs are reported separately.
+
+    **Using it.** Product costs feed price lists, bids and product-mix reviews; customer costs feed account-management
+    decisions. Session 8's activity-based management uses the same pools to find and remove non-value-added work.
+
+    **Maintenance.** Rates and drivers are reviewed yearly, or when the product mix changes. Many companies pilot ABC on
+    one product line before rolling it out.
+tradeoffs:
+  title: Designing an ABC system
+  columns: [Choice, Option A, Option B, When to prefer B]
+  rows:
+    - ['Overhead assignment', 'One plantwide rate', 'Activity-based rates', 'Overhead is large and products differ in setups, inspections and design work']
+    - ['Number of pools', 'Four to six well-chosen pools', 'An exhaustive 20-pool system', 'Rarely; only where the extra accuracy changes decisions']
+    - ['Driver for each pool', 'Data already available (e.g. labor hours)', 'The activity that causes the cost', 'Always, unless the convenient driver is also the causal one']
+    - ['Facility-level costs', 'Allocate them on some base', 'Report them separately', 'No driver links them to products']
+connections:
+  - { module: job-order, note: 'Activity rates are Session 5''s predetermined overhead rate, computed once per pool; departmental rates were the first step.' }
+  - { module: cost-flows, note: 'The Sarver Company example in the supplemental notes is a first ABC computation with five pools.' }
+  - { module: abm, note: 'Session 8 turns these pools into a management tool: value-added analysis, driver analysis, customer and supplier cost.' }
+explainBack:
+  prompt: Explain to Cebu Kitchenware's sales manager why the hotel line is less profitable than the old reports showed.
+  rubric:
+    - The old system spread all overhead on machine hours, a volume measure
+    - Setups and design changes are batch- and product-level costs that the hotel line uses heavily
+    - ABC assigns those costs to the products that cause them, raising the hotel line's cost from ₱1,320 to ₱1,660
+    - Standard pots were overcosted and were subsidizing hotel work; total overhead is unchanged

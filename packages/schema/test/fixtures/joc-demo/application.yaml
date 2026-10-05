@@ -1,0 +1,37 @@
+intro: |
+  Small manufacturers quote custom jobs every week. The overhead rate turns a fuzzy year of bills into a price you can
+  give a customer today.
+case:
+  id: kapitan-quote
+  title: Quoting the barangay hall benches
+  story: |
+    A barangay asks Kapitan for 20 benches. The foreman estimates 800 direct labor-hours, ₱40,000 of lumber and
+    ₱12,000 of labor. Kapitan prices jobs at cost plus 25%.
+  state: { markup: 0.25 }
+  derive:
+    - { fn: jobCost, in: { dm: 40000, dl: 12000, hours: 800, rate: 15 }, out: q }
+  cells:
+    - id: cost-it
+      title: Cost the job
+      say: Overhead goes on at ₱15 per labor-hour, the same rate as every other job this year.
+      stage:
+        - { id: quote, widget: Schedule, props: { title: 'Bench job, estimated cost', rows: '@q.rows' } }
+    - id: price-it
+      title: Price it
+      say: 'Cost plus 25% gives the quote. The job costs {=q.total|money}.'
+      decision:
+        prompt: What should Kapitan quote?
+        type: mcq
+        options: ['₱80,000', '₱65,000', '₱52,000']
+        answer: 0
+        model: '$64{,}000 \times 1.25 = ₱80{,}000$. Quoting materials and labor only (₱52,000) would ignore overhead.'
+    - id: year-end
+      title: At year end
+      say: If overhead ends up underapplied, every job this year was costed a little low.
+      decision:
+        prompt: What does underapplied overhead tell Kapitan about its quotes?
+        type: open
+        model: The rate was too low (overhead ran higher or hours lower than budgeted), so quotes understated cost; next year's rate should be revisited.
+explainBack:
+  prompt: Explain to a new estimator why the quote uses ₱15 per hour even though nobody knows this year's overhead yet.
+  rubric: [Overhead is estimated before the year, The rate is estimated overhead ÷ estimated hours, Jobs are costed with rate × their hours]

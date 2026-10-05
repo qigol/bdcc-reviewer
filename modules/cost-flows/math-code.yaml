@@ -1,0 +1,569 @@
+sections:
+  - id: cost-terms
+    title: Cost terms and a cost equation
+    skills: [cost-terms]
+    summary: |
+      [[product-cost|Product costs]] (direct materials, direct labor and [[manufacturing-overhead|manufacturing overhead]])
+      wait in inventory until the goods are sold; [[period-cost|period costs]] (selling and administrative) are expensed
+      at once. DM + DL is [[prime-cost|prime cost]]; DL + MOH is [[conversion-cost|conversion cost]]. Quiz 1A adds a
+      warm-up from Sessions 1–3: a regression turns a [[mixed-cost|mixed cost]] into $Y = a + bX$.
+    keyFormula: 'Y = a + bX, \quad \text{Prime} = \text{DM} + \text{DL}, \quad \text{Conversion} = \text{DL} + \text{MOH}'
+    state: { intercept: 25000, slope: 8.5, x: 3000 }
+    derive:
+      - { fn: costEquation, in: { intercept: '@intercept', slope: '@slope', x: '@x' }, out: ce }
+      - { fn: costTotals, in: { dm: 136000, dl: 200000, moh: 310000, selling: 100000, admin: 109000 }, out: ct }
+    steps:
+      - tex: |
+          \anchor{y}{\text{Utilities}} = \anchor{fixed}{\text{₱}{=intercept|comma}} + \anchor{var}{\text{₱}{=slope|2f} \times \text{DLH}}
+        say: 'Quiz 1A, Marikina Shoe Manufacturing: the intercept is the fixed part, the slope the variable rate per direct labor hour.'
+      - tex: |
+          \anchor{y}{ {=ce.y|comma} } = \anchor{fixed}{ {=intercept|comma} } + \anchor{var}{ {=slope|2f} \times {=x|comma} }
+        say: 'At {=x|comma} hours: {=ce.y|money}. Both parts are present, so utilities are a mixed cost. R² = 0.89 means hours explain 89% of the month-to-month variation.'
+      - tex: |
+          \begin{aligned}
+          \anchor{prime}{\text{Prime}} &= \text{DM} + \text{DL} = 136{,}000 + 200{,}000 = {=ct.prime|comma} \\
+          \anchor{conv}{\text{Conversion}} &= \text{DL} + \text{MOH} = 200{,}000 + 310{,}000 = {=ct.conversion|comma}
+          \end{aligned}
+        say: Direct labor sits in both totals; prime and conversion cost overlap, so never add them together.
+      - tex: |
+          \anchor{product}{\text{Product costs}} = {=ct.product|comma} \qquad \anchor{period}{\text{Period costs}} = {=ct.period|comma}
+        say: Using Reeder Company's year (later in the notes). The ₱209,000 of period costs is exactly the selling and administrative total on its income statement.
+    journal:
+      title: Two small schedules
+      blocks:
+        - { kind: schedule, title: 'Quiz 1A: predicted utilities cost', rows: '@ce.rows' }
+        - { kind: schedule, title: 'Reeder Company: cost totals (actual overhead)', rows: '@ct.rows' }
+    links:
+      - { anchor: fixed, label: Fixed part (intercept) }
+      - { anchor: var, label: Variable part (slope × hours) }
+      - { anchor: y, label: Predicted cost }
+      - { anchor: prime, label: Prime cost }
+      - { anchor: conv, label: Conversion cost }
+      - { anchor: product, label: Product costs }
+      - { anchor: period, label: Period costs }
+    trace: { fn: costEquation, in: { intercept: '@intercept', slope: '@slope', x: '@x' } }
+    examples: [quiz1a-predict]
+    tryIt: [classify-match, costeq-numeric, mixed-mcq, prime-conv-multi]
+    pitfalls:
+      - Calling a cost with an intercept and a slope "variable". A positive intercept and a positive slope make it mixed.
+      - Treating sales commissions or the president's salary as overhead. Overhead is a manufacturing cost only.
+    examTip: 'Write the equation first ($Y = 25{,}000 + 8.50X$), then substitute; graders give the equation its own points.'
+
+  - id: pohr-apply
+    title: The predetermined overhead rate and applying it
+    skills: [pohr-apply]
+    summary: |
+      Overhead can't be traced, and actual totals are known only after the year ends, so overhead is applied with a
+      [[predetermined-overhead-rate|predetermined overhead rate]] set from estimates before the period begins. The rate
+      times the job's actual activity is the [[applied-overhead|applied overhead]].
+    keyFormula: '\text{POHR} = \frac{\text{Estimated MOH}}{\text{Estimated activity}}, \quad \text{Applied} = \text{POHR} \times \text{actual activity}'
+    state: { budgetOH: 600000, budgetMH: 75000, dm: 5000, dl: 3000, mh: 500 }
+    derive:
+      - { fn: parkerJob, in: { budgetOH: '@budgetOH', budgetMH: '@budgetMH', job: { dm: '@dm', dl: '@dl', mh: '@mh' } }, out: pj }
+    steps:
+      - tex: |
+          \anchor{rate}{\text{POHR}} = \frac{\text{₱}{=budgetOH|comma}}{ {=budgetMH|comma}\ \text{MH} } = \text{₱}{=pj.rate|2f}\ \text{per MH}
+        say: 'Parker Company estimates its overhead and machine-hours for the coming year.'
+      - tex: |
+          \anchor{oh}{\text{Applied}} = {=mh|comma}\ \text{MH} \times \text{₱}{=pj.rate|2f} = \text{₱}{=pj.oh|comma}
+        say: The job is charged for the machine-hours it actually used, at the rate set in advance.
+      - tex: |
+          \anchor{total}{\text{Job cost}} = {=dm|comma} + {=dl|comma} + {=pj.oh|comma} = \text{₱}{=pj.total|comma}
+        say: Direct materials and direct labor are traced; overhead is applied.
+    journal:
+      title: Parker Company (slides 6–7)
+      blocks:
+        - { kind: schedule, title: The job, rows: '@pj.rows' }
+        - { kind: entries, title: Applying the overhead, entries: '@pj.entries' }
+    links:
+      - { anchor: rate, label: Predetermined rate }
+      - { anchor: oh, label: Overhead applied }
+      - { anchor: total, label: Total job cost }
+    trace: { fn: parkerJob, in: { budgetOH: '@budgetOH', budgetMH: '@budgetMH', job: { dm: '@dm', dl: '@dl', mh: '@mh' } } }
+    examples: [parker-rate-job]
+    tryIt: [pohr-numeric, why-estimate-mcq]
+    pitfalls:
+      - Using actual overhead in the rate. The rate is estimated total overhead over estimated total activity.
+      - Multiplying the rate by the estimated activity for one job. Apply it to the job's actual machine-hours.
+    examTip: 'State the base with the rate ("₱8 per machine-hour"); a rate without its base earns partial credit.'
+
+  - id: job-documents
+    title: From documents to the job cost sheet
+    skills: [pohr-apply]
+    summary: |
+      A sales order leads to a production order; costs then reach the [[job-cost-sheet|job cost sheet]] through
+      [[materials-requisition|materials requisition forms]] (direct materials), [[time-ticket|employee time tickets]]
+      (direct labor) and the predetermined rate (overhead). The sheet gives the job's total and unit cost.
+    keyFormula: '\text{Job cost} = \sum \text{requisitions} + \sum \text{time tickets} + \text{DLH} \times \text{POHR}'
+    data: [job2b47]
+    derive:
+      - { fn: jobSheet, in: { requisition: '@job2b47.requisition', reqs: '@job2b47.reqs', tickets: '@job2b47.tickets', rate: '@job2b47.rate', units: '@job2b47.units' }, out: js }
+      - { fn: timeTicket, in: { holden: '@job2b47.holden' }, out: tt }
+    live:
+      - id: job-documents-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Direct materials', value: '{=js.dm|money}' }
+            - { label: 'Direct labor ({=js.hours} hours)', value: '{=js.dl|money}' }
+            - { label: 'Overhead applied', value: '{=js.oh|money}' }
+            - { label: 'Unit cost (150 couplings)', value: '{=js.unit|money2}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{dm}{\text{DM}} = 660 + 506 + 238 = \text{₱}{=js.dm|comma}
+        say: 'Requisition 14873 alone is $150 \times 1.64 + 300 \times 1.38 = 660$.'
+      - tex: |
+          \anchor{dl}{\text{DL}} = 45 + 60 + 21 + 54 = \text{₱}{=js.dl|comma}\ \ ({=js.hours}\ \text{hours})
+        say: Four time tickets, 27 direct labor hours.
+      - tex: |
+          \anchor{oh}{\text{MOH}} = {=js.hours}\ \text{DLH} \times \text{₱}8 = \text{₱}{=js.oh|comma}
+        say: In the Milling Department overhead is applied at ₱8 per direct labor hour.
+      - tex: |
+          \begin{aligned}
+          \anchor{total}{\text{Total}} &= {=js.dm|comma} + {=js.dl|comma} + {=js.oh|comma} = \text{₱}{=js.total|comma} \\
+          \anchor{unit}{\text{Unit cost}} &= \frac{ {=js.total|comma} }{150} = \text{₱}{=js.unit|2f}
+          \end{aligned}
+        say: 'Job 2B47, 150 special-order couplings: ₱12.00 each.'
+    journal:
+      title: Job 2B47, Milling Department (slide 9)
+      blocks:
+        - { kind: schedule, title: Job cost sheet, rows: '@js.rows' }
+        - { kind: schedule, title: "Mary Holden's time ticket for the day", rows: '@tt.rows' }
+    links:
+      - { anchor: dm, label: Direct materials from requisitions }
+      - { anchor: dl, label: Direct labor from time tickets }
+      - { anchor: oh, label: Overhead applied }
+      - { anchor: total, label: Total job cost }
+      - { anchor: unit, label: Unit cost }
+    trace: { fn: jobSheet, in: { requisition: '@job2b47.requisition', reqs: '@job2b47.reqs', tickets: '@job2b47.tickets', rate: '@job2b47.rate', units: '@job2b47.units' } }
+    examples: [job-2b47, job-2b47-walk, holden-ticket]
+    tryIt: [docs-order, ticket-mcq]
+    pitfalls:
+      - Charging an hour of maintenance on a time ticket to a job. It is indirect labor, part of overhead.
+      - Applying overhead on the labor pesos when the rate is per direct labor hour.
+    examTip: Total the requisitions, then the tickets, then apply overhead on hours; label each subtotal.
+
+  - id: reeder-entries
+    title: A year of job-order entries
+    skills: [je-cycle]
+    summary: |
+      Reeder Company's year in eleven entries. Materials and labor go to [[work-in-process|Work in Process]] when direct
+      and to Manufacturing Overhead when indirect. Factory utilities, insurance and depreciation are debited to
+      Manufacturing Overhead; the selling and administrative parts are expenses. Overhead is then applied to WIP, finished
+      jobs move to [[finished-goods|Finished Goods]], and sold goods to [[cost-of-goods-sold|Cost of Goods Sold]].
+    keyFormula: '\text{Applied MOH} = \text{POHR} \times \text{actual DL cost} = 150\% \times 200{,}000'
+    data: [reeder]
+    derive:
+      - { fn: cycle, in: { d: '@reeder' }, out: cy }
+    live:
+      - id: reeder-entries-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Predetermined rate', value: '{=cy.rate|pct} of DL cost' }
+            - { label: 'Overhead applied', value: '{=cy.applied|money}' }
+            - { label: 'Actual overhead', value: '{=cy.actualOH|money}' }
+            - { label: 'Balance', value: '{=cy.amt|money} {=cy.kind}', tone: accent }
+    steps:
+      - tex: |
+          \begin{aligned}
+          &\anchor{a}{(a)\ \text{Dr RM}\ 150{,}000} \quad \anchor{b}{(b)\ \text{Dr WIP}\ 136{,}000,\ \text{MOH}\ 24{,}000} \\
+          &\anchor{c}{(c)\ \text{Dr WIP}\ 200{,}000,\ \text{MOH}\ 85{,}000,\ \text{Wage exp.}\ 90{,}000}
+          \end{aligned}
+        say: Direct costs go to WIP, indirect factory costs to Manufacturing Overhead, office salaries to an expense.
+      - tex: |
+          \begin{aligned}
+          &\anchor{d}{(d)\ \text{Dr MOH}\ 40{,}000} \\
+          &\anchor{e}{(e)\ \text{Dr MOH}\ 16{,}000,\ \text{Ins. exp.}\ 4{,}000} \\
+          &\anchor{f}{(f)\ \text{Dr Adv. exp.}\ 100{,}000} \\
+          &\anchor{g}{(g)\ \text{Dr MOH}\ 145{,}000,\ \text{Depr. exp.}\ 15{,}000}
+          \end{aligned}
+        say: Only the factory share of insurance and depreciation is overhead.
+      - tex: |
+          \begin{aligned}
+          \anchor{applied}{\text{POHR}} &= \frac{315{,}000}{210{,}000} = 150\% \\
+          &\anchor{h}{(h)\ \text{Dr WIP}\ 150\% \times 200{,}000 = 300{,}000}
+          \end{aligned}
+        say: The rate is set on estimated direct labor cost; it is applied to the actual ₱200,000.
+      - tex: |
+          \begin{aligned}
+          &\anchor{i}{(i)\ \text{Dr FG}\ 650{,}000} \quad \anchor{j}{(j)\ \text{Dr AR}\ 900{,}000} \\
+          &\anchor{k}{(k)\ \text{Dr COGS}\ 600{,}000}
+          \end{aligned}
+        say: Completion moves cost to Finished Goods; a sale records revenue and moves cost to COGS.
+    journal:
+      title: Reeder Company (slides 10–12)
+      blocks:
+        - { kind: schedule, title: 'Entry (h): the predetermined rate', rows: '@cy.rateRows' }
+        - { kind: entries, title: 'General journal, entries (a)–(k)', entries: '@cy.entries' }
+    links:
+      - { anchor: a, label: (a) Purchase of raw materials }
+      - { anchor: b, label: (b) Issue of materials }
+      - { anchor: c, label: (c) Labor costs }
+      - { anchor: d, label: (d) Factory utilities }
+      - { anchor: e, label: (e) Insurance expired }
+      - { anchor: f, label: (f) Advertising }
+      - { anchor: g, label: (g) Depreciation }
+      - { anchor: applied, label: The predetermined rate }
+      - { anchor: h, label: (h) Overhead applied }
+      - { anchor: i, label: (i) Jobs completed }
+      - { anchor: j, label: (j) Sales }
+      - { anchor: k, label: (k) Cost of goods sold }
+    trace: { fn: cycle, in: { d: '@reeder' } }
+    examples: [reeder-cycle]
+    tryIt: [entry-je-1, entry-je-2, account-match]
+    pitfalls:
+      - Debiting Manufacturing Overhead for advertising or office depreciation. Those are period expenses.
+      - Debiting WIP for actual overhead. WIP receives only applied overhead, in entry (h).
+    examTip: For each entry ask "factory or not?", then "direct or indirect?"; that decides the debit.
+
+  - id: reeder-taccounts
+    title: Posting to T-accounts and the ending balances
+    skills: [t-accounts]
+    summary: |
+      Posting (a)–(k) gives the ending balances. Work in Process is debited for direct materials, direct labor and
+      overhead applied and credited for the [[cost-of-goods-manufactured|cost of goods manufactured]]; Manufacturing
+      Overhead collects actual costs on the left and applied overhead on the right.
+    keyFormula: '\text{Ending} = \text{Beginning} + \text{Debits} - \text{Credits}'
+    data: [reeder]
+    derive:
+      - { fn: balances, in: { d: '@reeder' }, out: bl }
+    live:
+      - id: reeder-taccounts-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Raw Materials', value: '{=bl.rm|money}' }
+            - { label: 'Work in Process', value: '{=bl.wip|money}' }
+            - { label: 'Finished Goods', value: '{=bl.fg|money}' }
+            - { label: 'Manufacturing Overhead (debit)', value: '{=bl.moh|money}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{rm}{\text{RM}} = 20{,}000 + 150{,}000 - 160{,}000 = {=bl.rm|comma}
+        say: Raw Materials is credited for direct and indirect materials alike.
+      - tex: |
+          \begin{aligned}
+          \anchor{wip}{\text{WIP}} &= 74{,}000 + 136{,}000 + 200{,}000 \\
+          &\quad + 300{,}000 - 650{,}000 = {=bl.wip|comma}
+          \end{aligned}
+        say: Three debits (DM, DL, applied overhead) and one credit (goods completed).
+      - tex: |
+          \anchor{moh}{\text{MOH}} = \underbrace{310{,}000}_{\text{actual}} - \underbrace{300{,}000}_{\text{applied}} = {=bl.moh|comma}\ \text{debit}
+        say: A debit balance left in Manufacturing Overhead means overhead was underapplied.
+      - tex: |
+          \begin{aligned}
+          \anchor{fg}{\text{FG}} &= 40{,}000 + 650{,}000 - 600{,}000 = {=bl.fg|comma} \\
+          \anchor{cogs}{\text{COGS}} &= {=bl.cogs|comma}
+          \end{aligned}
+        say: Cost of Goods Sold is still unadjusted for the overhead balance.
+    journal:
+      title: Reeder Company T-accounts (slide 13)
+      blocks:
+        - { kind: taccounts, title: Manufacturing accounts after (a)–(k), accounts: '@bl.accounts' }
+    links:
+      - { anchor: rm, label: Raw Materials }
+      - { anchor: wip, label: Work in Process }
+      - { anchor: moh, label: Manufacturing Overhead }
+      - { anchor: fg, label: Finished Goods }
+      - { anchor: cogs, label: Cost of Goods Sold }
+    trace: { fn: balances, in: { d: '@reeder' } }
+    examples: [reeder-balances, reeder-ledger-walk]
+    tryIt: [wip-numeric, wip-multi]
+    pitfalls:
+      - Forgetting the opening balances. The notes assume RM 20,000, WIP 74,000 and FG 40,000.
+      - Crediting Raw Materials only for direct materials; indirect materials leave the storeroom too.
+    examTip: Post entry by entry with its letter beside each amount; it makes errors easy to trace.
+
+  - id: over-under
+    title: Under- and overapplied overhead and its disposition
+    skills: [over-under]
+    summary: |
+      Because the rate is an estimate, applied overhead rarely equals actual. Actual above applied is
+      [[underapplied-overhead|underapplied]] (a debit balance); applied above actual is
+      [[overapplied-overhead|overapplied]] (a credit balance). Close the balance to Cost of Goods Sold, or use
+      [[allocation-method|allocation]] across WIP, Finished Goods and COGS in proportion to their ending balances.
+    keyFormula: '\text{Actual} - \text{Applied} = \begin{cases} > 0 & \text{underapplied} \\ < 0 & \text{overapplied} \end{cases}'
+    data: [reeder]
+    state: { method: close }
+    derive:
+      - { fn: dispose, in: { d: '@reeder', method: '@method' }, out: dp }
+    live:
+      - id: method-pick
+        widget: Choice
+        props:
+          label: Dispose of the balance by
+          options:
+            - { value: close, label: Closing it to COGS }
+            - { value: allocate, label: Allocating it }
+        bind: { value: method }
+    steps:
+      - tex: |
+          \anchor{diff}{\text{Underapplied}} = \underbrace{310{,}000}_{\text{actual}} - \underbrace{150\% \times 200{,}000}_{\text{applied}} = \text{₱}{=dp.amt|comma}
+        say: Actual overhead exceeded applied, so ₱10,000 of overhead never reached the jobs.
+      - tex: |
+          \anchor{alloc}{\text{Shares}}: \frac{60{,}000}{750{,}000} = 8\%,\ \frac{90{,}000}{750{,}000} = 12\%,\ \frac{600{,}000}{750{,}000} = 80\%
+        say: Allocation spreads it over the accounts where the year's applied overhead now sits.
+      - tex: |
+          \anchor{dispose}{\text{COGS after}} = 600{,}000 + {=dp.cogsAdj|comma} = \text{₱}{=dp.adjustedCogs|comma}
+        say: 'Closing puts the whole ₱10,000 in COGS (610,000); allocating puts only 80% there (608,000).'
+    journal:
+      title: Reeder Company (slides 14 and 16)
+      blocks:
+        - { kind: schedule, title: Actual vs applied, rows: '@dp.rows' }
+        - { kind: schedule, title: If allocated, columns: [Ending balance, Share of balance], rows: '@dp.allocRows' }
+        - { kind: entries, title: Year-end entry, entries: '@dp.entries' }
+    links:
+      - { anchor: diff, label: Under- or overapplied amount }
+      - { anchor: alloc, label: Allocation shares }
+      - { anchor: dispose, label: The disposition entry }
+    trace: { fn: dispose, in: { d: '@reeder', method: '@method' } }
+    examples: [reeder-close, reeder-allocate]
+    tryIt: [moh-handcalc, close-je, allocate-je, dispose-numeric]
+    pitfalls:
+      - Getting the direction wrong. Underapplied overhead increases COGS; overapplied decreases it.
+      - Allocating on overhead applied when the notes allocate on ending account balances (8/12/80%).
+    examTip: Underapplied means the debit side won; the entry credits Manufacturing Overhead to zero it out.
+
+  - id: income-statement
+    title: The income statement
+    skills: [income-stmt]
+    summary: |
+      Sales less adjusted Cost of Goods Sold is [[gross-margin|gross margin]]. Selling and administrative expenses
+      (wages, insurance, advertising, depreciation) are period costs and are subtracted in full to reach net income.
+    keyFormula: '\text{NI} = \text{Sales} - \text{COGS}_{\text{adj}} - \text{S\&A expenses}'
+    data: [reeder]
+    state: { method: close }
+    derive:
+      - { fn: income, in: { d: '@reeder', method: '@method' }, out: is }
+    live:
+      - id: income-statement-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Cost of Goods Sold (adjusted)', value: '{=is.cogs|money}' }
+            - { label: 'Gross margin', value: '{=is.gm|money}' }
+            - { label: 'Selling and administrative', value: '{=is.totalSA|money}' }
+            - { label: 'Net income', value: '{=is.ni|money}', tone: good }
+    steps:
+      - tex: |
+          \anchor{sales}{\text{Sales}} - \anchor{cogs}{\text{COGS}} = 900{,}000 - {=is.cogs|comma} = \anchor{gm}{ {=is.gm|comma} }
+        say: COGS includes the closed-out ₱10,000 of underapplied overhead.
+      - tex: |
+          \anchor{sa}{\text{S\&A}} = 90{,}000 + 4{,}000 + 100{,}000 + 15{,}000 = {=is.totalSA|comma}
+        say: The period costs from entries (c), (e), (f) and (g).
+      - tex: |
+          \anchor{ni}{\text{Net income}} = {=is.gm|comma} - {=is.totalSA|comma} = \text{₱}{=is.ni|comma}
+        say: Reeder Company earned ₱81,000.
+    journal:
+      title: Reeder Company income statement (slide 15)
+      blocks:
+        - { kind: schedule, title: 'Reeder Company, Income Statement for the year', rows: '@is.rows' }
+    links:
+      - { anchor: sales, label: Sales }
+      - { anchor: cogs, label: Adjusted cost of goods sold }
+      - { anchor: gm, label: Gross margin }
+      - { anchor: sa, label: Selling and administrative expenses }
+      - { anchor: ni, label: Net income }
+    trace: { fn: income, in: { d: '@reeder', method: '@method' } }
+    examples: [reeder-income, reeder-income-walk]
+    tryIt: [income-fill, ni-numeric, period-mcq]
+    pitfalls:
+      - Using the unadjusted ₱600,000 of COGS. Close the overhead balance first.
+      - Putting factory depreciation in the S&A section. It went into overhead and reaches the income statement through COGS.
+    examTip: Two sections, two subtotals (gross margin, total S&A); the second subtotal is right-aligned in the notes.
+
+  - id: eu-halsey
+    title: Equivalent units, weighted-average and FIFO
+    skills: [eu-methods]
+    summary: |
+      [[equivalent-units|Equivalent units]] convert partly finished units into whole ones. The
+      [[weighted-average-method|weighted-average method]] counts all units transferred out at 100%, whenever the work
+      was done. The [[fifo-method|FIFO method]] counts only this period's work: finishing beginning inventory, plus
+      [[started-and-completed|units started and completed]], plus ending inventory.
+    keyFormula: '\text{EU}_{\text{FIFO}} = \text{Beg.} \times (100\% - \%) + \text{Started and completed} + \text{End.} \times \%'
+    data: [halsey]
+    state: { method: wa }
+    derive:
+      - { fn: equivUnits, in: { beg: '@halsey.beg', completed: '@halsey.completed', end: '@halsey.end', method: '@method' }, out: eq }
+    live:
+      - id: eu-method
+        widget: Choice
+        props:
+          label: Method
+          options:
+            - { value: wa, label: Weighted-average }
+            - { value: fifo, label: FIFO }
+        bind: { value: method }
+    steps:
+      - tex: |
+          \anchor{eu}{\text{EU}_{\text{WA}}} = \anchor{out}{175{,}000} + \anchor{endw}{20{,}000 \times 30\%} = 181{,}000\ \text{(conversion)}
+        say: Weighted-average treats the 15,000 beginning units as if started and completed this period.
+      - tex: |
+          \begin{aligned}
+          \anchor{eu}{\text{EU}_{\text{FIFO}}} &= \anchor{out}{\underbrace{15{,}000 \times 20\%}_{3{,}000} + \underbrace{175{,}000 - 15{,}000}_{160{,}000}} \\
+          &\quad + \anchor{endw}{\underbrace{20{,}000 \times 30\%}_{6{,}000}} = 169{,}000
+          \end{aligned}
+        say: FIFO counts only the 20% of beginning inventory still to do.
+      - tex: |
+          \anchor{eu}{\text{Selected}}: \text{materials } {=eq.euMat|comma},\ \text{conversion } {=eq.euConv|comma}
+        say: 'The difference, 181,000 − 169,000 = 12,000, is the 80% of beginning inventory converted last period.'
+    journal:
+      title: Halsey Company, first department (slides 20–22)
+      blocks:
+        - { kind: schedule, title: Equivalent units, columns: [Materials, Conversion], rows: '@eq.rows' }
+    links:
+      - { anchor: out, label: 'Units transferred out (WA) or finished this period (FIFO)' }
+      - { anchor: endw, label: Ending inventory at its percent complete }
+      - { anchor: eu, label: Equivalent units }
+    trace: { fn: equivUnits, in: { beg: '@halsey.beg', completed: '@halsey.completed', end: '@halsey.end', method: '@method' } }
+    examples: [halsey-wa, halsey-fifo]
+    tryIt: [eu-wa-numeric, eu-fifo-numeric, eu-handcalc, eu-diff-mcq]
+    pitfalls:
+      - Using beginning inventory's 80% under FIFO. FIFO needs the work still to do, 100% − 80% = 20%.
+      - Forgetting that FIFO EU = WA EU − beginning units × percent done last period.
+    examTip: Do weighted-average first, then subtract beginning inventory's prior work to check your FIFO figure.
+
+  - id: production-report
+    title: The three-part production report
+    skills: [production-report]
+    summary: |
+      The [[production-report|production report]] summarizes a department's WIP account in three parts: the
+      [[quantity-schedule|quantity schedule]] with equivalent units, the unit costs, and the
+      [[cost-reconciliation|cost reconciliation]]. Weighted-average adds beginning inventory cost to the period's costs;
+      FIFO divides only the period's costs and transfers beginning inventory out as a separate layer.
+    keyFormula: '\text{Unit cost}_c = \frac{\text{Cost}_c}{\text{EU}_c}, \quad \text{Transferred} + \text{Ending WIP} = \text{Total cost}'
+    data: [prodreport]
+    state: { method: wa }
+    derive:
+      - { fn: productionReport, in: { beg: '@prodreport.beg', started: '@prodreport.started', completed: '@prodreport.completed', end: '@prodreport.end', added: '@prodreport.added', method: '@method' }, out: pr }
+    live:
+      - id: pr-method
+        widget: Choice
+        props:
+          label: Method
+          options:
+            - { value: wa, label: Weighted-average }
+            - { value: fifo, label: FIFO }
+        bind: { value: method }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{qty}{10{,}000 + 190{,}000} &= 180{,}000 + 20{,}000 \\
+          \anchor{eu}{\text{EU}} &= {=pr.euMat|comma}\ \text{and}\ {=pr.euConv|comma}
+          \end{aligned}
+        say: 'Part 1: 200,000 units to account for; equivalent units under {=pr.method}.'
+      - tex: |
+          \anchor{unit}{\text{Unit cost}} = \text{₱}{=pr.unitMat|3} + \text{₱}{=pr.unitConv|3} = \text{₱}{=pr.unitTotal|3}
+        say: 'Part 2: weighted-average divides 3,520 + 74,480 = 78,000 and 7,208 + 148,192 = 155,400; FIFO divides only 74,480 and 148,192.'
+      - tex: |
+          \anchor{recon}{ {=pr.transferred|comma} + {=pr.endWip|comma} } = {=pr.total|comma}
+        say: 'Part 3: the costs to account for, ₱233,400, are the same under both methods; only the split changes.'
+    journal:
+      title: Production report (slides 24–25)
+      blocks:
+        - { kind: schedule, title: '1. Quantity schedule and equivalent units', columns: [Units, Materials, Conversion], rows: '@pr.qRows' }
+        - { kind: schedule, title: '2. Unit costs', columns: [Total, Materials, Conversion], rows: '@pr.unitRows' }
+        - { kind: schedule, title: '3. Cost reconciliation', rows: '@pr.reconRows' }
+    links:
+      - { anchor: qty, label: Units to account for }
+      - { anchor: eu, label: Equivalent units }
+      - { anchor: unit, label: Unit costs }
+      - { anchor: recon, label: Cost reconciliation }
+    trace: { fn: productionReport, in: { beg: '@prodreport.beg', started: '@prodreport.started', completed: '@prodreport.completed', end: '@prodreport.end', added: '@prodreport.added', method: '@method' } }
+    examples: [report-wa, report-fifo, report-fifo-walk]
+    tryIt: [unit-cost-numeric, recon-fill, fifo-transfer-numeric, report-order, wa-fifo-match]
+    pitfalls:
+      - Including beginning inventory cost in FIFO unit costs. FIFO adds it to the transferred-out layer instead.
+      - Costing all 180,000 transferred units at FIFO's current unit cost. The first 10,000 carry last period's ₱10,728.
+    examTip: Ending inventory gets the same treatment under both methods; check it first, it is the easiest part.
+
+  - id: jit-time
+    title: JIT and manufacturing time
+    skills: [jit]
+    summary: |
+      [[just-in-time|Just-in-time]] production keeps inventories near zero with a [[pull-system|pull system]], signalled
+      by [[kanban]]. Much of JIT shortens [[manufacturing-time|manufacturing time]]: only processing adds value, and
+      inspection, move and wait time are [[non-value-added|non-value-added]].
+    keyFormula: '\text{Manufacturing time} = \text{Processing} + \text{Inspection} + \text{Move} + \text{Wait}'
+    state: { process: 2, inspect: 0.5, move: 1, wait: 4.5 }
+    derive:
+      - { fn: mfgTime, in: { process: '@process', inspect: '@inspect', move: '@move', wait: '@wait' }, out: mt }
+    steps:
+      - tex: |
+          \anchor{total}{\text{Manufacturing time}} = \anchor{va}{ {=process} } + \anchor{nva}{ {=inspect} + {=move} + {=wait} } = {=mt.total}\ \text{hours}
+        say: The four elements on slide 28; these hours are illustrative.
+      - tex: |
+          \anchor{va}{\text{Value-added share}} = \frac{ {=process} }{ {=mt.total} } = {=mt.vaShare|pct1}
+        say: Faster setups cut wait time, a better layout cuts move time, and fewer defects cut inspection time.
+    journal:
+      title: One batch, in hours (illustrative)
+      blocks:
+        - { kind: schedule, title: Manufacturing time, rows: '@mt.rows' }
+    links:
+      - { anchor: va, label: Processing (value-added) }
+      - { anchor: nva, label: 'Inspection, move and wait (non-value-added)' }
+      - { anchor: total, label: Manufacturing time }
+    trace: { fn: mfgTime, in: { process: '@process', inspect: '@inspect', move: '@move', wait: '@wait' } }
+    tryIt: [jit-multi, mfg-time-numeric, kanban-mcq, pushpull-mcq]
+    pitfalls:
+      - Counting inspection as value-added because it protects quality. The notes classify it as non-value-added; JIT removes the need through TQC.
+      - Calling kanban and JIT the same thing. Kanban is the tool; JIT is the strategy.
+    examTip: 'Name the lever for each element: setups → wait, layout → move, defects → inspection.'
+
+  - id: abc-sarver
+    title: Activity-based costing, a first look
+    skills: [abc-intro]
+    summary: |
+      [[activity-based-costing|Activity-based costing]] replaces one plantwide rate with a pool per activity. Each
+      [[cost-driver|cost driver]] gets an [[activity-rate|activity rate]], and a product is charged for the activities it
+      actually uses. Low-volume, complex products usually pick up overhead that a labor-hour rate had given to
+      high-volume ones.
+    keyFormula: '\text{Activity rate} = \frac{\text{Activity cost}}{\text{Total driver}}, \quad \text{OH per unit} = \frac{\sum \text{rate} \times \text{driver used}}{\text{units}}'
+    data: [sarver]
+    derive:
+      - { fn: sarver, in: { totalOH: '@sarver.totalOH', totalDLH: '@sarver.totalDLH', products: '@sarver.products', activities: '@sarver.activities' }, out: sv }
+    live:
+      - id: abc-sarver-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Old rate per DLH', value: '{=sv.tradRate|money}' }
+            - { label: 'Product A, ABC unit cost', value: '{=sv.abcCostA|money2}', tone: accent }
+            - { label: 'Product B, ABC unit cost', value: '{=sv.abcCostB|money2}', tone: accent }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{trad}{\text{Old rate}} &= \frac{900{,}000}{50{,}000\ \text{DLH}} = \text{₱}18 \\
+          &\Rightarrow \text{A}: 2.5 \times 18 = 45,\ \text{B}: 2 \times 18 = 36
+          \end{aligned}
+        say: Sarver Company's old system spreads all overhead on direct labor hours.
+      - tex: |
+          \begin{aligned}
+          \anchor{rate}{\text{Setups}} &= \frac{255{,}000}{5{,}000} = 51, \quad \text{Orders} = \frac{81{,}000}{600} = 135 \\
+          \text{Receipts} &= \frac{90{,}000}{750} = 120
+          \end{aligned}
+        say: Five activity rates, each on its own driver.
+      - tex: |
+          \anchor{assign}{\text{A}} = \frac{ {=sv.ohTotalA|comma} }{4{,}000} = {=sv.abcOHA|2f}, \quad \text{B} = \frac{ {=sv.ohTotalB|comma} }{20{,}000} = {=sv.abcOHB|2f}
+        say: Product A, with a fifth of B's volume, uses most of the setups and inspections.
+      - tex: |
+          \anchor{cost}{\text{Unit cost}}: \text{A } 98.50 \to {=sv.abcCostA|2f}, \quad \text{B } 80.00 \to {=sv.abcCostB|2f}
+        say: The low-volume product was undercosted by over ₱53 a unit.
+    journal:
+      title: Sarver Company (slides 31–32)
+      blocks:
+        - { kind: schedule, title: Activity rates, rows: '@sv.rateRows' }
+        - { kind: schedule, title: Overhead assigned, columns: [Product A, Product B], rows: '@sv.prodRows' }
+        - { kind: schedule, title: 'Unit cost, old system vs ABC', columns: [Product A, Product B], rows: '@sv.costRows' }
+    links:
+      - { anchor: trad, label: Old labor-hour rate }
+      - { anchor: rate, label: Activity rates }
+      - { anchor: assign, label: Overhead per unit under ABC }
+      - { anchor: cost, label: Unit cost compared }
+    trace: { fn: sarver, in: { totalOH: '@sarver.totalOH', totalDLH: '@sarver.totalDLH', products: '@sarver.products', activities: '@sarver.activities' } }
+    examples: [sarver-abc, sarver-sheet-rate]
+    tryIt: [abc-numeric, abc-rate-numeric, abc-mcq]
+    pitfalls:
+      - Dividing a product's activity cost by total units of both products. Divide by that product's own units.
+      - Assuming ABC changes total overhead. The ₱900,000 is the same; only its split changes.
+    examTip: Check that both products' ABC overhead adds back to the total pool (392,200 + 507,800 = 900,000).

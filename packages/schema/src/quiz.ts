@@ -4,7 +4,8 @@
  */
 import { createRng, hashSeed, approx } from '@kodigo/sdk';
 import type { Template, Term, StageWidget, LessonRef, GeneratorOutput, NumericAnswer, Value } from './schemas';
-import { getPath, type Scope } from './interpolate';
+import { getPath, resolveRefs, type Scope } from './interpolate';
+import { amountOf, entryTotals, normAccount, type ExpectedEntry } from './journal';
 
 export interface NumericSpec {
   value: number;
@@ -28,6 +29,8 @@ export interface QuizInstance {
   prompt: string;
   explanation: string;
   show?: StageWidget[];
+  /** progressive hints (practice only) */
+  hints?: string[];
   // mcq / multi
   options?: string[];
   answer?: number | number[];
@@ -47,8 +50,26 @@ export interface QuizInstance {
   startOrder?: number[];
   // hand-calc
   steps?: { prompt: string; numeric: NumericSpec; misconceptions: ResolvedMisconception[]; hint?: string }[];
+  // journal-entry
+  accounts?: string[];
+  entries?: ExpectedEntry[];
+  // schedule-fill
+  schedule?: { columns?: string[]; rows: QuizScheduleCellRow[] };
+  /** money / amount tolerance for journal-entry and schedule-fill */
+  amountTol?: { tol: number; relTol: number };
   /** problems found while building (unresolved vars …) */
   problems: string[];
+}
+
+export interface QuizScheduleCellRow {
+  label: string;
+  indent?: number;
+  style?: 'line' | 'heading' | 'subtotal' | 'total';
+  format?: 'money' | 'number' | 'pct' | 'ratio' | 'units';
+  /** one entry per column (a single-column schedule has one) */
+  cells: (number | string | null)[];
+  blank: boolean;
+  tol?: number;
 }
 
 export interface BuildContext {
@@ -103,6 +124,7 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
     prompt: t.prompt,
     explanation: t.explanation,
     show: t.show,
+    hints: t.hints,
     problems,
   };
   switch (t.type) {
@@ -157,6 +179,53 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
         hint: s.hint,
       }));
       break;
+    case 'journal-entry': {
+      const accounts = resolveRefs(t.accounts, scope) as unknown;
+      const entries = resolveRefs(t.entries, scope) as any;
+      if (!Array.isArray(accounts) || !accounts.every((a) => typeof a === 'string')) problems.push('accounts must resolve to a list of account names');
+      if (!Array.isArray(entries) || !entries.length) { problems.push('entries must resolve to a non-empty list'); break; }
+      const list = (Array.isArray(accounts) ? accounts : []) as string[];
+      const known = new Set(list.map(normAccount));
+      inst.entries = entries.map((e: any, k: number) => {
+        const lines = (e?.lines ?? []).map((l: any) => ({ account: String(l?.account ?? ''), debit: l?.debit === undefined ? null : amountOf(l.debit), credit: l?.credit === undefined ? null : amountOf(l.credit) }));
+        lines.forEach((l: any, i: number) => {
+          const v = l.debit ?? l.credit;
+          if (v === null || !Number.isFinite(v)) problems.push(`entry ${k + 1} line ${i + 1}: amount is not a number`);
+          if (!known.has(normAccount(l.account))) problems.push(`entry ${k + 1}: account "${l.account}" is not in accounts`);
+        });
+        if (lines.length < 2) problems.push(`entry ${k + 1}: needs at least two lines`);
+        const tot = entryTotals({ lines });
+        if (Math.abs(tot.debit - tot.credit) > 0.005) problems.push(`entry ${k + 1} does not balance (debits ${tot.debit}, credits ${tot.credit})`);
+        return { date: e?.date, prompt: e?.prompt, lines };
+      });
+      if (new Set(list.map(normAccount)).size !== list.length) problems.push('accounts list has duplicates');
+      inst.accounts = list;
+      inst.amountTol = { tol: t.tol ?? 0.01, relTol: t.relTol ?? 0.0005 };
+      break;
+    }
+    case 'schedule-fill': {
+      const rows = resolveRefs(t.rows, scope) as any;
+      if (!Array.isArray(rows) || rows.length < 2) { problems.push('rows must resolve to a list of at least two rows'); break; }
+      const nCols = Math.max(1, t.columns?.length ?? 1);
+      let blanks = 0;
+      inst.schedule = {
+        columns: t.columns,
+        rows: rows.map((r: any, i: number) => {
+          const cells = (r?.amounts ?? (r?.amount === undefined ? [] : [r.amount])) as any[];
+          const blank = !!r?.blank;
+          if (blank) {
+            blanks += cells.length;
+            if (!cells.length) problems.push(`row ${i + 1} is blank but has no amount to check`);
+            cells.forEach((c, j) => { if (typeof c !== 'number' || !Number.isFinite(c)) problems.push(`row ${i + 1} cell ${j + 1}: a blank's answer must be a number (got ${JSON.stringify(c)})`); });
+          }
+          if (cells.length && cells.length !== nCols && !(nCols === 1 && cells.length === 1)) problems.push(`row ${i + 1} has ${cells.length} amounts for ${nCols} column(s)`);
+          return { label: String(r?.label ?? ''), indent: r?.indent, style: r?.style, format: r?.format, cells: cells.map((c) => (c === undefined ? null : c)), blank, tol: r?.tol };
+        }),
+      };
+      if (!blanks) problems.push('schedule-fill needs at least one row with blank: true');
+      inst.amountTol = { tol: t.tol ?? 0.01, relTol: t.relTol ?? 0.0005 };
+      break;
+    }
   }
   return inst;
 }
@@ -218,6 +287,10 @@ export function buildGlossaryInstance(moduleId: string, terms: Term[], templateI
 export function parseNumber(raw: string, accept: NumericSpec['accept'] = ['decimal', 'fraction']): number | null {
   if (raw === undefined || raw === null) return null;
   let s = String(raw).trim().replace(/^=\s*/, '').replace(/[−–]/g, '-').replace(/,/g, '');
+  // accounting style: currency symbols and (1,200) for negatives
+  s = s.replace(/^(-?)\s*(?:₱|PHP|Php|P(?=\s*\d)|\$|€|£)\s*/, '$1');
+  const paren = /^\((.+)\)$/.exec(s);
+  if (paren) s = `-${paren[1].trim().replace(/^(?:₱|PHP|Php|P(?=\s*\d)|\$|€|£)\s*/, '')}`;
   if (!s) return null;
   if (s.endsWith('%')) {
     if (!accept.includes('percent')) return null;

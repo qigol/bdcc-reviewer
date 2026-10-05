@@ -1,0 +1,394 @@
+sections:
+  - id: abc-to-abm
+    title: From ABC to ABM
+    skills: [abc-to-abm]
+    summary: |
+      ABC is a costing technique: it says what an activity costs. [[activity-based-management|Activity-based management]]
+      is a management philosophy: it asks whether the activity should exist and how to do it better. ABC diagnoses; ABM
+      treats, in a [[kaizen]] cycle of measuring, finding waste, diagnosing its cause, acting and measuring again.
+    keyFormula: '\text{ABC (what does it cost?)} \rightarrow \text{ABM (should we still do it, and how better?)}'
+    steps:
+      - tex: |
+          \anchor{cost}{\text{ABC}}: \text{backward-looking, measures what happened}
+        say: Session 7 gave accurate costs, such as Job 107's ₱37,750.
+      - tex: |
+          \anchor{manage}{\text{ABM}}: \text{forward-looking, changes what happens next}
+        say: 'Example 1: an undercosted Custom Bracket captures no value until someone reprices it, fixes its setups or drops it.'
+      - tex: |
+          \begin{aligned}
+          \anchor{cycle}{\text{Kaizen}}&: \text{measure} \rightarrow \text{identify waste} \rightarrow \text{diagnose} \\
+          &\rightarrow \text{act} \rightarrow \text{re-measure}
+          \end{aligned}
+        say: Each cycle should show some improvement in cost, cycle time or quality.
+    journal:
+      title: Two sides of one coin (slides 9–11, 19–21)
+      blocks:
+        - kind: schedule
+          title: ABC vs ABM
+          columns: [Activity-based costing, Activity-based management]
+          rows:
+            - { id: what, label: What it is, amounts: [A costing technique, A management philosophy], anchor: cost }
+            - { id: question, label: The question it answers, amounts: ['What does this cost?', 'Should we still do this, and how better?'], anchor: manage }
+            - { id: time, label: Orientation, amounts: [Backward-looking, Forward-looking], anchor: manage }
+            - { id: tools, label: Tools, amounts: ['Activity pools, drivers, rates', 'PVA, driver analysis, customer and supplier costing, MCE'], anchor: cycle }
+    links:
+      - { anchor: cost, label: ABC measures }
+      - { anchor: manage, label: ABM acts }
+      - { anchor: cycle, label: The continuous-improvement cycle }
+    tryIt: [abm-mcq, toolkit-match, kt-order]
+    pitfalls:
+      - Thinking an accurate ABC report is the end of the job. No value is captured until management acts on it.
+    examTip: '"ABC diagnoses, ABM treats" is the one-line answer to any ABC-vs-ABM question.'
+
+  - id: pva
+    title: Process-value analysis
+    skills: [pva]
+    summary: |
+      [[process-value-analysis|Process-value analysis]] tests every activity against one question: would the customer
+      pay for this if they could see it? [[value-added-activity|Value-added activities]] transform the product;
+      [[non-value-added-activity|non-value-added activities]] (moving, waiting, inspecting, storing) add cost only, and are
+      eliminated, reduced, done the cheapest way (select) or spread over more output (share).
+    keyFormula: '\text{NVA share} = \frac{\text{non-value-added activities}}{\text{all activities}}'
+    data: [cordillera]
+    derive:
+      - { fn: classify, in: { activities: '@cordillera.activities' }, out: cl }
+    live:
+      - id: pva-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Value-added activities', value: '{=cl.va}' }
+            - { label: 'Non-value-added activities', value: '{=cl.nva}' }
+            - { label: 'Eliminate first', value: '{=cl.eliminate}', tone: accent }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{va}{\text{Value-added}} &= {=cl.va}: \\
+          &\text{cutting, assembling, sanding and finishing}
+          \end{aligned}
+        say: These change what the customer receives.
+      - tex: |
+          \begin{aligned}
+          \anchor{nva}{\text{Non-value-added}} &= {=cl.nva}: \text{moving, waiting, inspecting} \\
+          &\Rightarrow {=cl.nvaShare|pct}\ \text{of the activities}
+          \end{aligned}
+        say: Inspection may be necessary, but a perfectly made chair would need none.
+    journal:
+      title: Cordillera Craft Furniture (slide 30)
+      blocks:
+        - { kind: schedule, title: Process-value analysis, columns: [Classification, Action], rows: '@cl.rows' }
+    links:
+      - { anchor: va, label: Value-added activities }
+      - { anchor: nva, label: Non-value-added activities }
+    trace: { fn: classify, in: { activities: '@cordillera.activities' } }
+    examples: [cordillera, luzon]
+    tryIt: [pva-match, action-match, necessary-mcq, nva-multi]
+    pitfalls:
+      - Calling an activity value-added because it is necessary. Inspection is necessary today and still non-value-added.
+    examTip: For each activity apply the customer test out loud; then say which of eliminate, reduce, select or share fits.
+
+  - id: setups
+    title: Driver analysis, why so many setups?
+    skills: [driver-analysis]
+    summary: |
+      [[driver-analysis|Driver analysis]] asks why an activity happens at all. Custom Bracket's 800 setups are a symptom;
+      the root cause may be small batches, slow changeovers or poor scheduling, each with a different fix.
+    keyFormula: '\text{Setup cost per unit} = \frac{\text{setups} \times \text{cost per setup}}{\text{units}} = \frac{\text{cost per setup}}{\text{batch size}}'
+    data: [brackets]
+    derive:
+      - { fn: setups, in: { products: '@brackets.products', costPerSetup: '@brackets.costPerSetup' }, out: st }
+    live:
+      - id: setups-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Setups, Custom vs Standard', value: '{=st.ratio}×' }
+            - { label: 'Setup cost per Custom Bracket', value: '{=st.perUnitA|money2}', tone: bad }
+            - { label: 'Setup cost per Standard Bracket', value: '{=st.perUnitB|money2}' }
+    steps:
+      - tex: |
+          \anchor{setups}{\frac{800}{100}} = {=st.ratio}\times\ \text{the setups on } \tfrac{1}{4} \text{ of the volume}
+        say: The slide calls it "four times more"; it is eight times as many setups.
+      - tex: |
+          \anchor{batch}{\text{Batch size}}: \frac{20{,}000}{800} = {=st.batchA|comma} \quad \text{vs} \quad \frac{80{,}000}{100} = {=st.batchB|comma}
+        say: Small batches are root cause 1.
+      - tex: |
+          \anchor{cost}{\text{Setup cost per unit}}: \text{₱}{=st.perUnitA|2f} \quad \text{vs} \quad \text{₱}{=st.perUnitB|2f}
+        say: 'Fixes: minimum order quantities or batching small orders, faster changeovers (SMED), smarter scheduling.'
+    journal:
+      title: Cavite Precision Parts (slides 36–37)
+      blocks:
+        - { kind: schedule, title: Setups by product, columns: [Custom Bracket, Standard Bracket], rows: '@st.rows' }
+    links:
+      - { anchor: setups, label: Setups }
+      - { anchor: batch, label: Batch size }
+      - { anchor: cost, label: Setup cost per unit }
+    trace: { fn: setups, in: { products: '@brackets.products', costPerSetup: '@brackets.costPerSetup' } }
+    examples: [brackets]
+    tryIt: [setup-numeric, whys-order, root-mcq]
+    pitfalls:
+      - Treating the number of setups as the cause. It is the symptom; ask why five times.
+    examTip: Name a root cause and its fix together; each cause implies a different action.
+
+  - id: root-cause
+    title: Root causes, fishbones and data
+    skills: [driver-analysis]
+    summary: |
+      The [[five-whys|five whys]] trace a symptom upstream; a [[fishbone-diagram|fishbone diagram]] sorts possible causes
+      into six categories; transaction data and regression test which candidate really explains the cost, watching for
+      correlated candidates (multicollinearity).
+    keyFormula: '\text{Unexplained increase} = \text{Cost}_{\text{now}} - \text{Cost}_{\text{before}} \times (1 + \text{volume growth})'
+    data: [batangas]
+    derive:
+      - { fn: costGrowth, in: { before: '@batangas.before', after: '@batangas.after', volumeGrowth: '@batangas.volumeGrowth' }, out: gr }
+    live:
+      - id: root-cause-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Explained by volume', value: '{=gr.expected|money}' }
+            - { label: 'Unexplained', value: '{=gr.unexplained|money}', tone: bad }
+    steps:
+      - tex: |
+          \anchor{expected}{\text{Volume alone}}: 300{,}000 \times 1.10 = {=gr.expected|comma}
+        say: Batangas Steel's volume grew 10%, and the inspection procedure didn't change.
+      - tex: |
+          \anchor{unexplained}{\text{Unexplained}} = 900{,}000 - {=gr.expected|comma} = \text{₱}{=gr.unexplained|comma}
+        say: 'Most likely a higher defect rate: more failed inspections, rework and re-inspection. Check materials (a new supplier), people (turnover) and equipment (age).'
+    journal:
+      title: Batangas Steel Fabrication (slide 72)
+      blocks:
+        - { kind: schedule, title: What volume explains, rows: '@gr.rows' }
+    links:
+      - { anchor: expected, label: Cost explained by volume }
+      - { anchor: unexplained, label: Cost needing a root cause }
+    trace: { fn: costGrowth, in: { before: '@batangas.before', after: '@batangas.after', volumeGrowth: '@batangas.volumeGrowth' } }
+    examples: [batangas]
+    tryIt: [growth-numeric, fishbone-match, collinear-mcq]
+    pitfalls:
+      - Stopping at the first plausible cause. Test candidates against the data (inspection results by month, supplier, crew).
+      - Regressing cost on correlated candidates. Small-batch customers may also order the most complex products, so their effects blur.
+    examTip: Quantify first (what volume explains), then list causes by fishbone category.
+
+  - id: customers
+    title: Customer profitability
+    skills: [customer-profit]
+    summary: |
+      [[customer-profitability|Customer profitability analysis]] assigns order, delivery and service costs to the
+      customers who cause them. Gross margin alone hides cost to serve, so the true ranking can change; the response is
+      to change the customer's ordering behavior before considering dropping it.
+    keyFormula: '\text{Operating profit} = \text{Gross margin} - (\text{orders} \times \text{₱}100 + \text{deliveries} \times \text{₱}200)'
+    data: [rizal]
+    state: { scenario: current }
+    derive:
+      - { fn: customers, in: { pools: '@rizal.pools', customers: '@rizal.customers', consolidated: '@rizal.consolidated', scenario: '@scenario' }, out: cu }
+    live:
+      - id: scenario-pick
+        widget: Choice
+        props:
+          label: Customer B orders
+          options:
+            - { value: current, label: 'As now (1,000 orders, 900 deliveries)' }
+            - { value: consolidated, label: 'Consolidated (250 orders, 300 deliveries)' }
+        bind: { value: scenario }
+    steps:
+      - tex: |
+          \anchor{assign}{\text{Cost to serve}}: \text{B} = 1{,}000 \times 100 + 900 \times 200 = 280{,}000
+        say: 'Rates: ₱200,000 ÷ 2,000 orders and ₱300,000 ÷ 1,500 deliveries.'
+      - tex: |
+          \anchor{profit}{\text{B}} = \anchor{gm}{140{,}000} - 280{,}000 = -\text{₱}140{,}000
+        say: 'By gross margin: A > B > C. By operating profit: A > C > B.'
+      - tex: |
+          \begin{aligned}
+          \anchor{profit}{\text{B, consolidated}} &= 140{,}000 - (250 \times 100 + 300 \times 200) \\
+          &= \text{₱}55{,}000
+          \end{aligned}
+        say: 'Example 10: same price, same product; only the ordering behavior changed. Now: {=cu.rankProfit}.'
+    journal:
+      title: Rizal Wholesale Distributors (slides 47–48, 73)
+      blocks:
+        - { kind: schedule, title: Customer profitability, columns: [Customer A, Customer B, Customer C], rows: '@cu.rows' }
+    links:
+      - { anchor: gm, label: Gross margin }
+      - { anchor: assign, label: Cost to serve }
+      - { anchor: profit, label: Operating profit }
+    trace: { fn: customers, in: { pools: '@rizal.pools', customers: '@rizal.customers', consolidated: '@rizal.consolidated', scenario: '@scenario' } }
+    examples: [rizal, rizal-consolidated]
+    tryIt: [consolidate-numeric, respond-order, tier-match, whale-mcq]
+    pitfalls:
+      - Firing the unprofitable customer first. Renegotiate terms, price by activity and change behavior before that.
+    examTip: Show both rankings side by side; the change in rank is the point of the analysis.
+
+  - id: tco
+    title: Supplier total cost of ownership
+    skills: [tco]
+    summary: |
+      [[total-cost-of-ownership|Total cost of ownership]] is the mirror image of customer profitability: a supplier's
+      price plus the receiving, inspection, rework, expediting and administrative costs it causes. A cheaper invoice can
+      hide a dearer supplier, which matters even more under [[jit-purchasing|JIT purchasing]].
+    keyFormula: '\text{TCO} = \text{price} \times \text{quantity} + \sum \text{driver} \times \text{activity rate}'
+    data: [suppliers]
+    derive:
+      - { fn: tco, in: { qty: '@suppliers.qty', suppliers: '@suppliers.suppliers', activities: '@suppliers.activities' }, out: tc }
+    live:
+      - id: tco-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Supplier A per unit', value: '{=tc.perUnit.A|money2}' }
+            - { label: 'Supplier B per unit', value: '{=tc.perUnit.B|money2}' }
+            - { label: 'Lower total cost', value: '{=tc.best}', tone: good }
+    steps:
+      - tex: |
+          \anchor{price}{\text{Invoice}}: 1{,}000 \times 95 = 95{,}000 \quad \text{vs} \quad 1{,}000 \times 100 = 100{,}000
+        say: Supplier A looks ₱5 a unit cheaper.
+      - tex: |
+          \begin{aligned}
+          \anchor{hidden}{\text{Hidden, A}} &= 5{,}000 + 8{,}000 + 6{,}000 + 6{,}000 + 6{,}000 \\
+          &= 31{,}000 \quad (\text{B}: 5{,}000)
+          \end{aligned}
+        say: More deliveries, full inspection, ten times the defects, rush orders and paperwork.
+      - tex: |
+          \anchor{tco}{\text{TCO}} = \text{₱}{=tc.total.A|comma}\ (\text{₱}{=tc.perUnit.A}) \quad \text{vs} \quad \text{₱}{=tc.total.B|comma}\ (\text{₱}{=tc.perUnit.B})
+        say: '₱5 cheaper on the invoice, ₱21 dearer per unit in reality.'
+    journal:
+      title: The iceberg (slides 55–56)
+      blocks:
+        - { kind: schedule, title: 'Total cost of ownership, 1,000 units', columns: [Supplier A, Supplier B], rows: '@tc.rows' }
+    links:
+      - { anchor: price, label: Purchase price }
+      - { anchor: hidden, label: Hidden activity costs }
+      - { anchor: tco, label: Total cost of ownership }
+    trace: { fn: tco, in: { qty: '@suppliers.qty', suppliers: '@suppliers.suppliers', activities: '@suppliers.activities' } }
+    examples: [tco-iceberg]
+    tryIt: [tco-numeric, tco-fill, mirror-mcq]
+    pitfalls:
+      - Comparing suppliers on price per unit. Compare total cost of ownership per unit.
+    examTip: Lay out one row per activity with rate × driver for each supplier; the hidden subtotal carries the argument.
+
+  - id: tco-defects
+    title: When a supplier's quality slips
+    skills: [tco]
+    summary: |
+      A supplier whose price never changes can still become more expensive. Zamboanga Seafood's packaging defects rose
+      from 1% to 4%; rework and rush shipments added nearly a million pesos of hidden cost.
+    keyFormula: '\text{TCO} = \text{units} \times \text{price} + \text{units} \times \text{defect rate} \times \text{rework cost} + \text{rush shipments} \times \text{cost}'
+    data: [zamboanga]
+    derive:
+      - { fn: tco, in: { qty: '@zamboanga.qty', suppliers: '@zamboanga.suppliers', activities: '@zamboanga.activities' }, out: zb }
+    live:
+      - id: tco-defects-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Last year', value: '{=zb.total.last|money}' }
+            - { label: 'This year', value: '{=zb.total.now|money}' }
+            - { label: 'Increase', value: '{=zb.diff|money}', tone: bad }
+    steps:
+      - tex: |
+          \anchor{price}{\text{Price}}: 18 \times 200{,}000 = 3{,}600{,}000\ \text{both years}
+        say: The sticker price did not move.
+      - tex: |
+          \begin{aligned}
+          \anchor{hidden}{\text{Hidden}} &= 200{,}000 \times 4\% \times 150 + 2 \times 40{,}000 \\
+          &= 1{,}280{,}000
+          \end{aligned}
+        say: 'Last year: $200{,}000 \times 1\% \times 150 = 300{,}000$, no rush shipments.'
+      - tex: |
+          \anchor{tco}{\text{TCO}}: 3{,}900{,}000 \rightarrow 4{,}880{,}000 \quad (+\text{₱}{=zb.diff|comma})
+        say: A 25% increase in total cost, invisible if only the ₱18 price is tracked.
+    journal:
+      title: Zamboanga Seafood Processing (slide 75)
+      blocks:
+        - { kind: schedule, title: Total cost of ownership, columns: ['Last year (1%)', 'This year (4%)'], rows: '@zb.rows' }
+    links:
+      - { anchor: price, label: Purchase price }
+      - { anchor: hidden, label: Rework and rush shipments }
+      - { anchor: tco, label: Total cost of ownership }
+    trace: { fn: tco, in: { qty: '@zamboanga.qty', suppliers: '@zamboanga.suppliers', activities: '@zamboanga.activities' } }
+    examples: [zamboanga]
+    tryIt: [defect-numeric]
+    pitfalls:
+      - Forgetting the rush shipments; they are part of the cost of poor quality too.
+    examTip: Use the defect cost in the negotiation, "your price is lower, but your defects cost us ₱980,000 a year."
+
+  - id: mce
+    title: Cycle time and manufacturing cycle efficiency
+    skills: [cycle-metrics]
+    summary: |
+      [[cycle-time|Cycle time]] is processing plus inspection, moving and waiting time.
+      [[manufacturing-cycle-efficiency|Manufacturing cycle efficiency]] is the processing share of it. Traditional plants
+      often run below 50%; JIT plants push toward 80–90%, mostly by cutting waiting with [[manufacturing-cell|cells]].
+    keyFormula: '\text{MCE} = \frac{\text{Processing time}}{\text{Process} + \text{Inspect} + \text{Move} + \text{Wait}}'
+    state: { process: 3.5, inspect: 1, move: 1, wait: 4.5 }
+    derive:
+      - { fn: cycle, in: { process: '@process', inspect: '@inspect', move: '@move', wait: '@wait' }, out: cy }
+    steps:
+      - tex: |
+          \anchor{cycle}{\text{Cycle time}} = \anchor{va}{ {=process} } + {=inspect} + {=move} + {=wait} = {=cy.total}\ \text{hours}
+        say: 'Marikina Shoe Manufacturing, one batch (Example 7).'
+      - tex: |
+          \anchor{mce}{\text{MCE}} = \frac{ {=process} }{ {=cy.total} } = {=cy.mce|pct1}
+        say: 'The largest waste is {=cy.biggest}. Cells cut waiting from 4.5 to 1.5 hours: 7.0 hours and 50% (Example 11).'
+    journal:
+      title: Marikina Shoe Manufacturing (slides 63 and 74)
+      blocks:
+        - { kind: schedule, title: 'One batch, in hours', rows: '@cy.rows' }
+    links:
+      - { anchor: va, label: Processing (value-added) }
+      - { anchor: cycle, label: Cycle time }
+      - { anchor: mce, label: MCE }
+    trace: { fn: cycle, in: { process: '@process', inspect: '@inspect', move: '@move', wait: '@wait' } }
+    examples: [marikina-mce, marikina-cells]
+    tryIt: [mce-numeric, mce-handcalc]
+    pitfalls:
+      - Counting inspection as value-added time in the numerator. Only processing counts.
+      - 'Calling a 30% shorter cycle "30% faster throughput". Velocity rises by 10 ÷ 7 − 1 = 43%.'
+    examTip: State MCE and its complement together, "35% adds value; 65% is waste, mostly waiting."
+
+  - id: velocity
+    title: Cycle time, MCE and velocity together
+    skills: [cycle-metrics]
+    summary: |
+      [[velocity|Velocity]] is units produced over cycle time. Cycle time is the denominator of both MCE and velocity,
+      so removing non-value-added time raises both at once; nobody has to work faster.
+    keyFormula: '\text{Velocity} = \frac{\text{Units}}{\text{Cycle time}}, \quad \text{MCE} = \frac{\text{Processing}}{\text{Cycle time}}'
+    data: [order100]
+    derive:
+      - { fn: cycleCompare, in: { before: '@order100.before', after: '@order100.after', units: '@order100.units', unit: day }, out: cc }
+    live:
+      - id: velocity-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Cycle time', value: '{=cc.before} → {=cc.after} days' }
+            - { label: 'MCE', value: '{=cc.mceBefore|pct} → {=cc.mceAfter|pct}' }
+            - { label: 'Velocity per day', value: '{=cc.velBefore} → {=cc.velAfter}', tone: good }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{cycle}{\text{Before}} &= 2 + 0.5 + 1 + 6.5 = 10\ \text{days} \\
+          \text{After} &= 2 + 0.3 + 0.2 + 1.5 = 4\ \text{days}
+          \end{aligned}
+        say: Smaller batches cut the queue; quality at source cut inspection; cells cut moves.
+      - tex: |
+          \anchor{mce}{\text{MCE}}: \frac{\anchor{va}{2}}{10} = 20\% \rightarrow \frac{2}{4} = 50\%
+        say: The same two days of real work.
+      - tex: |
+          \anchor{velocity}{\text{Velocity}}: \frac{100}{10} = 10 \rightarrow \frac{100}{4} = 25\ \text{units per day}
+        say: '{=cc.speedup}× faster output from removing waste alone.'
+    journal:
+      title: One 100-unit order (slides 67–68)
+      blocks:
+        - { kind: schedule, title: Before and after, columns: [Before, After], rows: '@cc.rows' }
+    links:
+      - { anchor: va, label: Processing (value-added) }
+      - { anchor: cycle, label: Cycle time }
+      - { anchor: mce, label: MCE }
+      - { anchor: velocity, label: Velocity }
+    trace: { fn: cycleCompare, in: { before: '@order100.before', after: '@order100.after', units: '@order100.units', unit: day } }
+    examples: [order-100]
+    tryIt: [velocity-numeric, metric-match]
+    pitfalls:
+      - Dividing units by processing time. Velocity divides by the whole cycle time.
+    examTip: If cycle time falls by x%, velocity rises by 1 ÷ (1 − x) − 1, not by x%.

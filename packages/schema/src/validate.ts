@@ -11,7 +11,9 @@ import {
   type Scene, type Section, type StageWidget, type Template, type Derive, type GeneratorOutput, type TraceStep,
 } from './schemas';
 import { WIDGET_BY_NAME, WIDGET_NAMES, COMMON_COMMANDS } from './widgets';
-import { collectInterps, collectRefs, isRef, resolveRefs, interpolate, getPath, wordCount, type Scope } from './interpolate';
+import { collectInterps, collectRefs, collectTermLinks, isRef, resolveRefs, interpolate, getPath, wordCount, type Scope } from './interpolate';
+import { journalAnchors, journalIsDynamic, journalProblems, resolveJournal, entryTotals, normAccount } from './journal';
+import { termHomes } from './guided';
 import { texAnchors, parseCodeAnchors } from './anchors';
 import { sectionLiveWidgets, liveRoleTarget, PANE_ROLES } from './live';
 import { parseExpr, varsOf } from './expr';
@@ -254,7 +256,7 @@ function checkText(text: unknown, scope: Set<string> | null, file: string, path:
   for (const { path: p, format } of collectInterps(text)) {
     const head = p.split('.')[0];
     if (!scope.has(head)) ctx.issues.push({ level: 'error', step: 'refs', file, path, message: `{=${p}} does not resolve: "${head}" is not a dataset, state key or derived value in this scope` });
-    if (format && !/^(\d|\df|frac|pct\d?|int|set|list|text)$/.test(format)) ctx.issues.push({ level: 'warning', step: 'refs', file, path, message: `Unknown format "|${format}" in {=${p}|${format}}` });
+    if (format && !/^(\d|\df|frac|pct\d?|int|set|list|text|comma\d?|money\d?)$/.test(format)) ctx.issues.push({ level: 'warning', step: 'refs', file, path, message: `Unknown format "|${format}" in {=${p}|${format}}` });
   }
 }
 
@@ -395,9 +397,19 @@ function checkScene(scene: Scene, i: number, ctx: Ctx) {
         ctx.issues.push({ level: 'error', step: 'refs', file, path: `${bp}.do[${k}].cmd`, message: `${w.widget} has no command "${c.cmd}" (has: ${[...Object.keys(meta.commands), ...Object.keys(COMMON_COMMANDS)].join(', ')})` });
       checkRefsIn(c.args, scope, file, `${bp}.do[${k}].args`, ctx);
     });
+    const termIds = new Set(ctx.mod.glossary.map((t) => t.id));
+    (b.define ?? []).forEach((t, k) => {
+      if (!termIds.has(t)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${bp}.define[${k}]`, message: `define: "${t}" is not a glossary term id` });
+    });
     const g = b.gate;
     if (!g) return;
-    if (g.type === 'predict') {
+    if (g.type === 'practice') {
+      checkText(g.prompt, scope, file, `${bp}.gate.prompt`, ctx);
+      if (!ctx.mod.quiz.some((t) => t.id === g.template)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${bp}.gate.template`, message: `practice gate: unknown quiz template "${g.template}"` });
+    } else if (g.type === 'reflect') {
+      checkText(g.prompt, scope, file, `${bp}.gate.prompt`, ctx);
+      checkText(g.model, scope, file, `${bp}.gate.model`, ctx);
+    } else if (g.type === 'predict') {
       checkText(g.question, scope, file, `${bp}.gate.question`, ctx);
       checkText(g.explain, scope, file, `${bp}.gate.explain`, ctx);
       g.options?.forEach((o, k) => checkText(o, scope, file, `${bp}.gate.options[${k}]`, ctx));
@@ -423,12 +435,16 @@ function checkScene(scene: Scene, i: number, ctx: Ctx) {
   });
 }
 
+/**
+ * Anchors of a section. `code` = the workbench pane's anchors: the code block's markers and/or the
+ * journal pane's line, row and T-account anchors (guide §4.6, §5.8b).
+ */
 export function sectionAnchors(s: Section) {
   const tex = new Set<string>();
   s.steps.forEach((st) => texAnchors(st.tex).forEach((a) => tex.add(a)));
   texAnchors(s.keyFormula).forEach((a) => tex.add(a));
-  const main = parseCodeAnchors(s.code.source, s.code.lang ?? 'python');
-  const code = new Set(Object.keys(main.anchors));
+  const main = s.code ? parseCodeAnchors(s.code.source, s.code.lang ?? 'python') : { anchors: {}, problems: [], lines: [] };
+  const code = new Set([...Object.keys(main.anchors), ...journalAnchors(s.journal)]);
   const extra = new Set<string>();
   for (const e of s.extraCode ?? []) Object.keys(parseCodeAnchors(e.source, e.lang ?? 'python').anchors).forEach((a) => extra.add(a));
   return { tex, code, extra, problems: main.problems, lines: main.lines.length };
@@ -461,10 +477,44 @@ function checkSection(s: Section, i: number, ctx: Ctx) {
   s.links.forEach((l, j) => checkText(l.say, scope, file, `${p}.links[${j}].say`, ctx));
   s.pitfalls?.forEach((t, j) => checkText(t, scope, file, `${p}.pitfalls[${j}]`, ctx));
   checkText(s.examTip, scope, file, `${p}.examTip`, ctx);
+  const wb = ctx.mod.manifest.workbench ?? 'code';
+  const strict = ctx.mod.manifest.guide === 2;
+  if (wb === 'journal' && !s.journal) ctx.issues.push({ level: strict ? 'error' : 'warning', step: 'refs', file, path: p, message: 'workbench is journal, so this section needs a `journal` pane (entries, schedule or T-accounts)' });
+  if (wb === 'code' && !s.code) ctx.issues.push({ level: 'error', step: 'refs', file, path: p, message: 'workbench is code, so this section needs `code`' });
+  if (s.journal) {
+    checkRefsIn(s.journal, scope, file, `${p}.journal`, ctx);
+    checkDeepText(s.journal, scope, file, `${p}.journal`, ctx);
+    s.journal.blocks.forEach((b, j) => {
+      if (b.kind === 'entries' && Array.isArray(b.entries)) {
+        const ids = new Set<string>();
+        b.entries.forEach((e, k) => {
+          if (ids.has(e.id)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.journal.blocks[${j}].entries[${k}].id`, message: `Duplicate entry id "${e.id}"` });
+          ids.add(e.id);
+          const allStatic = e.lines.every((l) => typeof (l.debit ?? l.credit) === 'number');
+          if (allStatic) {
+            const t = entryTotals(e);
+            if (Math.abs(t.debit - t.credit) > 0.005) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.journal.blocks[${j}].entries[${k}]`, message: `entry "${e.id}" does not balance: debits ${t.debit} ≠ credits ${t.credit}` });
+          }
+          e.lines.forEach((l, i) => {
+            const v = l.debit ?? l.credit;
+            if (typeof v === 'string' && !isRef(v)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.journal.blocks[${j}].entries[${k}].lines[${i}]`, message: `journal amounts are numbers or '@refs' (got "${v}")` });
+          });
+        });
+      }
+      if (b.kind === 'schedule' && Array.isArray(b.rows)) {
+        const n = b.columns?.length ?? 1;
+        b.rows.forEach((r, k) => {
+          if (r.amounts && r.amounts.length !== n) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.journal.blocks[${j}].rows[${k}].amounts`, message: `${r.amounts.length} amounts for ${n} column(s)` });
+          if (r.amount !== undefined && r.amounts) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.journal.blocks[${j}].rows[${k}]`, message: 'use `amount` or `amounts`, not both' });
+        });
+      }
+    });
+  }
+  for (const [k, id] of (s.tryIt ?? []).entries()) if (!ctx.mod.quiz.some((t) => t.id === id)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.tryIt[${k}]`, message: `tryIt: unknown quiz template "${id}"` });
   const a = sectionAnchors(s);
   for (const pr of a.problems) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.code.source`, message: pr });
-  for (const x of a.tex) if (!a.code.has(x) && !a.extra.has(x)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.steps`, message: `\\anchor{${x}} has no matching "# @a ${x}" in the code` });
-  for (const x of a.code) if (!a.tex.has(x)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.code.source`, message: `code anchor "@a ${x}" has no matching \\anchor{${x}}{…} in the derivation` });
+  // a journal whose lists come from '@refs' is paired at the logic step, once resolved
+  if (!journalIsDynamic(s.journal)) pairAnchors(s, a, ctx.issues, 'refs', p);
   const linkAnchors = new Set(s.links.map((l) => l.anchor));
   for (const x of a.tex) if (!linkAnchors.has(x)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.links`, message: `anchor "${x}" is missing from links` });
   for (const x of linkAnchors) if (!a.tex.has(x)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.links`, message: `links lists "${x}" but no \\anchor{${x}} exists in this section` });
@@ -473,6 +523,14 @@ function checkSection(s: Section, i: number, ctx: Ctx) {
     checkRefsIn(s.trace.in, scope, file, `${p}.trace.in`, ctx);
   }
   for (const e of s.examples ?? []) if (!ctx.mod.examples.some((x) => x.id === e)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.examples`, message: `Unknown example "${e}"` });
+}
+
+/** Every derivation anchor has a partner in the workbench pane (code or journal) and vice versa. */
+function pairAnchors(s: Section, a: ReturnType<typeof sectionAnchors>, issues: Issue[], step: Step, p: string) {
+  const file = 'math-code.yaml';
+  const paneName = s.code ? 'code' : 'journal';
+  for (const x of a.tex) if (!a.code.has(x) && !a.extra.has(x)) issues.push({ level: 'error', step, file, path: `${p}.steps`, message: s.code ? `\\anchor{${x}} has no matching "# @a ${x}" in the code${s.journal ? ' or `anchor: ' + x + '` in the journal' : ''}` : `\\anchor{${x}} has no matching \`anchor: ${x}\` on a journal line, schedule row or T-account` });
+  for (const x of a.code) if (!a.tex.has(x)) issues.push({ level: 'error', step, file, path: `${p}.${paneName}`, message: `${paneName} anchor "${x}" has no matching \\anchor{${x}}{…} in the derivation` });
 }
 
 function checkApplication(ctx: Ctx) {
@@ -537,7 +595,64 @@ function checkTemplate(t: Template, i: number, ctx: Ctx) {
     case 'match':
       if (t.pick && t.pick > t.pairs.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.pick`, message: 'pick is larger than the number of pairs' });
       break;
+    case 'journal-entry': {
+      if ((typeof t.accounts === 'string' || typeof t.entries === 'string') && !t.generator) ctx.issues.push({ level: 'error', step: 'refs', file, path: p, message: "'@refs' in accounts/entries need a generator" });
+      if (Array.isArray(t.accounts) && Array.isArray(t.entries)) {
+        const known = new Set(t.accounts.map(normAccount));
+        t.entries.forEach((e, k) => e.lines.forEach((l, i) => {
+          if (!known.has(normAccount(l.account))) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.entries[${k}].lines[${i}].account`, message: `"${l.account}" is not in accounts` });
+        }));
+        const used = new Set(t.entries.flatMap((e) => e.lines.map((l) => normAccount(l.account))));
+        if (t.accounts.length - used.size < 2) ctx.issues.push({ level: 'warning', step: 'lint', file, path: `${p}.accounts`, message: 'offer at least 2 distractor accounts besides the ones in the answer' });
+      }
+      if (Array.isArray(t.entries)) t.entries.forEach((e, k) => {
+        if (e.lines.every((l) => typeof (l.debit ?? l.credit) === 'number')) {
+          const tot = entryTotals(e);
+          if (Math.abs(tot.debit - tot.credit) > 0.005) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.entries[${k}]`, message: `expected entry ${k + 1} does not balance` });
+        }
+        checkText(e.prompt, scope, file, `${p}.entries[${k}].prompt`, ctx);
+      });
+      break;
+    }
+    case 'schedule-fill':
+      if (typeof t.rows === 'string' && !t.generator) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.rows`, message: "a '@ref' for rows needs a generator" });
+      if (Array.isArray(t.rows)) {
+        if (!t.rows.some((r) => r.blank)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.rows`, message: 'mark at least one row `blank: true`' });
+        t.rows.forEach((r, k) => checkText(r.label, scope, file, `${p}.rows[${k}].label`, ctx));
+      }
+      break;
   }
+  t.hints?.forEach((h, k) => checkText(h, scope, file, `${p}.hints[${k}]`, ctx));
+}
+
+/** [[term-id]] links must name glossary terms (guide §4.2). */
+function checkTermLinks(mod: ParsedModule, ctx: Ctx) {
+  const ids = new Set(mod.glossary.map((t) => t.id));
+  const walk = (v: unknown, file: string, path: string) => {
+    if (typeof v === 'string') {
+      for (const l of collectTermLinks(v)) if (!ids.has(l.id)) ctx.issues.push({ level: 'error', step: 'refs', file, path, message: `[[${l.id}]] is not a glossary term id` });
+    } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, file, `${path}[${i}]`));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, file, path ? `${path}.${k}` : k);
+  };
+  walk(mod.intuition, 'intuition.yaml', 'scenes');
+  walk(mod.mathCode, 'math-code.yaml', 'sections');
+  walk(mod.application, 'application.yaml', '');
+  walk(mod.quiz, 'quiz.yaml', 'templates');
+  walk(mod.glossary.map((t) => t.long ?? ''), 'glossary.yaml', 'long');
+}
+
+/** Every glossary term is introduced (`define`) in some Intuition beat (guide §7.1). Errors under guide: 2. */
+function checkTermCoverage(mod: ParsedModule, ctx: Ctx) {
+  const homes = termHomes(mod.intuition);
+  const missing = mod.glossary.filter((t) => !homes[t.id]).map((t) => t.id);
+  if (!missing.length) return;
+  const strict = mod.manifest.guide === 2;
+  ctx.issues.push({
+    level: strict ? 'error' : 'warning',
+    step: strict ? 'refs' : 'lint',
+    file: 'intuition.yaml',
+    message: `${missing.length} glossary term(s) are never introduced in an Intuition beat (add them to a beat's \`define:\`): ${missing.join(', ')}`,
+  });
 }
 
 export function checkIntegrity(mod: ParsedModule): { issues: Issue[]; fnRefs: Ctx['fnRefs']; genRefs: Ctx['genRefs']; usedWidgets: string[] } {
@@ -562,10 +677,14 @@ export function checkIntegrity(mod: ParsedModule): { issues: Issue[]; fnRefs: Ct
     checkSkills(t.skills, 'glossary.yaml', `terms[${i}].skills`, ctx);
     for (const f of ['short', 'long', 'formula'] as const) if (typeof t[f] === 'string' && (t[f] as string).includes('{=')) ctx.issues.push({ level: 'error', step: 'refs', file: 'glossary.yaml', path: `terms[${i}].${f}`, message: 'Glossary text has no scope; remove {=…}' });
   });
+  (m.objectives ?? []).forEach((o, i) => checkSkills(o.skills, 'manifest.yaml', `objectives[${i}].skills`, ctx));
+  uniqueIds(m.objectives ?? [], 'objective', 'manifest.yaml', ctx, 'objectives');
   mod.intuition.forEach((s, i) => checkScene(s, i, ctx));
   mod.mathCode.forEach((s, i) => checkSection(s, i, ctx));
   checkApplication(ctx);
   mod.quiz.forEach((t, i) => checkTemplate(t, i, ctx));
+  checkTermLinks(mod, ctx);
+  checkTermCoverage(mod, ctx);
   const listed = new Set(m.requires.widgets);
   for (const w of m.requires.widgets) if (!WIDGET_BY_NAME[w]) ctx.issues.push({ level: 'error', step: 'refs', file: 'manifest.yaml', path: 'requires.widgets', message: `Unknown widget "${w}"` });
   for (const w of ctx.usedWidgets) if (!listed.has(w)) ctx.issues.push({ level: 'error', step: 'refs', file: 'manifest.yaml', path: 'requires.widgets', message: `Widget "${w}" is used but not listed in requires.widgets` });
@@ -583,6 +702,9 @@ export function lintModule(mod: ParsedModule): Issue[] {
     if (n > max) w(file, `${what} has ${n} words (limit ${max})`, path);
   };
   const m = mod.manifest;
+  const strict = m.guide === 2;
+  const wb = m.workbench ?? 'code';
+  if (strict && (m.objectives?.length ?? 0) < 3) w('manifest.yaml', `${m.objectives?.length ?? 0} objectives (guide: 3–6, each tied to skills)`, 'objectives');
   if (!m.course?.trim()) w('manifest.yaml', 'no `course`: the site files this module under its default course. Set `course:` (e.g. BDCC) so it lands in the right course menu and quiz pool', 'course');
   if (m.skills.length < 6 || m.skills.length > 12) w('manifest.yaml', `${m.skills.length} skills (guide: 6–12)`, 'skills');
   limit(m.summary, 50, 'manifest.yaml', 'summary', 'summary');
@@ -593,16 +715,45 @@ export function lintModule(mod: ParsedModule): Issue[] {
     if (s.beats.length < 4 || s.beats.length > 10) w('intuition.yaml', `scene "${s.id}" has ${s.beats.length} beats (guide: 4–10)`, p);
     if (!s.beats.some((b) => b.gate?.type === 'predict')) w('intuition.yaml', `scene "${s.id}" has no predict gate`, p);
     if (s.beats.some((b) => b.gate?.type === 'when' || b.gate?.type === 'event')) interactive++;
-    s.beats.forEach((b, j) => limit(b.say, 60, 'intuition.yaml', `${p}.beats[${j}].say`, 'beat narration'));
+    s.beats.forEach((b, j) => {
+      limit(b.say, 60, 'intuition.yaml', `${p}.beats[${j}].say`, 'beat narration');
+      if (b.gate?.type === 'reflect') limit(b.gate.model, 80, 'intuition.yaml', `${p}.beats[${j}].gate.model`, 'reflect model answer');
+      for (const id of b.define ?? []) {
+        const t = mod.glossary.find((x) => x.id === id);
+        if (!t) continue;
+        const said = b.say.toLowerCase();
+        const named = [t.term, ...(t.aka ?? [])].some((n) => said.includes(n.toLowerCase())) || collectTermLinks(b.say).some((l) => l.id === id);
+        if (!named) w('intuition.yaml', `beat defines "${id}" but its narration never names "${t.term}" (say it, or link [[${id}]])`, `${p}.beats[${j}]`);
+      }
+    });
     limit(s.takeaway, 25, 'intuition.yaml', `${p}.takeaway`, 'takeaway');
   });
+  const defined: Record<string, number> = {};
+  mod.intuition.forEach((s) => s.beats.forEach((b) => (b.define ?? []).forEach((t) => (defined[t] = (defined[t] ?? 0) + 1))));
+  for (const [t, n] of Object.entries(defined)) if (n > 1) w('intuition.yaml', `glossary term "${t}" is defined in ${n} beats (define it once, where it first appears; link it with [[${t}]] afterwards)`);
+  if (strict) {
+    const gates = mod.intuition.flatMap((s) => s.beats.map((b) => b.gate?.type));
+    const practice = gates.filter((g) => g === 'practice').length;
+    const reflect = gates.filter((g) => g === 'reflect').length;
+    if (practice < 3) w('intuition.yaml', `${practice} practice gates (guide: ≥ 3, one per major skill)`);
+    if (reflect < 2) w('intuition.yaml', `${reflect} reflect gates (guide: ≥ 2)`);
+  }
   if (mod.intuition.length && interactive / mod.intuition.length < 0.5) w('intuition.yaml', `only ${interactive}/${mod.intuition.length} scenes have an interactive (when/event) gate (guide: ≥ 50%)`);
   mod.mathCode.forEach((s, i) => {
     const p = `sections[${i}]`;
     limit(s.summary, 60, 'math-code.yaml', `${p}.summary`, 'section summary');
     if (!s.examTip) w('math-code.yaml', `section "${s.id}" has no examTip`, p);
-    const lines = codeLineCount(s.code.source, s.code.lang ?? 'python');
-    if (lines > 30) w('math-code.yaml', `section "${s.id}" code has ${lines} lines, not counting docstrings (limit 30)`, `${p}.code`);
+    if (s.code) {
+      const lines = codeLineCount(s.code.source, s.code.lang ?? 'python');
+      if (lines > 30) w('math-code.yaml', `section "${s.id}" code has ${lines} lines, not counting docstrings (limit 30)`, `${p}.code`);
+    }
+    if (s.journal) {
+      s.journal.blocks.forEach((b, j) => {
+        if (b.kind === 'entries' && Array.isArray(b.entries)) b.entries.forEach((e) => { if (e.lines.length > 8) w('math-code.yaml', `entry "${e.id}" has ${e.lines.length} lines (keep entries ≤ 8 lines; split compound entries)`, `${p}.journal.blocks[${j}]`); });
+        if (b.kind === 'schedule' && Array.isArray(b.rows) && b.rows.length > 20) w('math-code.yaml', `schedule has ${b.rows.length} rows (limit 20)`, `${p}.journal.blocks[${j}]`);
+      });
+    }
+    if (strict && !s.tryIt?.length) w('math-code.yaml', `section "${s.id}" has no tryIt ("Your turn" practice)`, p);
     const a = sectionAnchors(s);
     if (a.tex.size < 2 && s.steps.length > 2) w('math-code.yaml', `section "${s.id}" has fewer than 2 anchors`, p);
   });
@@ -618,6 +769,10 @@ export function lintModule(mod: ParsedModule): Issue[] {
   const q = mod.quiz;
   if (q.length < 25) w('quiz.yaml', `${q.length} templates (guide: ≥ 25)`);
   q.forEach((t, i) => limit(t.explanation, 120, 'quiz.yaml', `templates[${i}].explanation`, 'explanation'));
+  if (strict) {
+    const withHints = q.filter((t) => t.hints?.length).length;
+    if (withHints < Math.ceil(q.length / 2)) w('quiz.yaml', `${withHints}/${q.length} templates have hints (guide: at least half, and every numeric, hand-calc, journal-entry and schedule-fill template)`);
+  }
   const bySkill: Record<string, number> = {};
   q.forEach((t) => t.skills.forEach((s) => (bySkill[s] = (bySkill[s] ?? 0) + 1)));
   for (const s of m.skills) if ((bySkill[s.id] ?? 0) < 2) w('quiz.yaml', `skill "${s.id}" has ${bySkill[s.id] ?? 0} templates (guide: ≥ 2)`);
@@ -626,7 +781,9 @@ export function lintModule(mod: ParsedModule): Issue[] {
     ['generator-driven numeric/hand-calc', count((t) => (t.type === 'numeric' || t.type === 'hand-calc') && !!t.generator), 8],
     ['hand-calc', count((t) => t.type === 'hand-calc'), 2],
     ['mcq/multi', count((t) => t.type === 'mcq' || t.type === 'multi'), 6],
-    ['code-fill', count((t) => t.type === 'code-fill'), 4],
+    wb === 'journal'
+      ? ['journal-entry/schedule-fill', count((t) => t.type === 'journal-entry' || t.type === 'schedule-fill'), 4]
+      : ['code-fill', count((t) => t.type === 'code-fill'), 4],
     ['order', count((t) => t.type === 'order'), 2],
     ['match', count((t) => t.type === 'match'), 2],
   ];
@@ -762,10 +919,24 @@ export async function runLogicChecks(
     try {
       const scope = await runDerive(host, s.derive, { ...datasetScope(mod, s.data), ...structuredClone(s.state ?? {}) });
       checkResolved([s.steps, s.summary, s.links], scope, 'math-code.yaml', p);
+      if (s.journal) {
+        const missingJ: string[] = [];
+        const resolved = resolveJournal(s.journal, scope, missingJ);
+        for (const m of missingJ) E('logic', 'math-code.yaml', `${p}.journal`, `${m} does not resolve with the initial state`);
+        const probs = missingJ.length ? [] : journalProblems(resolved);
+        for (const pr of probs) E('logic', 'math-code.yaml', `${p}.journal`, pr);
+        if (!missingJ.length && !probs.length && journalIsDynamic(s.journal)) {
+          const a = sectionAnchors(s);
+          journalAnchors(resolved).forEach((x) => a.code.add(x));
+          pairAnchors(s, a, issues, 'logic', p);
+        }
+      }
       if (s.live) await smokeStage(s.live, scope, 'math-code.yaml', `${p}.live`);
       if (s.trace && fnSet.has(s.trace.fn)) {
         const res = await host.call(s.trace.fn, resolveRefs(s.trace.in, scope));
-        checkTrace(res, 'math-code.yaml', `${p}.trace`, sectionAnchors(s), sectionLiveWidgets(s, mod.datasets));
+        const anchors = sectionAnchors(s);
+        if (s.journal && journalIsDynamic(s.journal)) journalAnchors(resolveJournal(s.journal, scope)).forEach((x) => anchors.code.add(x));
+        checkTrace(res, 'math-code.yaml', `${p}.trace`, anchors, sectionLiveWidgets(s, mod.datasets));
       }
     } catch (e: any) { E('logic', 'math-code.yaml', p, `derive/trace failed: ${e?.message ?? e}`); }
   }
@@ -806,7 +977,8 @@ export async function runLogicChecks(
         const inst = buildInstance({ moduleId: mod.manifest.id, datasets: data }, t, s, gen);
         inst.problems.forEach((x) => problems.add(x));
         instances++;
-        const texts: string[] = [inst.prompt, inst.explanation, ...(inst.options ?? []), ...(inst.steps?.map((x) => x.prompt) ?? []), ...(inst.misconceptions?.map((m) => m.feedback) ?? [])];
+        const texts: string[] = [inst.prompt, inst.explanation, ...(inst.options ?? []), ...(inst.steps?.map((x) => x.prompt) ?? []), ...(inst.misconceptions?.map((m) => m.feedback) ?? []),
+          ...(inst.hints ?? []), ...(inst.entries?.map((e) => e.prompt ?? '') ?? []), ...(inst.schedule?.rows.map((r) => r.label) ?? [])];
         for (const tx of texts) for (const m of interpolate(tx, inst.scope, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}}`);
         if (t.show) {
           const missing: string[] = [];

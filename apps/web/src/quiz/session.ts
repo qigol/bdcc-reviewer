@@ -1,4 +1,4 @@
-import { buildInstance, buildGlossaryInstance, glossaryTemplateIds, type QuizInstance, type Template } from '@kodigo/schema';
+import { buildInstance, buildGlossaryInstance, glossaryTemplateIds, glossaryWithHomes, type QuizInstance, type Template } from '@kodigo/schema';
 import type { LoadedModule } from '../modules/store';
 
 export type Mode = 'practice' | 'exam' | 'review' | 'weak' | 'interleaved' | 'retry';
@@ -10,8 +10,8 @@ export const MODE_LABEL: Record<Mode, string> = {
   interleaved: "Interleaved (mix this course's modules)",
   retry: 'Retry mistakes',
 };
-export const QTYPES = ['mcq', 'multi', 'numeric', 'code-fill', 'match', 'order', 'hand-calc'] as const;
-export const QTYPE_LABEL: Record<string, string> = { mcq: 'Multiple choice', multi: 'Select all', numeric: 'Numeric', 'code-fill': 'Fill in the code', match: 'Matching', order: 'Ordering', 'hand-calc': 'Hand calculation' };
+export const QTYPES = ['mcq', 'multi', 'numeric', 'code-fill', 'match', 'order', 'hand-calc', 'journal-entry', 'schedule-fill'] as const;
+export const QTYPE_LABEL: Record<string, string> = { mcq: 'Multiple choice', multi: 'Select all', numeric: 'Numeric', 'code-fill': 'Fill in the code', match: 'Matching', order: 'Ordering', 'hand-calc': 'Hand calculation', 'journal-entry': 'Journal entry', 'schedule-fill': 'Complete the schedule' };
 
 export interface SessionItem { moduleId: string; templateId: string; seed: number }
 export interface QuizSession {
@@ -165,7 +165,8 @@ export function newSession(mode: Mode, course: string, items: SessionItem[], cou
 /** Build a renderable instance (runs the generator in the module's worker). */
 export async function instantiate(mod: LoadedModule, item: SessionItem): Promise<QuizInstance> {
   if (item.templateId.startsWith('glossary-')) {
-    const inst = buildGlossaryInstance(mod.id, mod.parsed.glossary, item.templateId, item.seed);
+    // "show me in the lesson" defaults to the scene that introduces the term
+    const inst = buildGlossaryInstance(mod.id, glossaryWithHomes(mod.parsed.glossary, mod.parsed.intuition), item.templateId, item.seed);
     if (!inst) throw new Error(`glossary question ${item.templateId} unavailable`);
     return inst;
   }

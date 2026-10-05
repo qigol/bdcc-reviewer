@@ -1,0 +1,149 @@
+intro: |
+  Food processors, refineries, mills and bottlers all run continuous lines where nothing is unique. Their monthly close
+  turns department costs into a cost per liter or per bag, values inventory, and passes cost from one department to the
+  next. This case follows one Laguna virgin-coconut-oil maker through both of its departments for a month.
+case:
+  id: coco-gold
+  title: A month at Laguna Coco Gold
+  story: |
+    Laguna Coco Gold presses coconut meat into virgin coconut oil (Pressing), then filters and bottles it (Filtering &
+    Bottling). Pressing adds all its coconut meat at the start; Filtering & Bottling adds bottles and caps at the end.
+    Conversion is incurred evenly in both. The controller closes August using weighted-average. All figures are synthetic.
+  data: [cocogold]
+  state: { method: wa }
+  derive:
+    - { fn: report, in: { data: '@cocogold.pressing', method: wa }, out: pw }
+    - { fn: methodPick, in: { data: '@cocogold.pressing', method: '@method' }, out: pm }
+    - { fn: compareMethods, in: { data: '@cocogold.pressing' }, out: pc }
+    - { fn: deptWithEntry, in: { data: '@cocogold.pressing', method: wa }, out: pt }
+    - { fn: deptWithEntry, in: { data: '@cocogold.bottling', method: wa, tiCost: '@pw.completedCost', final: true }, out: bw }
+    - { fn: physicalFlow, in: { beg: 2000, started: 18000, completed: 16000, end: 4000 }, out: pf }
+  cells:
+    - id: units
+      title: Count the liters
+      say: |
+        Pressing began August with 2,000 liters in process (all meat, half converted), started 18,000 and finished
+        16,000. Step 1 balances: {=pf.left|comma} liters to account for, {=pf.right|comma} accounted for.
+      stage:
+        - { id: pq, widget: Schedule, props: { title: 'Pressing, August: Steps 1–2 (weighted-average)', columns: '@pw.qColumns', rows: '@pw.qRows' } }
+      decision:
+        prompt: Why are Pressing's equivalent units for coconut meat (20,000) higher than for conversion (17,000)?
+        type: mcq
+        options:
+          - All meat is added at the start, so the 4,000 ending liters are 100% complete for meat but only 25% converted
+          - Because conversion cost is smaller than materials cost
+          - Because beginning WIP is subtracted from conversion only
+          - Because weighted-average ignores ending WIP for conversion
+        answer: 0
+        model: 'Meat EU $= 16{,}000 + 4{,}000 \times 100\% = 20{,}000$; conversion EU $= 16{,}000 + 4{,}000 \times 25\% = 17{,}000$.'
+    - id: unit-cost
+      title: Cost per liter
+      say: |
+        Weighted-average pools July's carried-in cost (₱60,000 + ₱20,000) with August's (₱540,000 + ₱354,000). Meat costs
+        {=pw.unit_mat|money2} and conversion {=pw.unit_conv|money2} per equivalent liter: {=pw.combined|money2} for a
+        finished liter.
+      stage:
+        - { id: pk, widget: Schedule, props: { title: 'Steps 3–4', columns: '@pw.columns', rows: '@pw.costRows' } }
+        - { id: pa, widget: Schedule, props: { title: 'Step 5', rows: '@pw.assignRows' } }
+      decision:
+        prompt: How much cost leaves Pressing with the 16,000 finished liters?
+        type: mcq
+        options: ['₱832,000', '₱974,000', '₱1,040,000', '₱512,000']
+        answer: 0
+        model: '$16{,}000 \times 52 = ₱832{,}000$; the other ₱142,000 stays in Pressing''s ending WIP, and $832{,}000 + 142{,}000 = 974{,}000$ reconciles.'
+    - id: fifo-check
+      title: Would FIFO change the picture?
+      say: |
+        The plant manager asks for the FIFO version too. Switch methods and compare the cost transferred out:
+        {=pm.completedCost|money} under the selected method.
+      stage:
+        - id: mpick
+          widget: Choice
+          props:
+            label: Method
+            options:
+              - { value: wa, label: Weighted-average }
+              - { value: fifo, label: FIFO }
+          bind: { value: method }
+        - { id: pcmp, widget: Schedule, props: { title: Pressing under both methods, columns: [Weighted-average, FIFO], rows: '@pc.rows' } }
+      decision:
+        prompt: The two methods differ by only ₱125 this month. What does that tell the controller?
+        type: open
+        model: |
+          July's and August's costs per liter were almost the same (meat ₱30 both months), so blending them changes little.
+          With stable costs, weighted-average's simplicity wins. If copra prices spike, FIFO would show the new cost more clearly.
+    - id: transfer
+      title: Pass the oil to Filtering & Bottling
+      say: The 16,000 liters and their cost move to the second department's Work-in-Process.
+      stage:
+        - { id: pj, widget: Journal, props: { title: Transfer out of Pressing, entries: '@pt.entries' } }
+      decision:
+        prompt: Why is Finished Goods Inventory not debited here?
+        type: open
+        model: Pressing is not the last department. The oil is still unfinished, so its cost moves to Work-in-Process – Filtering & Bottling Department.
+    - id: second-dept
+      title: Filtering & Bottling, with transferred-in cost
+      say: |
+        Filtering & Bottling received the 16,000 liters at ₱52 each, bottled 15,000 and has 1,000 still filtering, 40%
+        converted. Its combined cost is {=bw.combined|money2} per liter, so {=bw.completedCost|money} goes to finished goods.
+      stage:
+        - { id: bq, widget: Schedule, props: { title: 'Filtering & Bottling: Steps 1–2', columns: '@bw.qColumns', rows: '@bw.qRows' } }
+        - { id: bk, widget: Schedule, props: { title: 'Steps 3–4', columns: '@bw.columns', rows: '@bw.costRows' } }
+        - { id: ba, widget: Schedule, props: { title: 'Step 5', rows: '@bw.assignRows' } }
+        - { id: bj, widget: Journal, props: { title: To finished goods, entries: '@bw.entries' } }
+      decision:
+        prompt: Why are the bottle equivalent units 15,000 and not 16,000?
+        type: mcq
+        options:
+          - Bottles go on at the end, so the 1,000 liters still filtering have no bottles yet
+          - Because 1,000 liters were lost in filtering
+          - Because transferred-in units are only 40% complete
+          - Because FIFO subtracts beginning WIP
+        answer: 0
+        model: Materials added at the end are 0% complete in ending WIP, so only the 15,000 finished liters count.
+    - id: close
+      title: Close the month
+      say: |
+        Both reports reconcile: Pressing's ₱974,000 and Filtering & Bottling's {=bw.total|money}. A new analyst's draft of
+        next month's report misses its total by ₱8,000.
+      decision:
+        prompt: What should the analyst check first, and why?
+        type: open
+        model: |
+          The physical flow (Step 1), because it is the cheapest to verify and any unit-count error flows into every later
+          step. Then the equivalent units and percents (Step 2), then each division (Step 4).
+atScale:
+  title: Process costing in practice
+  body: |
+    **Set-up.** In an ERP (for example SAP's process-order or product-cost-by-period costing, Odoo MRP, or a spreadsheet
+    model for a smaller mill) each department is a cost center with its own Work-in-Process account. Bills of materials
+    say when materials enter; routings carry the conversion rates.
+
+    **Month-end close.** Production supervisors count ending WIP and estimate its percent complete (the judgment in the
+    report); the system or the cost accountant runs the five steps per department and posts the transfers between
+    departments and to Finished Goods.
+
+    **Controls.** The physical flow is reconciled to production logs and inventory counts; lost units are investigated
+    (spoilage, shrinkage, measurement); the reconciliation check must hold before the entries post; percent-complete
+    estimates are reviewed, since they swing ending WIP.
+
+    **Method.** Most companies use weighted-average for simplicity. FIFO earns its extra work when input prices are
+    volatile and managers are judged on this period's efficiency. Unit costs feed standard costs and flexible budgets
+    later in the course.
+tradeoffs:
+  title: Choices in a process-costing system
+  columns: [Choice, Option A, Option B, When to prefer B]
+  rows:
+    - ['Costing system', 'Job-order costing (trace to jobs)', 'Process costing (average by department)', 'Output is continuous and identical']
+    - ['Treatment of beginning WIP', 'Weighted-average (blend)', 'FIFO (keep separate)', 'Costs are volatile and managers need clean current-period unit costs']
+    - ['Error checking', 'Trust the arithmetic', 'Reconcile Step 5 to Step 3 every time', 'Always: it is the built-in error detector']
+connections:
+  - { module: job-order, note: 'The same DM, DL and overhead flow through WIP to Finished Goods, but traced to jobs instead of averaged.' }
+  - { module: cost-flows, note: 'The supplemental notes rebuild a full production report (quantity schedule, unit costs, reconciliation) in both methods.' }
+explainBack:
+  prompt: Explain to a new production supervisor why the 4,000 liters still in Pressing are worth ₱142,000 and not 4,000 × ₱52.
+  rubric:
+    - Ending WIP is only partly converted, so it is counted in equivalent units
+    - Materials (meat) are added at the start, so ending WIP is 100% complete for meat
+    - Each category is costed at its own unit cost on its own equivalent units
+    - The result reconciles with the cost of completed units to the total costs to account for

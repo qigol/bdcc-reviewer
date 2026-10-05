@@ -1,0 +1,497 @@
+sections:
+  - id: abc-rates
+    title: Step 2, an activity rate for each pool
+    skills: [abc-steps]
+    summary: |
+      [[activity-based-costing|Activity-based costing]] regroups overhead into [[activity-cost-pool|activity cost pools]],
+      each with its own [[cost-driver|cost driver]]. The [[activity-rate|activity rate]] is Session 5's predetermined
+      rate computed once per pool: budgeted pool cost over the predicted driver level.
+    keyFormula: '\text{Activity rate} = \frac{\text{Budgeted pool cost}}{\text{Predicted driver level}}'
+    data: [globalmetals]
+    derive:
+      - { fn: rates, in: { pools: '@globalmetals.pools' }, out: rt }
+    live:
+      - id: abc-rates-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Pools', value: '5' }
+            - { label: 'Total budgeted overhead', value: '{=rt.total|money}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{rate}{\text{Rate}_{\text{pool}}} = \frac{\text{Budgeted cost of the pool}}{\text{Predicted level of its driver}}
+        say: The same formula as a predetermined overhead rate, applied pool by pool.
+      - tex: |
+          \begin{aligned}
+          \anchor{rate}{\text{Setups}} &= \tfrac{100{,}000}{100} = \text{₱}1{,}000 \\
+          \text{Handling} &= \tfrac{100{,}000}{50{,}000\ \text{lb}} = \text{₱}2.00 \\
+          \text{Waste} &= \tfrac{50{,}000}{10{,}000\ \text{lb}} = \text{₱}5.00 \\
+          \text{Inspection} &= \tfrac{75{,}000}{1{,}000} = \text{₱}75 \\
+          \text{Other} &= \tfrac{200{,}000}{20{,}000\ \text{MH}} = \text{₱}10
+          \end{aligned}
+        say: 'Global Metals, Inc.: five pools, five drivers, five rates.'
+      - tex: |
+          \anchor{pool}{\textstyle\sum \text{pools}} = \text{₱}{=rt.total|comma}
+        say: Keep the total; the plantwide comparison spreads the same ₱525,000 on machine hours.
+    journal:
+      title: Global Metals, Inc. (slides 27–28)
+      blocks:
+        - { kind: schedule, title: Activity rates, columns: [Budgeted cost, Predicted driver, Rate], rows: '@rt.rows' }
+    links:
+      - { anchor: rate, label: Activity rates }
+      - { anchor: pool, label: Total of the pools }
+    trace: { fn: rates, in: { pools: '@globalmetals.pools' } }
+    examples: [gm-rates]
+    tryIt: [rate-numeric, steps-order, terms-match]
+    pitfalls:
+      - Dividing the driver by the cost. The rate is pesos per unit of driver.
+      - Using actual driver levels. Like the POHR, activity rates use budgeted cost and predicted activity.
+    examTip: Write each rate with its unit (₱1,000 per setup, ₱2.00 per lb); the unit tells you what to multiply it by.
+
+  - id: apply-job
+    title: Step 3, costing a job with activity rates
+    skills: [apply-abc]
+    summary: |
+      Each pool charges the job its rate times the driver quantity the job actually used. The sum is the job's overhead;
+      divide by its units for the overhead per unit, ready to add to direct materials and labor for a bid.
+    keyFormula: '\text{Job overhead} = \sum_{\text{pools}} \text{rate} \times \text{driver used}'
+    data: [globalmetals]
+    state: { key: j107 }
+    derive:
+      - { fn: pickJob, in: { pools: '@globalmetals.pools', jobs: '@globalmetals.jobs', key: '@key' }, out: jb }
+    live:
+      - id: job-pick
+        widget: Choice
+        props:
+          label: Job
+          options:
+            - { value: j107, label: 'Job No. 107 (2,000 tools)' }
+            - { value: j108, label: 'Job No. 108 (1,500 tools)' }
+        bind: { value: key }
+    steps:
+      - tex: |
+          \anchor{assign}{\text{Overhead}_{\text{pool}}} = \text{rate} \times \text{driver used by the job}
+        say: Only the drivers the job actually consumed.
+      - tex: |
+          \begin{aligned}
+          \anchor{total}{\text{Job 107}} &= 2 \times 1{,}000 + 10{,}000 \times 2 + 2{,}000 \times 5 \\
+          &\quad + 10 \times 75 + 500 \times 10 = \text{₱}37{,}750
+          \end{aligned}
+        say: Setups, material handling, waste control, inspection and other overhead.
+      - tex: |
+          \anchor{unit}{\text{Per unit}} = \frac{\text{₱}{=jb.abcTotal|comma}}{\text{units}} = \text{₱}{=jb.abcUnit|2f}
+        say: 'Job 107: ₱18.88 per tool. Job 108: ₱31,100, or ₱20.73 per tool.'
+    journal:
+      title: Global Metals, overhead assigned to the job (slides 30 and 75)
+      blocks:
+        - { kind: schedule, title: ABC overhead, rows: '@jb.rows' }
+    links:
+      - { anchor: assign, label: Each pool's charge }
+      - { anchor: total, label: Total overhead assigned }
+      - { anchor: unit, label: Overhead per unit }
+    trace: { fn: pickJob, in: { pools: '@globalmetals.pools', jobs: '@globalmetals.jobs', key: '@key' } }
+    examples: [job-107, job-108, tarlac-x]
+    tryIt: [job-numeric, job-fill, rates-fill]
+    pitfalls:
+      - Multiplying a rate by the pool's total driver level instead of the job's.
+      - Forgetting to divide by the job's units when the question asks per unit.
+    examTip: A four-column table (pool, rate, driver used, cost) earns method marks even if one product is off.
+
+  - id: single-rate
+    title: Why one volume-based rate distorts
+    skills: [distortion, apply-abc]
+    summary: |
+      A [[plantwide-rate|plantwide rate]] on a [[volume-based-driver|volume-based driver]] assumes every product uses
+      overhead in proportion to that one measure. When setups, inspections and handling drive the cost instead, the
+      result is [[cost-distortion|cost distortion]]: Job 107's batch-heavy work is badly undercosted.
+    keyFormula: '\text{Plantwide rate} = \frac{\text{Total overhead}}{\text{Total machine hours}}'
+    data: [globalmetals]
+    derive:
+      - { fn: job, in: { pools: '@globalmetals.pools', job: '@globalmetals.jobs.j107', totalMH: '@globalmetals.totalMH' }, out: pw }
+    live:
+      - id: single-rate-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'ABC overhead, Job 107', value: '{=pw.abcTotal|money}' }
+            - { label: 'One machine-hour rate', value: '{=pw.plantOH|money}' }
+            - { label: 'Missed by the single rate', value: '{=pw.gap|money}', tone: bad }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{plant}{\text{Plantwide}} &= \tfrac{525{,}000}{20{,}000\ \text{MH}} = \text{₱}26.25 \\
+          500 \times 26.25 &= \text{₱}13{,}125\ (\text{₱}6.56\ \text{per tool})
+          \end{aligned}
+        say: One rate, blind to setups, waste and inspections.
+      - tex: |
+          \anchor{assign}{\text{ABC}} = \anchor{total}{\text{₱}37{,}750} = \anchor{unit}{\text{₱}18.88\ \text{per tool}}
+        say: The five activity rates see everything the job consumed.
+      - tex: |
+          \anchor{gap}{\text{Gap}} = 37{,}750 - 13{,}125 = \text{₱}{=pw.gap|comma}
+        say: The single rate undercosts Job 107 by about two-thirds of its true overhead.
+    journal:
+      title: Job No. 107, ABC vs one rate (slides 30–32)
+      blocks:
+        - { kind: schedule, title: ABC overhead, rows: '@pw.rows' }
+        - { kind: schedule, title: One plantwide machine-hour rate, rows: '@pw.plantRows' }
+    links:
+      - { anchor: plant, label: Plantwide rate and overhead }
+      - { anchor: assign, label: ABC charges by pool }
+      - { anchor: total, label: ABC total }
+      - { anchor: unit, label: ABC per tool }
+      - { anchor: gap, label: The distortion }
+    trace: { fn: job, in: { pools: '@globalmetals.pools', job: '@globalmetals.jobs.j107', totalMH: '@globalmetals.totalMH' } }
+    examples: [job-107-plantwide, job-107-walk]
+    tryIt: [plant-numeric, plant-handcalc, warning-mcq]
+    pitfalls:
+      - Thinking ABC changes the total overhead. Both systems spread the same ₱525,000; only the split between jobs changes.
+    examTip: State the direction and the cause together, "undercosted because the rate ignores setups and waste."
+
+  - id: cross-subsidy
+    title: Traditional vs ABC, who subsidizes whom
+    skills: [trad-vs-abc]
+    summary: |
+      With two products, distortion becomes [[cross-subsidization|cross-subsidization]]: the high-volume, simple product
+      carries overhead caused by the low-volume, complex one. Compute both unit costs and the difference shows who pays
+      for whom.
+    keyFormula: '\text{Distortion} = \text{OH}_{\text{traditional}} - \text{OH}_{\text{ABC}} \quad (+\ \text{overcosted},\ -\ \text{undercosted})'
+    data: [laguna]
+    derive:
+      - { fn: compare, in: { products: '@laguna.products', pools: '@laguna.pools', baseLabel: '@laguna.baseLabel' }, out: lc }
+    live:
+      - id: cross-subsidy-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Single rate per MH', value: '{=lc.tradRate|money}' }
+            - { label: 'Basic Bins, ABC per unit', value: '{=lc.abcOH.bins|money2}' }
+            - { label: 'Custom Containers, ABC per unit', value: '{=lc.abcOH.custom|money2}', tone: accent }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{trad}{\text{Single rate}} &= \tfrac{1{,}800{,}000}{60{,}000\ \text{MH}} = \text{₱}30 \\
+          &\Rightarrow \text{Bins } 27.00,\ \text{Custom } 45.00
+          \end{aligned}
+        say: Both products get ₱30 per machine hour regardless of setups.
+      - tex: |
+          \begin{aligned}
+          \anchor{rate}{\text{Machining}} &= \tfrac{1{,}200{,}000}{60{,}000} = \text{₱}20/\text{MH} \\
+          \text{Setups} &= \tfrac{600{,}000}{1{,}500} = \text{₱}400/\text{setup}
+          \end{aligned}
+        say: Two pools, two drivers.
+      - tex: |
+          \begin{aligned}
+          \anchor{assign}{\text{Custom}} &= 15{,}000 \times 20 + 1{,}200 \times 400 = 780{,}000 \\
+          &\Rightarrow \anchor{abc}{\tfrac{780{,}000}{10{,}000} = \text{₱}78.00}
+          \end{aligned}
+        say: Custom Containers runs 1,200 of the 1,500 setups on a sixth of the volume.
+      - tex: |
+          \begin{aligned}
+          \anchor{diff}{\text{Bins}} &: 27.00 - 20.40 = +6.60 \\
+          \text{Custom} &: 45.00 - 78.00 = -33.00
+          \end{aligned}
+        say: 'Bins overpays ₱6.60 on 50,000 units = ₱330,000, exactly Custom''s ₱33.00 shortfall on 10,000 units.'
+    journal:
+      title: Laguna Plastics Co. (slides 35–37)
+      blocks:
+        - { kind: schedule, title: Rates, columns: [Pool cost, Driver total, Rate], rows: '@lc.rateRows' }
+        - { kind: schedule, title: Overhead assigned under ABC, columns: [Basic Bins, Custom Containers], rows: '@lc.assignRows' }
+        - { kind: schedule, title: Overhead per unit compared, columns: [Basic Bins, Custom Containers], rows: '@lc.costRows' }
+    links:
+      - { anchor: trad, label: Traditional single rate }
+      - { anchor: rate, label: Activity rates }
+      - { anchor: assign, label: Overhead each product uses }
+      - { anchor: abc, label: ABC overhead per unit }
+      - { anchor: diff, label: Over- and undercosting }
+    trace: { fn: compare, in: { products: '@laguna.products', pools: '@laguna.pools', baseLabel: '@laguna.baseLabel' } }
+    examples: [laguna, laguna-walk]
+    tryIt: [compare-numeric, compare-handcalc, compare-fill, pattern-multi]
+    pitfalls:
+      - Dividing a product's ABC overhead by total units of both products.
+      - Reading a negative difference as overcosting. Traditional below ABC means the product was undercosted.
+    examTip: 'Check: the over- and undercosting, times each product''s units, must cancel out in total.'
+
+  - id: spectrum
+    title: A spectrum, not a switch
+    skills: [trad-vs-abc, distortion]
+    summary: |
+      With three products the distortion runs along a spectrum: the highest-volume product is overcosted most, the
+      lowest-volume, most complex one undercosted most, and the middle one is barely affected.
+    keyFormula: '\text{Distortion as \% of traditional} = \frac{\text{OH}_{\text{trad}} - \text{OH}_{\text{ABC}}}{\text{OH}_{\text{trad}}}'
+    data: [pangasinan]
+    derive:
+      - { fn: distortion, in: { products: '@pangasinan.products' }, out: ds }
+    live:
+      - id: spectrum-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Chair', value: 'overcosted ₱25.00' }
+            - { label: 'Table', value: 'overcosted ₱2.50' }
+            - { label: 'Cabinet', value: 'undercosted ₱260.00', tone: bad }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{over}{\text{Chair}} &: 60 - 35 = +25\ (41.7\%) \\
+          \text{Table} &: 90 - 87.50 = +2.50\ (2.8\%)
+          \end{aligned}
+        say: The high-volume chair subsidizes the others; the table is nearly accurate.
+      - tex: |
+          \anchor{under}{\text{Cabinet}}: 240 - 500 = -260\ (108.3\%)
+        say: The low-volume, complex cabinet is the most severely distorted.
+    journal:
+      title: Pangasinan Furniture Manufacturing (slides 43–44)
+      blocks:
+        - { kind: schedule, title: Overhead per unit, columns: [Traditional, ABC, Traditional − ABC, '% of traditional'], rows: '@ds.rows' }
+    links:
+      - { anchor: over, label: Overcosted products }
+      - { anchor: under, label: Undercosted product }
+    trace: { fn: distortion, in: { products: '@pangasinan.products' } }
+    examples: [pangasinan]
+    tryIt: [distort-numeric, spectrum-mcq]
+    pitfalls:
+      - 'Mixing up the base of the percentage. 25 ÷ 60 = 41.7% of the traditional cost; 25 ÷ 35 = 71% of the ABC cost.'
+    examTip: Say which base your percentage uses; the slide's labels say "relative to ABC" but compute it on the traditional cost.
+
+  - id: hierarchy
+    title: The cost hierarchy
+    skills: [cost-hierarchy]
+    summary: |
+      [[unit-level|Unit-level]] costs follow volume; [[batch-level|batch-level]] costs follow the number of batches;
+      [[product-level|product-level]] costs follow the number of product lines or formulas; [[facility-level|facility-level]]
+      costs keep the plant running and are often left unallocated. A good ABC system gives each pool a driver from its own
+      level.
+    keyFormula: '\text{Overhead} = \text{unit} + \text{batch} + \text{product} + \text{facility}'
+    data: [caselets]
+    derive:
+      - { fn: hierarchy, in: { caselets: '@caselets', id: radiance }, out: hy }
+    live:
+      - id: hierarchy-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Total overhead', value: '{=hy.total|money}' }
+            - { label: 'Not driven by volume', value: '{=hy.nonVolumeShare|pct1}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{unit}{\text{Unit}} = {=hy.byLevel.unit|comma}\ \text{(filling and capping, per machine hour)}
+        say: 'Radiance Personal Care: only this pool really moves with volume.'
+      - tex: |
+          \anchor{batch}{\text{Batch}} = {=hy.byLevel.batch|comma}, \quad \anchor{product}{\text{Product}} = {=hy.byLevel.product|comma}
+        say: 'Setups and tests follow batches; formulas and regulatory filings follow product lines.'
+      - tex: |
+          \anchor{facility}{\text{Facility}} = {=hy.byLevel.facility|comma} \qquad \text{non-volume share} = {=hy.nonVolumeShare|pct1}
+        say: Two-thirds of Radiance's overhead has nothing to do with machine hours, yet the old system spread it all on them.
+    journal:
+      title: Radiance Personal Care, overhead by level (caselet 3-C)
+      blocks:
+        - { kind: schedule, title: The cost hierarchy, rows: '@hy.rows' }
+    links:
+      - { anchor: unit, label: Unit-level }
+      - { anchor: batch, label: Batch-level }
+      - { anchor: product, label: Product-level }
+      - { anchor: facility, label: Facility-level }
+    trace: { fn: hierarchy, in: { caselets: '@caselets', id: radiance } }
+    examples: [radiance]
+    tryIt: [hierarchy-match, hierarchy-mcq, facility-mcq, level-multi]
+    pitfalls:
+      - Calling setups unit-level because every unit eventually passes through one. A setup is done once per batch, whatever its size.
+      - Forcing factory rent onto a product driver. Facility-level costs are usually reported separately.
+    examTip: Ask "what would make this cost double?" More units, more batches, more product lines, or nothing short of a new plant.
+
+  - id: services
+    title: ABC for service lines
+    skills: [abc-services]
+    summary: |
+      The same three steps cost services: identify the activities, compute rates, and sum what each service line
+      consumes. Cost per visit shows which lines are truly resource-intensive.
+    keyFormula: '\text{Cost per visit} = \frac{\sum \text{rate} \times \text{driver used by the line}}{\text{visits}}'
+    data: [cavitedx]
+    derive:
+      - { fn: compare, in: { products: '@cavitedx.products', pools: '@cavitedx.pools', unitLabel: '@cavitedx.unitLabel' }, out: dx }
+    live:
+      - id: services-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Basic Blood Panel per visit', value: '{=dx.abcOH.basic|money2}' }
+            - { label: 'Imaging Scan per visit', value: '{=dx.abcOH.imaging|money2}' }
+            - { label: 'Executive Package per visit', value: '{=dx.abcOH.exec|money2}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{rate}{\text{Rates}}: \frac{480{,}000}{24{,}000} = 20, \quad \frac{900{,}000}{30{,}000} = 30, \quad \frac{270{,}000}{4{,}500} = 60
+        say: Per visit, per procedure, per consultation hour.
+      - tex: |
+          \begin{aligned}
+          \anchor{assign}{\text{Executive}} &= 3{,}000 \times 20 + 6{,}000 \times 30 \\
+          &\quad + 1{,}500 \times 60 = 330{,}000
+          \end{aligned}
+        say: Two procedures and half an hour of consultation per visit.
+      - tex: |
+          \begin{aligned}
+          \anchor{abc}{\text{Per visit}}&: \text{Basic } {=dx.abcOH.basic|money2},\ \text{Imaging } {=dx.abcOH.imaging|money2} \\
+          &\phantom{:}\ \text{Executive } {=dx.abcOH.exec|money2}
+          \end{aligned}
+        say: The Executive Package's premium reflects real resource use, not just the brand.
+    journal:
+      title: Cavite Medical Diagnostic Center (slides 47–48)
+      blocks:
+        - { kind: schedule, title: Rates, columns: [Pool cost, Driver total, Rate], rows: '@dx.rateRows' }
+        - { kind: schedule, title: Cost by service line, columns: [Basic Blood Panel, Imaging Scan, Executive Health Package], rows: '@dx.assignRows' }
+    links:
+      - { anchor: rate, label: Activity rates }
+      - { anchor: assign, label: Cost each line consumes }
+      - { anchor: abc, label: Cost per visit }
+    trace: { fn: compare, in: { products: '@cavitedx.products', pools: '@cavitedx.pools', unitLabel: '@cavitedx.unitLabel' } }
+    examples: [cavite-dx, registrar]
+    tryIt: [service-numeric, driver-match]
+    pitfalls:
+      - Dividing the line's cost by procedures or hours instead of visits when the question asks per visit.
+    examTip: The registrar example works the same way; any shared back office can be costed by activity.
+
+  - id: customers
+    title: Customer profitability
+    skills: [abc-services]
+    summary: |
+      [[customer-profitability|Customer profitability analysis]] subtracts each customer's ABC-assigned cost to serve
+      (orders, deliveries) from its gross margin. A customer with many small orders can lose money despite a healthy
+      gross margin.
+    keyFormula: '\text{Operating profit} = \text{Gross margin} - \sum \text{rate} \times \text{driver used}'
+    data: [rizal]
+    derive:
+      - { fn: customers, in: { pools: '@rizal.pools', customers: '@rizal.customers' }, out: cu }
+    live:
+      - id: customers-facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'Ranked by gross margin', value: 'A > B > C' }
+            - { label: 'Ranked by operating profit', value: 'A > C > B', tone: accent }
+            - { label: 'Biggest loss', value: '{=cu.worst}', tone: bad }
+    steps:
+      - tex: |
+          \anchor{rate}{\text{Rates}}: \frac{200{,}000}{2{,}000} = \text{₱}100/\text{order}, \quad \frac{300{,}000}{1{,}500} = \text{₱}200/\text{delivery}
+        say: 'Rizal Wholesale Distributors: two selling activities.'
+      - tex: |
+          \anchor{assign}{\text{B}} = 1{,}000 \times 100 + 900 \times 200 = \text{₱}280{,}000
+        say: Customer B orders and receives deliveries far more often than the others.
+      - tex: |
+          \anchor{profit}{\text{B}} = \anchor{gm}{140{,}000} - 280{,}000 = -\text{₱}140{,}000
+        say: 'Ranked by gross margin: {=cu.rankGm}. Ranked by operating profit: {=cu.rankProfit}.'
+    journal:
+      title: Rizal Wholesale Distributors (slides 70–71)
+      blocks:
+        - { kind: schedule, title: Customer profitability, columns: [Customer A, Customer B, Customer C, Total or rate], rows: '@cu.rows' }
+    links:
+      - { anchor: rate, label: Activity rates }
+      - { anchor: gm, label: Gross margin }
+      - { anchor: assign, label: Cost to serve }
+      - { anchor: profit, label: Operating profit }
+    trace: { fn: customers, in: { pools: '@rizal.pools', customers: '@rizal.customers' } }
+    examples: [rizal]
+    tryIt: [customer-numeric, customer-fill]
+    pitfalls:
+      - Ranking customers by sales or gross margin alone. Cost to serve can reverse the ranking.
+    examTip: Session 8 builds on this example; keep the ₱100 and ₱200 rates in mind.
+
+  - id: caselets
+    title: Nine caselets, one method
+    skills: [trad-vs-abc, abc-services]
+    summary: |
+      The case workbook runs the same three steps on FMCG plants, service firms and product-plus-service businesses.
+      Pick a caselet: the single-rate and ABC unit costs, full costs and margins come from the same calculation each time.
+    keyFormula: '\text{OH per unit}_{\text{ABC}} = \frac{\sum_{\text{pools}} \text{rate} \times \text{driver used}}{\text{units}}'
+    data: [caselets]
+    state: { id: goldencrisp }
+    derive:
+      - { fn: caselet, in: { caselets: '@caselets', id: '@id' }, out: cs }
+    live:
+      - id: case-pick
+        widget: Choice
+        props:
+          label: Caselet
+          options:
+            - { value: cleanwave, label: '1-S CleanWave Soap (FMCG)' }
+            - { value: goldencrisp, label: '2-M GoldenCrisp Biscuits (FMCG)' }
+            - { value: radiance, label: '3-C Radiance Personal Care (FMCG)' }
+            - { value: metrotrust, label: '1-S MetroTrust Bank (services)' }
+            - { value: careplus, label: '2-M CarePlus Hospital OPD (services)' }
+            - { value: apex, label: '3-C Apex Consulting (services)' }
+            - { value: drivewell, label: '1-S DriveWell Motors (product + service)' }
+            - { value: quickmart, label: '2-M QuickMart Retail (product + service)' }
+            - { value: medtech, label: '3-C MedTech Diagnostics (product + service)' }
+        bind: { value: id }
+    steps:
+      - tex: |
+          \anchor{trad}{\text{Single rate}} = \frac{\text{₱}{=cs.totalOH|comma}}{\text{total } \text{ {=cs.baseLabel} }} = \text{₱}{=cs.tradRate|2f}
+        say: '{=cs.title}: the old system, one rate on {=cs.baseLabel}.'
+      - tex: |
+          \anchor{rate}{\text{ABC rates}} = \frac{\text{pool cost}}{\text{pool driver}} \quad\Rightarrow\quad \anchor{assign}{\text{overhead used} \div \text{volume}}
+        say: Three steps, as always.
+      - tex: |
+          \anchor{diff}{\text{Traditional} - \text{ABC}}: +\ \text{overcosted},\ -\ \text{undercosted}
+        say: 'Overcosted: {=cs.overTxt}. Undercosted: {=cs.underTxt}. Look for the low-volume, complex line among the undercosted.'
+      - tex: |
+          \begin{aligned}
+          \anchor{diff}{\text{Full cost}} &= \text{direct} + \text{overhead} \\
+          \text{Margin} &= \tfrac{\text{price} - \text{full cost}}{\text{price}}
+          \end{aligned}
+        say: Where the caselet gives direct costs and prices, the margins can flip.
+    journal:
+      title: The case workbook (slides 85–108)
+      blocks:
+        - { kind: schedule, title: Rates, columns: [Pool cost, Driver total, Rate], rows: '@cs.rateRows' }
+        - { kind: schedule, title: Overhead assigned under ABC, columns: [ABC overhead, Volume, Per unit], rows: '@cs.productAssignRows' }
+        - { kind: schedule, title: Unit costs and margins, columns: [Trad. OH/unit, ABC OH/unit, Trad − ABC, 'Full cost, trad', 'Full cost, ABC', 'Margin, trad', 'Margin, ABC'], rows: '@cs.productRows' }
+    links:
+      - { anchor: trad, label: Single rate }
+      - { anchor: rate, label: Activity rates }
+      - { anchor: assign, label: Overhead used and per unit }
+      - { anchor: diff, label: 'Over- and undercosting, full cost and margins' }
+    trace: { fn: caselet, in: { caselets: '@caselets', id: '@id' } }
+    examples: [cleanwave, goldencrisp, radiance, metrotrust, careplus, apex, drivewell, quickmart, medtech]
+    tryIt: [compare-fill]
+    pitfalls:
+      - Treating a zero driver use as a missing number. Lab tests use no doctor minutes, so they get none of that pool.
+    examTip: The simple caselets are typical quiz length; the complex ones are typical of a case exam.
+
+  - id: adoption
+    title: When ABC is worth it
+    skills: [adoption]
+    summary: |
+      ABC trades bookkeeping simplicity for decision accuracy. It pays where overhead is large, products are diverse and
+      batch- or product-level activity is significant; in a single-product, low-overhead plant both methods give nearly
+      the same cost. Drivers must be chosen for cause and effect, not convenience.
+    keyFormula: '\text{Adopt ABC when } \text{benefit of better decisions} > \text{cost of designing and running it}'
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{diverse}{\text{Distortion}} &\propto \text{product diversity} \\
+          &\quad \times \text{batch- and product-level overhead}
+          \end{aligned}
+        say: 'Example 8: the custom electronics assembler adopts ABC; the bottled-water plant does not.'
+      - tex: |
+          \anchor{driver}{\text{Driver}} = \text{what causes the cost, not what is easy to measure}
+        say: 'Example 11: inspections are triggered by shipments, so labor hours would be "ABC in name only".'
+      - tex: |
+          \anchor{converge}{\text{One product, constant batches}} \Rightarrow \text{ABC} \approx \text{plantwide rate}
+        say: 'Example 13: with nothing to cross-subsidize, ABC adds cost without adding accuracy.'
+    journal:
+      title: The adoption decision (slides 59–66, 72–77)
+      blocks:
+        - kind: schedule
+          title: Two recommendations (Example 8)
+          columns: [Bottled-water plant, Custom electronics]
+          rows:
+            - { id: products, label: Products, amounts: [One, 40+ variants], anchor: diverse }
+            - { id: batches, label: Setups and inspections, amounts: [Minimal, 'Frequent changeovers, heavy inspection'], anchor: diverse }
+            - { id: driver, label: Data for the right drivers, amounts: [Not needed, Worth collecting], anchor: driver }
+            - { id: verdict, label: Recommendation, amounts: [Stay with traditional costing, Adopt ABC], anchor: converge }
+    links:
+      - { anchor: diverse, label: Diversity drives distortion }
+      - { anchor: driver, label: Cause-and-effect drivers }
+      - { anchor: converge, label: When the methods agree }
+    tryIt: [adopt-mcq, driver-mcq, converge-mcq, limits-multi]
+    pitfalls:
+      - Deciding by company size or industry. The test is diversity and the weight of non-volume overhead.
+    examTip: 'Answer adoption questions with the four conditions: high overhead, diverse products, big non-volume activities, high-stakes decisions.'

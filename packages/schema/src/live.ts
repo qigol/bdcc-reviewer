@@ -20,7 +20,7 @@ export function sectionLiveWidgets(section: { data?: string[]; live?: StageWidge
 }
 
 /** Roles that address the section's own panes rather than a live widget. */
-export const PANE_ROLES = new Set(['code', 'formula']);
+export const PANE_ROLES = new Set(['code', 'formula', 'journal']);
 
 /**
  * Which live widget a trace op's `role` addresses, in order of preference:

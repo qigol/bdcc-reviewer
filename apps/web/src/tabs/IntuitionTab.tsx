@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, RotateCcw, Volume2, VolumeX } from 'lucide-react';
-import { resolveRefs, evalExpr, TRANSIENT_COMMANDS, type Scene } from '@kodigo/schema';
+import { ArrowLeft, ArrowRight, BookMarked, Check, CheckCircle2, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { resolveRefs, evalExpr, TRANSIENT_COMMANDS, workbenchTabLabel, type Scene, type Term } from '@kodigo/schema';
 import { useModuleCtx } from './ModulePage';
 import { StageProvider, Stage, useStage } from '../engine/Stage';
 import { GateView, gateSatisfied, type GateState } from '../engine/Gate';
 import type { WidgetCommand } from '../engine/types';
-import { Markdown } from '../lib/md';
+import { Markdown, Tex } from '../lib/md';
 import { cn } from '../lib/util';
 import { markProgress, setSetting, useModuleProgress, useSetting, saveNote, useNote } from '../storage/progress';
 import { db } from '../storage/db';
@@ -177,8 +177,9 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
                 <motion.div key={`beat-${beat}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reducedMotion ? 0.1 : 0.25 }}
                   className="card sticky bottom-3 z-10 flex flex-col gap-3 p-4 shadow-lg">
                   <Markdown text={cur.say} className="text-[15px]" />
+                  {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
                   {cur.gate && cur.gate.type !== 'continue' && (
-                    <GateView gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue}
+                    <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`}
                       onAnswer={(correct, response) => { if (!mod.preview) db.attempts.add({ key: `${mod.id}/predict:${scene.id}:${beat}`, templateId: `predict:${scene.id}:${beat}`, moduleId: mod.id, seed: 0, type: 'predict', skills: scene.skills ?? [], score: correct ? 1 : 0, response, timeMs: 0, mode: 'predict', at: Date.now() }); }} />
                   )}
                   <div className="flex items-center gap-3">
@@ -197,11 +198,13 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
                 <motion.div key="takeaway" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="card border-good/40 p-5">
                   <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-good"><CheckCircle2 size={18} /> Takeaway</div>
                   <Markdown text={scene.takeaway} className="text-lg font-medium" />
+                  <TermsRecap scene={scene} terms={mod.parsed.glossary} />
                   <ExplainBack moduleId={mod.id} anchor={`scene:${scene.id}`} disabled={!!mod.preview} />
                   <div className="mt-4 flex gap-2">
                     <button className="btn" onClick={() => { goto(0, true); setGates({}); }}><RotateCcw size={15} /> Watch again</button>
                     {next ? <button className="btn-primary" onClick={() => nav(`${base}/intuition/${next.id}`)}>Next scene: {next.title} <ArrowRight size={15} /></button>
-                      : <button className="btn-primary" onClick={() => nav(`${base}/math-code`)}>On to Math &amp; Code <ArrowRight size={15} /></button>}
+                      : <button className="btn-primary" onClick={() => nav(`${base}/math-code`)}>On to {workbenchTabLabel(mod.parsed.manifest)} <ArrowRight size={15} /></button>}
+                    <button className="btn-ghost" onClick={() => nav(`${base}/path`)}>Back to the path</button>
                   </div>
                 </motion.div>
               )}
@@ -248,6 +251,42 @@ export function ExplainBack({ moduleId, anchor, prompt, disabled }: { moduleId: 
       <div className="mt-1 flex justify-end">
         <button className="btn btn-sm" disabled={disabled || !value.trim()} onClick={async () => { await saveNote(moduleId, anchor, value); setSaved(true); }}>{saved ? <><Check size={13} /> Saved</> : 'Save note'}</button>
       </div>
+    </div>
+  );
+}
+
+/** The terms a beat introduces (`define`), shown as definition cards under the narration. */
+function DefinitionCards({ ids, terms }: { ids: string[]; terms: Term[] }) {
+  const list = ids.map((id) => terms.find((t) => t.id === id)).filter(Boolean) as Term[];
+  if (!list.length) return null;
+  return (
+    <div className={cn('grid gap-2', list.length > 1 && 'md:grid-cols-2')} data-testid="definitions">
+      {list.map((t) => (
+        <motion.div key={t.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-2" data-term={t.id}>
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-accent"><BookMarked size={12} /> New term</span>
+            <span className="font-semibold">{t.term}</span>
+            {t.aka?.length ? <span className="text-xs text-muted">also {t.aka.join(', ')}</span> : null}
+          </div>
+          <div className="text-sm">{t.short}</div>
+          {t.formula && <Tex tex={t.formula} display={false} className="mt-1 block text-sm" />}
+          {t.long && <details className="mt-1 text-sm text-muted"><summary className="cursor-pointer text-xs">More</summary><Markdown text={t.long} raw /></details>}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function TermsRecap({ scene, terms }: { scene: Scene; terms: Term[] }) {
+  const ids = [...new Set(scene.beats.flatMap((b) => b.define ?? []))];
+  const list = ids.map((id) => terms.find((t) => t.id === id)).filter(Boolean) as Term[];
+  if (!list.length) return null;
+  return (
+    <div className="mt-3 rounded-lg bg-panel2 px-3 py-2" data-testid="terms-recap">
+      <div className="label mb-1 flex items-center gap-1"><BookMarked size={12} /> Terms from this scene</div>
+      <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+        {list.map((t) => <div key={t.id} className="contents"><dt className="font-semibold">{t.term}</dt><dd className="text-muted">{t.short}</dd></div>)}
+      </dl>
     </div>
   );
 }

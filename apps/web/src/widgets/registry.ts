@@ -23,6 +23,9 @@ export const WIDGET_COMPONENTS: Record<string, W> = {
   Choice: lazy(() => import('./Choice')),
   Readout: lazy(() => import('./Readout')),
   Callout: lazy(() => import('./Callout')),
+  Journal: lazy(() => import('./Journal')),
+  TAccounts: lazy(() => import('./TAccounts')),
+  Schedule: lazy(() => import('./Schedule')),
   Text: lazy(() => import('./Text')),
   Image: lazy(() => import('./Image')),
 };

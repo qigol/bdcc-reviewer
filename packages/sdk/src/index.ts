@@ -120,7 +120,30 @@ export function fmt(x: unknown, spec = ''): string {
   const pct = /^pct(\d)$/.exec(spec);
   if (pct) return `${stripZeros(round(x * 100, Number(pct[1])).toFixed(Number(pct[1])))}%`;
   if (spec === 'int') return String(Math.round(x));
+  const comma = /^comma(\d)?$/.exec(spec);
+  if (comma) return comma[1] === undefined ? groupThousands(stripZeros(round(x, 2).toFixed(2))) : groupThousands(round(x, Number(comma[1])).toFixed(Number(comma[1])));
+  const money = /^money(\d)?$/.exec(spec);
+  if (money) return moneyText(x, money[1] === undefined ? undefined : Number(money[1]));
   return stripZeros(round(x, 2).toFixed(2));
+}
+
+/** '1234567.5' → '1,234,567.5' (a leading minus becomes the real minus sign). */
+export function groupThousands(s: string): string {
+  const neg = s.startsWith('-');
+  const [int, dec] = (neg ? s.slice(1) : s).split('.');
+  const g = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${neg ? '−' : ''}${g}${dec !== undefined ? `.${dec}` : ''}`;
+}
+
+/**
+ * Money: thousands separators, 0 decimals when the amount is whole (to the centavo) and 2 otherwise,
+ * unless `decimals` is given. `₱12,500`, `₱1,250.50`, `−₱300`.
+ */
+export function moneyText(x: number, decimals?: number, symbol = '₱'): string {
+  if (!Number.isFinite(x)) return fmt(x);
+  const d = decimals ?? (Math.abs(x - Math.round(x)) < 0.005 ? 0 : 2);
+  const body = groupThousands(round(Math.abs(x), d).toFixed(d));
+  return `${x < 0 && round(Math.abs(x), d) !== 0 ? '−' : ''}${symbol}${body}`;
 }
 
 // ---------------------------------------------------------------- vectors

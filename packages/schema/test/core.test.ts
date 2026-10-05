@@ -118,8 +118,8 @@ describe('quiz checkers', () => {
 });
 
 describe('widget catalog', () => {
-  it('has 20 documented widgets', () => {
-    expect(WIDGETS.length).toBe(20);
+  it('has 23 documented widgets', () => {
+    expect(WIDGETS.length).toBe(23);
     for (const w of WIDGETS) expect(w.name).toMatch(/^[A-Z][A-Za-z]+$/);
     expect(widgetsMarkdown()).toContain('## StepPlayer');
   });

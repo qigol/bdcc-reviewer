@@ -1,0 +1,139 @@
+templates:
+  - id: rate-numeric
+    type: numeric
+    skills: [pohr]
+    difficulty: 1
+    tags: [math]
+    generator: rateQ
+    lessonRef: { tab: math-code, id: pohr }
+    prompt: |
+      Estimated overhead is {=estOH|money} and estimated direct labor-hours are {=estBase|comma}. Actual hours turn
+      out to be {=actualBase|comma}. What is the predetermined overhead rate per DLH?
+    answer: { var: rate, tol: 0.01 }
+    hints:
+      - The rate is set **before** the year starts. Which numbers were known then?
+      - Divide estimated overhead by the estimated base.
+    explanation: |
+      $\text{POHR} = {=estOH|comma} \div {=estBase|comma} = {=rate|money2}$ per DLH. Actual hours don't enter the rate;
+      they only decide how much overhead gets applied.
+
+  - id: job-handcalc
+    type: hand-calc
+    skills: [job-cost]
+    difficulty: 2
+    tags: [math]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: job-cost }
+    prompt: |
+      A job used {=dm|money} of direct materials and {=dl|money} of direct labor ({=hours|comma} direct labor-hours).
+      The predetermined overhead rate is {=rate|money} per DLH.
+    steps:
+      - prompt: Overhead applied to the job (₱)
+        answer: { var: oh, tol: 0.5 }
+        misconceptions:
+          - { var: wrongOh, feedback: You multiplied the rate by labor **pesos**; it is per labor-**hour**. }
+        hint: Rate × the job's direct labor-hours.
+      - prompt: Total job cost (₱)
+        answer: { var: total, tol: 0.5 }
+        misconceptions:
+          - { var: wrongTotal, feedback: You left out applied overhead. }
+          - { var: wrongTotalOh, feedback: Your overhead used labor pesos instead of hours. }
+    hints:
+      - A job carries three costs. Two are given; one comes from the rate.
+    explanation: |
+      Overhead $= {=rate|comma} \times {=hours|comma} = {=oh|money}$; job cost $= {=dm|comma} + {=dl|comma} + {=oh|comma} = {=total|money}$.
+
+  - id: apply-je
+    type: journal-entry
+    skills: [cost-flow]
+    difficulty: 1
+    tags: [journal]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: job-cost }
+    prompt: |
+      The job worked {=hours|comma} direct labor-hours and the rate is {=rate|money} per DLH. Record the overhead applied to it.
+    accounts: [Work in Process, Manufacturing Overhead, Finished Goods, Raw Materials, Cost of Goods Sold, Wages Payable]
+    entries:
+      - lines:
+          - { account: Work in Process, debit: '@oh' }
+          - { account: Manufacturing Overhead, credit: '@oh' }
+    hints:
+      - Applied overhead adds to the job's cost. Which inventory account holds jobs in progress?
+      - The credit goes to the account that collects actual overhead.
+    explanation: |
+      Debit **Work in Process** and credit **Manufacturing Overhead** for $ {=rate|comma} \times {=hours|comma} = {=oh|money}$.
+
+  - id: close-je
+    type: journal-entry
+    skills: [over-under]
+    difficulty: 2
+    tags: [journal]
+    generator: closeQ
+    lessonRef: { tab: math-code, id: close-overhead }
+    prompt: |
+      Actual overhead for the year was {=actualOH|money}. Overhead was applied at {=rate|money} per DLH for
+      {=actualBase|comma} actual hours. Close the balance in Manufacturing Overhead to Cost of Goods Sold.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - First compute applied overhead and compare it with actual.
+      - If too little was applied, COGS is too low, so COGS is **debited**.
+    explanation: |
+      Applied $= {=applied|money}$ vs actual {=actualOH|money}: {=kind} by {=amt|money}. Underapplied → debit COGS,
+      credit Manufacturing Overhead; overapplied → the reverse.
+
+  - id: cost-sheet-fill
+    type: schedule-fill
+    skills: [job-cost]
+    difficulty: 1
+    tags: [journal]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: job-cost }
+    prompt: |
+      Complete the job cost sheet. The rate is {=rate|money} per DLH and the job used {=hours|comma} DLH.
+    rows:
+      - { label: Direct materials, amount: '@dm' }
+      - { label: Direct labor, amount: '@dl' }
+      - { label: Overhead applied, amount: '@oh', blank: true }
+      - { label: Total job cost, amount: '@total', style: total, blank: true }
+    hints:
+      - Overhead applied = rate × hours.
+    explanation: |
+      Overhead $= {=oh|money}$, total $= {=total|money}$.
+
+  - id: under-over-mcq
+    type: mcq
+    skills: [over-under]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: follow-the-cost }
+    prompt: Applied overhead exceeds actual overhead at year end. What happened, and what is the entry?
+    options:
+      - Overapplied; debit Manufacturing Overhead, credit Cost of Goods Sold
+      - Underapplied; debit Cost of Goods Sold, credit Manufacturing Overhead
+      - Overapplied; debit Cost of Goods Sold, credit Manufacturing Overhead
+    answer: 0
+    hints: [Applied more than actual means jobs were charged too much.]
+    explanation: Too much overhead went to jobs, so COGS is too high and is credited.
+
+  - id: flow-order
+    type: order
+    skills: [cost-flow]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: follow-the-cost }
+    prompt: Put a job's cost in the order it flows through the accounts.
+    items: [Raw Materials, Work in Process, Finished Goods, Cost of Goods Sold]
+    explanation: Materials are requisitioned into WIP, completed jobs go to Finished Goods, and sold jobs to COGS.
+
+  - id: terms-match
+    type: match
+    skills: [pohr]
+    difficulty: 1
+    tags: [term]
+    prompt: Match each idea to where it shows up.
+    pairs:
+      - ['Predetermined overhead rate', 'set from the budget before the year']
+      - ['Applied overhead', 'rate × actual hours of a job']
+      - ['Underapplied overhead', 'actual overhead > applied overhead']
+    explanation: The rate is planned, applied overhead is charged as jobs run, and the gap is settled at year end.

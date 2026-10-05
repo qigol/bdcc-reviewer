@@ -150,7 +150,7 @@ function ModuleCard({ mod, progress, mastery }: { mod: LoadedModule; progress: R
           })}
         </div>
         <div className="mt-4 flex gap-2">
-          <Link to={`/m/${mod.id}/intuition`} className="btn-primary flex-1">Study</Link>
+          <Link to={`/m/${mod.id}/path`} className="btn-primary flex-1">Study</Link>
           <Link to={`/quiz?modules=${mod.id}&start=1`} className="btn flex-1"><Dumbbell size={14} /> Practice</Link>
         </div>
       </div>

@@ -1,0 +1,585 @@
+templates:
+  # ------------------------------------------------------------------ cost systems
+  - id: system-mcq
+    type: mcq
+    skills: [cost-systems]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: job-or-process }
+    prompt: A Batangas refinery runs a continuous process that turns crude oil into identical gallons of fuel, 24 hours a day. Which costing system fits it?
+    options:
+      - Process costing, because the output is continuous and identical
+      - Job-order costing, because each gallon can be traced on its own cost sheet
+      - Job-order costing, because refineries are large and complex
+      - Process costing, because refineries have no overhead
+    answer: 0
+    hints: [Ask whether one gallon differs from the next.]
+    explanation: Identical, continuous output is averaged over a department's production, which is process costing. Size and complexity don't decide it; the nature of the output does.
+
+  - id: system-multi
+    type: multi
+    skills: [cost-systems]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: job-or-process }
+    prompt: Which of these businesses are best suited to **job-order costing**? Select all that apply.
+    options:
+      - An auto repair shop working on each customer's car
+      - A law firm billing client engagements
+      - A contractor building a custom warehouse
+      - A cement plant running a continuous kiln
+      - A soft-drink line bottling millions of identical bottles
+    answer: [0, 1, 2]
+    hints: [Job-order costing fits outputs that are unique and identifiable, in services as well as manufacturing.]
+    explanation: Each repair order, engagement and building is a unique job. Cement and bottled drinks are continuous, identical output, which calls for process costing.
+
+  - id: system-match
+    type: match
+    skills: [cost-systems]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: job-or-process }
+    prompt: Match each feature to its value.
+    pairs:
+      - ['Job-order costing: cost unit', 'A job, order or contract']
+      - ['Process costing: cost unit', 'A physical unit of output']
+      - ['Job-order costing: subsidiary record', 'The job cost sheet']
+      - ['Process costing: subsidiary record', 'The cost-of-production report']
+      - ['Job-order costing: costs accumulated', 'By job']
+      - ['Process costing: costs accumulated', 'By department']
+    pick: 4
+    explanation: Job-order costing collects cost job by job on job cost sheets; process costing collects it department by department and averages it over physical units.
+
+  # ------------------------------------------------------------------ job cost sheet
+  - id: job-handcalc
+    type: hand-calc
+    skills: [job-cost-sheet]
+    difficulty: 2
+    tags: [math]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: job-cost-sheet }
+    prompt: |
+      A job received materials of {=issueText}. Time tickets show {=h1} hours at {=w1|money2} and {=h2} hours at
+      {=w2|money2}. Overhead is applied at {=rate|money2} per direct labor hour.
+    steps:
+      - prompt: Direct materials (₱)
+        answer: { var: dm, tol: 0.5 }
+        hint: Add the requisitions.
+      - prompt: Direct labor (₱)
+        answer: { var: dl, tol: 0.01 }
+        misconceptions:
+          - { var: wrongOneWage, feedback: Each time ticket has its own wage rate. Price each ticket separately. }
+        hint: Hours × wage on each ticket, then add.
+      - prompt: Applied overhead (₱)
+        answer: { var: oh, tol: 0.01 }
+        misconceptions:
+          - { var: wrongOhPeso, feedback: The rate is per direct labor **hour**; you multiplied it by labor pesos. }
+        hint: Total hours × the rate.
+      - prompt: Total job cost (₱)
+        answer: { var: total, tol: 0.01 }
+        misconceptions:
+          - { var: wrongNoOh, feedback: You left out applied overhead. }
+    hints:
+      - A job cost sheet has three parts. Two are traced from documents; one is applied.
+      - Overhead uses the job's total direct labor hours.
+    explanation: |
+      DM $= {=dm|comma}$; DL $= {=h1} \times {=w1|2f} + {=h2} \times {=w2|2f} = {=dl|comma2}$; OH $= {=hours} \times {=rate|2f} = {=oh|comma2}$;
+      total $= {=total|money2}$.
+
+  - id: cost-sheet-fill
+    type: schedule-fill
+    skills: [job-cost-sheet]
+    difficulty: 1
+    tags: [journal]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: job-cost-sheet }
+    prompt: |
+      Complete the job cost sheet. The job used {=hours} direct labor hours, overhead is applied at {=rate|money2} per
+      DLH, and the job is priced at a {=markup|pct} markup on cost.
+    rows:
+      - { label: Direct materials, amount: '@dm' }
+      - { label: Direct labor, amount: '@dl' }
+      - { label: Applied overhead, amount: '@oh', blank: true }
+      - { label: Total job cost, amount: '@total', style: total, blank: true }
+      - { label: Sales price, amount: '@price', style: total, blank: true }
+    hints:
+      - Applied overhead = hours × rate.
+      - Price = cost × (1 + markup).
+    explanation: |
+      Overhead $= {=hours} \times {=rate|2f} = {=oh|money2}$; cost $= {=total|money2}$; price $= {=total|comma2} \times (1 + {=markup|2}) = {=price|money2}$.
+
+  - id: markup-numeric
+    type: numeric
+    skills: [job-cost-sheet]
+    difficulty: 1
+    tags: [math]
+    generator: markupQ
+    lessonRef: { tab: math-code, id: job-cost-sheet }
+    prompt: A finished job cost {=total|money}. The company prices jobs at a {=markup|pct} markup on cost. What price should it quote?
+    answer: { var: price, tol: 0.01 }
+    hints:
+      - A markup on cost is added to the cost.
+      - Price = cost × (1 + markup).
+    explanation: 'Price $= {=total|comma} \times (1 + {=markup|2}) = {=price|money}$.'
+
+  - id: source-docs-match
+    type: match
+    skills: [job-cost-sheet]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: chiphard-sheet }
+    prompt: Match each source document to the job cost it feeds.
+    pairs:
+      - ['Materials requisition form', 'Direct materials issued to the job']
+      - ['Time ticket', 'Direct labor hours and wages on the job']
+      - ['Predetermined overhead rate', 'Overhead applied to the job']
+      - ['Job cost sheet', 'Running total of all three for one job']
+    explanation: Requisitions and time tickets trace materials and labor; the rate applies overhead; the cost sheet accumulates them.
+
+  - id: engagement-numeric
+    type: numeric
+    skills: [job-cost-sheet]
+    difficulty: 2
+    tags: [math, application]
+    generator: engagementQ
+    lessonRef: { tab: math-code, id: engagement }
+    prompt: |
+      A consulting engagement used {=ph} partner hours at {=pr|money} and {=ah} associate hours at {=ar|money}, plus
+      {=direct|money} of fees paid for the client. Firm overhead is applied at {=ohPct|pct} of professional labor cost.
+      What is the total cost of the engagement?
+    answer: { var: total, tol: 0.5 }
+    misconceptions:
+      - { var: wrongNoOh, feedback: You left out applied firm overhead. }
+    hints:
+      - Professional hours are the engagement's direct labor.
+      - Apply the overhead percentage to professional labor only.
+    explanation: |
+      Labor $= {=ph} \times {=pr|comma} + {=ah} \times {=ar|comma} = {=labor|comma}$; overhead $= {=ohPct|pct} \times {=labor|comma} = {=oh|comma}$;
+      total $= {=labor|comma} + {=direct|comma} + {=oh|comma} = {=total|money}$.
+
+  - id: profit-numeric
+    type: numeric
+    skills: [job-cost-sheet]
+    difficulty: 2
+    tags: [math, application]
+    generator: profitQ
+    lessonRef: { tab: math-code, id: engagement }
+    prompt: |
+      A job was quoted at {=price|money} on an estimated cost of {=estCost|money}. Actual costs came in at direct
+      materials {=a_dm|money}, direct labor {=a_dl|money} and applied overhead {=a_oh|money}. What is the actual profit
+      margin, as a fraction of the price?
+    answer: { var: margin, tol: 0.001, accept: [decimal, percent] }
+    hints:
+      - First add the actual costs.
+      - Margin = profit ÷ price.
+    explanation: |
+      Actual cost $= {=actCost|money}$, profit $= {=price|comma} - {=actCost|comma} = {=profit|money}$, margin
+      $= {=profit|comma} \div {=price|comma} = {=margin|pct1}$.
+
+  # ------------------------------------------------------------------ POHR
+  - id: pohr-numeric
+    type: numeric
+    skills: [pohr]
+    difficulty: 1
+    tags: [math]
+    generator: pohrQ
+    lessonRef: { tab: math-code, id: pohr }
+    prompt: |
+      A print shop budgets {=budgetOH|money} of overhead and {=budgetBase|comma} direct labor hours for the year. It
+      actually works {=actualBase|comma} hours. What is its predetermined overhead rate per direct labor hour?
+    answer: { var: rate, tol: 0.01 }
+    hints:
+      - The rate is set **before** the year starts. Which numbers are known then?
+      - Divide budgeted overhead by budgeted hours.
+    explanation: 'POHR $= {=budgetOH|comma} \div {=budgetBase|comma} = {=rate|money2}$ per DLH. Actual hours only decide how much gets applied.'
+
+  - id: job-total-numeric
+    type: numeric
+    skills: [pohr]
+    difficulty: 2
+    tags: [math]
+    generator: pohrQ
+    lessonRef: { tab: math-code, id: pohr }
+    prompt: |
+      Budgeted overhead is {=budgetOH|money} on {=budgetBase|comma} budgeted direct labor hours. A job uses
+      {=dm|money} of materials and {=hours} direct labor hours at {=wage|money} per hour. What is the job's total cost?
+    answer: { var: total, tol: 0.5 }
+    misconceptions:
+      - { var: wrongNoOh, feedback: You left out applied overhead. }
+      - { var: wrongOhWage, feedback: 'You applied the rate to labor pesos; it is per direct labor **hour**.' }
+    hints:
+      - Find the POHR first.
+      - Applied overhead = POHR × the job's hours.
+    explanation: |
+      POHR $= {=rate|money2}$; DL $= {=hours} \times {=wage} = {=dl|comma}$; OH $= {=hours} \times {=rate|2f} = {=oh|comma}$;
+      total $= {=dm|comma} + {=dl|comma} + {=oh|comma} = {=total|money}$.
+
+  - id: apply-je
+    type: journal-entry
+    skills: [pohr]
+    difficulty: 1
+    tags: [journal]
+    generator: pohrQ
+    lessonRef: { tab: math-code, id: pohr }
+    prompt: |
+      The predetermined overhead rate is {=rate|money2} per direct labor hour. A job used {=hours} direct labor hours.
+      Record the overhead applied to it.
+    accounts: [Work in Process, Factory Overhead, Finished Goods, Raw Materials Inventory, Cost of Goods Sold, Wages Payable, Accounts Payable]
+    entries:
+      - lines:
+          - { account: Work in Process, debit: '@oh' }
+          - { account: Factory Overhead, credit: '@oh' }
+    hints:
+      - Applied overhead adds to the job's cost. Which account holds jobs in progress?
+      - The credit goes to the control account that collects overhead.
+    explanation: 'Debit **Work in Process** and credit **Factory Overhead** for ${=hours} \times {=rate|2f} = {=oh|money}$.'
+
+  - id: base-mcq
+    type: mcq
+    skills: [pohr]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: beyond-the-floor }
+    prompt: A highly automated stamping line has power, maintenance and depreciation as most of its overhead, and very little direct labor. Which activity base should its overhead rate use?
+    options:
+      - Machine hours
+      - Direct labor hours
+      - Direct labor cost
+      - Number of units sold
+    answer: 0
+    hints: [The base should be the activity that causes the overhead.]
+    explanation: The overhead follows machine use. A labor base would load large overhead onto a small, incidental amount of labor and give a distorted, unstable rate.
+
+  - id: normal-mcq
+    type: mcq
+    skills: [pohr]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-a-rate }
+    prompt: Which statement about normal costing is correct?
+    options:
+      - Direct materials and labor are at actual cost; overhead is applied with a predetermined rate.
+      - Materials, labor and overhead are all recorded at actual cost.
+      - Overhead is recorded at actual cost; materials and labor are estimated.
+      - It is rarely used because job costs are known only at year end.
+    answer: 0
+    hints: [Which cost cannot be known until the year ends?]
+    explanation: Normal costing traces actual DM and DL and applies overhead with the budgeted rate, so a job's cost is known as soon as it is finished. Actual costing waits for year-end overhead.
+
+  # ------------------------------------------------------------------ under/overapplied
+  - id: applied-numeric
+    type: numeric
+    skills: [over-under]
+    difficulty: 1
+    tags: [math]
+    generator: appliedQ
+    lessonRef: { tab: math-code, id: under-over }
+    prompt: |
+      The predetermined overhead rate is {=rate|money} per direct labor hour, set on a budget of {=budgetBase|comma} hours.
+      The plant actually worked {=actualBase|comma} hours and incurred {=actualOH|money} of overhead. How much overhead was
+      applied?
+    answer: { var: applied, tol: 0.5 }
+    hints:
+      - Applied overhead uses the predetermined rate and the actual activity.
+    explanation: 'Applied $= {=actualBase|comma} \times {=rate} = {=applied|money}$, so overhead is {=kindTxt} by {=amt|money}.'
+
+  - id: close-mcq
+    type: mcq
+    skills: [over-under]
+    difficulty: 2
+    tags: [math]
+    generator: closeQ
+    lessonRef: { tab: intuition, id: two-companies }
+    prompt: |
+      Overhead is applied at {=rateText}. This year the actual base was {=baseText} and actual overhead was
+      {=actualOH|money}. Which statement is correct?
+    hints:
+      - Compute applied overhead first and compare it with actual.
+      - If jobs were charged too little, COGS was too low.
+    explanation: 'Applied $= {=applied|money}$ vs actual {=actualOH|money}: {=kindTxt} by {=amt|money}.'
+
+  - id: close-je
+    type: journal-entry
+    skills: [over-under]
+    difficulty: 2
+    tags: [journal]
+    generator: closeQ
+    lessonRef: { tab: math-code, id: under-over }
+    prompt: |
+      Overhead is applied at {=rateText}. The actual base was {=baseText}, and actual overhead was {=actualOH|money}.
+      The difference is immaterial. Close it to Cost of Goods Sold.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Compute applied overhead and compare it with actual.
+      - Underapplied → COGS goes up (debit). Overapplied → COGS goes down (credit).
+    explanation: |
+      Applied $= {=applied|money}$ vs actual {=actualOH|money}: {=kindTxt} by {=amt|money}. Underapplied → debit Cost of
+      Goods Sold, credit Factory Overhead; overapplied → the reverse. Either way Factory Overhead ends at zero.
+
+  - id: close-handcalc
+    type: hand-calc
+    skills: [over-under]
+    difficulty: 2
+    tags: [math]
+    generator: closeQ
+    lessonRef: { tab: math-code, id: under-over }
+    prompt: 'Overhead is applied at {=rateText}. The actual base was {=baseText}; actual overhead was {=actualOH|money}.'
+    steps:
+      - prompt: Applied overhead (₱)
+        answer: { var: applied, tol: 0.5 }
+        hint: Rate × actual base.
+      - prompt: 'Actual − applied (₱; negative if overapplied)'
+        answer: { var: signedDiff, tol: 0.5 }
+        misconceptions:
+          - { var: amt, feedback: 'Keep the sign: actual minus applied is negative when overhead is overapplied.' }
+        hint: Positive means underapplied.
+    hints:
+      - Applied overhead never uses actual overhead; it uses the rate and the actual base.
+    explanation: 'Applied $= {=applied|money}$; ${=actualOH|comma} - {=applied|comma} = {=signedDiff|comma}$, so overhead is {=kindTxt}.'
+
+  - id: dispose-order
+    type: order
+    skills: [over-under, proration]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: under-over }
+    prompt: Put the year-end treatment of factory overhead in order.
+    items:
+      - Total the actual overhead debited to Factory Overhead
+      - Compute applied overhead as POHR × actual activity
+      - Take the difference to see whether overhead is under- or overapplied
+      - Judge whether the difference is material
+      - Close it to COGS if immaterial, or prorate it across WIP, Finished Goods and COGS if material
+    explanation: Compute the gap, assess materiality, then close it out. Either treatment leaves Factory Overhead at zero.
+
+  - id: terms-match
+    type: match
+    skills: [over-under, proration]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: two-companies }
+    prompt: Match each situation to its year-end treatment.
+    pairs:
+      - ['Underapplied, immaterial', 'Debit COGS, credit Factory Overhead']
+      - ['Overapplied, immaterial', 'Debit Factory Overhead, credit COGS']
+      - ['Overapplied, material', 'Credit WIP, Finished Goods and COGS by their shares']
+      - ['Underapplied, material', 'Debit WIP, Finished Goods and COGS by their shares']
+    explanation: Immaterial amounts go to COGS alone; material amounts are prorated. Underapplied increases the accounts, overapplied decreases them.
+
+  # ------------------------------------------------------------------ proration
+  - id: prorate-numeric
+    type: numeric
+    skills: [proration]
+    difficulty: 2
+    tags: [math]
+    generator: prorateQ
+    lessonRef: { tab: math-code, id: proration }
+    prompt: |
+      Overhead was {=kindTxt} by {=amount|money}, a material amount. Applied overhead remaining at year end: Work in
+      Process {=wip|money}, Finished Goods {=fg|money}, Cost of Goods Sold {=cogs|money}. By how much is **Finished
+      Goods** adjusted?
+    answer: { var: fgAdj, tol: 0.5 }
+    hints:
+      - Find Finished Goods' share of the total applied overhead.
+      - Multiply that share by the difference.
+    explanation: |
+      Total $= {=total|money}$; Finished Goods' share $= {=fg|comma} \div {=total|comma} = {=fgPct|pct}$; adjustment
+      $= {=fgPct|pct} \times {=amount|comma} = {=fgAdj|money}$ ({=direction}).
+
+  - id: prorate-je
+    type: journal-entry
+    skills: [proration]
+    difficulty: 3
+    tags: [journal]
+    generator: prorateQ
+    lessonRef: { tab: math-code, id: proration }
+    prompt: |
+      Overhead was {=kindTxt} by {=amount|money}, and the company prorates it. Applied overhead at year end: Work in
+      Process {=wip|money}, Finished Goods {=fg|money}, Cost of Goods Sold {=cogs|money}. Record the proration.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Each account's share is its applied overhead ÷ the total.
+      - Overapplied → credit the three accounts and debit Factory Overhead; underapplied → the reverse.
+    explanation: |
+      Shares {=wipPct|pct}, {=fgPct|pct}, {=cogsPct|pct}: WIP {=wipAdj|money}, Finished Goods {=fgAdj|money}, COGS
+      {=cogsAdj|money} (each one {=direction}s), with Factory Overhead taking the full {=amount|money} on the other side.
+
+  - id: prorate-fill
+    type: schedule-fill
+    skills: [proration]
+    difficulty: 2
+    tags: [journal]
+    generator: prorateQ
+    lessonRef: { tab: math-code, id: proration }
+    prompt: 'Overhead was {=kindTxt} by {=amount|money}, a material amount. Prorate it: fill in each account''s adjustment.'
+    rows:
+      - { label: 'Work in Process (holds {=wip|money} of applied overhead)', amount: '@wipAdj', blank: true }
+      - { label: 'Finished Goods (holds {=fg|money})', amount: '@fgAdj', blank: true }
+      - { label: 'Cost of Goods Sold (holds {=cogs|money})', amount: '@cogsAdj', blank: true }
+      - { label: Total adjustment, amount: '@amount', style: total }
+    hints:
+      - Each account's share is its applied overhead ÷ the total of the three.
+      - Multiply each share by the difference; the three must add back to it.
+    explanation: 'Adjustments: WIP {=wipAdj|money}, Finished Goods {=fgAdj|money}, COGS {=cogsAdj|money}, adding to {=amount|money}.'
+
+  # ------------------------------------------------------------------ departmental rates
+  - id: dept-handcalc
+    type: hand-calc
+    skills: [dept-rates]
+    difficulty: 2
+    tags: [math]
+    generator: deptQ
+    lessonRef: { tab: math-code, id: dept-rates }
+    prompt: |
+      A job of {=units} units passes through two departments. Department A applies overhead at {=aPct|pct1} of direct
+      labor cost; Department B at {=bRate|money2} per machine hour.
+      Dept. A: materials {=aDm|money2}, labor {=aDl|money2}, {=aMh} machine hours. Dept. B: materials {=bDm|money2},
+      labor {=bDl|money2}, {=bMh} machine hours.
+    steps:
+      - prompt: Overhead applied in Department A (₱)
+        answer: { var: ohA, tol: 0.01 }
+        hint: Department A's base is labor cost.
+      - prompt: Overhead applied in Department B (₱)
+        answer: { var: ohB, tol: 0.01 }
+        misconceptions:
+          - { value: 0, feedback: 'Department B applies overhead too, per machine hour.' }
+        hint: Department B's base is machine hours.
+      - prompt: Total job cost (₱)
+        answer: { var: total, tol: 0.01 }
+        misconceptions:
+          - { var: wrongBothDL, feedback: 'Department B uses machine hours, not labor cost.' }
+      - prompt: Unit cost (₱)
+        answer: { var: unit, tol: 0.01 }
+        misconceptions:
+          - { var: wrongNoUnits, feedback: Divide the job's total by its number of units. }
+    hints:
+      - Each department uses its own rate on its own base.
+    explanation: |
+      A: ${=aDl|2f} \times {=aPct|pct1} = {=ohA|2f}$; B: ${=bMh} \times {=bRate|2f} = {=ohB|2f}$; total
+      $= {=dm|2f} + {=dl|2f} + {=oh|2f} = {=total|money2}$; unit cost $= {=unit|money2}$.
+
+  - id: dept-numeric
+    type: numeric
+    skills: [dept-rates]
+    difficulty: 3
+    tags: [math]
+    generator: deptQ
+    lessonRef: { tab: math-code, id: dept-rates }
+    prompt: |
+      Department A applies overhead at {=aPct|pct1} of DL cost and Department B at {=bRate|money2} per machine hour. A
+      job used: A, labor {=aDl|money2} and {=aMh} MH; B, labor {=bDl|money2} and {=bMh} MH. A single plantwide rate would
+      be {=plantRate|pct} of direct labor cost. By how much do the two methods' overhead figures differ (in pesos)?
+    answer: { var: absGap, tol: 0.01 }
+    misconceptions:
+      - { var: wrongPlantMH, feedback: 'The plantwide rate here is on direct labor **cost**, not machine hours.' }
+    hints:
+      - Compute departmental overhead (each department on its own base).
+      - Plantwide overhead = plantwide rate × the job's total labor cost.
+    explanation: |
+      Departmental $= {=ohA|2f} + {=ohB|2f} = {=oh|2f}$; plantwide $= {=dl|2f} \times {=plantRate|pct} = {=plantOH|2f}$;
+      difference $= {=absGap|money2}$. The plantwide rate {=gapDir} this job.
+
+  - id: dept-mcq
+    type: mcq
+    skills: [dept-rates]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: two-departments }
+    prompt: When is it most worth replacing a plantwide rate with departmental rates?
+    options:
+      - When departments differ in what drives their overhead and jobs use the departments in very different mixes
+      - When every department is labor-intensive and every job passes through all departments equally
+      - Whenever the plant has more than one department, regardless of cost
+      - When overhead is small relative to direct materials and labor
+    answer: 0
+    hints: ['Distortion needs two things: different overhead drivers, and jobs that lean on one department.']
+    explanation: Different drivers plus different job mixes create the distortion. The extra data and complexity must still be worth the accuracy, a cost-benefit call.
+
+  # ------------------------------------------------------------------ cost flow
+  - id: flow-je
+    type: journal-entry
+    skills: [cost-flow]
+    difficulty: 1
+    tags: [journal]
+    generator: flowQ
+    lessonRef: { tab: math-code, id: cost-flow }
+    prompt: |
+      A custom job used direct materials of {=dm|money}, direct labor of {=dl|money} and applied overhead of {=oh|money}.
+      {=event} Record the entry.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Each entry moves cost one step along Raw Materials → WIP → Finished Goods → COGS.
+      - Debit the account the cost moves into; credit the one it leaves.
+    explanation: 'Every cost-flow entry debits the next account in the chain and credits the previous one. The job''s full cost is {=total|money}.'
+
+  - id: flow-numeric
+    type: numeric
+    skills: [cost-flow]
+    difficulty: 1
+    tags: [math]
+    generator: flowQ
+    lessonRef: { tab: math-code, id: cost-flow }
+    prompt: 'A job used {=dm|money} of materials, {=dl|money} of labor and {=oh|money} of applied overhead. It was completed and sold for {=price|money}. What gross margin did it earn?'
+    answer: { var: gm, tol: 0.5 }
+    hints:
+      - The job's full cost moves to COGS when it is sold.
+    explanation: 'Job cost $= {=total|money}$; gross margin $= {=price|comma} - {=total|comma} = {=gm|money}$.'
+
+  - id: flow-order
+    type: order
+    skills: [cost-flow]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: follow-the-job }
+    prompt: Put the accounts in the order a job's cost flows through them.
+    items: [Raw Materials Inventory, Work in Process, Finished Goods, Cost of Goods Sold]
+    explanation: Materials are issued into WIP, completed jobs move to Finished Goods, and sold jobs move to COGS.
+
+  - id: flow-mcq
+    type: mcq
+    skills: [cost-flow]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: follow-the-job }
+    prompt: A job is finished on December 28 and delivered to the customer on January 5. On the December 31 balance sheet, where is its cost?
+    options:
+      - In Finished Goods, an asset
+      - In Cost of Goods Sold, an expense
+      - In Work in Process, an asset
+      - Split between Work in Process and Cost of Goods Sold
+    answer: 0
+    hints: [Product costs become an expense only when the goods are sold.]
+    explanation: The job is complete but unsold, so its cost waits in Finished Goods until the January sale moves it to COGS.
+
+  # ------------------------------------------------------------------ COGM
+  - id: cogm-fill
+    type: schedule-fill
+    skills: [cogm]
+    difficulty: 2
+    tags: [journal]
+    generator: cogmQ
+    lessonRef: { tab: math-code, id: cogm }
+    prompt: 'This month: {=jobText}. Beginning Finished Goods of {=begFG|money} was sold. Complete the schedule.'
+    rows: '@rows'
+    hints:
+      - Only completed jobs make up COGM; the unfinished job is ending WIP.
+      - Only sold jobs (and the beginning Finished Goods) make up COGS.
+    explanation: |
+      Ending WIP $= {=endWip|money}$; COGM $= {=cogm|money}$; ending FG $= {=endFG|money}$; COGS
+      $= {=begFG|comma} + {=cogm|comma} - {=endFG|comma} = {=cogs|money}$.
+
+  - id: cogm-numeric
+    type: numeric
+    skills: [cogm]
+    difficulty: 1
+    tags: [math]
+    generator: cogmQ
+    lessonRef: { tab: math-code, id: cogm }
+    prompt: 'This month: {=jobText}. What is the cost of goods manufactured?'
+    answer: { var: cogm, tol: 0.5 }
+    hints:
+      - Add the total cost of every job that was completed, sold or not.
+    explanation: 'COGM counts completed jobs only: {=cogm|money}. The unfinished job stays in ending WIP ({=endWip|money}).'

@@ -84,7 +84,7 @@ export function formatValue(value: any, format: string | undefined, tex: boolean
   if (format === 'text') return tex ? `\\text{${escapeTexText(lab(value))}}` : lab(value);
   if (typeof value === 'number') {
     let s = fmt(value, format ?? '');
-    if (tex) s = s.replace('%', '\\%').replace('∞', '\\infty');
+    if (tex) s = s.replace('%', '\\%').replace('∞', '\\infty').replace(/−/g, '-').replace(/,/g, '{,}').replace('₱', '\\text{₱}');
     return s;
   }
   if (typeof value === 'boolean') return String(value);
@@ -139,8 +139,23 @@ export function mathRegions(text: string): (i: number) => boolean {
 }
 
 /** Strip Markdown/TeX for speech synthesis and search. */
+/** Glossary term links in Markdown: [[term-id]] or [[term-id|shown text]] (guide §4.2). */
+export const TERM_LINK_RE = /\[\[([a-z0-9]+(?:-[a-z0-9]+)*)(?:\|([^\]\n]+))?\]\]/g;
+
+/** Every [[term]] link in a string. */
+export function collectTermLinks(text: unknown): { id: string; text?: string }[] {
+  if (typeof text !== 'string' || !text.includes('[[')) return [];
+  return [...text.matchAll(TERM_LINK_RE)].map((m) => ({ id: m[1], text: m[2] }));
+}
+
+/** Replace [[id|text]] by its visible text (the term name when `names` knows the id). */
+export function stripTermLinks(text: string, names: Record<string, string> = {}): string {
+  if (typeof text !== 'string' || !text.includes('[[')) return text;
+  return text.replace(TERM_LINK_RE, (_, id: string, shown?: string) => shown ?? names[id] ?? id);
+}
+
 export function plainText(md: string): string {
-  return (md || '')
+  return stripTermLinks(md || '')
     .replace(/\$\$?([^$]*)\$\$?/g, (_, t) => t.replace(/\\[a-zA-Z]+/g, ' ').replace(/[{}^_]/g, ' '))
     .replace(/[*_`#>|]/g, '')
     .replace(/\s+/g, ' ')
@@ -148,6 +163,6 @@ export function plainText(md: string): string {
 }
 
 export function wordCount(md: string): number {
-  const t = (md || '').replace(/\$\$?[^$]*\$\$?/g, ' x ').replace(/\{=[^}]*\}/g, ' x ');
+  const t = stripTermLinks(md || '').replace(/\$\$?[^$]*\$\$?/g, ' x ').replace(/\{=[^}]*\}/g, ' x ');
   return t.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
 }

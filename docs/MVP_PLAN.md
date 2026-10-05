@@ -524,3 +524,23 @@ These outlines are the brief for building the three built-in modules; the `fim` 
 - **Module storage:** on the server volume (shared across devices), not per browser.
 - **FP-growth pedagogy:** the lecture's projected-database version first, FP-tree second.
 - **DCG/NDCG:** kept inside `nb-cf` as in the deck, with its own skills so it could be split into an `rs-eval` module later.
+
+---
+
+## 19. Guided learning and workbenches (guide edition 2)
+
+Kodigo grew from a reviewer into a guided course: the site now sequences the lessons, makes the learner practice and explain inside them, and supports courses whose "code" is accounting records. All of it is additive to `schemaVersion: 1`; modules opt into the strict rules with `guide: 2`.
+
+| Feature | Module field | What the site does |
+|---|---|---|
+| **Path tab** (module landing page) | `manifest.objectives` (3–6, tied to skills) | objectives with per-objective mastery, then every scene → the math sections it unlocks → case → mastery check, with status and a Continue button |
+| **Terms taught in Intuition** | beat `define: [term-id]`; `[[term-id]]` in any Markdown | definition card under the narration; hover cards on later mentions; terms recap on the takeaway; the defining scene becomes the term's lesson link (glossary page, glossary auto-questions). Under guide 2, a term no beat defines is an import error |
+| **Practice in the lesson** | gate `practice: { template }`; section `tryIt: [ids]` | a quiz question with fresh numbers, hints and feedback inside the scene or under the section; attempts count toward mastery |
+| **Self-explanation** | gate `reflect: { prompt, model }` | the learner writes first, then compares with a model answer; saved to notes |
+| **Hints** | template `hints: [...]` | revealed one at a time in practice mode |
+| **Math & Journal** | `manifest.workbench: journal`, `currency`; section `journal: { blocks }` | entries, schedules and T-accounts next to the derivation, with anchors, live amounts and step-through; validator checks balancing and anchor pairing |
+| **Accounting widgets** | `Journal`, `TAccounts`, `Schedule` | general journal with `post`, T-accounts with postings, statements/cost schedules with subtotal and total rules |
+| **Accounting questions** | `journal-entry`, `schedule-fill` | pick accounts and enter Dr/Cr (graded per account with side/amount/balance feedback); fill in a statement's blank amounts |
+| **Money** | `{=x|money}`, `|money2`, `|comma` | `₱61,000`; answers accept `₱12,500`, `12,500`, `(1,200)` |
+
+The quiz builder only offers the question types the chosen course has. A demo journal-workbench module (`packages/schema/test/fixtures/joc-demo`, job-order costing) exercises every feature in the tests and supplies the guide's §6b excerpts.

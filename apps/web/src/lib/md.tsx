@@ -1,11 +1,11 @@
-import { createContext, memo, useContext, useMemo } from 'react';
+import { createContext, memo, useContext, useMemo, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { interpolate, type Scope } from '@kodigo/schema';
+import { interpolate, TERM_LINK_RE, type Scope, type Term } from '@kodigo/schema';
 import { cn } from './util';
 
 export const KATEX_MACROS: Record<string, string> = {
@@ -37,17 +37,55 @@ export function useInterp() {
 const remarkPlugins = [remarkGfm, remarkMath];
 const rehypePlugins: any[] = [[rehypeKatex, katexOptions()]];
 
+// ------------------------------------------------------------ glossary term links: [[term-id]] / [[term-id|text]]
+/** The module's glossary, so [[term]] links can show their definition. */
+export const GlossaryContext = createContext<Record<string, Term>>({});
+export function GlossaryProvider({ terms, children }: { terms: Term[]; children: ReactNode }) {
+  const map = useMemo(() => Object.fromEntries(terms.map((t) => [t.id, t])), [terms]);
+  return <GlossaryContext.Provider value={map}>{children}</GlossaryContext.Provider>;
+}
+const TERM_HREF = '#kterm-';
+/** [[id|text]] → a Markdown link the renderer turns into a term card (unknown ids become plain text). */
+function linkTerms(text: string, terms: Record<string, Term>): string {
+  if (!text.includes('[[')) return text;
+  return text.replace(TERM_LINK_RE, (_, id: string, shown?: string) => {
+    const t = terms[id];
+    const label = shown ?? t?.term ?? id;
+    return t ? `[${label}](${TERM_HREF}${id})` : label;
+  });
+}
+
+export function TermLink({ id, children }: { id: string; children: ReactNode }) {
+  const terms = useContext(GlossaryContext);
+  const [pinned, setPinned] = useState(false);
+  const t = terms[id];
+  if (!t) return <>{children}</>;
+  return (
+    <span className="group relative inline">
+      <span role="button" tabIndex={0} className="term-link" aria-expanded={pinned} data-term={id}
+        onClick={(e) => { e.preventDefault(); setPinned(!pinned); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPinned(!pinned); } if (e.key === 'Escape') setPinned(false); }}
+        onBlur={() => setPinned(false)}>{children}</span>
+      <span role="tooltip" className={cn('pointer-events-none absolute bottom-full left-0 z-40 mb-1.5 w-72 rounded-lg border border-line bg-panel p-2.5 text-left text-xs font-normal leading-snug text-ink opacity-0 shadow-lg transition-opacity group-hover:opacity-100', pinned && 'opacity-100')}>
+        <span className="block font-semibold">{t.term}{t.aka?.length ? <span className="font-normal text-muted"> ({t.aka.join(', ')})</span> : null}</span>
+        <span className="mt-0.5 block">{t.short}</span>
+        {t.formula && <span className="mt-1 block" dangerouslySetInnerHTML={{ __html: renderTex(t.formula, false) }} />}
+      </span>
+    </span>
+  );
+}
+
+const linkComponent = ({ href, children }: { href?: string; children?: ReactNode }) =>
+  href?.startsWith(TERM_HREF)
+    ? <TermLink id={href.slice(TERM_HREF.length)}>{children}</TermLink>
+    : <a href={href} target={href?.startsWith('http') ? '_blank' : undefined} rel="noreferrer">{children}</a>;
+
 const MdInner = memo(function MdInner({ text, className, inline }: { text: string; className?: string; inline?: boolean }) {
   return (
     <div className={cn('md', inline && 'md-inline', className)}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
-        components={
-          inline
-            ? { p: ({ children }) => <span>{children}</span> }
-            : { a: ({ href, children }) => <a href={href} target={href?.startsWith('http') ? '_blank' : undefined} rel="noreferrer">{children}</a> }
-        }
+        components={inline ? { p: ({ children }) => <span>{children}</span>, a: linkComponent } : { a: linkComponent }}
       >
         {text}
       </ReactMarkdown>
@@ -55,17 +93,19 @@ const MdInner = memo(function MdInner({ text, className, inline }: { text: strin
   );
 });
 
-/** Markdown with {=} interpolation from the surrounding InterpContext (or explicit scope). */
+/** Markdown with {=} interpolation from the surrounding InterpContext (or explicit scope) and [[term]] links. */
 export function Markdown({ text, className, inline, scope, raw }: { text?: string; className?: string; inline?: boolean; scope?: Scope; raw?: boolean }) {
   const ctx = useContext(InterpContext);
-  const t = raw ? text ?? '' : interpolate(text ?? '', scope ?? ctx.scope, { mode: 'md', labels: ctx.labels }).text;
+  const terms = useContext(GlossaryContext);
+  const t0 = raw ? text ?? '' : interpolate(text ?? '', scope ?? ctx.scope, { mode: 'md', labels: ctx.labels }).text;
+  const t = linkTerms(t0, terms);
   if (inline) return <span className={cn('md md-inline', className)}><MdInlineRender text={t} /></span>;
   return <MdInner text={t} className={className} />;
 }
 
 function MdInlineRender({ text }: { text: string }) {
   return (
-    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={{ p: ({ children }) => <>{children}</> }}>
+    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={{ p: ({ children }) => <>{children}</>, a: linkComponent }}>
       {text}
     </ReactMarkdown>
   );

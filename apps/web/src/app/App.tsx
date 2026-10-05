@@ -6,6 +6,7 @@ import { CourseMenu } from './CourseMenu';
 import { getSession } from '../quiz/session';
 import { ModulePage } from '../tabs/ModulePage';
 import { IntuitionTab } from '../tabs/IntuitionTab';
+import { PathTab } from '../tabs/PathTab';
 import { MathCodeTab } from '../tabs/MathCodeTab';
 import { ApplicationTab } from '../tabs/ApplicationTab';
 import { Dashboard } from './Dashboard';
@@ -87,7 +88,8 @@ function Shell() {
   }, []);
   const moduleRoutes = (
     <>
-      <Route index element={<Navigate to="intuition" replace />} />
+      <Route index element={<Navigate to="path" replace />} />
+      <Route path="path" element={<PathTab />} />
       <Route path="intuition" element={<IntuitionTab />} />
       <Route path="intuition/:sceneId" element={<IntuitionTab />} />
       <Route path="math-code" element={<MathCodeTab />} />

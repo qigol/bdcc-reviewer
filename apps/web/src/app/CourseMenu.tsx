@@ -83,7 +83,11 @@ export function CourseMenu({ group, open, onOpenChange }: { group: CourseGroup; 
         data-testid="course-menu"
         data-course={group.course}
         onClick={() => onOpenChange(!open)}
-        onKeyDown={(e) => { if ((e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') && !open) { e.preventDefault(); onOpenChange(true); } }}
+        onKeyDown={(e) => {
+          if (!open) { if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChange(true); } }
+          // focus may still be on the trigger right after opening: menu keys (Escape, arrows) work from here too
+          else if (e.key !== 'Enter' && e.key !== ' ') onMenuKey(e);
+        }}
         className={cn('flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium transition', current || open ? 'bg-panel2 text-ink' : 'text-muted hover:text-ink')}
       >
         <GraduationCap size={15} />

@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { BookOpen, Check, GripVertical, Lightbulb, X } from 'lucide-react';
-import { checkBlank, checkMatch, checkMcq, checkMulti, checkNumeric, checkOrder, type QuizInstance } from '@kodigo/schema';
-import { frac } from '@kodigo/sdk';
+import { BookOpen, Check, GripVertical, Lightbulb, Plus, X } from 'lucide-react';
+import { checkBlank, checkMatch, checkMcq, checkMulti, checkNumeric, checkOrder, checkJournalEntry, parseNumber, normAccount, DEFAULT_CURRENCY, type QuizInstance, type NumericSpec } from '@kodigo/schema';
+import { frac, moneyText } from '@kodigo/sdk';
+import { EntriesView, ScheduleView } from '../widgets/accounting';
+import { GlossaryProvider } from '../lib/md';
 import type { LoadedModule } from '../modules/store';
 import { StageProvider, Stage } from '../engine/Stage';
 import { Markdown } from '../lib/md';
@@ -23,7 +25,29 @@ export function emptyResponse(inst: QuizInstance): any {
     case 'match': return inst.rightOrder!.slice();
     case 'order': return inst.startOrder!.slice();
     case 'hand-calc': return { inputs: inst.steps!.map(() => ''), revealed: inst.steps!.map(() => false), tries: inst.steps!.map(() => 0), done: inst.steps!.map(() => false), hints: inst.steps!.map(() => false) };
+    case 'journal-entry': return { entries: inst.entries!.map(() => [emptyLine(), emptyLine()]) };
+    case 'schedule-fill': return { cells: {} as Record<string, string> };
   }
+}
+
+const emptyLine = () => ({ account: '', debit: '', credit: '' });
+const parseAmount = (s: string) => parseNumber(s, ['decimal']);
+
+/** Each blank cell of a schedule-fill question as a numeric spec. */
+function scheduleBlanks(inst: QuizInstance): { key: string; spec: NumericSpec }[] {
+  const out: { key: string; spec: NumericSpec }[] = [];
+  inst.schedule?.rows.forEach((r, i) => {
+    if (!r.blank) return;
+    r.cells.forEach((v, j) => {
+      if (typeof v !== 'number') return;
+      out.push({ key: `${i}:${j}`, spec: { value: v, tol: r.tol ?? inst.amountTol?.tol ?? 0.01, relTol: inst.amountTol?.relTol, accept: r.format === 'pct' ? ['decimal', 'fraction', 'percent'] : ['decimal', 'fraction'] } });
+    });
+  });
+  return out;
+}
+
+export function moneyOf(inst: QuizInstance, currency?: string) {
+  return (n: number) => moneyText(n, undefined, currency ?? DEFAULT_CURRENCY);
 }
 
 export function grade(inst: QuizInstance, r: any): Graded {
@@ -69,6 +93,20 @@ export function grade(inst: QuizInstance, r: any): Graded {
       const s = scores.reduce((a: number, b: number) => a + b, 0) / steps.length;
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
+    case 'journal-entry': {
+      const exp = inst.entries!;
+      const checks = exp.map((e, k) => checkJournalEntry(r.entries[k] ?? [], e, { tol: inst.amountTol?.tol, relTol: inst.amountTol?.relTol, parse: parseAmount, money: moneyOf(inst) }));
+      checks.forEach((c, k) => c.feedback.forEach((f) => fb.push(exp.length > 1 ? `Entry ${k + 1}: ${f}` : f)));
+      const s = checks.reduce((a, c) => a + c.score, 0) / Math.max(1, checks.length);
+      return { score: s, correct: s === 1, response: r, feedback: fb };
+    }
+    case 'schedule-fill': {
+      const blanks = scheduleBlanks(inst);
+      const ok = blanks.filter((b) => checkNumeric(r.cells[b.key] ?? '', b.spec).correct).length;
+      const s = ok / Math.max(1, blanks.length);
+      if (s < 1 && ok > 0) fb.push(`${ok} of ${blanks.length} amounts are right.`);
+      return { score: s, correct: s === 1, response: r, feedback: fb };
+    }
   }
   return { score: 0, correct: false, response: r, feedback: fb };
 }
@@ -106,11 +144,14 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
 }) {
   const locked = !!graded;
   const popup = usePopup();
+  const [hintsShown, setHintsShown] = useState(0);
+  const hints = inst.hints ?? [];
   const extraScope = useMemo(() => inst.scope, [inst]);
   const lessonHref = inst.lessonRef ? `/m/${inst.moduleId}/${inst.lessonRef.tab}${inst.lessonRef.tab === 'application' ? '' : `/${inst.lessonRef.id}`}` : null;
   // Open the lesson in a popup over the quiz instead of navigating away (which used to wipe quiz progress).
   const openLesson = () => lessonHref && popup.open({ title: `Lesson · ${mod.parsed.manifest.shortTitle}`, src: lessonHref, note: 'Your quiz stays open underneath' });
   return (
+    <GlossaryProvider terms={mod.parsed.glossary}>
     <StageProvider mod={mod} spec={{}} state={{}} extraScope={extraScope}>
       <div className="flex flex-col gap-3">
         <Markdown text={inst.prompt} className="text-[15px]" />
@@ -183,6 +224,21 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
 
         {inst.type === 'hand-calc' && <HandCalc inst={inst} response={response} setResponse={setResponse} locked={locked} practice={practice} reveal={reveal} />}
 
+        {inst.type === 'journal-entry' && <JournalEntryInput inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+        {inst.type === 'schedule-fill' && <ScheduleFill inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+        {practice && !reveal && hints.length > 0 && (
+          <div className="flex flex-col gap-1.5" data-testid="hints">
+            {hints.slice(0, hintsShown).map((h, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-lg bg-warn/10 px-3 py-1.5 text-sm"><Lightbulb size={14} className="mt-0.5 shrink-0 text-warn" /><Markdown text={h} /></div>
+            ))}
+            {hintsShown < hints.length && (
+              <button className="btn-ghost btn-sm self-start" onClick={() => setHintsShown(hintsShown + 1)} data-testid="hint-button"><Lightbulb size={13} /> {hintsShown ? 'Another hint' : 'Hint'} ({hintsShown + 1}/{hints.length})</button>
+            )}
+          </div>
+        )}
+
         {reveal && graded && (
           <div className={cn('rounded-xl border p-3', graded.correct ? 'border-good/50 bg-good/5' : graded.score > 0 ? 'border-warn/50 bg-warn/5' : 'border-bad/40 bg-bad/5')} data-testid="feedback">
             <div className="mb-1 flex items-center gap-1.5 font-semibold">
@@ -198,6 +254,104 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
         )}
       </div>
     </StageProvider>
+    </GlossaryProvider>
+  );
+}
+
+// ------------------------------------------------------------ journal-entry
+function JournalEntryInput({ inst, mod, response, setResponse, locked, reveal }: { inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
+  const currency = mod.parsed.manifest.currency;
+  const money = moneyOf(inst, currency);
+  const upd = (k: number, fn: (lines: any[]) => any[]) => { const r = structuredClone(response); r.entries[k] = fn(r.entries[k]); setResponse(r); };
+  return (
+    <div className="flex flex-col gap-3" data-testid="journal-entry">
+      {inst.entries!.map((exp, k) => {
+        const lines = response.entries[k] as { account: string; debit: string; credit: string }[];
+        const check = reveal ? checkJournalEntry(lines, exp, { tol: inst.amountTol?.tol, relTol: inst.amountTol?.relTol, parse: parseAmount, money }) : null;
+        const dr = lines.reduce((a, l) => a + (parseAmount(l.debit) ?? 0), 0);
+        const cr = lines.reduce((a, l) => a + (parseAmount(l.credit) ?? 0), 0);
+        const anything = lines.some((l) => l.debit.trim() || l.credit.trim());
+        return (
+          <div key={k} className="rounded-xl border border-line bg-panel p-3">
+            {(inst.entries!.length > 1 || exp.prompt || exp.date) && (
+              <div className="mb-2 flex gap-2 text-sm">{inst.entries!.length > 1 && <b>Entry {k + 1}</b>}{exp.date && <span className="text-muted">{exp.date}</span>}{exp.prompt && <Markdown text={exp.prompt} inline />}</div>
+            )}
+            <table className="w-full border-collapse text-sm tabular-nums">
+              <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted"><th className="pb-1 font-medium">Account</th><th className="w-32 pb-1 pl-2 text-right font-medium">Debit</th><th className="w-32 pb-1 pl-2 text-right font-medium">Credit</th><th className="w-8" /></tr></thead>
+              <tbody>
+                {lines.map((l, i) => {
+                  const verdict = check?.marks[normAccount(l.account)];
+                  const tone = verdict === 'ok' ? 'tone-good mark-bg' : verdict === 'side' || verdict === 'amount' ? 'tone-warn mark-bg' : verdict === 'extra' ? 'tone-bad mark-bg' : undefined;
+                  const isCredit = !l.debit.trim() && !!l.credit.trim();
+                  return (
+                    <tr key={i} className={tone}>
+                      <td className="py-0.5 pr-2">
+                        <select className={cn('input w-full py-1', isCredit && 'pl-8')} aria-label={`entry ${k + 1} line ${i + 1} account`} value={l.account} disabled={locked}
+                          onChange={(e) => upd(k, (ls) => { ls[i] = { ...ls[i], account: e.target.value }; return ls; })}>
+                          <option value="">— choose an account —</option>
+                          {inst.accounts!.map((a) => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </td>
+                      {(['debit', 'credit'] as const).map((side) => (
+                        <td key={side} className="py-0.5 pl-2">
+                          <input className="input w-full py-1 text-right font-mono" inputMode="decimal" aria-label={`entry ${k + 1} line ${i + 1} ${side}`} value={l[side]} disabled={locked} placeholder="0"
+                            onChange={(e) => upd(k, (ls) => { ls[i] = { ...ls[i], [side]: e.target.value }; return ls; })} />
+                        </td>
+                      ))}
+                      <td className="pl-1 text-center">
+                        {!locked && lines.length > 2 && <button className="text-muted hover:text-bad" aria-label="remove line" onClick={() => upd(k, (ls) => ls.filter((_, j) => j !== i))}><X size={14} /></button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr className="text-xs text-muted">
+                  <td className="pt-1">
+                    {!locked && <button className="btn-ghost btn-sm" onClick={() => upd(k, (ls) => [...ls, emptyLine()])} data-testid="add-line"><Plus size={13} /> Add line</button>}
+                  </td>
+                  <td className="border-t border-line pl-2 pt-1 text-right font-mono">{anything ? money(dr) : ''}</td>
+                  <td className="border-t border-line pl-2 pt-1 text-right font-mono">{anything ? money(cr) : ''}</td>
+                  <td className="pt-1 text-center">{anything && (Math.abs(dr - cr) < 0.005 ? <Check size={14} className="inline text-good" aria-label="balanced" /> : <span className="text-warn" title="debits ≠ credits">≠</span>)}</td>
+                </tr>
+              </tbody>
+            </table>
+            {reveal && check && check.score < 1 && (
+              <div className="mt-2 rounded-lg bg-good/5 p-2">
+                <div className="label mb-1">Correct entry</div>
+                <EntriesView entries={[{ id: `ans${k}`, date: exp.date, lines: exp.lines.map((l) => (l.debit !== null && l.debit !== undefined ? { account: l.account, debit: l.debit } : { account: l.account, credit: l.credit })) }]} money={{ currency }} compact />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {!locked && <div className="text-xs text-muted">Pick each account, then put its amount in the Debit or the Credit column. Line order doesn't matter.</div>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ schedule-fill
+function ScheduleFill({ inst, mod, response, setResponse, locked, reveal }: { inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
+  const sched = inst.schedule!;
+  const specs = Object.fromEntries(scheduleBlanks(inst).map((b) => [b.key, b.spec]));
+  const currency = mod.parsed.manifest.currency;
+  const rows = sched.rows.map((r) => ({ label: r.label, indent: r.indent, style: r.style, format: r.format, amounts: r.blank ? r.cells.map(() => null) : r.cells }));
+  return (
+    <div className="rounded-xl border border-line bg-panel p-3" data-testid="schedule-fill">
+      <ScheduleView rows={rows as any} columns={sched.columns} money={{ currency }}
+        renderCell={(i, j) => {
+          const key = `${i}:${j}`;
+          const spec = specs[key];
+          if (!spec) return undefined;
+          const v = response.cells[key] ?? '';
+          const ok = reveal ? checkNumeric(v, spec).correct : undefined;
+          return (
+            <span className="inline-flex flex-col items-end">
+              <input className={cn('input w-28 py-0.5 text-right font-mono', ok === true && 'border-good', ok === false && 'border-bad')} inputMode="decimal" value={v} disabled={locked} placeholder="?"
+                aria-label={`${sched.rows[i].label} ${sched.columns?.[j] ?? ''}`.trim()} onChange={(e) => setResponse({ ...response, cells: { ...response.cells, [key]: e.target.value } })} />
+              {reveal && ok === false && <span className="text-[11px] text-good">{sched.rows[i].format && sched.rows[i].format !== 'money' ? numText(spec.value) : moneyText(spec.value, undefined, currency ?? DEFAULT_CURRENCY)}</span>}
+            </span>
+          );
+        }} />
+    </div>
   );
 }
 
@@ -286,6 +440,8 @@ export function isAnswered(inst: QuizInstance, r: any): boolean {
     case 'code-fill': return Object.keys(inst.blanks!).every((k) => (r[k] ?? '').trim());
     case 'match': case 'order': return true;
     case 'hand-calc': return r.done.every(Boolean) || r.inputs.every((x: string) => x.trim());
+    case 'journal-entry': return (r.entries as any[]).every((ls: any[]) => ls.filter((l) => l.account && (l.debit.trim() || l.credit.trim())).length >= 2);
+    case 'schedule-fill': return scheduleBlanks(inst).every((b) => String(r.cells[b.key] ?? '').trim());
   }
   return true;
 }

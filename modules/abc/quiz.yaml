@@ -1,0 +1,529 @@
+templates:
+  # ------------------------------------------------------------------ distortion
+  - id: warning-mcq
+    type: mcq
+    skills: [distortion]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: blurry-average }
+    prompt: A manufacturer's high-volume standard product keeps getting underpriced by competitors, while its low-volume custom product barely breaks even despite a large markup. Both are costed with one machine-hour rate. What is the likely cause?
+    options:
+      - The single rate overcosts the standard product and undercosts the custom one; investigate ABC
+      - Competitors are selling below cost and will soon stop
+      - The custom product's markup is too high
+      - Direct materials are being traced to the wrong product
+    answer: 0
+    hints: [What does a single volume rate ignore?]
+    explanation: These are the classic cross-subsidization symptoms of Example 1. The single rate misses the setups and inspections the custom product drives.
+
+  - id: plant-numeric
+    type: numeric
+    skills: [distortion, apply-abc]
+    difficulty: 2
+    tags: [math]
+    generator: plantQ
+    lessonRef: { tab: math-code, id: single-rate }
+    prompt: |
+      A plant has these overhead pools (driver use shown for one job of {=units|comma} units):
+
+      | Pool | Cost | Predicted driver | Job uses |
+      |---|---|---|---|
+      {=table}
+
+      If the plant instead used **one plantwide rate** on its {=totalMH|comma} machine hours, how much overhead would the job
+      receive?
+    answer: { var: plantOH, tol: 0.5 }
+    hints:
+      - Plantwide rate = total overhead of all pools ÷ total machine hours.
+      - Multiply by the job's machine hours.
+    explanation: 'Rate $= {=totalOH|comma} \div {=totalMH|comma} = ₱{=plantRate|2f}$; overhead $= {=mh|comma} \times {=plantRate|2f} = {=plantOH|money}$.'
+
+  - id: plant-handcalc
+    type: hand-calc
+    skills: [distortion, apply-abc]
+    difficulty: 2
+    tags: [math]
+    generator: plantQ
+    lessonRef: { tab: math-code, id: single-rate }
+    prompt: |
+      Overhead pools, with one job's driver use ({=units|comma} units):
+
+      | Pool | Cost | Predicted driver | Job uses |
+      |---|---|---|---|
+      {=table}
+    steps:
+      - prompt: Overhead assigned to the job under ABC (₱)
+        answer: { var: abcTotal, tol: 0.5 }
+        hint: Rate (cost ÷ predicted driver) × driver used, summed over the pools.
+      - prompt: Plantwide rate per machine hour (₱)
+        answer: { var: plantRate, tol: 0.005 }
+        hint: Total overhead ÷ total machine hours.
+      - prompt: Overhead assigned under the plantwide rate (₱)
+        answer: { var: plantOH, tol: 0.5 }
+      - prompt: Difference, ABC minus plantwide (₱)
+        answer: { var: gap, tol: 0.5 }
+    hints:
+      - The two systems spread the same total; only the job's share differs.
+    explanation: 'ABC {=abcTotal|money}; plantwide {=plantOH|money} at ₱{=plantRate|2f} per MH; the single rate {=dirTxt} the job by {=absGap|money}.'
+
+  - id: pattern-multi
+    type: multi
+    skills: [distortion, trad-vs-abc]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: Under a single volume-based overhead rate, which statements are usually true? Select all that apply.
+    options:
+      - High-volume, simple products are overcosted
+      - Low-volume, complex products are undercosted
+      - Total overhead assigned is higher than under ABC
+      - Batch-level costs are spread evenly over all volume
+    answer: [0, 1, 3]
+    hints: [ABC changes the split, not the total.]
+    explanation: Volume rates spread batch- and product-level costs over all units. The total overhead is the same in both systems.
+
+  # ------------------------------------------------------------------ the three steps and activity rates
+  - id: steps-order
+    type: order
+    skills: [abc-steps]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: Put the three steps of activity-based costing in order.
+    items:
+      - Identify the activities that cause costs (the cost drivers)
+      - Compute a predetermined activity rate for each driver
+      - Sum the activity costs each product or job consumes
+    explanation: Identify, rate, assign (slide 21).
+
+  - id: design-order
+    type: order
+    skills: [abc-steps]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: global-metals }
+    prompt: Order the work of building an ABC system from first to last.
+    items:
+      - Interview staff and study activity logs
+      - Regroup overhead accounts into activity cost pools
+      - Choose a cause-and-effect driver for each pool
+      - Divide each pool by its predicted driver level
+      - Multiply each rate by the driver quantity a product uses
+    explanation: The design work (interviews, pools, drivers) comes first and is the hardest part; the arithmetic follows (slide 23).
+
+  - id: rate-numeric
+    type: numeric
+    skills: [abc-steps]
+    difficulty: 1
+    tags: [math]
+    generator: rateQ
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: 'The {=name} pool has budgeted cost of {=cost|money} and a predicted {=total|comma} {=driver}. What is its activity rate?'
+    answer: { var: rate, tol: 0.005 }
+    hints:
+      - Activity rate = budgeted pool cost ÷ predicted driver level.
+    explanation: '${=cost|comma} \div {=total|comma} = ₱{=rate|2f}$ per unit of driver.'
+
+  - id: terms-match
+    type: match
+    skills: [abc-steps]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: Match each term to its meaning (slide 79).
+    pairs:
+      - ['Cost driver', 'What causes an activity''s cost to be incurred']
+      - ['Activity cost pool', 'Overhead grouped by activity, not by account']
+      - ['Activity rate', 'Budgeted pool cost ÷ predicted driver level']
+      - ['Cost distortion', 'Systematic over- and undercosting from one rate']
+      - ['Cross-subsidization', 'Simple products carrying complex products'' overhead']
+    explanation: These five terms carry the whole session.
+
+  - id: pool-mcq
+    type: mcq
+    skills: [abc-steps]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: global-metals }
+    prompt: A plant's indirect labor account is ₱900,000. How is it treated when building ABC cost pools?
+    options:
+      - It is split among the activities that consume it, such as setups, inspection and handling
+      - It becomes its own pool with direct labor hours as the driver
+      - It is left out of ABC because it is not traceable
+      - It is added to direct labor
+    answer: 0
+    hints: [Pools follow activities, not account titles.]
+    explanation: Overhead accounts are analyzed and regrouped by the activity that consumes them (slide 23).
+
+  # ------------------------------------------------------------------ applying rates to a job
+  - id: job-numeric
+    type: numeric
+    skills: [apply-abc]
+    difficulty: 1
+    tags: [math]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: apply-job }
+    prompt: |
+      A job of {=units|comma} units uses these activities:
+
+      | Pool | Budgeted cost | Predicted driver | Job uses |
+      |---|---|---|---|
+      {=table}
+
+      What is the total ABC overhead assigned to the job?
+    answer: { var: abcTotal, tol: 0.5 }
+    hints:
+      - Compute each activity rate first.
+      - Multiply by the job's use and add.
+    explanation: 'Rates: {=rates}. Total $= {=abcTotal|money}$, or {=abcUnit|money2} per unit.'
+
+  - id: job-fill
+    type: schedule-fill
+    skills: [apply-abc]
+    difficulty: 2
+    tags: [journal]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: apply-job }
+    prompt: |
+      Complete the job's ABC overhead schedule ({=units|comma} units).
+
+      | Pool | Budgeted cost | Predicted driver | Job uses |
+      |---|---|---|---|
+      {=table}
+    rows: '@rows'
+    hints:
+      - Each line is rate × the job's driver use.
+      - The total is the sum of the pool lines.
+    explanation: 'Total {=abcTotal|money}; per unit {=abcUnit|money2}. The biggest charge is {=biggestName}, {=biggest|money}.'
+
+  - id: rates-fill
+    type: schedule-fill
+    skills: [abc-steps, apply-abc]
+    difficulty: 1
+    tags: [journal]
+    generator: jobQ
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: |
+      Compute the activity rate for each pool.
+
+      | Pool | Budgeted cost | Predicted driver | Job uses |
+      |---|---|---|---|
+      {=table}
+    rows: '@rateRows'
+    hints:
+      - Budgeted cost ÷ predicted driver level; ignore the job's use for now.
+    explanation: 'Rates: {=rates}.'
+
+  # ------------------------------------------------------------------ traditional vs ABC
+  - id: compare-numeric
+    type: numeric
+    skills: [trad-vs-abc]
+    difficulty: 2
+    tags: [math]
+    generator: compareQ
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: |
+      A plant makes {=unitsHi|comma} Standard units ({=mhHi|comma} machine hours) and {=unitsLo|comma} Custom units
+      ({=mhLo|comma} machine hours). Overhead pools and driver use:
+
+      | Pool | Cost | Driver | Standard | Custom |
+      |---|---|---|---|---|
+      {=table}
+
+      What is the ABC overhead **per Custom unit**?
+    answer: { var: abcLo, tol: 0.005 }
+    hints:
+      - Rate for each pool = cost ÷ total driver (both products).
+      - Custom's overhead = Σ rate × Custom's use, then ÷ Custom's units.
+    explanation: 'Custom uses {=ohLo|money} of overhead: ${=ohLo|comma} \div {=unitsLo|comma} = ₱{=abcLo|2f}$, against ₱{=tradLo|2f} under the single ₱{=tradRate|2f} per-MH rate.'
+
+  - id: compare-handcalc
+    type: hand-calc
+    skills: [trad-vs-abc]
+    difficulty: 3
+    tags: [math]
+    generator: compareQ
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: |
+      Standard: {=unitsHi|comma} units, {=mhHi|comma} machine hours. Custom: {=unitsLo|comma} units, {=mhLo|comma} machine
+      hours. Total overhead {=totalOH|money}.
+
+      | Pool | Cost | Driver | Standard | Custom |
+      |---|---|---|---|---|
+      {=table}
+    steps:
+      - prompt: Plantwide machine-hour rate (₱)
+        answer: { var: tradRate, tol: 0.005 }
+      - prompt: Traditional overhead per Custom unit (₱)
+        answer: { var: tradLo, tol: 0.005 }
+      - prompt: ABC overhead per Custom unit (₱)
+        answer: { var: abcLo, tol: 0.005 }
+        misconceptions:
+          - { var: wrongTotalLo, feedback: 'Divide Custom''s total overhead by its units.' }
+      - prompt: By how much per unit does the single rate undercost Custom (₱)?
+        answer: { var: diffLo, tol: 0.005 }
+    hints:
+      - Work out both systems before comparing.
+    explanation: 'Plantwide ₱{=tradRate|2f}/MH gives Custom ₱{=tradLo|2f}; ABC gives ₱{=abcLo|2f}; undercosted by ₱{=diffLo|2f} per unit.'
+
+  - id: compare-fill
+    type: schedule-fill
+    skills: [trad-vs-abc]
+    difficulty: 2
+    tags: [journal]
+    generator: compareQ
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: |
+      Standard: {=unitsHi|comma} units, {=mhHi|comma} MH. Custom: {=unitsLo|comma} units, {=mhLo|comma} MH. Overhead
+      {=totalOH|money}, traditionally applied per machine hour.
+
+      | Pool | Cost | Driver | Standard | Custom |
+      |---|---|---|---|---|
+      {=table}
+
+      Complete the comparison per unit (a positive difference means overcosted by the single rate).
+    columns: [Standard, Custom]
+    rows: '@rows'
+    hints:
+      - Traditional per unit = machine hours × plantwide rate ÷ units.
+      - Difference = traditional − ABC.
+    explanation: 'Traditional ₱{=tradHi|2f} / ₱{=tradLo|2f}; ABC ₱{=abcHi|2f} / ₱{=abcLo|2f}; Standard overcosted ₱{=diffHi|2f}, Custom undercosted ₱{=diffLo|2f}.'
+
+  - id: distort-numeric
+    type: numeric
+    skills: [trad-vs-abc]
+    difficulty: 1
+    tags: [math]
+    generator: distortQ
+    lessonRef: { tab: math-code, id: spectrum }
+    prompt: A product's overhead is ₱{=trad} per unit under the plantwide rate and ₱{=abc} under ABC. By what percent of its traditional cost is it distorted? (Answer in percent, e.g. 25 for 25%.)
+    answer: { var: pctTrad, tol: 0.1 }
+    hints:
+      - Difference ÷ traditional cost.
+    explanation: 'It is {=dirTxt} by ₱{=absDiff}, which is ${=absDiff} \div {=trad} = {=pctTrad|1}\%$ of its traditional cost.'
+
+  - id: spectrum-mcq
+    type: mcq
+    skills: [trad-vs-abc, distortion]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: spectrum }
+    prompt: 'Pangasinan Furniture: traditional overhead per unit Chair ₱60, Table ₱90, Cabinet ₱240; ABC Chair ₱35, Table ₱87.50, Cabinet ₱500. Which statement is right?'
+    options:
+      - The distortion is a spectrum; the medium-volume table is nearly accurate and the extremes are distorted most
+      - All three products are overcosted
+      - The table is the most distorted because it sits in the middle
+      - The cabinet is overcosted by ₱260
+    answer: 0
+    hints: [Compute traditional − ABC for each.]
+    explanation: Chair +₱25, Table +₱2.50, Cabinet −₱260 (undercosted). Distortion grows with distance from the average volume and complexity.
+
+  # ------------------------------------------------------------------ cost hierarchy
+  - id: hierarchy-match
+    type: match
+    skills: [cost-hierarchy]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: cost-hierarchy }
+    prompt: Match each activity to its level in the cost hierarchy.
+    pairs:
+      - ['Drilling holes in each part', 'Unit-level']
+      - ['Changing over a packaging line between runs', 'Batch-level']
+      - ['Maintaining a product''s formula and bill of materials', 'Product-level']
+      - ['Insurance on the factory building', 'Facility-level']
+    explanation: Units, batches, product lines and the whole plant each drive a different kind of cost.
+
+  - id: hierarchy-mcq
+    type: mcq
+    skills: [cost-hierarchy]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: hierarchy }
+    prompt: Why do low-volume products with many setups get undercosted by a machine-hour rate?
+    options:
+      - Setups are batch-level costs, but the rate spreads them by volume
+      - Setups are unit-level costs that machine hours already capture
+      - Low-volume products use more machine hours per unit
+      - Setups are facility-level costs that cannot be assigned
+    answer: 0
+    hints: [What level does a setup belong to?]
+    explanation: A setup happens once per batch. Spreading it by machine hours gives most of it to high-volume products.
+
+  - id: facility-mcq
+    type: mcq
+    skills: [cost-hierarchy]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: hierarchy }
+    prompt: An ABC team cannot find a driver linking the plant manager's salary and factory rent to products. What do many ABC systems do with these costs?
+    options:
+      - Leave them unallocated and report them separately as facility-level costs
+      - Spread them on direct labor hours
+      - Assign them all to the highest-volume product
+      - Remove them from the income statement
+    answer: 0
+    hints: [Arbitrary allocations reintroduce distortion.]
+    explanation: Facility-level costs often have no meaningful product driver; reporting them separately keeps product costs clean (slide 42).
+
+  - id: level-multi
+    type: multi
+    skills: [cost-hierarchy]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: math-code, id: hierarchy }
+    prompt: Which of these are batch-level activities? Select all that apply.
+    options:
+      - Setting up a machine for a production run
+      - Inspecting the first units of each batch
+      - Moving each batch of materials from the storeroom
+      - Running a machine for each unit
+      - Registering a new product with regulators
+    answer: [0, 1, 2]
+    hints: [Does it happen once per batch, whatever the batch size?]
+    explanation: Setups, first-article inspections and material moves follow batches; machining is unit-level and registration product-level.
+
+  # ------------------------------------------------------------------ services and customers
+  - id: service-numeric
+    type: numeric
+    skills: [abc-services]
+    difficulty: 2
+    tags: [math]
+    generator: serviceQ
+    lessonRef: { tab: math-code, id: services }
+    prompt: |
+      A diagnostic center has three service lines (Basic panel, Imaging, Executive package):
+
+      | Pool | Cost | Driver | Basic | Imaging | Executive |
+      |---|---|---|---|---|---|
+      {=table}
+
+      Visits equal the scheduling driver. What is the ABC cost **per visit** of the Executive package?
+    answer: { var: perVisit3, tol: 0.005 }
+    hints:
+      - Rate for each pool = cost ÷ total driver.
+      - Executive's cost = Σ rate × its use; divide by its {=visits3|comma} visits.
+    explanation: 'Rates: {=rates}. Executive costs {=cost3|money}, so ${=cost3|comma} \div {=visits3|comma} = ₱{=perVisit3|2f}$ per visit.'
+
+  - id: customer-numeric
+    type: numeric
+    skills: [abc-services]
+    difficulty: 2
+    tags: [math]
+    generator: customerQ
+    lessonRef: { tab: math-code, id: customers }
+    prompt: |
+      A distributor's order processing costs {=orderCost|money} for {=totalOrders|comma} orders and delivery
+      {=delCost|money} for {=totalDels|comma} deliveries.
+
+      | Customer | Gross margin | Orders | Deliveries |
+      |---|---|---|---|
+      {=table}
+
+      One customer is unprofitable after ABC-assigned selling costs. What is its operating profit? (Enter a loss as a
+      negative number.)
+    answer: { var: loserProfit, tol: 0.5 }
+    hints:
+      - Rates are ₱ per order and ₱ per delivery.
+      - Profit = gross margin − orders × rate − deliveries × rate.
+    explanation: '{=loserName}: ${=loserGm|comma} - {=loserCost|comma} = {=loserProfit|money}$. By gross margin the order is {=rankGm}; by operating profit, {=rankProfit}.'
+
+  - id: customer-fill
+    type: schedule-fill
+    skills: [abc-services]
+    difficulty: 2
+    tags: [journal]
+    generator: customerQ
+    lessonRef: { tab: math-code, id: customers }
+    prompt: |
+      Order processing: {=orderCost|money} for {=totalOrders|comma} orders. Delivery: {=delCost|money} for
+      {=totalDels|comma} deliveries.
+
+      | Customer | Gross margin | Orders | Deliveries |
+      |---|---|---|---|
+      {=table}
+
+      Complete the customer profitability schedule (costs as negative amounts).
+    columns: [Customer A, Customer B, Customer C]
+    rows: '@rows'
+    hints:
+      - ₱{=oRate} per order and ₱{=dRate} per delivery.
+    explanation: 'Operating profit ranks {=rankProfit}; {=loserName} ends at {=loserProfit|money}.'
+
+  - id: driver-match
+    type: match
+    skills: [abc-services]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: services }
+    prompt: Match each service activity to a sensible cost driver (slides 50–54).
+    pairs:
+      - ['Bank loan origination', 'Number of loan applications processed']
+      - ['Hotel housekeeping', 'Number of room turns']
+      - ['Airline ground handling', 'Number of takeoffs and landings']
+      - ['Hospital lab', 'Number of tests or procedures']
+    explanation: In every industry the driver is what actually causes the shared cost.
+
+  # ------------------------------------------------------------------ adoption
+  - id: adopt-mcq
+    type: mcq
+    skills: [adoption]
+    difficulty: 1
+    tags: [application]
+    lessonRef: { tab: intuition, id: worth-it }
+    prompt: Which company should adopt ABC?
+    options:
+      - A custom electronics assembler with 40+ variants, frequent changeovers and heavy inspection costs
+      - A single-product bottled-water plant with minimal overhead
+      - A two-person tailoring shop making one kind of shirt
+      - A plant that makes one product in identical batches
+    answer: 0
+    hints: [Look for diversity and non-volume overhead.]
+    explanation: Example 8. Diversity and significant batch- and product-level overhead are what make ABC pay.
+
+  - id: driver-mcq
+    type: mcq
+    skills: [adoption, abc-steps]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: worth-it }
+    prompt: Material inspections are triggered by incoming shipments. Labor-hour data is already in payroll; shipment counts would need a new tracking process. Which driver should the inspection pool use?
+    options:
+      - Number of shipments, because it causes the cost
+      - Direct labor hours, because the data is free
+      - Machine hours, as a compromise
+      - No driver; leave inspection unallocated
+    answer: 0
+    hints: [Cause and effect, or convenience?]
+    explanation: Example 11. A convenient but unrelated driver is "ABC in name, traditional costing in substance."
+
+  - id: converge-mcq
+    type: mcq
+    skills: [adoption]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: adoption }
+    prompt: Iloilo Precision Tools makes one product in a continuous process with nearly constant batch sizes. What would ABC do to its unit cost?
+    options:
+      - Little; with one product there is nothing to cross-subsidize, so both methods converge
+      - Raise it sharply, because setups would finally be counted
+      - Lower it sharply, because batch costs would be removed
+      - Make it impossible to compute
+    answer: 0
+    hints: [Cross-subsidization needs at least two products used differently.]
+    explanation: Example 13. ABC's value comes from diversity in overhead consumption, not from the technique itself.
+
+  - id: limits-multi
+    type: multi
+    skills: [adoption]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: adoption }
+    prompt: Which are genuine limitations of ABC (slide 61)? Select all that apply.
+    options:
+      - It is more expensive to design and maintain than a single rate
+      - It needs data from interviews, time studies or activity logs
+      - Its activity rates are still estimates
+      - It changes total overhead cost
+    answer: [0, 1, 2]
+    hints: [ABC changes how overhead is split, not how much there is.]
+    explanation: ABC costs more and still relies on estimates, but total overhead is the same under both systems.

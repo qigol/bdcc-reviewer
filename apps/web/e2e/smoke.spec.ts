@@ -67,6 +67,16 @@ test('every scene plays through every beat', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('every module opens on its guided Path', async ({ page }) => {
+  const errors = collectErrors(page);
+  for (const id of modules) {
+    await page.goto(`/m/${id}`);
+    await expect(page.getByTestId('path'), `${id} path`).toBeVisible();
+    await expect(page.getByTestId('path-continue')).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
 test('every Math & Code section and the Application tab render', async ({ page }) => {
   const errors = collectErrors(page);
   for (const id of modules) {

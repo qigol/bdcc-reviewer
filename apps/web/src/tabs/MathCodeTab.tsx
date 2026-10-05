@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, ChevronRight, ExternalLink, Footprints, ListOrdered, Rocket, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
-import { resolveRefs, getPath, valuesEqual, datasetScope, sectionLiveWidgets, liveRoleTarget, PANE_ROLES, type Section, type TraceStep } from '@kodigo/schema';
+import { resolveRefs, getPath, valuesEqual, datasetScope, sectionLiveWidgets, liveRoleTarget, resolveJournal, PANE_ROLES, type Section, type TraceStep } from '@kodigo/schema';
+import { JournalPaneView } from '../widgets/accounting';
+import { computeMarks } from '../engine/marks';
+import { PracticeBox } from '../quiz/PracticeBox';
 import { useModuleCtx } from './ModulePage';
 import { useScope } from '../engine/useScope';
 import { useTracePlayer, traceCommands } from '../engine/trace';
@@ -113,7 +116,7 @@ function LiveInputs({ state, setState, labels, hints, skip, initial, onReset }: 
         if (typeof v === 'number') {
           return (
             <label key={k} className="flex items-center gap-1">{name}
-              <CommitInput type="number" className="w-20" value={String(v)} onCommit={(t) => setState(k, Number(t))}
+              <CommitInput type="number" className={String(v).length > 4 ? 'w-28' : 'w-20'} value={String(v)} onCommit={(t) => setState(k, Number(t))}
                 validate={(t) => (t.trim() === '' || !Number.isFinite(Number(t)) ? 'enter a number' : null)} />
             </label>
           );
@@ -254,9 +257,18 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
 
   const steps = section.steps;
   const visibleSteps = revealAll ? steps.length : revealed;
-  const codes = [{ title: section.code.title ?? 'Python', lang: section.code.lang ?? 'python', source: section.code.source }, ...(section.extraCode ?? []).map((c) => ({ title: c.title, lang: c.lang ?? 'python', source: c.source }))];
-  const code = codes[Math.min(codeTab, codes.length - 1)];
+  // the workbench panes: the journal (accounting) and/or the code, then any extra code tabs
+  type Pane = { kind: 'journal'; title: string } | { kind: 'code'; title: string; lang: string; source: string };
+  const panes: Pane[] = [
+    ...(section.journal ? [{ kind: 'journal' as const, title: section.journal.title ?? 'Journal' }] : []),
+    ...(section.code ? [{ kind: 'code' as const, title: section.code.title ?? 'Python', lang: section.code.lang ?? 'python', source: section.code.source }] : []),
+    ...(section.extraCode ?? []).map((c) => ({ kind: 'code' as const, title: c.title, lang: c.lang ?? 'python', source: c.source })),
+  ];
+  const pane = panes[Math.min(codeTab, panes.length - 1)];
   const badges = step?.code ? { [step.code]: varsBadge(step.vars) ?? '' } : undefined;
+  const journal = useMemo(() => (section.journal ? resolveJournal(section.journal, scope) : null), [section.journal, scope]);
+  // trace ops for role 'journal' mark rows, lines and accounts in the journal pane
+  const journalMarks = useMemo(() => (tracing && trace.index >= 0 ? computeMarks(traceCommands(trace.steps, trace.index).byRole.journal ?? []) : undefined), [tracing, trace.steps, trace.index]);
   const stepScope = useMemo(() => ({ ...scope, ...(step?.vars ?? {}) }), [scope, step]);
 
   return (
@@ -290,7 +302,7 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
             {tracing && hasLive
               ? <div className="text-xs text-muted">While you step through, the live data sits next to the code and follows each line.</div>
               : showData && hasLive && <LivePanel mod={mod} section={section} state={state} setState={setState} widgets={liveWidgets} className="max-h-[560px] overflow-auto" />}
-            {!hasLive && section.trace && !tracing && <div className="text-xs text-muted">Press <b>Step through</b> to run the code on these inputs, line by line.</div>}
+            {!hasLive && section.trace && !tracing && <div className="text-xs text-muted">{section.journal && !section.code ? <>Change an input and every amount below follows. Press <b>Step through</b> to build the numbers one at a time.</> : <>Press <b>Step through</b> to run the code on these inputs, line by line.</>}</div>}
           </div>
         ) : null}
 
@@ -341,23 +353,32 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
             {!revealAll && visibleSteps < steps.length && <button className="btn mt-3" onClick={() => setRevealed(revealed + 1)}>Next step <ChevronRight size={14} /></button>}
           </div>
           <div className="flex min-w-0 flex-col gap-2">
-            {codes.length > 1 && (
+            {panes.length > 1 && (
               <div className="flex gap-1">
-                {codes.map((c, i) => <button key={i} className={cn('btn btn-sm', i === codeTab && 'border-accent/50 bg-accent/10')} onClick={() => setCodeTab(i)}>{c.title}</button>)}
+                {panes.map((c, i) => <button key={i} className={cn('btn btn-sm', i === codeTab && 'border-accent/50 bg-accent/10')} onClick={() => setCodeTab(i)}>{c.title}</button>)}
               </div>
             )}
-            <CodeView source={code.source} lang={code.lang} title={codes.length === 1 ? code.title : undefined} hoverAnchor={hover} setHoverAnchor={setHover} activeAnchor={step?.code ?? null} badges={codeTab === 0 ? badges : undefined} anchorOrder={anchorOrder} maxHeight={tracing ? 460 : undefined} followActive={tracing} />
+            {pane?.kind === 'journal' && journal
+              ? <JournalPaneView pane={journal} money={{ currency: mod.parsed.manifest.currency, decimals: journal.decimals }} marks={journalMarks}
+                  anchors={{ hoverAnchor: hover, setHoverAnchor: setHover, activeAnchor: step?.code ?? null, badges, anchorOrder }} maxHeight={tracing ? 520 : undefined} />
+              : pane?.kind === 'code'
+                ? <CodeView source={pane.source} lang={pane.lang} title={panes.length === 1 ? pane.title : undefined} hoverAnchor={hover} setHoverAnchor={setHover} activeAnchor={step?.code ?? null} badges={codeTab === 0 || (codeTab === 1 && !!section.journal) ? badges : undefined} anchorOrder={anchorOrder} maxHeight={tracing ? 460 : undefined} followActive={tracing} />
+                : null}
             {tracing && (
               <div className="card flex flex-col gap-3 border-warn/40 p-3" data-testid="live-trace">
                 <VarsWatch steps={trace.steps} index={trace.index} />
                 {hasLive && <LivePanel mod={mod} section={section} state={state} setState={setState} widgets={liveWidgets} cmds={liveCmds} className="max-h-[520px] overflow-auto" />}
               </div>
             )}
-            <div className="text-[11px] text-muted">Hover a colored term or a code line to see its partner. Displayed code is Python; the site computes with the module's logic.js, and the lecture check below confirms both agree with the slides.</div>
+            <div className="text-[11px] text-muted">{section.journal
+              ? 'Hover a colored term or a journal line to see its partner. Every amount is recomputed from the live inputs, and the lecture check below confirms the numbers match the source.'
+              : 'Hover a colored term or a code line to see its partner. Displayed code is Python; the site computes with the module\'s logic.js, and the lecture check below confirms both agree with the slides.'}</div>
           </div>
         </div>
 
         {!!section.examples?.length && <LectureCheck mod={mod} ids={section.examples} />}
+
+        {!!section.tryIt?.length && <YourTurn ids={section.tryIt} />}
 
         <div className="grid gap-3 md:grid-cols-2">
           {section.pitfalls?.length ? <CalloutBox kind="warn" title="Pitfalls" body={section.pitfalls.map((p) => `- ${p}`).join('\n')} /> : null}
@@ -418,6 +439,26 @@ export function LectureCheck({ mod, ids }: { mod: LoadedModule; ids: string[] })
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** "Your turn": the section's practice questions, fresh numbers each time (guide §5.8 tryIt). */
+function YourTurn({ ids }: { ids: string[] }) {
+  const { mod } = useModuleCtx();
+  const [i, setI] = useState(0);
+  const valid = ids.filter((id) => mod.parsed.quiz.some((t) => t.id === id));
+  if (!valid.length) return null;
+  const id = valid[Math.min(i, valid.length - 1)];
+  return (
+    <div className="card p-3" data-testid="your-turn">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="label">Your turn: same idea, new numbers</span>
+        {valid.length > 1 && valid.map((t, k) => (
+          <button key={t} className={cn('btn btn-sm', k === i && 'border-accent/50 bg-accent/10')} onClick={() => setI(k)}>Question {k + 1}</button>
+        ))}
+      </div>
+      <PracticeBox key={id} mod={mod} templateId={id} title="Practice" />
     </div>
   );
 }

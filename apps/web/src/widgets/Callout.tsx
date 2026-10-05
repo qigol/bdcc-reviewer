@@ -1,4 +1,4 @@
-import { AlertTriangle, BookOpen, GraduationCap, Info, Lightbulb, Rocket } from 'lucide-react';
+import { AlertTriangle, BookMarked, BookOpen, GraduationCap, Info, Lightbulb, Rocket } from 'lucide-react';
 import type { WidgetRenderProps } from '../engine/types';
 import { Markdown } from '../lib/md';
 import { cn } from '../lib/util';
@@ -10,6 +10,7 @@ const KINDS: Record<string, { icon: any; cls: string; label: string }> = {
   exam: { icon: GraduationCap, cls: 'border-accent/50 bg-accent/10', label: 'Exam tip' },
   errata: { icon: BookOpen, cls: 'border-bad/40 bg-bad/5', label: 'Slide erratum' },
   beyond: { icon: Rocket, cls: 'border-purple-400/50 bg-purple-400/5', label: 'Beyond the slides' },
+  define: { icon: BookMarked, cls: 'border-accent/40 bg-panel', label: 'Definition' },
 };
 
 export function CalloutBox({ kind, title, body, className }: { kind: string; title?: string; body: string; className?: string }) {

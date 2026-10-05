@@ -1,0 +1,721 @@
+scenes:
+  - id: cost-vocabulary
+    title: Every peso has a home
+    goal: Which costs go into inventory, and which hit the income statement at once?
+    skills: [cost-terms]
+    data: [costitems, quiz1a]
+    state: { x: 3000 }
+    derive:
+      - { fn: costEquation, in: { intercept: '@quiz1a.intercept', slope: '@quiz1a.slope', x: '@x' }, out: ce }
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@costitems.chips', bins: '@costitems.bins', solution: '@costitems.solution' }
+      - id: terms
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            | Total | Made of |
+            |---|---|
+            | Prime cost | DM + DL |
+            | Conversion cost | DL + MOH |
+            | Product cost | DM + DL + MOH |
+            | Period cost | Selling + administrative |
+      - id: hours
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Direct labor hours in the month, min: 0, max: 6000, step: 100, format: comma }
+        bind: { value: x }
+      - id: predicted
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Fixed part, value: '{=quiz1a.intercept|money}' }
+            - { label: Variable part, value: '{=ce.variable|money}' }
+            - { label: Predicted utilities, value: '{=ce.y|money}', tone: accent }
+    beats:
+      - say: |
+          A furniture maker builds a dining table. The lumber, the assembler's wages and the factory's power all become
+          part of the table's cost. Those are **product costs**: they sit in inventory until the table is sold.
+        define: [product-cost]
+        gate:
+          type: predict
+          question: The table is finished in March but sold in May. When does its cost reach the income statement?
+          options: ['May, when it is sold', 'March, when it is finished', Spread over March to May]
+          answer: 0
+          explain: Product costs wait in inventory (an asset) and become Cost of Goods Sold at the sale.
+      - say: |
+          Facebook ads and the president's salary never touch a table. They are **period costs**, selling and
+          administrative, expensed in the period they are incurred.
+        define: [period-cost]
+        gate:
+          type: event
+          prompt: Sort the eight costs into their bins.
+          target: bins
+          event: solved
+          hint: Can it be traced to the table? Is it in the factory at all?
+      - say: |
+          The supervisor, the power and the glue are **manufacturing overhead**: factory costs that can't be traced to a
+          table conveniently.
+        define: [manufacturing-overhead]
+        show: [terms]
+        gate:
+          type: predict
+          question: Lumber ₱4,000, assembler ₱1,500 and overhead ₱1,000 go into one table. What is its prime cost?
+          answer: { value: 5500, tol: 0.5 }
+          explain: 'Prime cost is DM + DL: $4{,}000 + 1{,}500 = ₱5{,}500$.'
+      - say: |
+          **Prime cost** is DM + DL; **conversion cost** is DL + MOH. Direct labor sits in both, so the two totals overlap.
+        define: [prime-cost, conversion-cost]
+        gate:
+          type: predict
+          question: Same table. What is its conversion cost?
+          answer: { value: 2500, tol: 0.5 }
+          explain: '$1{,}500 + 1{,}000 = ₱2{,}500$; adding prime and conversion would count the ₱1,500 twice.'
+      - say: |
+          Quiz 1A's warm-up: Marikina Shoe's factory utilities regressed on labor hours gave intercept ₱25,000, slope
+          ₱8.50, R² 0.89. A cost with both parts is a **mixed cost**.
+        define: [mixed-cost]
+        show: [hours, predicted]
+        gate:
+          type: when
+          prompt: Set the month to 3,000 direct labor hours and read the prediction.
+          when: 'x == 3000 && abs(ce.y - 50500) < 1'
+          hint: '25,000 + 8.50 × 3,000.'
+      - say: What does each piece of the regression tell you?
+        gate:
+          type: reflect
+          prompt: How does the regression output show that factory utilities are a mixed cost, and what does R² = 0.89 add?
+          model: |
+            The intercept (₱25,000) is a cost incurred even at zero hours, the fixed part; the slope (₱8.50 per hour)
+            rises with activity, the variable part. Having both makes it mixed. R² = 0.89 says direct labor hours explain
+            89% of the variation in utilities cost, so the equation predicts well.
+      - say: Sort some costs yourself.
+        gate:
+          type: practice
+          template: classify-match
+    takeaway: Product costs wait in inventory until the sale; period costs are expensed at once. Prime and conversion cost overlap in direct labor.
+
+  - id: documents-to-sheet
+    title: From paperwork to a ₱12 coupling
+    goal: How do requisitions, time tickets and a rate become a job's unit cost?
+    skills: [pohr-apply]
+    data: [job2b47, parker]
+    state: { sheetUpTo: 0 }
+    derive:
+      - { fn: jobSheetSheet, in: { requisition: '@job2b47.requisition', reqs: '@job2b47.reqs', tickets: '@job2b47.tickets', rate: '@job2b47.rate', units: '@job2b47.units', upTo: '@sheetUpTo' }, out: js }
+      - { fn: timeTicket, in: { holden: '@job2b47.holden' }, out: tt }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: 'Job cost sheet, Job 2B47 (Milling Department)', rows: '@js.rows' }
+      - id: ticket
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: "Mary Holden's time ticket", rows: '@tt.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: jobSheetWalk
+          in: { requisition: '@job2b47.requisition', reqs: '@job2b47.reqs', tickets: '@job2b47.tickets', rate: '@job2b47.rate', units: '@job2b47.units' }
+          roles: { sheet: sheet }
+    beats:
+      - say: |
+          Overhead can't be traced, and the year's actual total is known only after it ends. So Parker Company sets a
+          **predetermined overhead rate** before the year: ₱600,000 of estimated overhead over 75,000 machine-hours.
+        define: [predetermined-overhead-rate]
+        gate:
+          type: predict
+          question: What is Parker's predetermined overhead rate per machine-hour?
+          answer: { value: 8, tol: 0.005 }
+          explain: '$600{,}000 \div 75{,}000 = ₱8$ per machine-hour.'
+      - say: |
+          A job using 500 machine-hours receives 500 × ₱8 of **applied overhead**: the rate times the job's actual activity.
+        define: [applied-overhead]
+        gate:
+          type: predict
+          question: The job also used ₱5,000 of materials and ₱3,000 of labor. What is its total cost?
+          answer: { value: 12000, tol: 0.5 }
+          explain: '$5{,}000 + 3{,}000 + 500 \times 8 = ₱12{,}000$.'
+      - say: |
+          Now the paperwork. A **materials requisition form** releases materials and names the job: Req. 14873 sends
+          150 housings at ₱1.64 and 300 connectors at ₱1.38 to Job 2B47.
+        define: [materials-requisition]
+        gate:
+          type: predict
+          question: What does Requisition 14873 charge to Job 2B47?
+          answer: { value: 660, tol: 0.005 }
+          explain: '$150 \times 1.64 + 300 \times 1.38 = 246 + 414 = ₱660$.'
+      - say: |
+          An **employee time ticket** logs each hour. Mary Holden spent 5 hours on 2B47, 2 on 2B50 and 1 on maintenance,
+          all at ₱9.
+        define: [time-ticket]
+        show: [ticket]
+        gate:
+          type: predict
+          question: How much of Mary's ₱72 day is indirect labor (overhead)?
+          answer: { value: 9, tol: 0.005 }
+          explain: The maintenance hour can't be traced to a job, so its ₱9 goes to overhead.
+      - say: |
+          Every document lands on the **job cost sheet**. Play it: three requisitions, four tickets, then overhead at ₱8
+          per direct labor hour.
+        define: [job-cost-sheet]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the job cost sheet to the end.
+          target: player
+          event: done
+      - say: 150 couplings for ₱1,800.
+        gate:
+          type: predict
+          question: What is the unit cost of a coupling?
+          answer: { value: 12, tol: 0.005 }
+          explain: '$1{,}800 \div 150 = ₱12.00$.'
+      - say: Why go to the trouble of estimates?
+        gate:
+          type: reflect
+          prompt: Why not wait until December and apply the year's actual overhead to each job?
+          model: |
+            Managers need job costs now, to price and bill jobs as they finish. And actual monthly overhead swings with
+            seasonal costs and activity, so actual rates would cost identical jobs differently from month to month.
+      - say: Order the documents yourself.
+        gate:
+          type: practice
+          template: docs-order
+    takeaway: Requisitions give direct materials, time tickets direct labor, and the predetermined rate the overhead; the job cost sheet totals them.
+
+  - id: reeder-year
+    title: Reeder Company's year in eleven entries
+    goal: Where does every peso of Reeder's manufacturing cost sit at year end?
+    skills: [je-cycle, t-accounts]
+    data: [reeder]
+    state: { ledgerUpTo: 0 }
+    derive:
+      - { fn: ledgerSheet, in: { d: '@reeder', upTo: '@ledgerUpTo' }, out: lg }
+    stage:
+      - id: jr
+        widget: Journal
+        props: { title: General journal, entries: '@lg.entries', posted: 0 }
+      - id: ta
+        widget: TAccounts
+        props: { title: Manufacturing accounts, accounts: '@lg.accounts' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: ledgerWalk
+          in: { d: '@reeder' }
+          roles: { jr: jr, ta: ta }
+    beats:
+      - say: |
+          Reeder opens the year with ₱20,000 in **Raw Materials**, then buys ₱150,000 more on account (entry a) and issues
+          ₱136,000 direct and ₱24,000 indirect (entry b).
+        define: [raw-materials]
+        gate:
+          type: predict
+          question: What is the Raw Materials balance after entries (a) and (b)?
+          answer: { value: 10000, tol: 0.5 }
+          explain: '$20{,}000 + 150{,}000 - 160{,}000 = ₱10{,}000$. Indirect materials leave the storeroom too.'
+      - say: |
+          Direct materials, direct labor and applied overhead are debited to **Work in Process**. The ₱24,000 of indirect
+          materials goes to Manufacturing Overhead instead.
+        define: [work-in-process]
+        gate:
+          type: predict
+          question: 'Entry (c): direct labor ₱200,000, indirect ₱85,000, office salaries ₱90,000. How much is debited to Work in Process?'
+          answer: { value: 200000, tol: 0.5 }
+          explain: Only direct labor goes to WIP; indirect labor is overhead and office salaries are an expense.
+      - say: Post all eleven entries and watch the five manufacturing accounts fill.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play entries (a) to (k).
+          target: player
+          event: done
+      - say: |
+          Entry (i) moved ₱650,000, the **cost of goods manufactured**, from WIP to **Finished Goods**.
+        define: [cost-of-goods-manufactured, finished-goods]
+        gate:
+          type: predict
+          question: What is the ending Work in Process balance (opening ₱74,000)?
+          answer: { value: 60000, tol: 0.5 }
+          explain: '$74{,}000 + 136{,}000 + 200{,}000 + 300{,}000 - 650{,}000 = ₱60{,}000$.'
+      - say: |
+          Entry (k) moved ₱600,000 to **Cost of Goods Sold**, the expense matched with the ₱900,000 of sales.
+        define: [cost-of-goods-sold]
+        gate:
+          type: predict
+          question: What is left in Finished Goods (opening ₱40,000)?
+          answer: { value: 90000, tol: 0.5 }
+          explain: '$40{,}000 + 650{,}000 - 600{,}000 = ₱90{,}000$.'
+      - say: One account is left with a balance it shouldn't keep.
+        gate:
+          type: reflect
+          prompt: Manufacturing Overhead shows ₱310,000 of debits and ₱300,000 of credits. What does each side represent, and why don't they match?
+          model: |
+            The debits are actual overhead incurred (indirect materials, indirect labor, utilities, factory insurance and
+            depreciation). The credit is overhead applied to jobs at the predetermined 150% of direct labor. The rate was
+            an estimate, so the two differ, here by ₱10,000.
+      - say: Journalize one yourself.
+        gate:
+          type: practice
+          template: entry-je-2
+    takeaway: Factory costs flow RM → WIP → Finished Goods → COGS; actual overhead waits in Manufacturing Overhead, and WIP receives only applied overhead.
+
+  - id: close-the-year
+    title: Closing the overhead and the year
+    goal: What happens to the ₱10,000 left in Manufacturing Overhead, and what did Reeder earn?
+    skills: [over-under, income-stmt]
+    data: [reeder]
+    state: { method: close, sheetUpTo: 0 }
+    derive:
+      - { fn: dispose, in: { d: '@reeder', method: '@method' }, out: dp }
+      - { fn: incomeSheet, in: { d: '@reeder', method: '@method', upTo: '@sheetUpTo' }, out: is }
+    stage:
+      - id: diff
+        widget: Schedule
+        props: { title: Actual vs applied overhead, rows: '@dp.rows' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Dispose of the balance by
+          options:
+            - { value: close, label: Closing it to COGS }
+            - { value: allocate, label: Allocating it }
+        bind: { value: method }
+      - id: entry
+        widget: Journal
+        region: side
+        hidden: true
+        props: { title: Year-end entry, entries: '@dp.entries' }
+      - id: sheet
+        widget: Schedule
+        hidden: true
+        props: { title: 'Reeder Company, Income Statement', rows: '@is.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: incomeWalk
+          in: { d: '@reeder', method: '@method' }
+          roles: { sheet: sheet }
+    beats:
+      - say: |
+          Actual overhead was ₱310,000; applied was ₱300,000. When actual exceeds applied, overhead is **underapplied**:
+          the jobs were undercharged by ₱10,000.
+        define: [underapplied-overhead]
+        gate:
+          type: predict
+          question: Which side of Manufacturing Overhead carries the ₱10,000 balance?
+          options: [Debit, Credit]
+          answer: 0
+          explain: Debits (actual) exceed credits (applied), so a debit balance remains.
+      - say: |
+          Had applied exceeded actual, overhead would be **overapplied**: a credit balance, jobs overcharged.
+        define: [overapplied-overhead]
+        show: [pick, entry]
+        gate:
+          type: predict
+          question: If the ₱10,000 is closed to Cost of Goods Sold, what does COGS become?
+          answer: { value: 610000, tol: 0.5 }
+          explain: Underapplied overhead is added to COGS, $600{,}000 + 10{,}000 = ₱610{,}000$.
+      - say: |
+          The other option, **allocation**, spreads the ₱10,000 over WIP (₱60,000), Finished Goods (₱90,000) and COGS
+          (₱600,000) by their ending balances.
+        define: [allocation-method]
+        gate:
+          type: when
+          prompt: Switch to allocating it and read the new entry.
+          when: "method == 'allocate'"
+          hint: Use the choice on the side.
+      - say: Now allocated, COGS gets 80% of the balance.
+        gate:
+          type: predict
+          question: How much of the ₱10,000 goes to Finished Goods?
+          answer: { value: 1200, tol: 0.5 }
+          explain: '$90{,}000 \div 750{,}000 = 12\%$, and $12\% \times 10{,}000 = ₱1{,}200$.'
+      - say: |
+          The notes close it to COGS. Sales minus COGS gives **gross margin**; then subtract the period costs.
+        define: [gross-margin]
+        set: { method: close }
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play the income statement.
+          target: player
+          event: done
+      - say: Reeder's selling and administrative expenses total ₱209,000.
+        gate:
+          type: predict
+          question: What is Reeder's net income?
+          answer: { value: 81000, tol: 0.5 }
+          explain: '$900{,}000 - 610{,}000 = 290{,}000$ gross margin; $290{,}000 - 209{,}000 = ₱81{,}000$.'
+      - say: When is closing good enough?
+        gate:
+          type: reflect
+          prompt: Closing and allocating give COGS of ₱610,000 and ₱608,000. When would a company bother to allocate?
+          model: |
+            When the balance is large (material), because it really belongs partly to goods still in WIP and Finished
+            Goods. Allocating then keeps inventories and COGS closer to actual cost. Here ₱10,000 is small, so closing to
+            COGS is simpler and nearly as accurate.
+      - say: Settle one yourself.
+        gate:
+          type: practice
+          template: close-je
+    takeaway: Underapplied overhead adds to COGS and overapplied reduces it, closed at once or allocated by ending balances; gross margin less period costs is net income.
+
+  - id: equivalent-units
+    title: How many units did Halsey really make?
+    goal: How do you count a department's output when some units are only partly done?
+    skills: [eu-methods]
+    data: [halsey]
+    state: { method: wa }
+    derive:
+      - { fn: equivUnits, in: { beg: '@halsey.beg', completed: '@halsey.completed', end: '@halsey.end', method: '@method' }, out: eq }
+    stage:
+      - id: facts
+        widget: Text
+        props:
+          body: |
+            | | Units | Materials | Conversion |
+            |---|---|---|---|
+            | Work in process, beginning | 15,000 | 100% | 80% |
+            | Started | 180,000 | | |
+            | Completed and transferred | 175,000 | | |
+            | Work in process, ending | 20,000 | 70% | 30% |
+      - id: eu
+        widget: Schedule
+        hidden: true
+        props: { title: Equivalent units, columns: [Materials, Conversion], rows: '@eq.rows' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Method
+          options:
+            - { value: wa, label: Weighted-average }
+            - { value: fifo, label: FIFO }
+        bind: { value: method }
+    beats:
+      - say: |
+          Halsey's first department ends with 20,000 units, 30% converted. Their conversion work equals 6,000 finished
+          units. That is the idea of **equivalent units**.
+        define: [equivalent-units]
+        gate:
+          type: predict
+          question: How many equivalent units of materials are in ending inventory (70% complete)?
+          answer: { value: 14000, tol: 0.5 }
+          explain: '$20{,}000 \times 70\% = 14{,}000$.'
+      - say: |
+          The **weighted-average method** counts all 175,000 units transferred out at 100%, whenever the work was done,
+          plus ending inventory.
+        define: [weighted-average-method]
+        show: [eu]
+        gate:
+          type: predict
+          question: What are the weighted-average equivalent units of conversion?
+          answer: { value: 181000, tol: 0.5 }
+          explain: '$175{,}000 + 6{,}000 = 181{,}000$.'
+      - say: |
+          The **FIFO method** counts only this period's work. The 15,000 beginning units were 80% converted last period,
+          so this period finished just 20% of them.
+        define: [fifo-method]
+        show: [pick]
+        gate:
+          type: when
+          prompt: Switch to FIFO.
+          when: "method == 'fifo'"
+          hint: Use the method choice on the side.
+      - say: |
+          The rest of the 175,000 were **units started and completed** this period.
+        define: [started-and-completed]
+        gate:
+          type: predict
+          question: How many units were started and completed?
+          answer: { value: 160000, tol: 0.5 }
+          explain: '$175{,}000 - 15{,}000 = 160{,}000$.'
+      - say: FIFO conversion is 3,000 + 160,000 + 6,000.
+        gate:
+          type: predict
+          question: What are the FIFO equivalent units of conversion?
+          answer: { value: 169000, tol: 0.5 }
+          explain: '$15{,}000 \times 20\% + 160{,}000 + 20{,}000 \times 30\% = 169{,}000$.'
+      - say: The two answers differ by exactly 12,000.
+        gate:
+          type: reflect
+          prompt: Where does the 12,000-unit gap between 181,000 and 169,000 come from?
+          model: |
+            It is the conversion done on beginning inventory last period, 15,000 × 80% = 12,000. Weighted-average counts
+            it again this period; FIFO leaves it in last period, where it was done.
+      - say: Count some yourself.
+        gate:
+          type: practice
+          template: eu-fifo-numeric
+    takeaway: Weighted-average counts transferred units at 100%; FIFO counts only this period's work, so FIFO EU = WA EU − beginning work done last period.
+
+  - id: production-report
+    title: The production report, part by part
+    goal: How do 233,400 pesos split between units transferred and units still in process?
+    skills: [production-report]
+    data: [prodreport]
+    state: { method: wa, sheetUpTo: 0 }
+    derive:
+      - { fn: reportSheet, in: { beg: '@prodreport.beg', started: '@prodreport.started', completed: '@prodreport.completed', end: '@prodreport.end', added: '@prodreport.added', method: '@method', upTo: '@sheetUpTo' }, out: rs }
+    stage:
+      - id: qty
+        widget: Schedule
+        props: { title: '1. Quantity schedule and equivalent units', columns: [Units, Materials, Conversion], rows: '@rs.qRows' }
+      - id: unit
+        widget: Schedule
+        props: { title: '2. Unit costs', columns: [Total, Materials, Conversion], rows: '@rs.unitRows' }
+      - id: recon
+        widget: Schedule
+        region: side
+        props: { title: '3. Cost reconciliation', rows: '@rs.reconRows' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Method
+          options:
+            - { value: wa, label: Weighted-average }
+            - { value: fifo, label: FIFO }
+        bind: { value: method }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: reportWalk
+          in: { beg: '@prodreport.beg', started: '@prodreport.started', completed: '@prodreport.completed', end: '@prodreport.end', added: '@prodreport.added', method: '@method' }
+          roles: { qty: qty, unit: unit, recon: recon }
+    beats:
+      - say: |
+          A **production report** summarizes everything in a department's Work in Process account for the period, in
+          three parts.
+        define: [production-report]
+        gate:
+          type: predict
+          question: 'Beginning 10,000 units and 190,000 started; 180,000 completed. How many units are in ending inventory?'
+          answer: { value: 20000, tol: 0.5 }
+          explain: '$10{,}000 + 190{,}000 - 180{,}000 = 20{,}000$.'
+      - say: |
+          Part 1, the **quantity schedule**, accounts for the units and shows the equivalent units. Part 2 divides cost by
+          them.
+        define: [quantity-schedule]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the weighted-average report.
+          target: player
+          event: done
+      - say: |
+          Weighted-average pools ₱7,208 of beginning conversion with ₱148,192 added: ₱155,400 over 185,000 equivalent units.
+        gate:
+          type: predict
+          question: What is the weighted-average conversion cost per equivalent unit?
+          answer: { value: 0.84, tol: 0.0005 }
+          explain: '$155{,}400 \div 185{,}000 = ₱0.84$.'
+      - say: |
+          Part 3, the **cost reconciliation**, proves ₱221,400 transferred plus ₱12,000 ending WIP equals ₱233,400.
+        define: [cost-reconciliation]
+        show: [pick]
+        gate:
+          type: when
+          prompt: Switch to FIFO and replay.
+          when: "method == 'fifo'"
+          hint: Use the method choice on the side.
+      - say: FIFO divides only the ₱148,192 added, over 176,000 equivalent units.
+        gate:
+          type: predict
+          question: What is the FIFO conversion cost per equivalent unit?
+          answer: { value: 0.842, tol: 0.0005 }
+          explain: '$148{,}192 \div 176{,}000 = ₱0.842$.'
+      - say: Under FIFO, the transferred cost has two layers.
+        gate:
+          type: reflect
+          prompt: Why does FIFO show the 10,000 beginning units separately in the cost reconciliation?
+          model: |
+            They carry last period's ₱10,728 plus only this period's cost to finish them (1,000 conversion EU). The
+            170,000 started and completed carry this period's full unit cost. Weighted-average blends both into one cost
+            for all 180,000.
+      - say: Fill in a reconciliation yourself.
+        gate:
+          type: practice
+          template: recon-fill
+    takeaway: The report counts units, divides cost by equivalent units, then reconciles; only FIFO keeps beginning inventory's cost separate.
+
+  - id: jit
+    title: Just in time, and the hours nobody pays for
+    goal: Why does a JIT plant care about how long a batch waits?
+    skills: [jit]
+    state: { process: 2, inspect: 0.5, move: 1, wait: 4.5 }
+    derive:
+      - { fn: mfgTime, in: { process: '@process', inspect: '@inspect', move: '@move', wait: '@wait' }, out: mt }
+    stage:
+      - id: time
+        widget: Schedule
+        props: { title: 'One batch, in hours (illustrative)', rows: '@mt.rows' }
+      - id: wait
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Wait time (setups and queues), min: 0, max: 8, step: 0.5, format: 1 }
+        bind: { value: wait }
+      - id: move
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Move time (layout), min: 0, max: 3, step: 0.25, format: 2 }
+        bind: { value: move }
+      - id: kanban
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: note
+          title: Kanban vs JIT (slide 29)
+          body: Kanban is the visual pull-signal tool; JIT is the inventory-minimization strategy it serves.
+    beats:
+      - say: |
+          In **just-in-time** production, materials arrive just in time to be used and products are finished just in time
+          to ship. A true JIT plant has almost no inventory.
+        define: [just-in-time]
+        gate:
+          type: predict
+          question: What happens to the Raw Materials and Work in Process balances in a true JIT plant?
+          options: [They fall toward zero, They grow to protect against delays, They stay the same]
+          answer: 0
+          explain: Materials and parts are pulled in only as needed, so little sits in inventory.
+      - say: |
+          Final assembly signals the station before it for exactly what it needs, and so on back: a **pull system**. A push
+          system keeps every station busy regardless.
+        define: [pull-system]
+        show: [kanban]
+        gate:
+          type: predict
+          question: Which tool carries the pull signal from station to station?
+          options: [Kanban cards or bins, The job cost sheet, The predetermined overhead rate]
+          answer: 0
+          explain: Kanban is the visual signal; JIT is the strategy it serves.
+      - say: |
+          That signal is **kanban**. JIT also attacks **manufacturing time**: processing + inspection + move + wait.
+        define: [kanban, manufacturing-time]
+        gate:
+          type: predict
+          question: This batch spends 2 hours processing, 0.5 inspecting, 1 moving and 4.5 waiting. What is its manufacturing time?
+          answer: { value: 8, tol: 0.005 }
+          explain: '$2 + 0.5 + 1 + 4.5 = 8$ hours.'
+      - say: |
+          Only processing adds value. Inspection, move and wait are **non-value-added time**: here 6 of the 8 hours.
+        define: [non-value-added]
+        show: [wait, move]
+        gate:
+          type: when
+          prompt: Cut setups and move time until at least 40% of the batch's time adds value.
+          when: 'mt.vaShare >= 0.4'
+          hint: 'Processing stays at 2 hours, so total time must fall to 5 hours or less.'
+      - say: Each JIT element has a lever.
+        gate:
+          type: reflect
+          prompt: Which JIT practice shrinks each non-value-added element?
+          model: |
+            Reducing setup time cuts wait time; improving the layout into cells cuts move time; total quality control
+            cuts defects and so the need for inspection.
+      - say: Try one yourself.
+        gate:
+          type: practice
+          template: mfg-time-numeric
+    takeaway: JIT pulls work through with kanban signals and cuts wait, move and inspection time, the hours that add cost but not value.
+
+  - id: abc-preview
+    title: A preview of activity-based costing
+    goal: Is a low-volume product really cheaper to make than the labor hours suggest?
+    skills: [abc-intro]
+    data: [sarver]
+    state: { system: trad }
+    derive:
+      - { fn: sarverView, in: { totalOH: '@sarver.totalOH', totalDLH: '@sarver.totalDLH', products: '@sarver.products', activities: '@sarver.activities', system: '@system' }, out: sv }
+      - { fn: sarver, in: { totalOH: '@sarver.totalOH', totalDLH: '@sarver.totalDLH', products: '@sarver.products', activities: '@sarver.activities' }, out: sx }
+    stage:
+      - id: units
+        widget: Schedule
+        props: { title: 'Sarver Company, unit cost', columns: [DM + DL, Overhead, Unit cost], rows: '@sv.rows' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Overhead assigned by
+          options:
+            - { value: trad, label: Direct labor hours }
+            - { value: abc, label: Activities }
+        bind: { value: system }
+      - id: rates
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: Activity rates, rows: '@sx.rateRows' }
+    beats:
+      - say: |
+          Sarver applies ₱900,000 of overhead at ₱18 per direct labor hour. Product A (4,000 units) uses 2.5 hours a unit,
+          Product B (20,000 units) 2 hours.
+        gate:
+          type: predict
+          question: How much overhead does each unit of Product A receive under the labor-hour rate?
+          answer: { value: 45, tol: 0.005 }
+          explain: '$2.5 \times ₱18 = ₱45$.'
+      - say: |
+          **Activity-based costing** pools overhead by activity instead: setups, inspections, production orders,
+          machine-hours, material receipts.
+        define: [activity-based-costing]
+        show: [rates]
+        gate:
+          type: predict
+          question: Machine setups cost ₱255,000 for 5,000 setups. What is the rate per setup?
+          answer: { value: 51, tol: 0.005 }
+          explain: '$255{,}000 \div 5{,}000 = ₱51$ per setup.'
+      - say: |
+          Each activity is a **cost driver**, an event that causes cost, and each pool divided by its driver is an
+          **activity rate**.
+        define: [cost-driver, activity-rate]
+        show: [pick]
+        gate:
+          type: when
+          prompt: Switch the overhead to activities.
+          when: "system == 'abc'"
+          hint: Use the choice on the side.
+      - say: Product A runs 3,000 of the 5,000 setups with a fifth of B's volume.
+        gate:
+          type: predict
+          question: What is Product A's ABC unit cost?
+          answer: { value: 151.55, tol: 0.005 }
+          explain: 'A uses ₱392,200 of overhead, ₱98.05 a unit; $36 + 17.50 + 98.05 = ₱151.55$, up from ₱98.50.'
+      - say: Total overhead didn't change; only who carries it.
+        gate:
+          type: reflect
+          prompt: Why did the labor-hour rate undercost Product A and overcost Product B?
+          model: |
+            Labor hours track volume, and B has five times A's volume. But setups, inspections and orders are driven by
+            batches and complexity, where A uses far more than its share. A labor-hour rate spread those costs by volume,
+            so B carried A's overhead.
+      - say: Compute one activity rate yourself.
+        gate:
+          type: practice
+          template: abc-rate-numeric
+    takeaway: ABC charges each product for the activities it uses, so low-volume, complex products carry the overhead a volume-based rate gave to high-volume ones.

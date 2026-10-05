@@ -1,0 +1,416 @@
+scenes:
+  - id: diagnosis-treatment
+    title: An accurate cost changes nothing by itself
+    goal: Cavite Precision now knows its Custom Bracket is undercosted. Has it gained anything yet?
+    skills: [abc-to-abm]
+    stage:
+      - id: table
+        widget: Text
+        props:
+          body: |
+            | | ABC | ABM |
+            |---|---|---|
+            | What it is | a costing technique | a management philosophy |
+            | Question | What does this cost? | Should we still do this? |
+            | Looks | backward | forward |
+            | Medical analogy | diagnosis | treatment |
+      - id: kt
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: note
+          title: Kepner-Tregoe (slides 12–14)
+          body: 'Situation appraisal (what is going on?), problem analysis (why did it happen?), decision analysis (what should we do?), potential problem analysis (what lies ahead?).'
+    beats:
+      - say: |
+          Session 7's ABC told Cavite Precision that Custom Bracket is undercosted by ₱33 a unit.
+          **Activity-based management** is what happens next: using that data to change the business.
+        define: [activity-based-management]
+        gate:
+          type: predict
+          question: Management files the corrected cost report and changes nothing. How much of ABC's value has the company captured?
+          options: ['None yet; value comes from acting on the data', 'All of it; the costs are now accurate', About half]
+          answer: 0
+          explain: ABC diagnoses; ABM treats. Repricing, fixing the setups or reconsidering the product is where the value is.
+      - say: |
+          ABM is not a one-off project but **Kaizen**: measure, find waste, diagnose its cause, act, and measure again.
+        define: [kaizen]
+        gate:
+          type: predict
+          question: What should each pass through the improvement cycle aim for?
+          options: ['Some improvement in cost, cycle time or quality', Perfection all at once, A new costing system]
+          answer: 0
+          explain: Continuous, incremental improvement, the same "endless quest" as TQM in Session 1.
+      - say: |
+          Structured thinking helps choose the treatment. The **Kepner-Tregoe method** separates what is going on, why it
+          happened, what to do, and what lies ahead.
+        define: [kepner-tregoe]
+        show: [kt]
+        gate:
+          type: predict
+          question: '"Why are there 800 setups?" belongs to which Kepner-Tregoe step?'
+          options: [Problem analysis (find the cause), Decision analysis (make a choice), Situation appraisal (set priorities), Potential problem analysis (protect the plan)]
+          answer: 0
+          explain: Finding an unknown cause is problem analysis; the choice of fix comes after.
+      - say: ABM reaches beyond the accounting office.
+        gate:
+          type: reflect
+          prompt: Which managers use ABM data, and for what?
+          model: |
+            Operations managers use it to redesign processes and layouts; sales and account managers to manage customer
+            relationships and pricing; procurement to evaluate and negotiate with suppliers. The management accountant works
+            with all three as a business partner.
+      - say: Check the distinction.
+        gate:
+          type: practice
+          template: abm-mcq
+    takeaway: ABC tells you what an activity costs; ABM asks whether it should exist and acts on the answer, cycle after cycle.
+
+  - id: value-or-waste
+    title: Would the customer pay for this?
+    goal: Which of a furniture maker's six activities actually add value?
+    skills: [pva]
+    data: [cordillera]
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@cordillera.chips', bins: '@cordillera.bins', solution: '@cordillera.solution' }
+      - id: actions
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **What to do with non-value-added activity**
+
+            1. **Eliminate** it (redesign the layout to remove moving)
+            2. **Reduce** its time or cost
+            3. **Select** the cheapest way to do a necessary one
+            4. **Share** its cost over more output
+    beats:
+      - say: |
+          **Process-value analysis** puts one test to every activity: would the customer pay for this if they could see it?
+        define: [process-value-analysis]
+        gate:
+          type: predict
+          question: Would a buyer of a Cordillera chair pay for the time its parts spend waiting for the finishing department?
+          options: ['No', 'Yes, because the chair cannot be finished without it']
+          answer: 0
+          explain: Waiting changes nothing about the chair; it only adds cost.
+      - say: |
+          A **value-added activity** transforms the product. A **non-value-added activity** (moving, waiting, inspecting,
+          storing) adds cost but no value.
+        define: [value-added-activity, non-value-added-activity]
+        gate:
+          type: event
+          prompt: Sort Cordillera's six activities.
+          target: bins
+          event: solved
+          hint: Does the activity change the chair itself?
+      - say: Inspection is the tricky one. It feels essential.
+        gate:
+          type: predict
+          question: Why is inspecting the finished chair non-value-added even though it protects quality?
+          options: [A perfectly made chair would need no inspection, Customers never notice defects, Inspection is a period cost]
+          answer: 0
+          explain: '"Necessary" is not "value-added"; prevention reduces the need for inspection.'
+      - say: |
+          JIT attacks moving and waiting with the **manufacturing cell**: machines grouped by product family in sequence, run
+          by multi-skilled workers.
+        define: [manufacturing-cell]
+        show: [actions]
+        gate:
+          type: predict
+          question: Which action fits "moving cut pieces to the assembly station" if the plant is rearranged into cells?
+          options: [Eliminate, Share, Select]
+          answer: 0
+          explain: Put the saw next to the assembly bench and the move disappears.
+      - say: Half the listed activities add no value.
+        gate:
+          type: reflect
+          prompt: Studies find non-value-added time can be 60–90% of cycle time in traditional plants. Why is that good news for a manager?
+          model: |
+            It is a large improvement opportunity that needs no new equipment or harder work: cutting waiting and moving
+            reduces cost, inventory and cycle time while leaving the value-added work unchanged.
+      - say: Practice.
+        gate:
+          type: practice
+          template: pva-match
+    takeaway: Only activities the customer would pay for add value; the rest are eliminated, reduced, done the cheapest way or shared.
+
+  - id: why-800
+    title: Why does Custom Bracket need 800 setups?
+    goal: How do you find the cause behind an activity cost, not just its size?
+    skills: [driver-analysis]
+    data: [brackets, fishbone]
+    derive:
+      - { fn: setups, in: { products: '@brackets.products', costPerSetup: '@brackets.costPerSetup' }, out: st }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: Setups by product, columns: [Custom Bracket, Standard Bracket], rows: '@st.rows' }
+      - id: whys
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            1. Why is setup cost so high? 800 setups a year.
+            2. Why 800 setups? Orders arrive in small batches.
+            3. Why small batches? Sales accepts any order size.
+            4. Why no minimum? Nobody linked sales practice to production cost.
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@fishbone.chips', bins: '@fishbone.bins', solution: '@fishbone.solution' }
+    beats:
+      - say: |
+          Session 7 asked what drives setup cost: the number of setups. **Driver analysis** asks the deeper question, why
+          are there so many setups at all?
+        define: [driver-analysis]
+        gate:
+          type: predict
+          question: Custom Bracket makes 20,000 units with 800 setups. What is its average batch size?
+          answer: { value: 25, tol: 0.5 }
+          explain: '$20{,}000 \div 800 = 25$ units per setup, against 800 for Standard Bracket.'
+      - say: At ₱1,000 a setup, that is ₱40 of setup cost in every Custom Bracket.
+        gate:
+          type: predict
+          question: What is Standard Bracket's setup cost per unit?
+          answer: { value: 1.25, tol: 0.005 }
+          explain: '$100 \times 1{,}000 \div 80{,}000 = ₱1.25$.'
+      - say: |
+          The **five whys** trace the symptom upstream. Here the root cause turns out to be a sales policy, far from the
+          factory floor.
+        define: [five-whys]
+        show: [whys]
+        gate:
+          type: predict
+          question: Which fix addresses that root cause?
+          options: [A minimum order quantity or batching small orders, A faster changeover procedure, Hiring more setup crews]
+          answer: 0
+          explain: Each cause points to a different fix; small batches call for order policy, not shop-floor speed.
+      - say: |
+          For messier problems, a **fishbone diagram** sorts possible causes into six categories. Batangas Steel's inspection
+          cost tripled while volume rose only 10%.
+        define: [fishbone-diagram]
+        show: [bins]
+        gate:
+          type: event
+          prompt: Place each possible cause on its bone.
+          target: bins
+          event: solved
+          hint: Processes, equipment, materials, people, environment, management.
+      - say: Data can test the candidates, with one warning from Session 3.
+        gate:
+          type: reflect
+          prompt: You regress setup cost on batch size, product complexity and customer. Why might the results mislead?
+          model: |
+            The candidates may be correlated with each other (small-batch customers may also order the most complex
+            products). With multicollinearity the regression can't separate their effects and may blame the wrong cause, so
+            drop or combine correlated drivers or gather data that breaks the correlation.
+      - say: Order the whys yourself.
+        gate:
+          type: practice
+          template: whys-order
+    takeaway: An activity count is a symptom; ask why until you reach a cause you can act on, and test candidates against data.
+
+  - id: customer-b
+    title: The customer who looked second best
+    goal: Which of Rizal Wholesale's customers really makes money?
+    skills: [customer-profit]
+    data: [rizal]
+    state: { scenario: current }
+    derive:
+      - { fn: customers, in: { pools: '@rizal.pools', customers: '@rizal.customers', consolidated: '@rizal.consolidated', scenario: '@scenario' }, out: cu }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: Rizal Wholesale Distributors, columns: [Customer A, Customer B, Customer C], rows: '@cu.rows' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Customer B orders
+          options:
+            - { value: current, label: As now }
+            - { value: consolidated, label: Consolidated }
+        bind: { value: scenario }
+      - id: rank
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Ranked by gross margin, value: '{=cu.rankGm}' }
+            - { label: Ranked by operating profit, value: '{=cu.rankProfit}', tone: accent }
+    beats:
+      - say: |
+          **Customer profitability analysis** charges each customer for the orders and deliveries it causes: ₱100 an order,
+          ₱200 a delivery.
+        define: [customer-profitability]
+        gate:
+          type: predict
+          question: 'Customer B: gross margin ₱140,000, 1,000 orders, 900 deliveries. Operating profit?'
+          answer: { value: -140000, tol: 0.5 }
+          explain: '$140{,}000 - (100{,}000 + 180{,}000) = -₱140{,}000$.'
+      - say: B places many small orders and wants frequent deliveries. B has offered to consolidate.
+        show: [pick]
+        gate:
+          type: when
+          prompt: Switch B to 250 orders and 300 deliveries.
+          when: "scenario == 'consolidated'"
+          hint: Use the choice on the side.
+      - say: Same customer, same product, same price.
+        gate:
+          type: predict
+          question: What is B's operating profit after consolidating?
+          answer: { value: 55000, tol: 0.5 }
+          explain: '$140{,}000 - (25{,}000 + 60{,}000) = ₱55{,}000$; a ₱195,000 swing from behavior alone.'
+      - say: |
+          Plot customers from most to least profitable and cumulative profit climbs above 100%, then falls back: the
+          **whale curve**.
+        define: [whale-curve]
+        gate:
+          type: predict
+          question: Sorted from most to least profitable, the top customers' cumulative profit typically reaches what share of total profit?
+          options: ['More than 100%, then the loss-making tail pulls it back to 100%', 'Exactly 100% at the first customer', Never more than 50%]
+          answer: 0
+          explain: A small group of customers earns more than all the profit; the loss-makers in the tail give some back.
+      - say: Don't fire a customer too fast.
+        gate:
+          type: reflect
+          prompt: Why shouldn't Rizal simply drop Customer B when the first analysis shows a ₱140,000 loss?
+          model: |
+            B's loss comes from its ordering behavior, which can change: minimum orders, consolidated deliveries or
+            activity-based pricing. B may also be strategically important. The analysis should open a negotiation, not end
+            the relationship.
+      - say: Compute a consolidation yourself.
+        gate:
+          type: practice
+          template: consolidate-numeric
+    takeaway: Gross margin hides cost to serve; change the customer's ordering behavior before deciding to drop it.
+
+  - id: cheap-supplier
+    title: The cheaper supplier that costs more
+    goal: Which supplier is really cheaper once you count what happens after the invoice?
+    skills: [tco]
+    data: [suppliers, zamboanga]
+    derive:
+      - { fn: tco, in: { qty: '@suppliers.qty', suppliers: '@suppliers.suppliers', activities: '@suppliers.activities' }, out: tc }
+      - { fn: tco, in: { qty: '@zamboanga.qty', suppliers: '@zamboanga.suppliers', activities: '@zamboanga.activities' }, out: zb }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: 'Total cost of ownership, 1,000 units', columns: [Supplier A, Supplier B], rows: '@tc.rows' }
+      - id: zam
+        widget: Schedule
+        hidden: true
+        props: { title: Zamboanga Seafood packaging, columns: ['Last year (1%)', 'This year (4%)'], rows: '@zb.rows' }
+    beats:
+      - say: Supplier A quotes ₱95 a unit; Supplier B quotes ₱100. Price is only the tip of the iceberg.
+        gate:
+          type: predict
+          question: A delivers in 10 shipments, B in 4, and receiving costs ₱500 a delivery. How much more receiving does A cost?
+          answer: { value: 3000, tol: 0.5 }
+          explain: '$(10 - 4) \times 500 = ₱3{,}000$.'
+      - say: |
+          Add inspection, rework, expediting and paperwork, and you have the supplier's **total cost of ownership**.
+        define: [total-cost-of-ownership]
+        gate:
+          type: predict
+          question: What is Supplier A's total cost of ownership per unit?
+          answer: { value: 126, tol: 0.005 }
+          explain: '$(95{,}000 + 31{,}000) \div 1{,}000 = ₱126$, against ₱105 for B.'
+      - say: |
+          Under **JIT purchasing**, small, frequent, defect-free deliveries with no buffer stock, a bad shipment can stop the
+          line.
+        define: [jit-purchasing]
+        show: [zam]
+        gate:
+          type: predict
+          question: Zamboanga's packaging defects rose from 1% to 4% on 200,000 units at ₱150 rework each, plus two ₱40,000 rush shipments. How much did TCO rise?
+          answer: { value: 980000, tol: 0.5 }
+          explain: '$200{,}000 \times 3\% \times 150 + 80{,}000 = 900{,}000 + 80{,}000 = ₱980{,}000$.'
+      - say: TCO is customer profitability seen from the other side.
+        gate:
+          type: reflect
+          prompt: How should the buyer use Zamboanga's ₱980,000 figure with the packaging supplier?
+          model: |
+            As leverage: show the supplier what its defects cost, and ask for a quality fix, a price adjustment that
+            covers the rework, or both, with switching suppliers as the fallback. Price alone would have shown no change.
+      - say: Compare two suppliers yourself.
+        gate:
+          type: practice
+          template: tco-numeric
+    takeaway: Choose suppliers on total cost of ownership; poor quality shows up as your inspection, rework and expediting.
+
+  - id: cycle-clock
+    title: The clock on the factory floor
+    goal: How much of a batch's time in the plant actually adds value?
+    skills: [cycle-metrics]
+    state: { process: 3.5, inspect: 1, move: 1, wait: 4.5 }
+    derive:
+      - { fn: cycle, in: { process: '@process', inspect: '@inspect', move: '@move', wait: '@wait' }, out: cy }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: 'Marikina Shoe, one batch (hours)', rows: '@cy.rows' }
+      - id: wait
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Waiting time (hours), min: 0, max: 6, step: 0.5, format: 1 }
+        bind: { value: wait }
+      - id: move
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Moving time (hours), min: 0, max: 2, step: 0.25, format: 2 }
+        bind: { value: move }
+    beats:
+      - say: |
+          A batch of shoes spends 3.5 hours being cut, stitched and assembled, 1 hour moving, 4.5 waiting and 1 in
+          inspection. The total is its **cycle time**.
+        define: [cycle-time]
+        gate:
+          type: predict
+          question: What is the batch's cycle time?
+          answer: { value: 10, tol: 0.005 }
+          explain: '$3.5 + 1.0 + 4.5 + 1.0 = 10$ hours.'
+      - say: |
+          **Manufacturing cycle efficiency** (MCE) is processing time over cycle time.
+        define: [manufacturing-cycle-efficiency]
+        gate:
+          type: predict
+          question: What is the batch's MCE, in percent?
+          answer: { value: 35, tol: 0.05 }
+          explain: '$3.5 \div 10 = 35\%$; 65% of the time adds no value.'
+      - say: Marikina rearranges into cells. Attack the biggest waste.
+        show: [wait, move]
+        gate:
+          type: when
+          prompt: Cut waiting time until MCE reaches 50%.
+          when: 'cy.mce >= 0.5'
+          hint: 'Processing stays 3.5 hours, so cycle time must fall to 7 hours.'
+      - say: |
+          **Velocity** is units over cycle time. Cycle time is the denominator of both MCE and velocity.
+        define: [velocity]
+        gate:
+          type: predict
+          question: A 100-unit order's cycle time falls from 10 days to 4. Velocity goes from 10 a day to what?
+          answer: { value: 25, tol: 0.005 }
+          explain: '$100 \div 4 = 25$ units a day, 2.5 times faster, with the same 2 days of processing.'
+      - say: The slide says the shoe redesign gave "30% faster throughput".
+        gate:
+          type: reflect
+          prompt: Cycle time fell from 10 to 7 hours. Is "30% faster throughput" right?
+          model: |
+            Cycle time is 30% shorter, but throughput (velocity) rises by 10 ÷ 7 − 1 ≈ 43%. A shorter cycle and a faster
+            flow are reciprocal, so the percentages differ.
+      - say: Compute MCE yourself.
+        gate:
+          type: practice
+          template: mce-numeric
+    takeaway: MCE is processing time over cycle time; cutting waiting and moving raises MCE and velocity without anyone working faster.

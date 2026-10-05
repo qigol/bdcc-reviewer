@@ -1,0 +1,133 @@
+sections:
+  - id: pohr
+    title: Predetermined overhead rate
+    skills: [pohr]
+    summary: |
+      Divide the year's estimated overhead by the estimated allocation base. The rate is fixed before the year starts,
+      so actual hours never enter it.
+    keyFormula: '\text{POHR} = \frac{\text{estimated overhead}}{\text{estimated base}}'
+    state: { estOH: 600000, estBase: 40000 }
+    derive:
+      - { fn: poRate, in: { estOH: '@estOH', estBase: '@estBase' }, out: pr }
+    steps:
+      - tex: |
+          \text{POHR} = \frac{\text{estimated manufacturing overhead}}{\text{estimated allocation base}}
+        say: Both numbers come from the budget, not from the actual year.
+      - tex: |
+          = \frac{\anchor{est-oh}{\text{₱}{=estOH|comma}}}{\anchor{est-base}{ {=estBase|comma}\ \text{DLH} }} = \anchor{rate}{ {=pr.rate|money2} \text{ per DLH} }
+        say: 'Kapitan: {=estOH|money} over {=estBase|comma} direct labor-hours.'
+    journal:
+      title: Overhead budget
+      blocks:
+        - kind: schedule
+          title: Computing the rate
+          rows:
+            - { id: est-oh, label: Estimated manufacturing overhead, amount: '@estOH', anchor: est-oh }
+            - { id: est-base, label: '÷ Estimated direct labor-hours', amount: '@estBase', format: number, anchor: est-base }
+            - { id: rate, label: '= Predetermined overhead rate', amount: '@pr.rate', style: total, anchor: rate }
+    links:
+      - { anchor: est-oh, label: Estimated overhead }
+      - { anchor: est-base, label: Estimated base }
+      - { anchor: rate, label: POHR }
+    trace: { fn: poRate, in: { estOH: '@estOH', estBase: '@estBase' } }
+    examples: [pohr-kapitan]
+    tryIt: [rate-numeric]
+    pitfalls:
+      - Dividing by **actual** hours. The rate is set before the year, from estimates.
+    examTip: Write the rate with its unit (₱ per DLH); the unit tells you what to multiply it by later.
+
+  - id: job-cost
+    title: The job cost sheet and its entries
+    skills: [job-cost, cost-flow]
+    summary: |
+      A job's cost is its direct materials, direct labor and applied overhead. Each piece is recorded with a debit to
+      Work in Process, and the finished job moves to Finished Goods.
+    keyFormula: '\text{Job cost} = \text{DM} + \text{DL} + \text{POHR} \times \text{actual base}'
+    state: { dm: 25000, dl: 18000, hours: 1200, rate: 15 }
+    derive:
+      - { fn: jobCost, in: { dm: '@dm', dl: '@dl', hours: '@hours', rate: '@rate' }, out: jc }
+    steps:
+      - tex: |
+          \text{Job cost} = \text{DM} + \text{DL} + \text{applied overhead}
+        say: Materials and labor are traced; overhead is applied with the rate.
+      - tex: |
+          \anchor{total}{\text{Job cost}} = \anchor{dm}{\text{DM}} + \anchor{dl}{\text{DL}} + \anchor{applied}{\text{POHR} \times \text{DLH}_{\text{job}}}
+        say: Every term becomes a debit to Work in Process.
+      - tex: |
+          \anchor{total}{ {=jc.total|comma} } = \anchor{dm}{ {=dm|comma} } + \anchor{dl}{ {=dl|comma} } + \anchor{applied}{ {=rate|comma} \times {=hours|comma} }
+        say: 'Job 101: {=jc.oh|money} of overhead applied.'
+    journal:
+      blocks:
+        - kind: schedule
+          title: Job cost sheet, Job 101
+          rows:
+            - { id: dm, label: Direct materials, amount: '@dm', anchor: dm }
+            - { id: dl, label: Direct labor, amount: '@dl', anchor: dl }
+            - { id: oh, label: Overhead applied, amount: '@jc.oh', anchor: applied }
+            - { id: total, label: Total job cost, amount: '@jc.total', style: total, anchor: total }
+        - kind: entries
+          title: Recording the job
+          entries:
+            - id: e1
+              memo: Materials requisitioned
+              lines:
+                - { account: Work in Process, debit: '@dm', anchor: dm }
+                - { account: Raw Materials, credit: '@dm', anchor: dm }
+            - id: e2
+              memo: Direct labor
+              lines:
+                - { account: Work in Process, debit: '@dl', anchor: dl }
+                - { account: Wages Payable, credit: '@dl', anchor: dl }
+            - id: e3
+              memo: Overhead applied
+              lines:
+                - { account: Work in Process, debit: '@jc.oh', anchor: applied }
+                - { account: Manufacturing Overhead, credit: '@jc.oh', anchor: applied }
+            - id: e4
+              memo: Job completed
+              lines:
+                - { account: Finished Goods, debit: '@jc.total', anchor: total }
+                - { account: Work in Process, credit: '@jc.total', anchor: total }
+    links:
+      - { anchor: dm, label: Direct materials }
+      - { anchor: dl, label: Direct labor }
+      - { anchor: applied, label: Applied overhead }
+      - { anchor: total, label: Job cost }
+    trace: { fn: jobCost, in: { dm: '@dm', dl: '@dl', hours: '@hours', rate: '@rate' } }
+    examples: [job-101]
+    tryIt: [job-handcalc, apply-je, cost-sheet-fill]
+    pitfalls:
+      - Multiplying the rate by direct labor **pesos** when the rate is per labor-**hour**.
+    examTip: Overhead is credited to Manufacturing Overhead when applied, never to Cash.
+
+  - id: close-overhead
+    title: Closing over- or underapplied overhead
+    skills: [over-under]
+    summary: |
+      Compare actual overhead with the overhead applied. Underapplied overhead is added to Cost of Goods Sold and
+      overapplied overhead is taken out of it, which empties the Manufacturing Overhead account.
+    keyFormula: '\text{Under(over)applied} = \text{actual overhead} - \text{applied overhead}'
+    state: { actualOH: 612000, rate: 15, actualBase: 39000 }
+    derive:
+      - { fn: overheadClose, in: { actualOH: '@actualOH', rate: '@rate', actualBase: '@actualBase' }, out: oc }
+    steps:
+      - tex: |
+          \text{Difference} = \text{actual overhead} - \text{applied overhead}
+        say: Positive means too little was applied (underapplied); negative means too much.
+      - tex: |
+          \anchor{diff}{ {=oc.diff|comma} } = \anchor{actual}{ {=actualOH|comma} } - \anchor{applied}{ {=rate|comma} \times {=actualBase|comma} }
+        say: 'Kapitan: {=oc.kind} by {=oc.amt|money}.'
+    journal:
+      blocks:
+        - { kind: schedule, title: Year-end comparison, rows: '@oc.rows' }
+        - { kind: entries, title: Closing entry, entries: '@oc.entries' }
+    links:
+      - { anchor: actual, label: Actual overhead }
+      - { anchor: applied, label: Applied overhead }
+      - { anchor: diff, label: The difference }
+    trace: { fn: overheadClose, in: { actualOH: '@actualOH', rate: '@rate', actualBase: '@actualBase' } }
+    examples: [close-kapitan]
+    tryIt: [close-je]
+    pitfalls:
+      - Reversing the sides. Underapplied → **debit** COGS; overapplied → **credit** COGS.
+    examTip: Ask "did COGS get too little overhead?" If yes, debit COGS.

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAllModules } from '../modules/useAll';
 import { useCourses } from '../modules/courses';
 import { Markdown, Tex } from '../lib/md';
+import { glossaryWithHomes } from '@kodigo/schema';
 import { cn } from '../lib/util';
 
 export function GlossaryPage() {
@@ -13,7 +14,8 @@ export function GlossaryPage() {
   // filter: 'all', 'course:<code>' or a module id (?course= opens on a course, e.g. from a running quiz)
   const [mod, setMod] = useState<string>(() => (params.get('course') ? `course:${params.get('course')}` : 'all'));
   const focus = params.get('term');
-  const terms = useMemo(() => mods.flatMap((m) => m.parsed.glossary.map((t) => ({ ...t, mod: m }))).sort((a, b) => a.term.localeCompare(b.term)), [mods]);
+  // a term's lesson defaults to the Intuition scene that introduces it
+  const terms = useMemo(() => mods.flatMap((m) => glossaryWithHomes(m.parsed.glossary, m.parsed.intuition).map((t) => ({ ...t, mod: m }))).sort((a, b) => a.term.localeCompare(b.term)), [mods]);
   const ql = q.toLowerCase();
   const inFilter = (id: string) => mod === 'all' || (mod.startsWith('course:') ? courseOf(id) === mod.slice(7) : id === mod);
   const multi = courses.length > 1;
@@ -47,7 +49,7 @@ export function GlossaryPage() {
             {t.long && <Markdown text={t.long} raw className="mt-1 text-sm text-muted" />}
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {t.related?.map((r) => <a key={r} href={`#term-${r}`} className="chip hover:border-accent">{t.mod.parsed.glossary.find((x) => x.id === r)?.term ?? r}</a>)}
-              {t.lessonRef && <Link className="text-accent underline" to={`/m/${t.mod.id}/${t.lessonRef.tab}${t.lessonRef.tab === 'application' ? '' : `/${t.lessonRef.id}`}`}>see lesson →</Link>}
+              {t.lessonRef && <Link className="text-accent underline" to={`/m/${t.mod.id}/${t.lessonRef.tab}${t.lessonRef.tab === 'application' ? '' : `/${t.lessonRef.id}`}`}>{t.lessonRef.tab === 'intuition' ? `introduced in “${t.mod.parsed.intuition.find((s) => s.id === t.lessonRef!.id)?.title ?? t.lessonRef.id}” →` : 'see lesson →'}</Link>}
             </div>
           </div>
         ))}

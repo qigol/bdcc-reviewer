@@ -1,0 +1,628 @@
+scenes:
+  - id: why-average
+    title: The ten-millionth identical bottle
+    goal: How do you cost output when every unit is exactly like the last?
+    skills: [pc-basics]
+    data: [manufacturers]
+    stage:
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@manufacturers.chips', bins: '@manufacturers.bins', solution: '@manufacturers.solution' }
+      - id: compare
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            | | Job-order | Process |
+            |---|---|---|
+            | Cost object | a specific job | a physical unit |
+            | Costs | traced to the job | averaged over a department |
+            | Categories | DM, DL, OH | DM, conversion |
+            | Key record | job cost sheet | cost-of-production report |
+    beats:
+      - say: |
+          A chemical plant's gallon #4,001 is identical to gallon #4,002. There is nothing unique to trace, so
+          **process costing** pools a department's costs for the period and divides by everything it produced.
+        define: [process-costing]
+        gate:
+          type: predict
+          question: Under process costing, what cost do gallon #4,001 and gallon #4,002 receive?
+          options: [The same average cost, Different costs traced to each gallon, No cost until they are sold]
+          answer: 0
+          explain: Total department cost ÷ output gives one average, and every identical gallon gets it.
+      - say: |
+          Session 5's **job-order costing** is the opposite: it traces cost to one unique, identifiable job. The output
+          decides which one fits.
+        define: [job-order-costing]
+        show: [compare, bins]
+        gate:
+          type: event
+          prompt: Sort the four manufacturers from slide 13.
+          target: bins
+          event: solved
+          hint: Is each unit of output different, or identical to the rest?
+      - say: |
+          Process costing needs only two cost categories: direct materials, and **conversion cost**, the labor and
+          overhead that convert materials into product, incurred together and evenly.
+        define: [conversion-cost]
+        gate:
+          type: predict
+          question: Which costs make up conversion cost?
+          options: [Direct labor + factory overhead, Direct materials + direct labor, Direct materials + factory overhead]
+          answer: 0
+          explain: Conversion is everything except materials that turns materials into product.
+      - say: |
+          Many real plants blend the two, called **operation costing** or hybrid costing, deciding department by
+          department whether the output is unique or identical.
+        define: [operation-costing]
+        gate:
+          type: predict
+          question: A shoemaker cuts and stitches standard models continuously but also makes one limited-edition batch to a client's design. How should it cost that batch?
+          options: [Job-order costing, Process costing]
+          answer: 0
+          explain: The custom batch is unique, so it is a job; the standard lines stay on process costing.
+      - say: Why not simply keep a job cost sheet for every gallon?
+        gate:
+          type: reflect
+          prompt: Why does averaging make sense for a refinery but not for a custom furniture maker?
+          model: |
+            Refinery output is continuous and identical, so every gallon really does cost the same and tracing each one
+            would add cost and no information. A custom piece is unique, uses different materials and hours, and needs
+            its own cost to be priced and judged.
+      - say: Try one yourself.
+        gate:
+          type: practice
+          template: system-mcq
+    takeaway: Process costing averages a department's cost over identical output, in two categories, materials and conversion. Unique output still calls for job-order costing.
+
+  - id: count-the-units
+    title: Step 1, counting the gallons
+    goal: Before any pesos, where did every unit go?
+    skills: [physical-flow]
+    state: { endGuess: 0 }
+    derive:
+      - { fn: physicalFlow, in: { beg: 0, started: 18000, completed: 8000, end: '@endGuess' }, out: pf }
+    stage:
+      - id: flow
+        widget: Schedule
+        props: { title: 'Cavite Chemical, Blending Department, May (gallons)', rows: '@pf.rows' }
+      - id: guess
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Ending WIP (gallons), min: 0, max: 18000, step: 500, format: comma }
+        bind: { value: endGuess }
+      - id: ok
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Left side, value: '{=pf.left|comma}' }
+            - { label: Right side, value: '{=pf.right|comma}', tone: accent }
+    beats:
+      - say: |
+          Cavite Chemical's Blending Department opened in May, so it had no **beginning work-in-process**. It started
+          18,000 gallons and finished 8,000.
+        define: [beginning-wip]
+        gate:
+          type: predict
+          question: How many gallons are still in process at the end of May?
+          answer: { value: 10000, tol: 0.5 }
+          explain: '$0 + 18{,}000 = 8{,}000 + \text{ending}$, so ending WIP $= 10{,}000$ gallons.'
+      - say: |
+          The unfinished gallons are **ending work-in-process**. Step 1's **physical flow equation** must always balance:
+          beginning WIP + started = completed + ending WIP.
+        define: [ending-wip, physical-flow]
+        show: [guess, ok]
+        gate:
+          type: when
+          prompt: Drag ending WIP until both sides of the equation agree.
+          when: 'pf.balanced'
+          hint: 18,000 − 8,000.
+      - say: |
+          The equation also catches **lost units**: if the tanks held only 9,000 gallons, 1,000 would be missing to spoilage
+          or shrinkage, and the report would not balance.
+        gate:
+          type: predict
+          question: Suppose the department had begun May with 2,000 gallons in process. With the same 18,000 started and 8,000 completed, how many would be in ending WIP?
+          answer: { value: 12000, tol: 0.5 }
+          explain: '$2{,}000 + 18{,}000 = 8{,}000 + \text{ending}$, so ending WIP $= 12{,}000$.'
+      - say: Balance one yourself.
+        gate:
+          type: practice
+          template: flow-numeric
+    takeaway: Step 1 balances the units, beginning WIP + started = completed + ending WIP, before any cost is computed.
+
+  - id: partly-done
+    title: Step 2, how much work is in a half-finished gallon?
+    goal: How do you count units that are only partly finished?
+    skills: [equiv-units]
+    state: { completed: 8000, endUnits: 10000, timing: start, conv: 0.2 }
+    derive:
+      - { fn: euSimple, in: { completed: '@completed', endUnits: '@endUnits', timing: '@timing', conv: '@conv' }, out: eu }
+    stage:
+      - id: tbl
+        widget: Schedule
+        props: { title: Equivalent units, columns: [Physical units, Materials, Conversion], rows: '@eu.rows' }
+      - id: when-mat
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Materials are added
+          options:
+            - { value: start, label: At the start }
+            - { value: evenly, label: Evenly }
+            - { value: end, label: At the end }
+        bind: { value: timing }
+      - id: pct
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'Ending WIP, % converted', min: 0, max: 1, step: 0.05, format: 2 }
+        bind: { value: conv }
+    beats:
+      - say: |
+          Blending's 10,000 ending gallons are only 20% converted. **Equivalent units** turn partial work into whole
+          units: 100 units that are 60% done count as 60 equivalent units.
+        define: [equivalent-units]
+        gate:
+          type: predict
+          question: How many equivalent units of conversion are in the 10,000 ending gallons?
+          answer: { value: 2000, tol: 0.5 }
+          explain: '$10{,}000 \times 20\% = 2{,}000$ equivalent units.'
+      - say: |
+          But all of Blending's raw chemical goes in at the very start, so every gallon in the tank already holds its
+          full materials, whatever its conversion stage.
+        gate:
+          type: predict
+          question: Total equivalent units of materials for May (8,000 completed plus the ending WIP)?
+          answer: { value: 18000, tol: 0.5 }
+          explain: 'Materials are added at the start, so ending WIP is 100% complete: $8{,}000 + 10{,}000 = 18{,}000$.'
+      - say: The same batch can have two different equivalent-unit counts. Push the ending WIP's conversion up.
+        show: [pct]
+        gate:
+          type: when
+          prompt: Make the ending WIP half converted.
+          when: 'conv == 0.5'
+      - say: |
+          Now a bottling department, where the cap and label (its materials) go on only at the very end: 12,000 bottles
+          completed, 3,000 still in process at 50% conversion.
+        set: { completed: 12000, endUnits: 3000, conv: 0.5 }
+        show: [when-mat]
+        gate:
+          type: when
+          prompt: Set the materials timing to "at the end".
+          when: "timing == 'end'"
+      - say: The bottles in process have no cap or label yet.
+        gate:
+          type: predict
+          question: How many equivalent units of materials does the bottling department have?
+          answer: { value: 12000, tol: 0.5 }
+          explain: 'Ending WIP is 0% complete for materials: $12{,}000 + 3{,}000 \times 0\% = 12{,}000$, lower than conversion EU of 13,500.'
+      - say: The most common error is using one percentage for both categories.
+        gate:
+          type: reflect
+          prompt: Why must equivalent units be computed separately for materials and for conversion?
+          model: |
+            Materials often enter at a single point (start or end), while conversion is incurred evenly. A unit in
+            process can therefore be 100% complete for materials but 20% for conversion, or 0% and 50%. One percentage
+            would miscount one of the categories.
+      - say: Count some equivalent units yourself.
+        gate:
+          type: practice
+          template: eu-numeric
+    takeaway: Equivalent units = completed + ending WIP × its percent complete, worked out separately for materials and for conversion.
+
+  - id: five-steps
+    title: Steps 3 to 5, from pesos to a reconciled report
+    goal: What do Blending's 8,000 finished gallons cost, and what stays in WIP?
+    skills: [five-steps]
+    data: [cavite]
+    state: { sheetUpTo: 0 }
+    derive:
+      - { fn: reportSheet, in: { data: '@cavite', method: wa, upTo: '@sheetUpTo' }, out: rs }
+    stage:
+      - id: qty
+        widget: Schedule
+        props: { title: 'Steps 1–2', columns: '@rs.qColumns', rows: '@rs.qRows' }
+      - id: cost
+        widget: Schedule
+        props: { title: 'Steps 3–4', columns: '@rs.columns', rows: '@rs.costRows' }
+      - id: assign
+        widget: Schedule
+        region: side
+        props: { title: 'Step 5', rows: '@rs.assignRows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: reportWalk
+          in: { data: '@cavite', method: wa }
+          roles: { qty: qty, cost: cost, assign: assign }
+    beats:
+      - say: |
+          In May Blending used ₱27,000 of materials and ₱25,000 of conversion. Its **cost-of-production report**, the
+          process version of a job cost sheet, splits that ₱52,000 between finished gallons and ending WIP in five steps.
+        define: [cost-of-production-report]
+        gate:
+          type: predict
+          question: Materials cost ₱27,000 over 18,000 equivalent units. What is the materials cost per equivalent unit?
+          answer: { value: 1.5, tol: 0.005 }
+          explain: '$27{,}000 \div 18{,}000 = ₱1.50$.'
+      - say: |
+          Each category's cost is divided by its own equivalent units: that is the **cost per equivalent unit**, and
+          the categories add up to the combined unit cost.
+        define: [cost-per-equivalent-unit]
+        gate:
+          type: predict
+          question: Conversion cost ₱25,000 over 10,000 equivalent units. Per equivalent unit?
+          answer: { value: 2.5, tol: 0.005 }
+          explain: '$25{,}000 \div 10{,}000 = ₱2.50$, so a finished gallon carries $1.50 + 2.50 = ₱4.00$.'
+      - say: Watch all five steps fill in, in the order an accountant works them.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the report to the end.
+          target: player
+          event: done
+      - say: Finished gallons carry the full ₱4.00, but ending WIP is costed category by category.
+        gate:
+          type: predict
+          question: What is ending WIP worth?
+          answer: { value: 20000, tol: 0.5 }
+          explain: '$10{,}000 \times 1.50 + 2{,}000 \times 2.50 = 15{,}000 + 5{,}000 = ₱20{,}000$.'
+      - say: |
+          The **reconciliation check**: ₱32,000 completed + ₱20,000 ending WIP = ₱52,000, exactly the costs to account for.
+        define: [reconciliation-check]
+        gate:
+          type: predict
+          question: Your completed cost plus ending WIP comes to ₱51,000 against ₱52,000 to account for. What does that mean?
+          options: ['An error somewhere in Steps 1–4', 'The report is fine; small gaps are normal', 'Ending WIP should absorb the ₱1,000']
+          answer: 0
+          explain: Step 5 must equal Step 3 exactly. A gap means a wrong unit count, equivalent unit or division.
+      - say: Why does an ending-WIP gallon cost so much less than a finished one?
+        gate:
+          type: reflect
+          prompt: A finished gallon carries ₱4.00. Why does each ending-WIP gallon carry only ₱2.00?
+          model: |
+            An ending gallon has all its materials (₱1.50) but only 20% of its conversion (20% of ₱2.50 = ₱0.50). It is
+            costed on the work actually done: ₱20,000 ÷ 10,000 gallons = ₱2.00.
+      - say: Complete a report's final step yourself.
+        gate:
+          type: practice
+          template: report-fill
+    takeaway: 'Five steps: units, equivalent units, costs, cost per EU, then assign. Completed + ending WIP must equal the costs to account for.'
+
+  - id: last-months-work
+    title: When last month's work is still in the tank
+    goal: How do you count equivalent units when some units were started last period?
+    skills: [weighted-avg]
+    data: [june, depta]
+    derive:
+      - { fn: euBoth, in: { data: '@depta', waOnly: true }, out: da }
+    stage:
+      - id: june
+        widget: Text
+        region: side
+        props:
+          body: |
+            **June, Blending:** beginning WIP 10,000 gal (100% materials, 20% conversion) carrying ₱15,000 + ₱5,000 from
+            May; 15,000 started; 20,000 completed; 5,000 left at 40%.
+      - id: tbl
+        widget: Schedule
+        hidden: true
+        props: { title: 'Department A, January: weighted-average EU', columns: [Materials, Conversion], rows: '@da.rows' }
+    beats:
+      - say: |
+          In June, Blending starts with May's 10,000 gallons and their ₱20,000 of May cost. That cost must be combined
+          with June's before a unit cost exists. Blend them, or keep them apart?
+        gate:
+          type: predict
+          question: Which situation is realistic for most departments, month after month?
+          options: [Beginning WIP exists, There is never beginning WIP]
+          answer: 0
+          explain: The no-beginning-inventory case is the special one; continuous processes always carry work over.
+      - say: |
+          The **weighted-average method** blends them. It treats beginning WIP as if it were started this period, so
+          equivalent units are simply completed + ending WIP × percent.
+        define: [weighted-average-method]
+        gate:
+          type: predict
+          question: 'Department A: 5,500 completed; 1,000 in ending WIP with all materials and 60% conversion. Weighted-average EU for materials?'
+          answer: { value: 6500, tol: 0.5 }
+          explain: '$5{,}500 + 1{,}000 \times 100\% = 6{,}500$.'
+      - say: Department A started January with 1,500 units, all materials and 66.67% converted.
+        show: [tbl]
+        gate:
+          type: predict
+          question: Weighted-average EU for conversion?
+          answer: { value: 6100, tol: 0.5 }
+          explain: '$5{,}500 + 1{,}000 \times 60\% = 6{,}100$. Beginning WIP''s 66.67% never enters the formula.'
+      - say: Practice the formula.
+        gate:
+          type: practice
+          template: wa-eu-numeric
+    takeaway: Weighted-average equivalent units = completed + ending WIP × percent complete; beginning WIP needs no separate treatment.
+
+  - id: wa-report
+    title: A full weighted-average report
+    goal: What did July's 40,000 bags cost when June's work and cost are mixed in?
+    skills: [weighted-avg, five-steps]
+    data: [portland]
+    state: { sheetUpTo: 0 }
+    derive:
+      - { fn: reportSheet, in: { data: '@portland', method: wa, upTo: '@sheetUpTo' }, out: rs }
+    stage:
+      - id: qty
+        widget: Schedule
+        props: { title: 'Raw Material Department, July: Steps 1–2', columns: '@rs.qColumns', rows: '@rs.qRows' }
+      - id: cost
+        widget: Schedule
+        props: { title: 'Steps 3–4', columns: '@rs.columns', rows: '@rs.costRows' }
+      - id: assign
+        widget: Schedule
+        region: side
+        props: { title: 'Step 5', rows: '@rs.assignRows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: reportWalk
+          in: { data: '@portland', method: wa }
+          roles: { qty: qty, cost: cost, assign: assign }
+    beats:
+      - say: |
+          July: 800 bags in process (all materials, 60% converted) carrying ₱12,000 + ₱56,000. ₱41,500 of materials and
+          ₱521,500 of conversion added. 40,000 bags out; 5,000 left, all materials, 30% converted.
+        gate:
+          type: predict
+          question: Weighted-average equivalent units of conversion?
+          answer: { value: 41500, tol: 0.5 }
+          explain: '$40{,}000 + 5{,}000 \times 30\% = 41{,}500$.'
+      - say: Weighted-average blends June's cost into July's before dividing.
+        gate:
+          type: predict
+          question: Materials cost per equivalent unit (4 decimals)?
+          answer: { value: 1.1889, tol: 0.0005 }
+          explain: '$(12{,}000 + 41{,}500) \div 45{,}000 = 53{,}500 \div 45{,}000 = ₱1.1889$.'
+      - say: Now the whole report, step by step.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the report to the end.
+          target: player
+          event: done
+      - say: Completed bags carry the full combined cost of about ₱15.10 each.
+        gate:
+          type: predict
+          question: About how much is the cost of goods completed (40,000 bags)?
+          answer: { value: 604184, tol: 5 }
+          explain: '$40{,}000 \times 15.1046 \approx ₱604{,}184$ (the slide rounds unit costs to 4 decimals; unrounded it is ₱604,182).'
+      - say: Your turn with fresh numbers.
+        gate:
+          type: practice
+          template: wa-handcalc
+    takeaway: Weighted-average unit cost = (beginning WIP cost + current cost) ÷ weighted-average EU, one blended rate for every unit.
+
+  - id: fifo
+    title: FIFO, keeping last month apart
+    goal: What changes if beginning WIP is finished first and kept separate?
+    skills: [fifo, choose-method]
+    data: [depta, portland]
+    state: { method: wa }
+    derive:
+      - { fn: euBoth, in: { data: '@depta' }, out: db }
+      - { fn: compareMethods, in: { data: '@portland' }, out: cm }
+      - { fn: methodPick, in: { data: '@portland', method: '@method' }, out: mp }
+    stage:
+      - id: tbl
+        widget: Schedule
+        props: { title: 'Department A, January', columns: [Materials, Conversion], rows: '@db.rows' }
+      - id: cmp
+        widget: Schedule
+        hidden: true
+        props: { title: 'July, two methods', columns: [Weighted-average, FIFO], rows: '@cm.rows' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Method
+          options:
+            - { value: wa, label: Weighted-average }
+            - { value: fifo, label: FIFO }
+        bind: { value: method }
+      - id: out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Cost of goods completed, value: '{=mp.completedCost|money}', tone: accent }
+            - { label: Ending WIP, value: '{=mp.endWip|money}' }
+    beats:
+      - say: |
+          The **FIFO method** assumes beginning WIP is finished first and keeps its cost separate. Its equivalent units
+          count only this period's work, so it subtracts what was already done last period.
+        define: [fifo-method]
+        gate:
+          type: predict
+          question: 'Department A: weighted-average materials EU are 6,500, and the 1,500 beginning units already had all their materials. FIFO materials EU?'
+          answer: { value: 5000, tol: 0.5 }
+          explain: '$6{,}500 - 1{,}500 \times 100\% = 5{,}000$.'
+      - say: |
+          Of the 5,500 completed, 1,500 were last month's units; the other 4,000 were **started and completed** in January.
+        define: [started-and-completed]
+        gate:
+          type: predict
+          question: FIFO conversion EU (beginning WIP was 66.67% converted)?
+          answer: { value: 5100, tol: 0.5 }
+          explain: '$6{,}100 - 1{,}500 \times 66.67\% = 6{,}100 - 1{,}000 = 5{,}100$, or $500 + 4{,}000 + 600$.'
+      - say: Now July's report both ways.
+        show: [cmp, pick, out]
+        gate:
+          type: when
+          prompt: Switch the July report to FIFO.
+          when: "method == 'fifo'"
+      - say: Same data, two defensible answers. The gap comes only from how June's cost is treated.
+        gate:
+          type: predict
+          question: Which method shows the lower ending WIP for July?
+          options: ['FIFO (₱23,765)', 'Weighted-average (₱26,818)', 'They are equal']
+          answer: 0
+          explain: FIFO costs ending WIP at July's own unit costs, which were lower than the blended averages that include June's costs.
+      - say: When does the extra work pay off?
+        gate:
+          type: reflect
+          prompt: Why is FIFO considered better for cost control, and why do most companies still use weighted-average?
+          model: |
+            FIFO's unit costs contain only this period's costs, so they show this period's efficiency without last
+            period's costs mixed in. Weighted-average is simpler (one set of EU and unit costs) and gives similar numbers
+            when costs are stable, which is why it is the common default.
+      - say: Practice the FIFO count.
+        gate:
+          type: practice
+          template: fifo-eu-numeric
+    takeaway: FIFO EU = weighted-average EU − work done on beginning WIP last period, and FIFO unit costs use current-period cost only.
+
+  - id: next-department
+    title: Costs that arrive with the units
+    goal: How does a second department cost units that come in already carrying cost?
+    skills: [transferred-in]
+    data: [batangas]
+    state: { sheetUpTo: 0 }
+    derive:
+      - { fn: reportSheet, in: { data: '@batangas', method: wa, upTo: '@sheetUpTo' }, out: rs }
+      - { fn: deptWithEntry, in: { data: '@batangas', method: wa, final: true }, out: de }
+    stage:
+      - id: qty
+        widget: Schedule
+        props: { title: 'Batangas Chemicals, Blending: Steps 1–2', columns: '@rs.qColumns', rows: '@rs.qRows' }
+      - id: cost
+        widget: Schedule
+        props: { title: 'Steps 3–4', columns: '@rs.columns', rows: '@rs.costRows' }
+      - id: assign
+        widget: Schedule
+        region: side
+        props: { title: 'Step 5', rows: '@rs.assignRows' }
+      - id: jr
+        widget: Journal
+        hidden: true
+        props: { title: Transfer entry, entries: '@de.entries' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: reportWalk
+          in: { data: '@batangas', method: wa }
+          roles: { qty: qty, cost: cost, assign: assign }
+    beats:
+      - say: |
+          Batangas Chemicals' Department 2 (Blending) received 10,000 units from Department 1 at ₱150,000. That cost
+          travels with the units: **transferred-in cost**, treated like materials added at the very start.
+        define: [transferred-in-cost]
+        gate:
+          type: predict
+          question: Transferred-in cost per equivalent unit?
+          answer: { value: 15, tol: 0.005 }
+          explain: 'Every unit, finished or not, is 100% transferred-in: $150{,}000 \div 10{,}000 = ₱15$.'
+      - say: Department 2 adds its own materials at the end and converts evenly. 8,000 units finished; 2,000 are 60% converted.
+        gate:
+          type: predict
+          question: Department 2's equivalent units of materials?
+          answer: { value: 8000, tol: 0.5 }
+          explain: 'Ending WIP has not reached the end yet, so it has 0% of these materials: $8{,}000 + 0 = 8{,}000$.'
+      - say: Three categories now. Conversion still counts ending WIP at its percent.
+        gate:
+          type: predict
+          question: Equivalent units of conversion?
+          answer: { value: 9200, tol: 0.5 }
+          explain: '$8{,}000 + 2{,}000 \times 60\% = 9{,}200$.'
+      - say: Build the report with all three categories.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the report to the end.
+          target: player
+          event: done
+      - say: Blending is the last department, so its completed units go to Finished Goods Inventory.
+        show: [jr]
+        gate:
+          type: predict
+          question: If Blending sent its units on to a Packaging Department instead, which account would be debited?
+          options: [Work-in-Process – Packaging Department, Finished Goods Inventory, Cost of Goods Sold]
+          answer: 0
+          explain: Cost moves to the next department's Work-in-Process; only the last department transfers to Finished Goods.
+      - say: Cost a second department yourself.
+        gate:
+          type: practice
+          template: ti-handcalc
+    takeaway: A later department treats transferred-in cost as a third category, 100% complete; completed units go to the next WIP or to Finished Goods.
+
+  - id: when-it-breaks
+    title: Gaps, late materials, and a judgment call
+    goal: How do you find an error in a report, and how do you choose a method?
+    skills: [five-steps, fifo, choose-method]
+    data: [aklan]
+    derive:
+      - { fn: reconcileGap, in: { toAccount: 450000, completed: 380000, endWip: 60000 }, out: rg }
+      - { fn: euBoth, in: { data: '@aklan' }, out: ak }
+    stage:
+      - id: gap
+        widget: Schedule
+        props: { title: A student's report that doesn't reconcile, rows: '@rg.rows' }
+      - id: aklan
+        widget: Schedule
+        hidden: true
+        props: { title: 'Aklan Fish Cannery, Sealing (cans added at the end)', columns: [Materials, Conversion], rows: '@ak.rows' }
+    beats:
+      - say: A student's report shows ₱450,000 to account for, but ₱380,000 completed plus ₱60,000 ending WIP.
+        gate:
+          type: predict
+          question: Which step should the student re-check first?
+          options: ['Step 1, the physical flow', 'Step 4, the unit-cost division', 'Step 3, the cost totals', 'None: plug the ₱10,000 into ending WIP']
+          answer: 0
+          explain: Work backward cheapest-first. An unbalanced unit count throws off everything after it; then equivalent units, then the division.
+      - say: |
+          Aklan Fish Cannery's Sealing Department adds cans and lids at the end. It began with 1,000 units, 0% materials
+          and 70% converted; 9,000 were completed; 2,000 remain at 40%.
+        show: [aklan]
+        gate:
+          type: predict
+          question: FIFO equivalent units of materials?
+          answer: { value: 9000, tol: 0.5 }
+          explain: 'Weighted-average is $9{,}000 + 0 = 9{,}000$, and beginning WIP had 0% materials, so FIFO subtracts nothing.'
+      - say: Conversion is different, because the beginning units were already 70% converted.
+        gate:
+          type: predict
+          question: FIFO equivalent units of conversion?
+          answer: { value: 9100, tol: 0.5 }
+          explain: '$9{,}000 + 2{,}000 \times 40\% - 1{,}000 \times 70\% = 9{,}800 - 700 = 9{,}100$.'
+      - say: |
+          Iloilo Sugar Refinery's raw-material costs spiked mid-quarter. Management wants the clearest view of this
+          quarter's processing efficiency, apart from the spike.
+        gate:
+          type: predict
+          question: Which method should it use this quarter?
+          options: [FIFO, Weighted-average]
+          answer: 0
+          explain: FIFO keeps the pre-spike beginning WIP cost apart, giving a clean current-period unit cost.
+      - say: The method is a judgment call, not a rule.
+        gate:
+          type: reflect
+          prompt: When would you recommend weighted-average instead of FIFO?
+          model: |
+            When input prices and process efficiency are fairly stable from period to period, the two methods give
+            similar results and weighted-average is simpler, with one set of equivalent units and one unit cost.
+      - say: Put the error hunt in order.
+        gate:
+          type: practice
+          template: reconcile-order
+    takeaway: 'Find report errors cheapest-first: units, then equivalent units, then division. Choose FIFO when you need clean current-period costs.'

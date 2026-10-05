@@ -64,6 +64,8 @@ export function QuizBuilder() {
   };
 
   const courseMods = useMemo(() => mods.filter((m) => courseOf(m.id) === cfg.course), [mods, cfg.course, courseOf]);
+  // only offer the question types this course's modules actually have (e.g. journal entries for accounting)
+  const courseTypes = useMemo(() => new Set<string>(['mcq', ...courseMods.flatMap((m) => m.parsed.quiz.map((t) => t.type))]), [courseMods]);
   const effective = (c: SessionConfig): SessionConfig => {
     const ids = courseMods.map((m) => m.id);
     const chosen = c.modules.filter((id) => ids.includes(id));
@@ -140,7 +142,7 @@ export function QuizBuilder() {
           {cfg.mode === 'exam' && <label className="mt-2 flex items-center gap-2 text-sm">Time limit <input type="number" min={1} max={180} className="input w-20" value={cfg.timeLimitMin} onChange={(e) => set('timeLimitMin', Number(e.target.value))} /> minutes</label>}
         </Field>
         <Field label="Question types" hint="none selected = all">
-          <div className="flex flex-wrap gap-1.5">{QTYPES.map((t) => <Toggle key={t} on={cfg.types.includes(t)} onClick={() => toggle('types', t)}>{QTYPE_LABEL[t]}</Toggle>)}</div>
+          <div className="flex flex-wrap gap-1.5">{QTYPES.filter((t) => courseTypes.has(t) || cfg.types.includes(t)).map((t) => <Toggle key={t} on={cfg.types.includes(t)} onClick={() => toggle('types', t)}>{QTYPE_LABEL[t]}</Toggle>)}</div>
           <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={cfg.glossary} onChange={(e) => set('glossary', e.target.checked)} className="accent-[rgb(var(--accent))]" /> Include auto-generated glossary questions</label>
         </Field>
         <Field label="Difficulty" hint="none selected = all">

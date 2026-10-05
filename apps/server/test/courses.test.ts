@@ -12,15 +12,13 @@ describe('module courses', () => {
   beforeEach(async () => { dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kodigo-courses-')); });
   afterEach(async () => { await fs.rm(dataDir, { recursive: true, force: true }); });
 
-  it('files every built-in module under BDCC', async () => {
+  it('files every built-in module under the course its manifest names', async () => {
     const reg = new Registry(modulesDir, dataDir);
     await reg.init();
     const list = await reg.list();
-    expect(list.map((m) => m.id).sort()).toEqual(['fim', 'lf-cf', 'nb-cf']);
-    for (const m of list) {
-      expect(m.course).toBe('BDCC');
-      expect(m.courseSource).toBe('manifest');
-    }
+    const bdcc = list.filter((m) => m.course === 'BDCC').map((m) => m.id).sort();
+    expect(bdcc).toEqual(['fim', 'lf-cf', 'nb-cf']);
+    for (const m of list) expect(m.courseSource).toBe('manifest');
   });
 
   it('puts a module without `course` in the default course, and admin overrides win until cleared', async () => {

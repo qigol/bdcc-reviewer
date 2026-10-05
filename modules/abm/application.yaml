@@ -1,0 +1,133 @@
+intro: |
+  ABM is where the management accountant works with operations, sales and procurement at once. This case follows a Davao
+  dried-fruit maker through one improvement cycle: measure the process, find who really earns the profit, pick a
+  supplier on total cost, and decide what to fix first.
+case:
+  id: davao-fruit
+  title: One improvement cycle at Davao Fruit Snacks
+  story: |
+    Davao Fruit Snacks Co. dries and packs mango and banana chips for malls, supermarkets, hotels, pasalubong shops, online
+    resellers and an exporter. Margins are slipping although sales grew. The new controller has ABC data on the plant,
+    the customers and two pouch suppliers. All figures are synthetic.
+  data: [davao]
+  derive:
+    - { fn: cycle, in: { process: '@davao.batch.before.process', inspect: '@davao.batch.before.inspect', move: '@davao.batch.before.move', wait: '@davao.batch.before.wait', units: '@davao.batch.units' }, out: cb }
+    - { fn: cycleCompare, in: { before: '@davao.batch.before', after: '@davao.batch.after', units: '@davao.batch.units' }, out: cc }
+    - { fn: whale, in: { pools: '@davao.pools', customers: '@davao.customers' }, out: wh }
+    - { fn: customers, in: { pools: '@davao.pools', customers: '@davao.customers' }, out: cu }
+    - { fn: tco, in: { qty: '@davao.supply.qty', suppliers: '@davao.supply.suppliers', activities: '@davao.supply.activities' }, out: tc }
+  cells:
+    - id: measure
+      title: Measure the process
+      say: |
+        A 600-bag batch spends 3 hours slicing, drying and packing, 1 hour in inspection, 2 hours moving between rooms and
+        9 hours waiting for dryers and the packing line. Cycle time is {=cb.total} hours; MCE is {=cb.mce|pct}.
+      stage:
+        - { id: cy, widget: Schedule, props: { title: 'One batch, in hours', rows: '@cb.rows' } }
+      decision:
+        prompt: Which non-value-added element should the first improvement project attack?
+        type: mcq
+        options: ['Waiting (9 hours)', 'Moving (2 hours)', 'Inspection (1 hour)', 'Processing (3 hours)']
+        answer: 0
+        model: Waiting is 60% of the cycle. Driver analysis should ask why batches queue for dryers and the packing line (batch sizes, unbalanced capacity, scheduling).
+    - id: redesign
+      title: Cells and smaller batches
+      say: |
+        The plant regroups slicing, drying and packing into two cells and schedules smaller batches. Waiting falls to 3
+        hours, moving to 0.5 and inspection to 0.5.
+      stage:
+        - { id: cmp, widget: Schedule, props: { title: Before and after, columns: [Before, After], rows: '@cc.rows' } }
+      decision:
+        prompt: Cycle time fell from 15 to 7 hours. By how much did velocity rise?
+        type: mcq
+        options: ['About 114%, from 40 to 85.7 bags an hour', 'About 53%, the same as the cut in cycle time', 'Not at all, because processing time is unchanged', 'About 43%']
+        answer: 0
+        model: 'Velocity $= 600 \div 7 = 85.7$ bags an hour against $600 \div 15 = 40$: up $15 \div 7 - 1 = 114\%$. A 53% shorter cycle more than doubles throughput.'
+    - id: customers
+      title: Who earns the profit?
+      say: |
+        Order processing, delivery and special requests (rush orders, custom labels) are assigned by activity. Five
+        customers earn {=wh.peakShare|pct} of total profit; three lose {=wh.lossTotal|money} between them.
+      stage:
+        - { id: cus, widget: Schedule, props: { title: Customer profitability, columns: [Mall chain, Supermarket group, Exporter, Hotel group, Pasalubong stores, Online resellers, Café chain, Airline caterer], rows: '@cu.rows' } }
+        - { id: wc, widget: Schedule, props: { title: 'The whale curve, most to least profitable', columns: [Gross margin, Cost to serve, Operating profit, Cumulative profit, Share of total], rows: '@wh.rows' } }
+      decision:
+        prompt: Online resellers lose ₱300,000 on 1,200 small orders and 600 deliveries a year. What should the sales team do first?
+        type: open
+        model: |
+          Change the activity before the relationship: a minimum order size or a small-order fee, consolidated weekly
+          deliveries through one courier hub, and activity-based pricing for rush requests. Dropping the channel is the last
+          resort, and only if it has no strategic value (online is a growing market).
+    - id: suppliers
+      title: Choosing a pouch supplier
+      say: |
+        Supplier X quotes ₱4.00 a pouch, Supplier Y ₱4.50, for 500,000 pouches. X's pouches leak more often, spoiling
+        product, and arrive in many small, late shipments.
+      stage:
+        - { id: tc, widget: Schedule, props: { title: 'Total cost of ownership, 500,000 pouches', columns: [Supplier X, Supplier Y], rows: '@tc.rows' } }
+      decision:
+        prompt: Which supplier should Davao Fruit Snacks choose?
+        type: mcq
+        options:
+          - Supplier Y; its total cost of ownership is ₱95,300 lower despite the higher price
+          - Supplier X; it is ₱250,000 cheaper on the invoice
+          - Either; the difference is within rounding
+          - Supplier X, and inspect every pouch to catch the leaks
+        answer: 0
+        model: 'TCO: X ₱2,388,000 (₱4.78 a pouch), Y ₱2,292,700 (₱4.59). X''s ₱388,000 of hidden cost (mostly spoiled product and inspection) outweighs its ₱250,000 price advantage.'
+    - id: root-cause
+      title: Why do the pouches leak?
+      say: Before switching, purchasing asks whether the leaks are entirely the supplier's fault.
+      decision:
+        prompt: Using a fishbone diagram, name one possible cause in three different categories and how you would test it.
+        type: open
+        model: |
+          Materials: X's film is thinner (test pouches from both suppliers on the same sealer). Equipment: the heat sealer
+          runs too cool on one line (compare leak rates by line). People: night-shift operators set the sealer differently
+          (compare by shift). Process or environment: humid drying rooms weaken seals (compare by season). Test against
+          leak data before blaming the supplier.
+    - id: next-cycle
+      title: Plan the next cycle
+      say: The owners want to know what to track next quarter.
+      decision:
+        prompt: Which three measures would you put on the monthly report to keep the improvements going?
+        type: open
+        model: |
+          MCE (and cycle time) by product line, to see whether waiting stays down; operating profit by customer tier, to
+          track the online resellers after the new order terms; and supplier TCO per pouch, to confirm the switch pays.
+          Each is a Kaizen measure: some improvement each month, not perfection at once.
+atScale:
+  title: ABM in practice
+  body: |
+    **Data.** ABM runs on the same ERP data as ABC: production order timestamps give cycle time and MCE; sales orders,
+    shipments and service tickets give cost to serve; receiving logs, inspection results and supplier returns give total
+    cost of ownership.
+
+    **Who does what.** Operations owns process-value analysis and cell redesign; sales and account managers own customer
+    tiering and activity-based pricing; procurement owns supplier scorecards that include TCO. The management accountant
+    builds the numbers and sits with each team as a business partner.
+
+    **Cadence.** Kaizen events target one process at a time; MCE, cost to serve and supplier TCO are tracked monthly on
+    dashboards (a whale curve is one of the most persuasive charts for a sales team). Root-cause work uses five whys and
+    fishbone sessions, then tests candidates with transaction data and regression.
+
+    **Cautions.** Unprofitable customers may be strategic; supplier quality problems may be partly your own process;
+    correlated candidate causes can mislead a regression.
+tradeoffs:
+  title: Acting on activity data
+  columns: [Choice, Option A, Option B, When to prefer B]
+  rows:
+    - ['Unprofitable customer', 'Drop the customer', 'Change its ordering behavior and price by activity', 'Almost always first; dropping is the last resort']
+    - ['Supplier selection', 'Lowest unit price', 'Lowest total cost of ownership', 'Whenever quality, delivery or paperwork costs differ']
+    - ['Non-value-added activity', 'Reduce it', 'Eliminate it', 'A redesign (cells, digitization, prevention) can remove it entirely']
+    - ['Improvement approach', 'One big project', 'Kaizen cycles', 'Most of the time; each cycle should show some improvement']
+connections:
+  - { module: abc, note: 'Every activity pool and rate built in Session 7 becomes a candidate for elimination, redesign or renegotiation here; Rizal Wholesale continues from Example 10.' }
+  - { module: cost-flows, note: 'The supplemental notes introduced JIT, pull systems and manufacturing time; MCE turns them into a measure.' }
+explainBack:
+  prompt: Explain to Davao Fruit Snacks' owners why the plant got faster without anyone working harder.
+  rubric:
+    - Only processing time adds value; waiting, moving and inspection do not
+    - Cells and smaller batches cut waiting and moving, so cycle time fell from 15 to 7 hours
+    - MCE rose from 20% to about 43% and velocity more than doubled because cycle time is the denominator of both
+    - Processing time (the actual work) did not change

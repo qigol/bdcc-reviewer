@@ -1,0 +1,147 @@
+intro: |
+  The supplemental notes walk one company through a full year: journal entries, T-accounts, the overhead balance and the
+  income statement. Every job shop closes its books this way. This case runs a Marikina metal fabricator through the
+  same year with its own numbers, and asks the questions its controller would face.
+case:
+  id: mabini-year
+  title: Closing the year at Mabini Metalcraft
+  story: |
+    Mabini Metalcraft makes custom steel gates, grilles and railings to order in Marikina. It uses job-order costing and
+    applies overhead on direct labor cost. The controller has the year's transactions and must post them, settle the
+    overhead balance and prepare the income statement for the owners. All figures are synthetic.
+  data: [mabini]
+  state: { method: close }
+  derive:
+    - { fn: cycle, in: { d: '@mabini' }, out: cy }
+    - { fn: balances, in: { d: '@mabini' }, out: bl }
+    - { fn: dispose, in: { d: '@mabini', method: '@method' }, out: dp }
+    - { fn: income, in: { d: '@mabini', method: '@method' }, out: is }
+  cells:
+    - id: rate
+      title: The rate set in January
+      say: |
+        Before the year began, the controller estimated ₱696,000 of overhead and ₱580,000 of direct labor, a rate of
+        {=cy.rate|pct} of direct labor cost. Actual direct labor came to ₱600,000.
+      stage:
+        - { id: rr, widget: Schedule, props: { title: Predetermined rate and overhead applied, rows: '@cy.rateRows' } }
+      decision:
+        prompt: How much overhead was applied to jobs during the year?
+        type: mcq
+        options: ['₱720,000', '₱696,000', '₱680,000', '₱580,000']
+        answer: 0
+        model: 'The rate is applied to actual direct labor: $120\% \times 600{,}000 = ₱720{,}000$. ₱696,000 was only the estimate.'
+    - id: entries
+      title: Journalize the year
+      say: |
+        Eleven entries, the same pattern as Reeder Company's. Insurance of ₱60,000 expired, 75% of it on the factory;
+        depreciation was ₱335,000 on the plant and ₱45,000 on the showroom and office.
+      stage:
+        - { id: jr, widget: Journal, props: { title: 'Mabini Metalcraft, general journal', entries: '@cy.entries' } }
+      decision:
+        prompt: How should the ₱60,000 of expired insurance be recorded?
+        type: mcq
+        options:
+          - Debit Manufacturing Overhead ₱45,000 and Insurance Expense ₱15,000; credit Prepaid Insurance ₱60,000
+          - Debit Insurance Expense ₱60,000; credit Prepaid Insurance ₱60,000
+          - Debit Work in Process ₱45,000 and Insurance Expense ₱15,000; credit Prepaid Insurance ₱60,000
+          - Debit Manufacturing Overhead ₱60,000; credit Prepaid Insurance ₱60,000
+        answer: 0
+        model: The factory share is actual overhead, debited to Manufacturing Overhead; the rest is a period expense. WIP only ever receives applied overhead.
+    - id: ledger
+      title: Post and read the balances
+      say: |
+        After posting, Raw Materials holds {=bl.rm|money}, Work in Process {=bl.wip|money} and Finished Goods
+        {=bl.fg|money}. Manufacturing Overhead shows ₱680,000 of debits against ₱720,000 applied.
+      stage:
+        - { id: ta, widget: TAccounts, props: { title: Manufacturing accounts, accounts: '@bl.accounts' } }
+      decision:
+        prompt: What does the ₱40,000 credit balance in Manufacturing Overhead mean?
+        type: mcq
+        options:
+          - Overhead was overapplied; jobs were charged ₱40,000 more than the overhead actually incurred
+          - Overhead was underapplied; jobs were charged ₱40,000 too little
+          - The company owes ₱40,000 to its suppliers
+          - Work in Process is overstated by exactly ₱40,000
+        answer: 0
+        model: 'Applied (credits, ₱720,000) exceeded actual (debits, ₱680,000), so ₱40,000 of overhead was overapplied.'
+    - id: dispose
+      title: Settle the overhead balance
+      say: |
+        The owners ask whether the method matters. Switch between closing and allocating: COGS becomes
+        {=dp.adjustedCogs|money}.
+      stage:
+        - id: mpick
+          widget: Choice
+          props:
+            label: Dispose of the balance by
+            options:
+              - { value: close, label: Closing it to COGS }
+              - { value: allocate, label: Allocating it }
+          bind: { value: method }
+        - { id: al, widget: Schedule, props: { title: Allocation on ending balances, columns: [Ending balance, Share of balance], rows: '@dp.allocRows' } }
+        - { id: dj, widget: Journal, props: { title: Year-end entry, entries: '@dp.entries' } }
+      decision:
+        prompt: 'The ₱40,000 is 2.7% of the ₱1,500,000 unadjusted COGS. Which method would you recommend, and why?'
+        type: open
+        model: |
+          Closing it to Cost of Goods Sold. The amount is small relative to COGS, and 75% of it would land in COGS anyway
+          under allocation, so the difference in net income is only ₱10,000. Allocation is worth the work when the
+          balance is material or ending inventories are large.
+    - id: income
+      title: The income statement
+      say: |
+        Sales were ₱2,600,000. With the overhead balance {=method}d, gross margin is {=is.gm|money} and selling and
+        administrative expenses total {=is.totalSA|money}.
+      stage:
+        - { id: inc, widget: Schedule, props: { title: 'Mabini Metalcraft, Income Statement', rows: '@is.rows' } }
+      decision:
+        prompt: With the balance closed to COGS, what is Mabini's net income?
+        type: mcq
+        options: ['₱660,000', '₱620,000', '₱650,000', '₱1,140,000']
+        answer: 0
+        model: 'COGS $= 1{,}500{,}000 - 40{,}000 = 1{,}460{,}000$; gross margin ₱1,140,000; less ₱480,000 of period costs = ₱660,000. (₱650,000 is the allocation result; ₱620,000 forgets to adjust COGS.)'
+    - id: next-year
+      title: Setting next year's rate
+      say: The owners want quotes next year to be closer to actual cost.
+      decision:
+        prompt: What does this year's overapplied overhead suggest about next year's rate, and what should the controller check first?
+        type: open
+        model: |
+          The 120% rate overcharged jobs: actual overhead per peso of direct labor was ₱680,000 ÷ ₱600,000 ≈ 113%. Before
+          simply lowering the rate, check why: was overhead overestimated (a cost that didn't happen), or was labor higher
+          than planned (₱600,000 vs ₱580,000)? The rate should reflect next year's budgeted overhead and labor, not just
+          this year's actual.
+atScale:
+  title: The year-end close in practice
+  body: |
+    **Set-up.** In an ERP (SAP CO, Oracle, Odoo or QuickBooks with manufacturing add-ons) each job is a production order;
+    requisitions and time-clock entries post to it automatically, and the system applies overhead at the rate the cost
+    accountant loads in January. Smaller shops run the same job cost sheets in a spreadsheet.
+
+    **Month-end.** Entries (a)–(k) are mostly automatic: purchases from accounts payable, issues from inventory, payroll
+    from the payroll module, completions and sales from production and billing. The cost accountant reviews
+    Manufacturing Overhead monthly; a growing balance is an early warning that the rate is off.
+
+    **Year-end.** The controller computes the under- or overapplied balance, decides on closing or allocating
+    (materiality is the test, and external auditors will ask), books the entry and prepares the statements. The
+    predetermined rate for next year is set from the new budget.
+
+    **Controls.** Requisitions and time tickets need a supervisor's approval; job numbers on every document stop costs
+    from landing on the wrong job; physical counts of raw materials and finished goods are reconciled to the ledger.
+tradeoffs:
+  title: Choices at year end
+  columns: [Choice, Option A, Option B, When to prefer B]
+  rows:
+    - ['Overhead balance', 'Close it to COGS', 'Allocate to WIP, Finished Goods and COGS', 'The balance is material and inventories are large']
+    - ['Allocation base', 'Ending account balances (the notes)', 'Overhead applied in each account', 'Records of applied overhead by account are available']
+    - ['Overhead rate', 'One plantwide rate', 'Activity-based rates', 'Products differ widely in setups, inspections and other non-volume activities']
+connections:
+  - { module: job-order, note: 'Session 5 introduces the job cost sheet, the predetermined rate and the closing entry this module takes through a full year.' }
+  - { module: process-costing, note: 'The production report here is the supplemental version of Session 6''s five-step cost-of-production report.' }
+explainBack:
+  prompt: Explain to Mabini's owners why the company "made" ₱40,000 on overhead this year, and what the closing entry does about it.
+  rubric:
+    - Overhead was applied at a predetermined 120% of direct labor, an estimate made in January
+    - Applied overhead (₱720,000) exceeded actual (₱680,000), so jobs were overcharged by ₱40,000
+    - The balance is closed by debiting Manufacturing Overhead and crediting Cost of Goods Sold, lowering COGS to ₱1,460,000
+    - It is not extra profit from operations; it corrects costs that were overstated during the year

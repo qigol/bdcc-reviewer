@@ -1,0 +1,447 @@
+sections:
+  - id: pc-basics
+    title: Why process costing averages
+    skills: [pc-basics]
+    summary: |
+      [[process-costing|Process costing]] pools a department's costs for the period and divides by its output, so every
+      identical unit gets the same average cost. It uses two cost categories, direct materials and
+      [[conversion-cost|conversion cost]], instead of job-order costing's three.
+    keyFormula: '\text{Unit cost} = \frac{\text{Department cost for the period}}{\text{Units produced}}, \quad \text{Conversion} = \text{DL} + \text{OH}'
+    steps:
+      - tex: |
+          \anchor{avg}{\text{Unit cost}} = \frac{\text{total cost of the department}}{\text{total output of the department}}
+        say: Gallon 4,001 and gallon 4,002 are the same, so they get the same average cost.
+      - tex: |
+          \begin{aligned}
+          \anchor{cats}{\text{Cost categories}} &= \text{Direct materials} \\
+          &\quad + \underbrace{\text{Direct labor} + \text{Overhead}}_{\text{conversion}}
+          \end{aligned}
+        say: Labor and overhead are incurred together and evenly, so they are tracked as one category.
+    journal:
+      title: Job-order vs process costing (slides 9–12)
+      blocks:
+        - kind: schedule
+          title: The fundamental choice
+          columns: [Job-order costing, Process costing]
+          rows:
+            - { id: object, label: Cost object, amounts: [A specific job, A physical unit] }
+            - { id: avg, label: How cost reaches a unit, amounts: [Traced to that job, 'Averaged across a department'], anchor: avg }
+            - { id: cats, label: Cost categories, amounts: ['DM, DL, OH', 'DM and conversion'], anchor: cats }
+            - { id: record, label: Subsidiary record, amounts: [Job cost sheet, Cost-of-production report] }
+            - { id: fit, label: Appropriate for, amounts: ['Unique, custom output', 'Continuous, identical output'] }
+    links:
+      - { anchor: avg, label: The average unit cost }
+      - { anchor: cats, label: Two cost categories }
+    tryIt: [system-mcq, conversion-mcq]
+    pitfalls:
+      - Choosing by industry label. A shoemaker can process-cost its standard lines and job-cost a limited-edition batch (operation costing).
+    examTip: 'Justify with the output: identical and continuous means process costing; unique means job-order.'
+
+  - id: physical-flow
+    title: Step 1, the physical flow
+    skills: [physical-flow]
+    summary: |
+      Every unit the department could have finished (beginning WIP plus units started) must be accounted for as either
+      completed or still in ending WIP. Solve for the missing quantity; an imbalance means lost units or an error.
+    keyFormula: '\text{Beg. WIP} + \text{Started} = \text{Completed} + \text{End. WIP}'
+    state: { beg: 0, started: 18000, completed: 8000 }
+    derive:
+      - { fn: physicalFlow, in: { beg: '@beg', started: '@started', completed: '@completed', end: null }, out: pf }
+    steps:
+      - tex: |
+          \anchor{left}{\anchor{beg}{\text{Beg. WIP}} + \anchor{started}{\text{Started}}} = \anchor{right}{\anchor{completed}{\text{Completed}} + \anchor{end}{\text{End. WIP}}}
+        say: The physical flow always balances, like assets = liabilities + equity.
+      - tex: |
+          \anchor{beg}{ {=beg|comma} } + \anchor{started}{ {=started|comma} } = \anchor{completed}{ {=completed|comma} } + \anchor{end}{ {=pf.end|comma} }
+        say: 'Cavite Chemical, Blending, May: ending WIP is {=pf.end|comma} gallons.'
+    journal:
+      title: Cavite Chemical Processing, Blending Department
+      blocks:
+        - { kind: schedule, title: Physical flow (gallons), rows: '@pf.rows' }
+    links:
+      - { anchor: beg, label: Beginning WIP }
+      - { anchor: started, label: Units started }
+      - { anchor: left, label: Units to account for }
+      - { anchor: completed, label: Units completed }
+      - { anchor: end, label: Ending WIP }
+      - { anchor: right, label: Units accounted for }
+    trace: { fn: physicalFlow, in: { beg: '@beg', started: '@started', completed: '@completed', end: null } }
+    examples: [cavite-flow]
+    tryIt: [flow-numeric, flow-mcq]
+    pitfalls:
+      - Forgetting beginning WIP on the left side when it exists.
+    examTip: Balance Step 1 before anything else; it is the cheapest check on the whole report.
+
+  - id: equiv-units
+    title: Step 2, equivalent units
+    skills: [equiv-units]
+    summary: |
+      [[equivalent-units|Equivalent units]] turn partial work into whole units. Completed units are 100% complete for
+      everything; ending WIP counts at its percent complete, figured separately for materials and conversion, because
+      materials may enter at the start, evenly or at the end.
+    keyFormula: '\text{EU}_c = \text{Completed} + \text{End. WIP} \times \%_c'
+    state: { completed: 8000, endUnits: 10000, timing: start, conv: 0.2 }
+    derive:
+      - { fn: euSimple, in: { completed: '@completed', endUnits: '@endUnits', timing: '@timing', conv: '@conv' }, out: eu }
+    live:
+      - id: timing-pick
+        widget: Choice
+        props:
+          label: Materials are added
+          options:
+            - { value: start, label: At the start }
+            - { value: evenly, label: Evenly }
+            - { value: end, label: At the end }
+        bind: { value: timing }
+    steps:
+      - tex: |
+          \anchor{eu}{\text{EU}_c} = \anchor{done}{\text{Completed}} + \anchor{endw}{\text{End. WIP} \times \%_c}
+        say: One formula, applied separately to each cost category.
+      - tex: |
+          \text{EU}_{\text{mat}} = \anchor{done}{ {=completed|comma} } + \anchor{endw}{ {=endUnits|comma} \times {=eu.matPct|pct} } = \anchor{eu}{ {=eu.euMat|comma} }
+        say: 'Materials {=eu.timingTxt}.'
+      - tex: |
+          \text{EU}_{\text{conv}} = {=completed|comma} + {=endUnits|comma} \times {=conv|pct} = {=eu.euConv|comma}
+        say: Conversion is incurred evenly, so ending WIP counts at its conversion percent.
+    journal:
+      title: Equivalent units
+      blocks:
+        - { kind: schedule, title: Equivalent units (no beginning WIP), columns: [Physical units, Materials, Conversion], rows: '@eu.rows' }
+    links:
+      - { anchor: done, label: Completed units }
+      - { anchor: endw, label: Ending WIP at its percent complete }
+      - { anchor: eu, label: Equivalent units }
+    trace: { fn: euSimple, in: { completed: '@completed', endUnits: '@endUnits', timing: '@timing', conv: '@conv' } }
+    examples: [cavite-eu, bottling-eu]
+    tryIt: [eu-numeric, eu-mat-numeric, timing-match]
+    pitfalls:
+      - Applying the conversion percent to materials. Ask, for each category, when it enters the process.
+      - Counting completed units at less than 100%. Completed means complete for every category.
+    examTip: Write a two-column EU table (materials, conversion) every time, even when the numbers match.
+
+  - id: five-steps
+    title: The five-step cost-of-production report
+    skills: [five-steps]
+    summary: |
+      The [[cost-of-production-report|cost-of-production report]] runs five steps: physical flow, equivalent units, total costs, the
+      [[cost-per-equivalent-unit|cost per equivalent unit]] for each category, and assigning cost to completed units and ending WIP. The
+      [[reconciliation-check|reconciliation check]] closes it.
+    keyFormula: '\text{Unit cost}_c = \frac{\text{Cost}_c}{\text{EU}_c}, \quad \text{Completed} \times \textstyle\sum_c \text{unit}_c + \textstyle\sum_c \text{EU}^{\text{end}}_c \times \text{unit}_c = \text{Total cost}'
+    data: [cavite]
+    derive:
+      - { fn: report, in: { data: '@cavite', method: wa }, out: rp }
+    live:
+      - id: rp-out
+        widget: Readout
+        props:
+          items:
+            - { label: Cost per gallon completed, value: '{=rp.combined|money2}', tone: accent }
+            - { label: Reconciliation gap, value: '{=rp.check|money}', tone: good }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{phys}{\text{Step 1}} &: 0 + 18{,}000 = 8{,}000 + 10{,}000 \\
+          \anchor{eu}{\text{Step 2}} &: \text{EU}_{\text{mat}} = {=rp.eu_mat|comma},\ \text{EU}_{\text{conv}} = {=rp.eu_conv|comma}
+          \end{aligned}
+        say: Steps 1 and 2 count units; no pesos yet.
+      - tex: |
+          \anchor{costs}{\text{Step 3}}: 27{,}000 + 25{,}000 = {=rp.total|comma}
+        say: Total costs to account for, by category.
+      - tex: |
+          \anchor{unit}{\text{Step 4}}: \frac{27{,}000}{18{,}000} + \frac{25{,}000}{10{,}000} = {=rp.unit_mat|2f} + {=rp.unit_conv|2f} = {=rp.combined|2f}
+        say: Each category is divided by its own equivalent units.
+      - tex: |
+          \begin{aligned}
+          &\anchor{completed}{8{,}000 \times 4.00} + \anchor{end-wip}{10{,}000 \times 1.50 + 2{,}000 \times 2.50} \\
+          &= \anchor{reconcile}{ {=rp.completedCost|comma} + {=rp.endWip|comma} = {=rp.total|comma} }
+          \end{aligned}
+        say: 'Step 5: completed units at the full ₱4.00; ending WIP category by category; it reconciles.'
+    journal:
+      title: 'Cavite Chemical Processing, Blending, May'
+      blocks:
+        - { kind: schedule, title: 'Steps 1–2: quantity schedule and equivalent units', columns: [Physical units, Materials, Conversion], rows: '@rp.qRows' }
+        - { kind: schedule, title: 'Steps 3–4: costs and cost per equivalent unit', columns: [Total, Materials, Conversion], rows: '@rp.costRows' }
+        - { kind: schedule, title: 'Step 5: assigning and reconciling costs', rows: '@rp.assignRows' }
+    links:
+      - { anchor: phys, label: 'Step 1: physical flow' }
+      - { anchor: eu, label: 'Step 2: equivalent units' }
+      - { anchor: costs, label: 'Step 3: costs to account for' }
+      - { anchor: unit, label: 'Step 4: cost per equivalent unit' }
+      - { anchor: completed, label: 'Step 5: cost of units completed' }
+      - { anchor: end-wip, label: 'Step 5: ending WIP' }
+      - { anchor: reconcile, label: The reconciliation check }
+    trace: { fn: report, in: { data: '@cavite', method: wa } }
+    examples: [cavite-report, cavite-walk, reconcile-gap]
+    tryIt: [report-fill, unit-cost-numeric, steps-order]
+    pitfalls:
+      - Costing ending WIP at the combined ₱4.00 per unit. Each category uses its own unit cost and its own EU.
+      - Skipping the reconciliation. If Step 5 ≠ Step 3, go back to Step 1, then Step 2, then Step 4's division.
+    examTip: Keep materials and conversion in separate columns from Step 2 to Step 5; mixing them causes most errors.
+
+  - id: weighted-avg
+    title: The weighted-average method
+    skills: [weighted-avg]
+    summary: |
+      With beginning WIP, the [[weighted-average-method|weighted-average method]] treats those units as if started this period: equivalent units
+      are completed + ending WIP × percent, and unit cost divides beginning WIP cost **plus** current cost by them.
+    keyFormula: '\text{EU} = \text{Completed} + \text{End. WIP} \times \%, \quad \text{Unit cost}_c = \frac{\text{Beg. WIP cost}_c + \text{Current cost}_c}{\text{EU}_c}'
+    data: [portland, depta]
+    derive:
+      - { fn: report, in: { data: '@portland', method: wa }, out: wa }
+      - { fn: euBoth, in: { data: '@depta', waOnly: true }, out: da }
+    live:
+      - id: wa-out
+        widget: Readout
+        props:
+          items:
+            - { label: Combined unit cost, value: '{=wa.combined|4}', tone: accent }
+            - { label: Cost of goods completed, value: '{=wa.completedCost|money}', tone: good }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{wa}{\text{EU}_{\text{WA}}} &= \text{Completed} + \text{End. WIP} \times \% \\
+          \text{Dept. A} &: 5{,}500 + 1{,}000 = 6{,}500;\ 5{,}500 + 600 = 6{,}100
+          \end{aligned}
+        say: Beginning WIP's own percent never enters the weighted-average formula.
+      - tex: |
+          \begin{aligned}
+          &\anchor{phys}{40{,}000 + 5{,}000} \Rightarrow \anchor{eu}{\text{EU}_{\text{mat}} = {=wa.eu_mat|comma}} \\
+          &\text{EU}_{\text{conv}} = 40{,}000 + 1{,}500 = {=wa.eu_conv|comma}
+          \end{aligned}
+        say: 'July, Raw Material Department: 40,000 bags out, 5,000 left at 30% converted.'
+      - tex: |
+          \begin{aligned}
+          \anchor{unit}{\text{unit}_{\text{mat}}} &= \frac{\anchor{costs}{12{,}000 + 41{,}500}}{45{,}000} = {=wa.unit_mat|4} \\
+          \text{unit}_{\text{conv}} &= \frac{56{,}000 + 521{,}500}{41{,}500} = {=wa.unit_conv|4}
+          \end{aligned}
+        say: Beginning WIP cost and July's cost are blended before dividing.
+      - tex: |
+          \begin{aligned}
+          &\anchor{completed}{40{,}000 \times {=wa.combined|4} = {=wa.completedCost|comma0}} \\
+          &\anchor{end-wip}{\text{End. WIP} = {=wa.endWip|comma0}}, \quad \anchor{reconcile}{\text{total } {=wa.total|comma}}
+          \end{aligned}
+        say: 'The slide rounds unit costs to 4 decimals and shows ≈ ₱604,184 and ≈ ₱26,818.'
+    journal:
+      title: Weighted-average reports
+      blocks:
+        - { kind: schedule, title: 'Department A, January: weighted-average EU', columns: [Materials, Conversion], rows: '@da.rows' }
+        - { kind: schedule, title: 'Raw Material Department, July: Steps 1–2', columns: [Physical units, Materials, Conversion], rows: '@wa.qRows' }
+        - { kind: schedule, title: 'Steps 3–4', columns: [Total, Materials, Conversion], rows: '@wa.costRows' }
+        - { kind: schedule, title: 'Step 5', rows: '@wa.assignRows' }
+    links:
+      - { anchor: wa, label: Weighted-average EU formula }
+      - { anchor: phys, label: Physical units }
+      - { anchor: eu, label: Equivalent units }
+      - { anchor: costs, label: Beginning + current cost }
+      - { anchor: unit, label: Cost per equivalent unit }
+      - { anchor: completed, label: Cost of goods completed }
+      - { anchor: end-wip, label: Ending WIP }
+      - { anchor: reconcile, label: Reconciliation }
+    trace: { fn: report, in: { data: '@portland', method: wa } }
+    examples: [depta-eu, portland-wa, portland-wa-assign, nueva-wa]
+    tryIt: [wa-handcalc, wa-eu-numeric, wa-qty-fill]
+    pitfalls:
+      - Dividing only the current period's cost. Weighted-average adds beginning WIP cost first.
+      - Subtracting beginning WIP's work from equivalent units. That is FIFO, not weighted-average.
+    examTip: State the method at the top of your report; the EU formula and the cost numerator both depend on it.
+
+  - id: fifo
+    title: The FIFO method, and choosing between the two
+    skills: [fifo, choose-method]
+    summary: |
+      The [[fifo-method]] keeps beginning WIP cost separate. Its equivalent units are the weighted-average units minus
+      the work done on beginning WIP last period, and its unit costs use current-period cost only. Completed cost is
+      beginning WIP cost + the cost to finish it + [[started-and-completed|started-and-completed]] units at the current unit cost.
+    keyFormula: '\text{EU}_{\text{FIFO}} = \text{EU}_{\text{WA}} - \text{Beg. WIP} \times \%_{\text{prior}}, \quad \text{Unit cost}_c = \frac{\text{Current cost}_c}{\text{EU}^{\text{FIFO}}_c}'
+    data: [portland, depta]
+    derive:
+      - { fn: report, in: { data: '@portland', method: fifo }, out: ff }
+      - { fn: compareMethods, in: { data: '@portland' }, out: cm }
+      - { fn: euBoth, in: { data: '@depta' }, out: db }
+    live:
+      - id: ff-out
+        widget: Readout
+        props:
+          items:
+            - { label: FIFO cost of goods completed, value: '{=ff.completedCost|money}', tone: accent }
+            - { label: FIFO − weighted-average, value: '{=cm.diffCompleted|money}', tone: warn }
+    steps:
+      - tex: |
+          \begin{aligned}
+          \anchor{fifo}{\text{EU}_{\text{FIFO}}} &= \anchor{wa}{\text{EU}_{\text{WA}}} - \anchor{prior}{\text{Beg. WIP} \times \%_{\text{done last period}}} \\
+          &\quad (6{,}100 - 1{,}000 = 5{,}100)
+          \end{aligned}
+        say: The single subtraction that separates the two methods (Department A, conversion).
+      - tex: |
+          \begin{aligned}
+          &\anchor{eu}{\text{EU}_{\text{mat}} = 45{,}000 - 800 = {=ff.eu_mat|comma}} \\
+          &\text{EU}_{\text{conv}} = 41{,}500 - 480 = {=ff.eu_conv|comma} \quad \anchor{phys}{800 + 39{,}200 + 5{,}000}
+          \end{aligned}
+        say: 'July data again: 800 beginning bags were 100% materials and 60% converted.'
+      - tex: |
+          \begin{aligned}
+          &\anchor{unit}{\text{unit}_{\text{mat}} = \frac{41{,}500}{44{,}200} = {=ff.unit_mat|4}} \\
+          &\text{unit}_{\text{conv}} = \frac{521{,}500}{41{,}020} = {=ff.unit_conv|4} \quad \anchor{costs}{\text{(current costs only)}}
+          \end{aligned}
+        say: Beginning WIP's ₱68,000 is not in the numerator.
+      - tex: |
+          \begin{aligned}
+          &\anchor{completed}{68{,}000 + 320 \times {=ff.unit_conv|4} + 39{,}200 \times {=ff.combined|4}} \\
+          &= {=ff.completedCost|comma0}, \quad \anchor{end-wip}{ {=ff.endWip|comma0} } \quad \anchor{reconcile}{\Sigma = {=ff.total|comma}}
+          \end{aligned}
+        say: Finish the old units first, then cost the units started and completed.
+    journal:
+      title: FIFO
+      blocks:
+        - { kind: schedule, title: 'Department A: weighted-average and FIFO EU', columns: [Materials, Conversion], rows: '@db.rows' }
+        - { kind: schedule, title: 'Raw Material Department, July (FIFO): Steps 1–2', columns: [Physical units, Materials, Conversion], rows: '@ff.qRows' }
+        - { kind: schedule, title: 'Steps 3–4', columns: [Total, Materials, Conversion], rows: '@ff.costRows' }
+        - { kind: schedule, title: 'Step 5', rows: '@ff.assignRows' }
+        - { kind: schedule, title: Weighted-average vs FIFO, columns: [Weighted-average, FIFO], rows: '@cm.rows' }
+    links:
+      - { anchor: wa, label: Weighted-average EU }
+      - { anchor: prior, label: Work done on beginning WIP last period }
+      - { anchor: fifo, label: FIFO EU }
+      - { anchor: phys, label: Physical units }
+      - { anchor: eu, label: FIFO equivalent units }
+      - { anchor: costs, label: Current-period costs }
+      - { anchor: unit, label: FIFO cost per EU }
+      - { anchor: completed, label: Cost transferred out }
+      - { anchor: end-wip, label: Ending WIP }
+      - { anchor: reconcile, label: Reconciliation }
+    trace: { fn: report, in: { data: '@portland', method: fifo } }
+    examples: [depta-eu, portland-fifo, portland-fifo-walk, portland-compare, aklan-fifo-eu]
+    tryIt: [fifo-eu-numeric, fifo-handcalc, method-mcq]
+    pitfalls:
+      - Subtracting beginning WIP's full units instead of only the work already done on them (1,500 × 66.67%, not 1,500).
+      - Including beginning WIP cost in the FIFO unit cost.
+      - Forgetting that when materials are added at the end, beginning WIP has 0% materials, so nothing is subtracted.
+    examTip: 'FIFO EU are never larger than weighted-average EU; if yours are, you added instead of subtracted.'
+
+  - id: transferred-in
+    title: Transferred-in costs in a later department
+    skills: [transferred-in]
+    summary: |
+      Units arriving from a prior department bring their cost with them. The receiving department treats that
+      [[transferred-in-cost|transferred-in cost]] as a third category, 100% complete, like materials added at the very start. When the
+      department is the last one, its completed units go to Finished Goods Inventory.
+    keyFormula: '\text{Combined unit cost} = \text{unit}_{\text{TI}} + \text{unit}_{\text{mat}} + \text{unit}_{\text{conv}}'
+    data: [batangas]
+    derive:
+      - { fn: deptWithEntry, in: { data: '@batangas', method: wa, final: true }, out: bt }
+    live:
+      - id: bt-out
+        widget: Readout
+        props:
+          items:
+            - { label: Combined unit cost, value: '{=bt.combined|money2}', tone: accent }
+            - { label: To Finished Goods, value: '{=bt.completedCost|money}', tone: good }
+    steps:
+      - tex: |
+          \begin{aligned}
+          &\anchor{eu}{\text{EU}_{\text{TI}} = 8{,}000 + 2{,}000,\ \text{EU}_{\text{mat}} = 8{,}000 + 0} \\
+          &\text{EU}_{\text{conv}} = 8{,}000 + 1{,}200 \quad \anchor{phys}{10{,}000\ \text{received}}
+          \end{aligned}
+        say: Transferred-in units are 100% TI; materials come at the end, so ending WIP has none.
+      - tex: |
+          \begin{aligned}
+          &\anchor{unit}{\frac{150{,}000}{10{,}000} + \frac{64{,}000}{8{,}000} + \frac{110{,}400}{9{,}200}} \\
+          &= 15 + 8 + 12 = {=bt.combined} \quad \anchor{costs}{\Sigma = {=bt.total|comma}}
+          \end{aligned}
+        say: Three categories, three unit costs.
+      - tex: |
+          \begin{aligned}
+          &\anchor{completed}{8{,}000 \times 35 = {=bt.completedCost|comma}} \\
+          &\anchor{end-wip}{2{,}000 \times 15 + 1{,}200 \times 12 = {=bt.endWip|comma}} \\
+          &\anchor{reconcile}{\text{total } {=bt.total|comma}}
+          \end{aligned}
+        say: Ending WIP carries TI and conversion cost but no Department 2 materials yet.
+      - tex: |
+          \anchor{transfer}{\text{Dr Finished Goods Inventory, Cr WIP–Blending } {=bt.completedCost|comma}}
+        say: Blending is the last department, so its output goes to Finished Goods.
+    journal:
+      title: 'Batangas Chemicals, Department 2 (Blending)'
+      blocks:
+        - { kind: schedule, title: 'Steps 1–2', columns: [Physical units, Transferred-in, Materials, Conversion], rows: '@bt.qRows' }
+        - { kind: schedule, title: 'Steps 3–4', columns: [Total, Transferred-in, Materials, Conversion], rows: '@bt.costRows' }
+        - { kind: schedule, title: 'Step 5', rows: '@bt.assignRows' }
+        - { kind: entries, title: Transfer to Finished Goods, entries: '@bt.entries' }
+    links:
+      - { anchor: phys, label: Units received }
+      - { anchor: eu, label: 'Equivalent units, three categories' }
+      - { anchor: costs, label: Costs to account for }
+      - { anchor: unit, label: Cost per equivalent unit }
+      - { anchor: completed, label: Cost to Finished Goods }
+      - { anchor: end-wip, label: Ending WIP }
+      - { anchor: reconcile, label: Reconciliation }
+      - { anchor: transfer, label: The transfer entry }
+    trace: { fn: deptWithEntry, in: { data: '@batangas', method: wa, final: true } }
+    examples: [batangas-ti, batangas-walk]
+    tryIt: [ti-handcalc, ti-je, ti-numeric]
+    pitfalls:
+      - Applying the conversion percent to transferred-in cost. TI is always 100% complete in the receiving department.
+      - Leaving TI cost out of the combined unit cost.
+    examTip: Add a Transferred-in column to every schedule in a second department.
+
+  - id: transfer-entries
+    title: Journal entries between departments
+    skills: [transferred-in, weighted-avg]
+    summary: |
+      Cost moves department to department through Work-in-Process accounts, exactly like Session 5's flow. A department
+      that is not last transfers to the next department's WIP; the last department transfers to Finished Goods
+      Inventory.
+    keyFormula: '\text{Dr WIP}_{\text{next dept}}\ /\ \text{Cr WIP}_{\text{this dept}} = \text{cost of units completed}'
+    data: [nueva]
+    derive:
+      - { fn: deptWithEntry, in: { data: '@nueva', method: wa }, out: nv }
+    live:
+      - id: nv-out
+        widget: Readout
+        props:
+          items:
+            - { label: Cost per unit, value: '{=nv.combined|money2}', tone: accent }
+            - { label: Transferred to Packaging, value: '{=nv.completedCost|money}', tone: good }
+    steps:
+      - tex: |
+          \begin{aligned}
+          &\anchor{eu}{16{,}000 + 4{,}000 = 20{,}000;\ 16{,}000 + 1{,}000 = 17{,}000} \\
+          &\anchor{phys}{2{,}000 + 18{,}000}
+          \end{aligned}
+        say: 'Nueva Ecija Rice Mill, Milling, April: weighted-average EU.'
+      - tex: |
+          \begin{aligned}
+          &\anchor{unit}{\frac{18{,}000 + 162{,}000}{20{,}000} + \frac{9{,}600 + 143{,}400}{17{,}000} = 9 + 9 = 18} \\
+          &\anchor{costs}{\Sigma = {=nv.total|comma}}
+          \end{aligned}
+        say: Both categories happen to cost ₱9.00 per equivalent unit.
+      - tex: |
+          \begin{aligned}
+          &\anchor{completed}{16{,}000 \times 18 = {=nv.completedCost|comma}} \\
+          &\anchor{end-wip}{4{,}000 \times 9 + 1{,}000 \times 9 = {=nv.endWip|comma}} \quad \anchor{reconcile}{\checkmark}
+          \end{aligned}
+        say: 'Check: ₱288,000 + ₱45,000 = ₱333,000.'
+      - tex: |
+          \anchor{transfer}{\text{Dr WIP–Packaging, Cr WIP–Milling } {=nv.completedCost|comma}}
+        say: Milling is not the last department, so the debit goes to Packaging's WIP.
+    journal:
+      title: 'Nueva Ecija Rice Mill, Milling Department'
+      blocks:
+        - { kind: schedule, title: 'Steps 1–2', columns: [Physical units, Materials, Conversion], rows: '@nv.qRows' }
+        - { kind: schedule, title: 'Steps 3–4', columns: [Total, Materials, Conversion], rows: '@nv.costRows' }
+        - { kind: schedule, title: 'Step 5', rows: '@nv.assignRows' }
+        - { kind: entries, title: The interdepartmental transfer, entries: '@nv.entries' }
+    links:
+      - { anchor: phys, label: Physical units }
+      - { anchor: eu, label: Equivalent units }
+      - { anchor: costs, label: Costs to account for }
+      - { anchor: unit, label: Cost per equivalent unit }
+      - { anchor: completed, label: Cost transferred out }
+      - { anchor: end-wip, label: Ending WIP }
+      - { anchor: reconcile, label: Reconciliation }
+      - { anchor: transfer, label: The transfer entry }
+    trace: { fn: deptWithEntry, in: { data: '@nueva', method: wa } }
+    examples: [nueva-wa, nueva-transfer]
+    tryIt: [transfer-je, report-numeric]
+    pitfalls:
+      - Debiting Finished Goods when units only move to the next department.
+    examTip: 'The credit is always the department the units leave; the debit is where they go next.'

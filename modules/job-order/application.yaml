@@ -1,0 +1,160 @@
+intro: |
+  Every custom fabricator, print shop and professional firm quotes jobs weeks before the year's overhead is known. A sound
+  job-order system turns budgets into rates, rates into job costs, job costs into quotes, and then settles the
+  difference at year end. This case runs one Philippine shop through the whole cycle.
+case:
+  id: malolos-quote
+  title: Quoting barangay signage at Malolos Signs & Steel
+  story: |
+    Malolos Signs & Steel fabricates steel signage frames (Fabrication, machine-driven) and paints and finishes them
+    (Painting, labor-driven). Barangay Sto. Niño wants a quote for 40 street-sign frames, Job MS-214. The owner prices
+    every job at a 30% markup on cost. All figures are synthetic.
+  data: [malolos]
+  state: { treatment: close }
+  derive:
+    - { fn: caseQuote, in: { budget: '@malolos.budget', job: '@malolos.job', markup: '@malolos.markup' }, out: q }
+    - { fn: costFlow, in: { dm: '@q.dm', dl: '@q.dl', oh: '@q.oh', price: '@q.price' }, out: cf }
+    - { fn: caseYearEnd, in: { budget: '@malolos.budget', year: '@malolos.year', treatment: '@treatment' }, out: ye }
+  cells:
+    - id: rates
+      title: Set the rates in January
+      say: |
+        Fabrication's overhead is power, welding gas and machine depreciation, so it budgets per machine hour. Painting's
+        overhead follows its painters, so it budgets as a percent of labor cost. The owner also computes the single
+        plantwide rate the shop used last year.
+      stage:
+        - { id: rate-sheet, widget: Schedule, props: { title: Predetermined overhead rates, rows: '@q.rateRows' } }
+      decision:
+        prompt: Why should Fabrication use machine hours rather than direct labor cost as its base?
+        type: mcq
+        options:
+          - Its overhead (power, gas, depreciation) is driven by machine use, not by how much the welders earn
+          - Machine hours are always easier to record than labor cost
+          - A per-hour rate is always more accurate than a percentage
+          - Fabrication has no direct labor
+        answer: 0
+        model: The base should follow the cause of the overhead. Machine-driven overhead on a labor base would load cost onto labor-heavy jobs that barely use the machines.
+    - id: cost-sheet
+      title: Cost Job MS-214
+      say: |
+        The estimator's figures: Fabrication ₱96,000 materials, ₱42,000 labor, 160 machine hours; Painting ₱18,000
+        materials, ₱30,000 labor. Each department applies its own rate on its own base. The job comes to
+        {=q.total|money}, or {=q.unit|money} per frame.
+      stage:
+        - { id: job-sheet, widget: Schedule, props: { title: 'Job cost sheet, MS-214', columns: [Fabrication, Painting, Total], rows: '@q.sheet' } }
+    - id: quote
+      title: Which cost do we quote on?
+      say: |
+        At a 30% markup the departmental cost gives a quote of {=q.price|money}. Using last year's plantwide rate of
+        {=q.plantRate|pct} of labor cost instead, the same job would cost {=q.plantTotal|money} and be quoted at
+        {=q.plantPrice|money}.
+      stage:
+        - { id: quotes, widget: Schedule, props: { title: Two ways to cost the same job, columns: [Cost, Quote at 30%], rows: '@q.quoteRows' } }
+      decision:
+        prompt: Which quote should Malolos submit, and why?
+        type: mcq
+        options:
+          - The departmental quote; the plantwide rate overloads this machine-light job with labor-based overhead
+          - The plantwide quote; a higher price is always safer
+          - Either one; overhead method doesn't change a job's cost
+          - The departmental quote, but only because it is lower
+        answer: 0
+        model: |
+          MS-214 uses only 180 machine hours but ₱72,000 of labor. The plantwide rate charges 100% of labor, ₱72,000 of
+          overhead, while the departmental rates charge what the job's machine and paint use actually cause, ₱36,000. Quoting
+          ₱335,400 could lose a bid the shop can win at ₱288,600.
+    - id: flow
+      title: Record the job as it moves
+      say: |
+        Malolos wins the bid. As MS-214 is built, its materials, labor and applied overhead are debited to Work in
+        Process; on completion the {=cf.total|money} moves to Finished Goods, and on delivery to Cost of Goods Sold.
+      stage:
+        - { id: flow-jr, widget: Journal, props: { title: 'Job MS-214 in the general journal', entries: '@cf.entries' } }
+      decision:
+        prompt: The frames are finished on December 29 but installed on January 8. Where is MS-214's cost on the December 31 balance sheet?
+        type: open
+        model: In Finished Goods, still an asset. It becomes Cost of Goods Sold only when the frames are delivered and the sale is recorded in January.
+    - id: year-end
+      title: Close the year
+      say: |
+        In December, actual overhead totals {=ye.actualOH|money} while the rates applied {=ye.applied|money}. Overhead is
+        {=ye.kind} by {=ye.amt|money}, about {=ye.pctOfOH|pct1} of the year's overhead. Toggle the treatment and compare
+        the entries.
+      stage:
+        - { id: ye-sheet, widget: Schedule, props: { title: Actual vs applied, rows: '@ye.rows' } }
+        - id: treat
+          widget: Choice
+          props:
+            label: Treatment
+            options:
+              - { value: close, label: Close to COGS }
+              - { value: prorate, label: Prorate }
+          bind: { value: treatment }
+        - { id: ye-jr, widget: Journal, props: { title: Year-end entry, entries: '@ye.entries' } }
+        - { id: ye-pr, widget: Schedule, props: { title: If prorated, columns: [Applied OH held, Adjustment], rows: '@ye.prorateRows' } }
+      decision:
+        prompt: The controller calls ₱126,000 material because inventories are large this year. Which treatment follows, and what happens to Cost of Goods Sold?
+        type: mcq
+        options:
+          - Prorate it; COGS rises by ₱88,200 and WIP and Finished Goods absorb the rest
+          - Close it all to COGS; COGS rises by ₱126,000
+          - Prorate it; COGS falls by ₱88,200
+          - Leave it in Factory Overhead for next year
+        answer: 0
+        model: 'A material amount is prorated by applied overhead: 70% of ₱126,000 = ₱88,200 to COGS, ₱12,600 to WIP and ₱25,200 to Finished Goods, all increases because overhead was underapplied.'
+    - id: next-year
+      title: Feed the lesson forward
+      say: |
+        The underapplied overhead means every job this year, MS-214 included, was costed and quoted a little low. The rates
+        were estimates; the gap is information.
+      stage:
+        - id: note
+          widget: Callout
+          props:
+            kind: beyond
+            body: 'Using this year''s gap to revise next year''s budget is good practice, though the lecture stops at closing the gap.'
+      decision:
+        prompt: What would you check before setting next year's rates?
+        type: open
+        model: |
+          Whether overhead ran over budget (spending) or activity fell short of the budget (fewer machine hours or less
+          painting labor), whether each department's base still drives its overhead, and whether a job like MS-214 should be
+          re-quoted at the revised rates.
+atScale:
+  title: Job-order costing in practice
+  body: |
+    **Set-up.** Most Philippine SMEs run job costing in an ERP or accounting package that supports production or project
+    orders (for example Odoo Manufacturing, SAP Business One production orders, or QuickBooks with job tracking). Each job
+    gets an order number; the job cost sheet is the order's cost report.
+
+    **Daily capture.** The storeroom posts materials requisitions against the job number, the shop floor posts time
+    tickets (often from a time clock or tablet), and the system applies overhead automatically at the rates the
+    controller loads in January, per department.
+
+    **Month-end close.** Accounting reviews open jobs (the WIP subsidiary ledger), moves completed jobs to Finished Goods
+    and delivered ones to COGS, and watches the Factory Overhead balance build up as actual bills arrive.
+
+    **Year-end.** The controller compares actual and applied overhead, judges materiality, and posts the close or the
+    proration. Under PAS 2 *Inventories* (beyond the slides), fixed overhead is allocated on normal capacity and
+    unallocated overhead is expensed, which is why an underapplied amount usually lands in COGS.
+
+    **Controls.** Requisitions and time tickets need a supervisor's approval; rate changes need the controller's; and job
+    cost sheets are reconciled to the WIP control account every month.
+tradeoffs:
+  title: Choices a job shop makes
+  columns: [Choice, Simpler option, More accurate option, When to pay for accuracy]
+  rows:
+    - ['Overhead rate', 'One plantwide rate', 'A rate per department (or per activity, Session 7)', 'Departments with different overhead drivers, and jobs that use them in different mixes']
+    - ['Year-end difference', 'Close it all to COGS', 'Prorate across WIP, Finished Goods and COGS', 'When the difference is material, especially with large ending inventories']
+    - ['Costing basis', 'Normal costing (budgeted overhead rate)', 'Actual costing (actual overhead)', 'Almost never: actual costing comes too late to price jobs']
+    - ['Pricing', 'Markup on estimated cost', 'Markup plus a post-job review of actual cost', 'Always review: finished cost sheets are the evidence for the next quote']
+connections:
+  - { module: process-costing, note: 'The same DM + DL + overhead flow, but averaged by department over identical units instead of traced to one job.' }
+  - { module: abc, note: Departmental rates are the first step toward activity-based costing's one rate per activity. }
+explainBack:
+  prompt: Explain to a new estimator how Job MS-214 got its ₱288,600 quote, and why the shop's books still had to be adjusted in December.
+  rubric:
+    - Overhead rates are set from budgets before the year, one per department on its own driver
+    - The job's cost is traced materials and labor plus overhead applied at those rates
+    - The quote is cost plus a 30% markup on cost
+    - At year end actual overhead differs from applied; the gap is closed to COGS or prorated if material

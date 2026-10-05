@@ -7,7 +7,10 @@ import { createNodeHost, readModuleDir } from '../src/node';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../modules');
 const hostFactory = (src: string) => createNodeHost(src);
 
-describe.each(['fim', 'nb-cf', 'lf-cf'])('built-in module %s', (id) => {
+import fs from 'node:fs';
+const builtins = fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'manifest.yaml'))).sort();
+
+describe.each(builtins)('built-in module %s', (id) => {
   it('passes all seven validation steps with every lecture example reproduced', async () => {
     const files = await readModuleDir(path.join(root, id));
     const report = await validateModule(files, { hostFactory, seeds: 10 });

@@ -1,0 +1,134 @@
+scenes:
+  - id: why-a-rate
+    title: Pricing a job before the bills arrive
+    goal: How can a company cost a job in January when the year's overhead is only known in December?
+    skills: [pohr]
+    data: [kapitan]
+    state: { estBase: 40000 }
+    derive:
+      - { fn: poRate, in: { estOH: '@kapitan.estOH', estBase: '@estBase' }, out: pr }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: Kapitan's overhead budget, rows: '@pr.rows' }
+      - id: hours
+        widget: Slider
+        region: side
+        props: { label: Estimated direct labor-hours, min: 20000, max: 60000, step: 5000, format: comma }
+        bind: { value: estBase }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Rate per DLH, value: '{=pr.rate|money2}', tone: accent }
+    beats:
+      - say: |
+          Kapitan Furniture builds chairs to order. A school wants a quote in **January**, but the factory's rent,
+          power and supervisors, its [[manufacturing-overhead]], won't be fully known until **December**.
+        define: [manufacturing-overhead]
+      - say: |
+          So Kapitan estimates. It budgets {=kapitan.estOH|money} of overhead and expects {=kapitan.estDLH|comma}
+          direct labor-hours. Labor-hours are its **allocation base**: the activity that drives overhead.
+        define: [allocation-base]
+        gate:
+          type: predict
+          question: How many pesos of overhead should each direct labor-hour carry?
+          answer: { value: 15, tol: 0.01 }
+          explain: '$600{,}000 \div 40{,}000 = ₱15$ per hour.'
+      - say: |
+          That ratio is the **predetermined overhead rate**: estimated overhead ÷ estimated base, fixed before
+          the year starts so every job can be costed as it happens.
+        define: [predetermined-overhead-rate]
+      - say: Suppose the plan expected fewer hours. Drag the estimate until the rate is ₱20 per hour.
+        gate:
+          type: when
+          prompt: Make the rate exactly ₱20.
+          when: 'pr.rate == 20'
+          hint: '600,000 ÷ ? = 20'
+      - say: The same overhead spread over fewer hours makes each hour dearer. Back to the plan; now you try one.
+        set: { estBase: 40000 }
+        gate:
+          type: practice
+          template: rate-numeric
+      - say: Why not simply wait for December's actual numbers?
+        gate:
+          type: reflect
+          prompt: In a sentence or two, why use a rate set in advance instead of the actual overhead rate?
+          model: |
+            Jobs have to be priced and costed while they are worked on, months before the actual overhead is
+            known. A rate set in advance gives timely, stable job costs instead of costs that swing with seasonal bills.
+    takeaway: The predetermined overhead rate is estimated overhead ÷ estimated base, set in advance so jobs are costed as they happen.
+
+  - id: follow-the-cost
+    title: Following one job's cost
+    goal: Where do a job's costs sit while it is made, finished and sold?
+    skills: [job-cost, cost-flow, over-under]
+    data: [kapitan]
+    state: { flowUpTo: 0 }
+    derive:
+      - { fn: jobCost, in: { dm: '@kapitan.job.dm', dl: '@kapitan.job.dl', hours: '@kapitan.job.hours', rate: 15 }, out: jc }
+      - { fn: jobEntries, in: { dm: '@kapitan.job.dm', dl: '@kapitan.job.dl', hours: '@kapitan.job.hours', rate: 15 }, out: je }
+      - { fn: costFlow, in: { dm: '@kapitan.job.dm', dl: '@kapitan.job.dl', hours: '@kapitan.job.hours', rate: 15, upTo: '@flowUpTo' }, out: flow }
+    stage:
+      - id: sheet
+        widget: Schedule
+        region: side
+        props: { title: 'Job cost sheet, Job 101', rows: '@jc.rows' }
+      - id: jr
+        widget: Journal
+        props: { title: General journal, entries: '@je.entries', posted: 0 }
+      - id: ta
+        widget: TAccounts
+        props: { accounts: '@flow.accounts' }
+      - id: play
+        widget: StepPlayer
+        region: bottom
+        props:
+          fn: costFlowWalk
+          in: { dm: '@kapitan.job.dm', dl: '@kapitan.job.dl', hours: '@kapitan.job.hours', rate: 15 }
+          roles: { jr: jr, ta: ta }
+    beats:
+      - say: |
+          Job 101 is forty school chairs. Its [[job-cost-sheet]] collects every peso spent on it: materials,
+          labor and a share of overhead.
+        define: [job-cost-sheet]
+        gate:
+          type: predict
+          question: Materials ₱25,000, labor ₱18,000, and 1,200 hours at ₱15 of overhead each. What does the job cost?
+          answer: { value: 61000, tol: 0.5 }
+          explain: '$25{,}000 + 18{,}000 + 1{,}200 \times 15 = ₱61{,}000$.'
+      - say: |
+          While the chairs are on the floor, their cost sits in **Work in Process**. Overhead enters as
+          **applied overhead**: the rate times the job's actual hours, not the actual bills.
+        define: [work-in-process, applied-overhead]
+      - say: Press play and follow each entry into the T-accounts. Debits land on the left, credits on the right.
+        gate:
+          type: event
+          prompt: Play all five entries.
+          target: play
+          event: done
+      - say: |
+          When the chairs are done, their cost moves to **Finished Goods**, then to Cost of Goods Sold when the
+          school takes delivery.
+        define: [finished-goods]
+        gate:
+          type: predict
+          question: After entry (5), how much of job 101's cost is still in Work in Process?
+          options: ['₱0', '₱61,000', '₱18,000']
+          answer: 0
+          explain: Entry (4) moved the whole ₱61,000 out of WIP into Finished Goods.
+      - say: |
+          December: overhead bills total {=kapitan.actualOH|money}, but only {=kapitan.actualDLH|comma} hours × ₱15
+          were applied. The shortfall is **underapplied overhead**.
+        define: [underapplied-overhead]
+        gate:
+          type: predict
+          question: How much overhead is underapplied?
+          answer: { value: 27000, tol: 0.5 }
+          explain: '$612{,}000 - 39{,}000 \times 15 = 612{,}000 - 585{,}000 = ₱27{,}000$.'
+      - say: Close it out yourself. The leftover balance in Manufacturing Overhead goes to Cost of Goods Sold.
+        gate:
+          type: practice
+          template: close-je
+    takeaway: Costs follow the product, from materials and wages into WIP, then Finished Goods, then COGS; overhead rides along at the predetermined rate.

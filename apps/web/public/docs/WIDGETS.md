@@ -25,7 +25,10 @@ Persistence rule: `highlight` and `pulse` are transient (current beat / trace st
 | [Slider](#slider) | Numeric slider bound to a state key. |
 | [Choice](#choice) | Segmented control, dropdown or toggle bound to a state key. |
 | [Readout](#readout) | Big live numbers. |
-| [Callout](#callout) | Boxed note: note | tip | warn | exam | errata | beyond (beyond the slides). |
+| [Callout](#callout) | Boxed note: note | tip | warn | exam | errata | beyond (beyond the slides) | define (a term definition). |
+| [Journal](#journal) | General-journal entries (date · account · Dr · Cr) with credits indented. Entries can be revealed one at a time with `post`, and lines carry anchors that link to Formula terms. |
+| [TAccounts](#taccounts) | T-accounts side by side: debits left, credits right, optional running balance. Feed postings from a derived fn to watch costs flow (Raw Materials → WIP → Finished Goods → COGS). |
+| [Schedule](#schedule) | A financial statement or cost schedule: indented labels, one or more amount columns, subtotal/total rules. Unfilled cells (null) stay blank, so a derived fn can fill it in step by step. |
 | [Text](#text) | Static Markdown on stage. |
 | [Image](#image) | An image from the module’s assets/. |
 
@@ -468,11 +471,11 @@ Big live numbers. *(used by: all)*
 
 ## Callout
 
-Boxed note: note | tip | warn | exam | errata | beyond (beyond the slides). *(used by: all)*
+Boxed note: note | tip | warn | exam | errata | beyond (beyond the slides) | define (a term definition). *(used by: all)*
 
 | Prop | Required | Description |
 |---|---|---|
-| `kind` | yes | note \| tip \| warn \| exam \| errata \| beyond |
+| `kind` | yes | note \| tip \| warn \| exam \| errata \| beyond \| define |
 | `title` |  | optional title |
 | `body` | yes | Markdown |
 
@@ -480,6 +483,82 @@ Boxed note: note | tip | warn | exam | errata | beyond (beyond the slides). *(us
 - id: e
   widget: Callout
   props: { kind: errata, body: 'Slide 53 says DCG / NDCG; it should be DCG / IDCG.' }
+```
+
+## Journal
+
+General-journal entries (date · account · Dr · Cr) with credits indented. Entries can be revealed one at a time with `post`, and lines carry anchors that link to Formula terms. *(used by: journal workbench (accounting))*
+
+| Prop | Required | Description |
+|---|---|---|
+| `entries` | yes | [{id, date?, lines: [{account, debit \| credit, anchor?, note?}], memo?}] (amounts: numbers or refs) |
+| `posted` |  | entry ids shown at the start, or a count of entries (default: all). `post` reveals more |
+| `currency` |  | symbol (default: the module currency, ₱) |
+| `decimals` |  | decimals for amounts (default: 0 if every amount is whole, else 2) |
+| `showTotals` |  | show a Dr = Cr total row under each entry |
+| `title` |  | caption |
+
+**Selectors:** `entry:<id>`, `line:<entryId>:<n> (1-based)`, `account:<account name>`, `anchor:<name>`
+
+**Commands:** `post` {id} — reveal an entry (persistent); `unpost` {id} — hide it again (persistent)
+
+```yaml
+- id: jr
+  widget: Journal
+  props:
+    posted: 0
+    entries:
+      - id: e1
+        date: Jan 5
+        lines:
+          - { account: Work in Process, debit: '@j.applied', anchor: applied }
+          - { account: Manufacturing Overhead, credit: '@j.applied' }
+```
+
+## TAccounts
+
+T-accounts side by side: debits left, credits right, optional running balance. Feed postings from a derived fn to watch costs flow (Raw Materials → WIP → Finished Goods → COGS). *(used by: journal workbench (accounting))*
+
+| Prop | Required | Description |
+|---|---|---|
+| `accounts` | yes | [{id, name, debits: [{amount, ref?, anchor?}], credits: [...], showBalance?}] (amounts: numbers or refs) |
+| `showBalance` |  | show each account’s ending balance under the T (default true) |
+| `currency` |  | symbol (default ₱) |
+| `decimals` |  | decimals for amounts |
+| `title` |  | caption |
+
+**Selectors:** `account:<id>`, `dr:<id>:<n> (1-based)`, `cr:<id>:<n>`, `bal:<id>`, `anchor:<name>`
+
+```yaml
+- id: ta
+  widget: TAccounts
+  props: { accounts: '@flow.accounts' }
+```
+
+## Schedule
+
+A financial statement or cost schedule: indented labels, one or more amount columns, subtotal/total rules. Unfilled cells (null) stay blank, so a derived fn can fill it in step by step. *(used by: journal workbench (accounting))*
+
+| Prop | Required | Description |
+|---|---|---|
+| `rows` | yes | [{id?, label, amount \| amounts, indent?, style?: line\|heading\|subtotal\|total, format?: money\|number\|pct\|ratio\|units, anchor?}] (labels are Markdown) |
+| `columns` |  | column headers for multi-column schedules (e.g. [Total, Per unit, Percent]) |
+| `currency` |  | symbol (default ₱) |
+| `decimals` |  | decimals for money amounts |
+| `title` |  | caption (e.g. the statement heading) |
+
+**Selectors:** `row:<id or 1-based index>`, `cell:<row>,<col> (col 1-based)`, `anchor:<name>`
+
+```yaml
+- id: is
+  widget: Schedule
+  props:
+    title: Contribution margin income statement
+    columns: [Total, Per unit]
+    rows:
+      - { id: sales, label: Sales, amounts: ['@cm.sales', '@cm.price'] }
+      - { id: vc, label: 'Less: variable expenses', amounts: ['@cm.vc', '@cm.vcu'], indent: 1 }
+      - { id: cm, label: Contribution margin, amounts: ['@cm.cm', '@cm.cmu'], style: subtotal, anchor: cm }
 ```
 
 ## Text

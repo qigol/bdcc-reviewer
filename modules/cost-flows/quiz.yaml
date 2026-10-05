@@ -1,0 +1,623 @@
+templates:
+  # ------------------------------------------------------------------ cost terms
+  - id: classify-match
+    type: match
+    skills: [cost-terms]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: cost-vocabulary }
+    prompt: Match each cost of a furniture maker to its classification.
+    pairs:
+      - ['Narra lumber built into a cabinet', 'Direct materials']
+      - ['Wages of the carpenter who builds the cabinet', 'Direct labor']
+      - ['Depreciation on the factory saws', 'Manufacturing overhead']
+      - ['Commissions paid to the showroom staff', 'Selling (period) cost']
+      - ['Salary of the company accountant', 'Administrative (period) cost']
+    explanation: Traceable factory inputs are DM and DL; other factory costs are overhead; selling and administrative costs are period costs.
+
+  - id: costeq-numeric
+    type: numeric
+    skills: [cost-terms]
+    difficulty: 1
+    tags: [math]
+    generator: costEqQ
+    lessonRef: { tab: math-code, id: cost-terms }
+    prompt: |
+      A regression of factory utilities on direct labor hours gave an intercept of {=intercept|money} and a slope of
+      {=slope|money2} per hour. Predict utilities cost for a month with {=x|comma} direct labor hours.
+    answer: { var: y, tol: 0.5 }
+    hints:
+      - The cost equation is $Y = a + bX$.
+      - Multiply the slope by the hours, then add the intercept.
+    explanation: '$Y = {=intercept|comma} + {=slope|2f} \times {=x|comma} = {=y|money}$.'
+
+  - id: mixed-mcq
+    type: mcq
+    skills: [cost-terms]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: cost-vocabulary }
+    prompt: 'Quiz 1A: utilities = ₱25,000 + ₱8.50 per direct labor hour, R² = 0.89. How should factory utilities be classified, and what does R² say?'
+    options:
+      - Mixed; hours explain 89% of the variation in utilities cost
+      - Variable; 89% of utilities cost is variable
+      - Fixed; the intercept is larger than the slope
+      - Mixed; utilities will be within 89% of the prediction every month
+    answer: 0
+    hints: [Look for a fixed part and a variable part in the equation.]
+    explanation: A positive intercept (fixed) and a positive slope (variable) make the cost mixed. R² measures how much of the variation the hours explain.
+
+  - id: prime-conv-multi
+    type: multi
+    skills: [cost-terms]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: math-code, id: cost-terms }
+    prompt: Which statements are true? Select all that apply.
+    options:
+      - Direct labor is part of both prime cost and conversion cost
+      - Prime cost plus conversion cost equals total manufacturing cost
+      - Manufacturing overhead is a product cost
+      - Advertising is a period cost
+    answer: [0, 2, 3]
+    hints: [Write out what each total contains.]
+    explanation: Prime (DM + DL) and conversion (DL + MOH) overlap in direct labor, so adding them double-counts it. Overhead is a product cost; advertising is a period cost.
+
+  # ------------------------------------------------------------------ POHR and the documents
+  - id: pohr-numeric
+    type: numeric
+    skills: [pohr-apply]
+    difficulty: 1
+    tags: [math]
+    generator: pohrQ
+    lessonRef: { tab: math-code, id: pohr-apply }
+    prompt: |
+      A company estimates {=budgetOH|money} of manufacturing overhead and {=budgetMH|comma} machine-hours for the year. A
+      job uses {=dm|money} of direct materials, {=dl|money} of direct labor and {=jobMH|comma} machine-hours. What is the
+      job's total cost?
+    answer: { var: total, tol: 0.5 }
+    hints:
+      - The rate is estimated overhead ÷ estimated machine-hours.
+      - Add DM, DL and the rate × the job's machine-hours.
+    explanation: 'Rate $= {=budgetOH|comma} \div {=budgetMH|comma} = ₱{=rate}$ per MH; overhead $= {=jobMH|comma} \times {=rate} = {=oh|money}$; total $= {=total|money}$.'
+
+  - id: why-estimate-mcq
+    type: mcq
+    skills: [pohr-apply]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: documents-to-sheet }
+    prompt: Why is overhead applied with a rate set before the year begins rather than with actual overhead?
+    options:
+      - Managers need job costs immediately, and actual rates would swing from month to month
+      - Because actual overhead can never be measured
+      - Because the tax authorities require estimated rates
+      - Because estimated overhead is always more accurate than actual
+    answer: 0
+    hints: [Think about timing, and about seasonal costs.]
+    explanation: Slide 5 gives both reasons. Waiting until year end is too late to price jobs, and actual monthly rates would vary with random changes in activity.
+
+  - id: docs-order
+    type: order
+    skills: [pohr-apply]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: job-documents }
+    prompt: Put the documents of a job-order costing system in the order they are used.
+    items:
+      - Sales order
+      - Production order
+      - Materials requisitions and time tickets
+      - Job cost sheet
+    explanation: The sales order triggers a production order; requisitions, time tickets and the overhead rate then feed the job cost sheet.
+
+  - id: ticket-mcq
+    type: mcq
+    skills: [pohr-apply]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: job-documents }
+    prompt: A machinist's time ticket shows 6 hours on Job 31, 1 hour on Job 34 and 1 hour cleaning machines, all at ₱80. How is the day's ₱640 recorded?
+    options:
+      - ₱560 to Work in Process (₱480 to Job 31, ₱80 to Job 34) and ₱80 to Manufacturing Overhead
+      - All ₱640 to Job 31, the main job of the day
+      - ₱640 to Manufacturing Overhead, to be applied later
+      - ₱480 to Job 31 and ₱160 to Manufacturing Overhead
+    answer: 0
+    hints: [Which hours can be traced to a specific job?]
+    explanation: Hours on jobs are direct labor charged to those jobs; the cleaning hour is indirect labor, part of overhead.
+
+  # ------------------------------------------------------------------ the journal entries
+  - id: entry-je-1
+    type: journal-entry
+    skills: [je-cycle]
+    difficulty: 1
+    tags: [journal]
+    generator: entryQ
+    lessonRef: { tab: math-code, id: reeder-entries }
+    prompt: '{=text} Record the entry.'
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Which account increases? Inventories and expenses increase with a debit.
+      - Overhead applied is credited to Manufacturing Overhead.
+    explanation: Each entry moves cost one step along RM → WIP → Finished Goods → COGS, or records actual overhead in Manufacturing Overhead.
+
+  - id: entry-je-2
+    type: journal-entry
+    skills: [je-cycle]
+    difficulty: 2
+    tags: [journal]
+    generator: entryQ
+    lessonRef: { tab: math-code, id: reeder-entries }
+    prompt: '{=text} Record the entry.'
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Split the cost into direct (WIP), indirect factory (Manufacturing Overhead) and non-factory (an expense).
+      - The credit is the total.
+    explanation: Direct costs go to Work in Process, indirect factory costs to Manufacturing Overhead, and selling and administrative costs to expense accounts.
+
+  - id: account-match
+    type: match
+    skills: [je-cycle, t-accounts]
+    difficulty: 2
+    tags: [journal]
+    lessonRef: { tab: math-code, id: reeder-taccounts }
+    prompt: Match each account to what it is credited for.
+    pairs:
+      - ['Raw Materials', 'Direct and indirect materials issued']
+      - ['Work in Process', 'Cost of goods manufactured']
+      - ['Finished Goods', 'Cost of goods sold']
+      - ['Manufacturing Overhead', 'Overhead applied to Work in Process']
+      - ['Salaries and Wages Payable', 'Direct, indirect and office labor incurred']
+    explanation: Slide 17's summary of cost flows. Each inventory account is credited when cost moves on to the next account.
+
+  # ------------------------------------------------------------------ T-accounts
+  - id: wip-numeric
+    type: numeric
+    skills: [t-accounts]
+    difficulty: 2
+    tags: [math]
+    generator: balanceQ
+    lessonRef: { tab: math-code, id: reeder-taccounts }
+    prompt: |
+      Work in Process began the year at {=begWIP|money}. Direct materials of {=dmUsed|money} and direct labor of
+      {=dl|money} were added; overhead is applied at {=rate|pct} of direct labor cost (actual overhead was
+      {=actualOH|money}). Jobs costing {=completed|money} were completed. What is the ending Work in Process balance?
+    answer: { var: endWIP, tol: 0.5 }
+    hints:
+      - WIP is debited for DM, DL and overhead applied.
+      - It is credited for the cost of goods manufactured.
+    explanation: 'Applied $= {=rate|pct} \times {=dl|comma} = {=applied|comma}$; ending WIP $= {=begWIP|comma} + {=dmUsed|comma} + {=dl|comma} + {=applied|comma} - {=completed|comma} = {=endWIP|money}$.'
+
+  - id: wip-multi
+    type: multi
+    skills: [t-accounts]
+    difficulty: 1
+    tags: [journal]
+    lessonRef: { tab: math-code, id: reeder-taccounts }
+    prompt: Which of these are debited to Work in Process in a job-order system? Select all that apply.
+    options:
+      - Direct materials issued
+      - Direct labor
+      - Overhead applied at the predetermined rate
+      - Actual factory utilities
+      - Indirect materials issued
+    answer: [0, 1, 2]
+    hints: [Actual overhead waits somewhere else.]
+    explanation: WIP receives DM, DL and applied overhead. Actual overhead costs (utilities, indirect materials) are debited to Manufacturing Overhead.
+
+  # ------------------------------------------------------------------ under- and overapplied
+  - id: moh-handcalc
+    type: hand-calc
+    skills: [over-under, t-accounts]
+    difficulty: 2
+    tags: [math]
+    generator: overheadQ
+    lessonRef: { tab: math-code, id: over-under }
+    prompt: |
+      The year's factory costs: indirect materials {=indirectMat|money}, indirect labor {=indirectLabor|money}, utilities
+      {=utilities|money}, factory insurance expired {=insFactory|money}, factory depreciation {=deprFactory|money}.
+      Overhead is applied on direct labor cost; estimates were {=estOH|money} of overhead and {=estDL|money} of direct
+      labor. Actual direct labor was {=dl|money}.
+    steps:
+      - prompt: Actual manufacturing overhead (₱)
+        answer: { var: actualOH, tol: 0.5 }
+        hint: Add the five factory costs.
+      - prompt: Predetermined rate (as a decimal, e.g. 1.5 for 150%)
+        answer: { var: rate, tol: 0.0005 }
+        hint: Estimated overhead ÷ estimated direct labor cost.
+      - prompt: Overhead applied (₱)
+        answer: { var: applied, tol: 0.5 }
+        hint: Rate × actual direct labor cost.
+      - prompt: Under- or overapplied amount (₱, as a positive number)
+        answer: { var: amt, tol: 0.5 }
+        hint: The difference between actual and applied.
+    hints:
+      - Only factory costs are overhead.
+    explanation: 'Actual {=actualOH|money}; rate {=rate|pct}; applied {=applied|money}; overhead is {=kindTxt} by {=amt|money}.'
+
+  - id: close-je
+    type: journal-entry
+    skills: [over-under]
+    difficulty: 1
+    tags: [journal]
+    generator: disposeQ
+    lessonRef: { tab: math-code, id: over-under }
+    prompt: |
+      At year end, actual overhead was {=actualOH|money} and overhead applied was {=applied|money}. The company closes the
+      balance to Cost of Goods Sold. Record the entry.
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Is the balance in Manufacturing Overhead a debit or a credit?
+      - The entry brings Manufacturing Overhead to zero.
+    explanation: 'Overhead is {=kindTxt} by {=amt|money}; the entry zeroes Manufacturing Overhead against Cost of Goods Sold, which becomes {=adjustedCogs|money}.'
+
+  - id: allocate-je
+    type: journal-entry
+    skills: [over-under]
+    difficulty: 2
+    tags: [journal]
+    generator: disposeQ
+    lessonRef: { tab: math-code, id: over-under }
+    prompt: |
+      Overhead was {=kindTxt} by {=amt|money}. Ending balances before adjustment: Work in Process {=endWIP|money},
+      Finished Goods {=endFG|money}, Cost of Goods Sold {=costSold|money}. Allocate the balance in proportion to these
+      ending balances (round each share to the nearest peso; let COGS absorb any rounding).
+    accounts: '@accounts'
+    entries: '@entries'
+    hints:
+      - Each account's share is its balance ÷ the total of the three.
+      - Underapplied → debit the three accounts; overapplied → credit them.
+    explanation: 'Shares {=wipShare|pct1}, {=fgShare|pct1} and {=cogsShare|pct1}: WIP {=wipAdj|money}, Finished Goods {=fgAdj|money}, COGS {=cogsAdj|money}.'
+
+  - id: dispose-numeric
+    type: numeric
+    skills: [over-under]
+    difficulty: 1
+    tags: [math]
+    generator: disposeQ
+    lessonRef: { tab: math-code, id: over-under }
+    prompt: |
+      Cost of Goods Sold before adjustment is {=costSold|money}. Actual overhead was {=actualOH|money}; applied overhead
+      was {=applied|money}. The balance is closed to Cost of Goods Sold. What is the adjusted Cost of Goods Sold?
+    answer: { var: adjustedCogs, tol: 0.5 }
+    hints:
+      - Underapplied overhead adds to COGS; overapplied overhead reduces it.
+    explanation: 'Overhead was {=kindTxt} by {=amt|money}, so COGS becomes {=adjustedCogs|money}.'
+
+  # ------------------------------------------------------------------ income statement
+  - id: income-fill
+    type: schedule-fill
+    skills: [income-stmt]
+    difficulty: 2
+    tags: [journal]
+    generator: incomeQ
+    lessonRef: { tab: math-code, id: income-statement }
+    prompt: |
+      Sales were {=sales|money}. Cost of Goods Sold before adjustment was {=costSold|money}, and overhead was {=kindTxt}
+      by {=amt|money} (closed to COGS). Complete the income statement.
+    rows: '@rows'
+    hints:
+      - Adjust COGS for the overhead balance first.
+      - Selling and administrative expenses are subtracted from gross margin in full.
+    explanation: 'COGS {=cogs|money}; gross margin {=gm|money}; selling and administrative {=totalSA|money}; net income {=ni|money}.'
+
+  - id: ni-numeric
+    type: numeric
+    skills: [income-stmt, over-under]
+    difficulty: 2
+    tags: [math]
+    generator: incomeQ
+    lessonRef: { tab: math-code, id: income-statement }
+    prompt: |
+      Sales {=sales|money}; unadjusted Cost of Goods Sold {=costSold|money}; overhead {=kindTxt} by {=amt|money}, closed to
+      COGS. Selling and administrative: salaries {=saWages|money}, insurance {=insSA|money}, advertising
+      {=advertising|money}, depreciation {=deprSA|money}. What is net income?
+    answer: { var: ni, tol: 0.5 }
+    hints:
+      - Adjust COGS, subtract it from sales, then subtract the four period expenses.
+    explanation: 'Gross margin $= {=sales|comma} - {=cogs|comma} = {=gm|comma}$; net income $= {=gm|comma} - {=totalSA|comma} = {=ni|money}$.'
+
+  - id: period-mcq
+    type: mcq
+    skills: [income-stmt, cost-terms]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: income-statement }
+    prompt: Reeder Company's depreciation was ₱145,000 on factory assets and ₱15,000 on office assets. Where does each reach the income statement?
+    options:
+      - The ₱15,000 as a selling and administrative expense; the ₱145,000 through overhead applied to jobs and, once sold, COGS
+      - Both as depreciation expense in selling and administrative expenses
+      - Both in Cost of Goods Sold
+      - The ₱145,000 as an expense this year; the ₱15,000 in inventory
+    answer: 0
+    hints: [Factory costs are product costs.]
+    explanation: Factory depreciation is overhead (a product cost); office depreciation is a period cost, as on slide 15.
+
+  # ------------------------------------------------------------------ equivalent units
+  - id: eu-wa-numeric
+    type: numeric
+    skills: [eu-methods]
+    difficulty: 1
+    tags: [math]
+    generator: euQ
+    lessonRef: { tab: math-code, id: eu-halsey }
+    prompt: |
+      Weighted-average. Beginning inventory {=begUnits|comma} units ({=begConv|pct} converted); {=started|comma} started;
+      {=completed|comma} completed and transferred; ending inventory {=endUnits|comma} units, {=endConv|pct} converted.
+      What are the equivalent units of conversion?
+    answer: { var: euConv, tol: 0.5 }
+    hints:
+      - Units transferred out count at 100%.
+      - Ending inventory counts at its percent complete; beginning inventory needs no separate line.
+    explanation: 'EU $= {=completed|comma} + {=endUnits|comma} \times {=endConv|pct} = {=euConv|comma}$.'
+
+  - id: eu-fifo-numeric
+    type: numeric
+    skills: [eu-methods]
+    difficulty: 2
+    tags: [math]
+    generator: euQ
+    lessonRef: { tab: math-code, id: eu-halsey }
+    prompt: |
+      FIFO. Beginning inventory {=begUnits|comma} units, {=begConv|pct} converted; {=started|comma} started;
+      {=completed|comma} completed and transferred; ending inventory {=endUnits|comma} units, {=endConv|pct} converted.
+      What are the FIFO equivalent units of conversion?
+    answer: { var: euConv, tol: 0.5 }
+    hints:
+      - Work to finish beginning inventory = units × (100% − percent done).
+      - Add units started and completed and ending inventory's equivalent units.
+    explanation: '${=begUnits|comma} \times (100\% - {=begConv|pct}) + {=sc|comma} + {=endUnits|comma} \times {=endConv|pct} = {=euConv|comma}$.'
+
+  - id: eu-handcalc
+    type: hand-calc
+    skills: [eu-methods]
+    difficulty: 2
+    tags: [math]
+    generator: euQ
+    lessonRef: { tab: math-code, id: eu-halsey }
+    prompt: |
+      FIFO. Beginning inventory {=begUnits|comma} units ({=begMat|pct} materials, {=begConv|pct} conversion);
+      {=started|comma} started; {=completed|comma} completed; ending inventory {=endUnits|comma} units ({=endMat|pct}
+      materials, {=endConv|pct} conversion).
+    steps:
+      - prompt: Units started and completed
+        answer: { var: sc, tol: 0.5 }
+        hint: Units completed − beginning units.
+      - prompt: Conversion work needed to finish beginning inventory (EU)
+        answer: { var: finishConv, tol: 0.5 }
+        hint: Beginning units × (100% − percent already converted).
+      - prompt: FIFO equivalent units, materials
+        answer: { var: euMat, tol: 0.5 }
+      - prompt: FIFO equivalent units, conversion
+        answer: { var: euConv, tol: 0.5 }
+        misconceptions:
+          - { var: waConv, feedback: 'That is the weighted-average figure. FIFO excludes last period''s work on beginning inventory.' }
+    hints:
+      - FIFO finishes beginning inventory first.
+    explanation: 'Started and completed {=sc|comma}; FIFO EU {=euMat|comma} materials and {=euConv|comma} conversion.'
+
+  - id: eu-diff-mcq
+    type: mcq
+    skills: [eu-methods]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: equivalent-units }
+    prompt: 'Halsey: weighted-average conversion EU 181,000, FIFO 169,000. What exactly is the 12,000 difference?'
+    options:
+      - The conversion done last period on the 15,000 beginning units (15,000 × 80%)
+      - The conversion still needed on beginning inventory (15,000 × 20%)
+      - Ending inventory's equivalent units counted twice
+      - Units lost in production
+    answer: 0
+    hints: [Which work does weighted-average count that FIFO does not?]
+    explanation: Weighted-average treats beginning units as if done entirely this period; FIFO leaves last period's 80% out.
+
+  # ------------------------------------------------------------------ production report
+  - id: unit-cost-numeric
+    type: numeric
+    skills: [production-report]
+    difficulty: 2
+    tags: [math]
+    generator: reportQ
+    lessonRef: { tab: math-code, id: production-report }
+    prompt: |
+      Weighted-average. Beginning inventory {=begUnits|comma} units, {=begConv|pct} converted, carrying conversion cost
+      of {=begConvCost|money}. {=completed|comma} units completed; ending inventory {=endUnits|comma} units,
+      {=endConv|pct} converted. Conversion cost added this period: {=addConv|money}. What is the conversion cost per
+      equivalent unit?
+    answer: { var: unitConv, tol: 0.0005 }
+    hints:
+      - Weighted-average adds beginning inventory cost to the cost added.
+      - Divide by completed + ending units × percent converted.
+    explanation: '$({=begConvCost|comma} + {=addConv|comma}) \div {=euConv|comma} = ₱{=unitConv|3}$.'
+
+  - id: recon-fill
+    type: schedule-fill
+    skills: [production-report]
+    difficulty: 2
+    tags: [journal]
+    generator: reportQ
+    lessonRef: { tab: math-code, id: production-report }
+    prompt: |
+      Weighted-average: {=completed|comma} units transferred out; ending inventory {=endUnits|comma} units, all materials
+      and {=endConv|pct} converted. Unit costs: materials ₱{=unitMat|3}, conversion ₱{=unitConv|3}. Complete the cost
+      reconciliation.
+    rows: '@recon'
+    hints:
+      - Transferred units carry both unit costs in full.
+      - Ending inventory is costed on its own equivalent units in each category.
+    explanation: 'Transferred out {=transferred|money}; ending WIP {=endWip|money}; total {=total|money}.'
+
+  - id: fifo-transfer-numeric
+    type: numeric
+    skills: [production-report, eu-methods]
+    difficulty: 3
+    tags: [math]
+    generator: reportQ
+    lessonRef: { tab: math-code, id: production-report }
+    prompt: |
+      FIFO. Beginning inventory {=begUnits|comma} units, all materials and {=begConv|pct} converted, carrying
+      {=begTotal|money}. {=completed|comma} units completed; ending inventory {=endUnits|comma} units, all materials,
+      {=endConv|pct} converted. Current-period unit costs: materials ₱{=unitMat|3}, conversion ₱{=unitConv|3}. What is
+      the total cost transferred out?
+    answer: { var: transferred, tol: 1 }
+    misconceptions:
+      - { var: wrongNoBeg, feedback: 'Add the cost already in beginning inventory; FIFO transfers it out first.' }
+      - { var: wrongAllAtUnit, feedback: 'Under FIFO the beginning units carry their own cost plus only the cost to finish them.' }
+    hints:
+      - Beginning inventory cost + cost to finish it + started and completed × combined unit cost.
+    explanation: '${=begTotal|comma} + {=begUnits|comma} \times (100\% - {=begConv|pct}) \times {=unitConv|3} + {=sc|comma} \times ({=unitMat|3} + {=unitConv|3}) = {=transferred|money}$.'
+
+  - id: report-order
+    type: order
+    skills: [production-report]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: production-report }
+    prompt: Put the three parts of a production report in order.
+    items:
+      - A quantity schedule with equivalent units
+      - Computation of unit costs
+      - A reconciliation of all cost flows into and out of the department
+    explanation: Units first, then cost per equivalent unit, then the reconciliation (slide 23).
+
+  - id: wa-fifo-match
+    type: match
+    skills: [production-report, eu-methods]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: math-code, id: production-report }
+    prompt: Match each feature to the method it describes (slide 26).
+    pairs:
+      - ['Units transferred out shown as one figure', 'Weighted-average']
+      - ['Units transferred out split into beginning inventory and started-and-completed', 'FIFO']
+      - ['Unit costs include some cost from the prior period', 'Weighted-average']
+      - ['Unit costs contain only current-period costs', 'FIFO']
+      - ['Ending inventory costed the same way', 'Both methods']
+    explanation: The two methods differ in how they treat beginning inventory; ending inventory is costed the same way under both.
+
+  # ------------------------------------------------------------------ JIT
+  - id: jit-multi
+    type: multi
+    skills: [jit]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: jit-time }
+    prompt: Which of these are key elements of a JIT system (slide 27)? Select all that apply.
+    options:
+      - Long-term relationships with a few suppliers delivering small lots often
+      - Machines grouped into cells
+      - Reduced setup time
+      - Large safety stocks of raw materials
+      - A flexible, multi-skilled work force
+    answer: [0, 1, 2, 4]
+    hints: [JIT aims for almost no inventory.]
+    explanation: The fifth element is total quality control. Large safety stocks are exactly what JIT eliminates.
+
+  - id: mfg-time-numeric
+    type: numeric
+    skills: [jit]
+    difficulty: 1
+    tags: [math]
+    generator: timeQ
+    lessonRef: { tab: math-code, id: jit-time }
+    prompt: |
+      A batch spends {=process} hours in processing, {=inspect} in inspection, {=move} moving and {=wait} waiting. What
+      percent of its manufacturing time adds value? (Answer in percent, e.g. 25 for 25%.)
+    answer: { var: vaPct, tol: 0.1 }
+    hints:
+      - Manufacturing time is the sum of the four elements.
+      - Only processing time adds value.
+    explanation: 'Manufacturing time $= {=total}$ hours; value-added share $= {=process} \div {=total} = {=vaShare|pct1}$.'
+
+  - id: kanban-mcq
+    type: mcq
+    skills: [jit]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: jit }
+    prompt: How does kanban relate to just-in-time?
+    options:
+      - Kanban is the visual pull-signal tool; JIT is the inventory-minimization strategy it serves
+      - They are two names for the same thing
+      - JIT is the tool and kanban is the strategy
+      - Kanban is a push system; JIT is a pull system
+    answer: 0
+    hints: [One is tactical, one is strategic.]
+    explanation: Slide 29. Kanban controls flow at each station; JIT governs purchasing, production and the supply chain.
+
+  - id: pushpull-mcq
+    type: mcq
+    skills: [jit]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: jit }
+    prompt: A plant manager insists every machine run all shift "so nothing sits idle," and partly finished units pile up between stations. What kind of system is this, and what does JIT say?
+    options:
+      - A push system; JIT would produce only what the next station signals it needs
+      - A pull system; JIT would add more buffer inventory
+      - A pull system working correctly
+      - A push system, which JIT recommends for high utilization
+    answer: 0
+    hints: [Who decides when work moves on?]
+    explanation: Keeping all workstations busy regardless of need is the push approach; JIT pulls work from final assembly backward.
+
+  # ------------------------------------------------------------------ ABC
+  - id: abc-numeric
+    type: numeric
+    skills: [abc-intro]
+    difficulty: 2
+    tags: [math]
+    generator: abcQ
+    lessonRef: { tab: math-code, id: abc-sarver }
+    prompt: |
+      Overhead activities, their costs and driver use:
+
+      | Activity | Cost | Total driver | Product A | Product B |
+      |---|---|---|---|---|
+      {=table}
+
+      Product A has {=unitsA|comma} units and Product B {=unitsB|comma}. Using ABC, how much overhead is assigned to
+      **each unit** of Product A?
+    answer: { var: abcOHA, tol: 0.005 }
+    hints:
+      - Find each activity rate (cost ÷ total driver).
+      - Multiply by Product A's driver use, add, then divide by A's units.
+    explanation: 'Product A uses {=ohTotalA|money} of overhead in all, so $\text{OH per unit} = {=ohTotalA|comma} \div {=unitsA|comma} = ₱{=abcOHA|2f}$.'
+
+  - id: abc-rate-numeric
+    type: numeric
+    skills: [abc-intro]
+    difficulty: 1
+    tags: [math]
+    generator: abcQ
+    lessonRef: { tab: math-code, id: abc-sarver }
+    prompt: |
+      {=firstName} cost {=firstCost|money} for {=firstTotal|comma} units of its driver. What is its activity rate?
+    answer: { var: firstRate, tol: 0.005 }
+    misconceptions:
+      - { var: wrongRateInverse, feedback: 'Inverted: divide the cost by the driver quantity.' }
+      - { var: wrongRateA, feedback: 'Divide by the total driver quantity of both products, not one product''s.' }
+    hints:
+      - Activity rate = activity cost ÷ total driver quantity.
+    explanation: '${=firstCost|comma} \div {=firstTotal|comma} = ₱{=firstRate|2f}$.'
+
+  - id: abc-mcq
+    type: mcq
+    skills: [abc-intro]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: abc-preview }
+    prompt: A company switches from a direct-labor-hour rate to ABC. Its low-volume specialty product uses many setups and inspections. What usually happens?
+    options:
+      - The specialty product's unit cost rises and the high-volume product's falls; total overhead is unchanged
+      - Both unit costs fall because ABC is more accurate
+      - Total overhead rises because there are more cost pools
+      - Nothing changes, since both systems use the same total overhead
+    answer: 0
+    hints: [Which product drives the batch-level activities?]
+    explanation: As with Sarver (A ₱98.50 → ₱151.55, B ₱80.00 → ₱69.39), ABC moves overhead to the products that cause it.

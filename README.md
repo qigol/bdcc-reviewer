@@ -7,10 +7,11 @@ its modules, and every quiz stays inside one course.
 
 | Tab | What it is |
 |---|---|
-| **Intuition** | Guided, animated scenes in the style of a 3Blue1Brown video. You predict, drag and tune parameters before each reveal. |
-| **Math & Code** | Derivations side by side with Python. Hovering a formula term lights up the code that computes it, and "Step through" plays the algorithm across both panes. |
+| **Path** | The module's learning objectives and every lesson step in teaching order, with progress and a Continue button. |
+| **Intuition** | Guided, animated scenes in the style of a 3Blue1Brown video. Terms are defined where they first appear; you predict, drag, tune parameters, solve practice questions and explain ideas back before moving on. |
+| **Math & Code** / **Math & Journal** | Derivations side by side with the course's workbench: Python code, or (for accounting, `workbench: journal`) journal entries, schedules and T-accounts. Hovering a formula term lights up its partner, "Step through" plays the computation across both panes, and "Your turn" gives fresh practice. |
 | **Application** | A notebook-style case study (Philippine context) with decisions to make, plus the at-scale version (PySpark). |
-| **Quiz** (per course) | Seven question types generated fresh every time, graded with feedback on common mistakes. Spaced repetition, a mistake journal and per-skill mastery are included. |
+| **Quiz** (per course) | Nine question types (including journal entries and fill-in schedules for accounting) generated fresh every time, with hints and feedback on common mistakes. Spaced repetition, a mistake journal and per-skill mastery are included. |
 
 Three built-in BDCC modules reproduce every number in the lecture decks:
 
@@ -75,8 +76,8 @@ After rebuilding the web app, restart the server so it picks up the new asset li
 ```
 apps/web          React SPA (Vite, Tailwind, framer-motion, KaTeX, Shiki, Dexie)
   src/engine        scene scope/derive, beats & gates, trace player, stage
-  src/widgets       the 20 catalog widgets (lazy-loaded)
-  src/tabs          Intuition / Math & Code / Application
+  src/widgets       the 23 catalog widgets (lazy-loaded)
+  src/tabs          Path / Intuition / Math & Code (or Journal) / Application
   src/quiz          session builder, runner, question renderer, review (SRS)
   src/admin         module list, import (zip / folder / paste), validation reports
   e2e               Playwright smoke test
@@ -105,7 +106,7 @@ docker/           Dockerfile, compose.yml
 
 ## Writing a new module
 
-The full contract is in **[docs/MODULE_AUTHORING_GUIDE.md](docs/MODULE_AUTHORING_GUIDE.md)**. The widget reference is
+The full contract is in **[docs/MODULE_AUTHORING_GUIDE.md](docs/MODULE_AUTHORING_GUIDE.md)** (edition 2: guided learning, terms taught in Intuition, and the `journal` workbench for accounting courses; see `docs/MVP_PLAN.md` §19). The widget reference is
 [docs/WIDGETS.md](docs/WIDGETS.md), which is generated with `pnpm widgets:doc`.
 
 **With an LLM chat:** attach the lecture PDF, the guide, `WIDGETS.md` and (optionally) a reference module exported
