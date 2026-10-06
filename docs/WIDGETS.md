@@ -1,4 +1,4 @@
-# Kodigo widget reference (schema v1)
+# Qdigo widget reference (schema v1)
 
 > Generated from `packages/schema/src/widgets.ts`. Do not edit by hand. Authoritative for module authors (see MODULE_AUTHORING_GUIDE.md §9).
 

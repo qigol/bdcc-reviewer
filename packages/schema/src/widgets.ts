@@ -540,7 +540,7 @@ export const WIDGET_NAMES = WIDGETS.map((w) => w.name);
 
 export function widgetsMarkdown(): string {
   const lines: string[] = [];
-  lines.push('# Kodigo widget reference (schema v1)');
+  lines.push('# Qdigo widget reference (schema v1)');
   lines.push('');
   lines.push('> Generated from `packages/schema/src/widgets.ts`. Do not edit by hand. Authoritative for module authors (see MODULE_AUTHORING_GUIDE.md §9).');
   lines.push('');

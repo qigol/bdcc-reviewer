@@ -36,11 +36,15 @@ export function Dashboard() {
   const q = (course: string) => encodeURIComponent(course);
 
   if (store.listError) return (
-    <div className="mx-auto max-w-xl p-10"><div className="card p-5"><div className="mb-1 flex items-center gap-2 font-semibold text-bad"><AlertTriangle size={18} /> Can't reach the Kodigo server</div><p className="text-sm text-muted">{store.listError}</p></div></div>
+    <div className="mx-auto max-w-xl p-10"><div className="card p-5"><div className="mb-1 flex items-center gap-2 font-semibold text-bad"><AlertTriangle size={18} /> Can't reach the Qdigo server</div><p className="text-sm text-muted">{store.listError}</p></div></div>
   );
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 py-6">
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold">Qdigo</h1>
+        <p className="text-muted">Q's got your Qs.</p>
+      </div>
       <div className="mb-6 grid gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
           <PlayCircle className="shrink-0 text-accent" size={32} />
@@ -54,7 +58,7 @@ export function Dashboard() {
         <div className="card flex flex-col justify-center gap-2 p-4">
           <div className="flex items-center gap-2">
             <CalendarClock size={18} className="text-accent" />
-            {days !== null ? <span className="font-semibold">{days > 0 ? `${days} day${days === 1 ? '' : 's'} to the exam` : days === 0 ? 'Exam day. Good luck!' : 'Exam date passed'}</span> : <Link to="/settings" className="text-sm text-muted underline">Set your exam date</Link>}
+            {days !== null ? <span className="font-semibold">{days > 0 ? `${days} day${days === 1 ? '' : 's'} to the exam` : days === 0 ? "Exam day. Q's got your Qs!" : 'Exam date passed'}</span> : <Link to="/settings" className="text-sm text-muted underline">Set your exam date</Link>}
           </div>
           <button className="btn justify-between" onClick={() => nav('/review')}><span className="flex items-center gap-2"><Repeat size={15} /> Reviews due</span><b>{due.length}</b></button>
         </div>

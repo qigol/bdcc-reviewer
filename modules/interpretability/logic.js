@@ -1,4 +1,4 @@
-// Kodigo module: interpretability (ML2, Sessions 6–7)
+// Qdigo module: interpretability (ML2, Sessions 6–7)
 // Toy models (two depth-2 trees, a 3-feature Shapley game, a 1-D LIME fit, a linear counterfactual model) make every
 // mechanism computable by hand. The breast-cancer forest's own outputs are shown verbatim from the notebooks.
 export default function register(sdk) {

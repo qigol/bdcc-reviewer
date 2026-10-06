@@ -1,5 +1,5 @@
 /**
- * Kodigo server: serves the SPA, built-in modules (read-only) and imported modules (volume),
+ * Qdigo server: serves the SPA, built-in modules (read-only) and imported modules (volume),
  * and the admin API. Re-validates every import with the same validator the browser uses.
  */
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -181,5 +181,5 @@ if (fs.existsSync(path.join(WEB_DIR, 'index.html'))) {
 
 await registry.init();
 await app.listen({ port: PORT, host: HOST });
-app.log.info(`Kodigo on :${PORT} · built-in modules ${MODULES_BUILTIN} · data ${DATA_DIR}${ADMIN_TOKEN ? '' : ' · ADMIN DISABLED (set ADMIN_TOKEN)'}`);
+app.log.info(`Qdigo on :${PORT} · built-in modules ${MODULES_BUILTIN} · data ${DATA_DIR}${ADMIN_TOKEN ? '' : ' · ADMIN DISABLED (set ADMIN_TOKEN)'}`);
 registry.warm().catch((e) => app.log.error(e));

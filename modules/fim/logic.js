@@ -1,4 +1,4 @@
-// Kodigo module: fim (Frequent Itemset Mining & Association Rules)
+// Qdigo module: fim (Frequent Itemset Mining & Association Rules)
 // Pure functions only. Conventions (see SOURCE_NOTES.md):
 //  - support is counted over whole transactions (a basket supports X if it contains every item of X)
 //  - minsup < 1 is read as a relative threshold (fraction of |D|), otherwise as an absolute count

@@ -1,4 +1,4 @@
-# Kodigo: multi-stage build. Build from the repo root:
+# Qdigo: multi-stage build. Build from the repo root:
 #   docker build -f docker/Dockerfile -t kodigo .
 # or: docker compose -f docker/compose.yml up -d --build
 

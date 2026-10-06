@@ -1,6 +1,6 @@
-# Kodigo Module Authoring Guide
+# Qdigo Module Authoring Guide
 
-**Audience:** an LLM session (or a person) turning lecture material, usually a PDF deck, into a complete, importable **guided learning module** for the Kodigo site.
+**Audience:** an LLM session (or a person) turning lecture material, usually a PDF deck, into a complete, importable **guided learning module** for the Qdigo site.
 **Contract:** follow this document exactly. The site validates every module against it on import and rejects anything that doesn't conform.
 **Schema version covered:** `schemaVersion: 1`, **guide edition 2** (declare `guide: 2` in the manifest; §1.1).
 
@@ -17,7 +17,7 @@ Start a new chat (ideally inside the "bdcc midterms reviewer" Claude Project, wh
 Then paste:
 
 ```text
-Build a Kodigo study module from the attached lecture, following MODULE_AUTHORING_GUIDE.md (guide edition 2) exactly.
+Build a Qdigo study module from the attached lecture, following MODULE_AUTHORING_GUIDE.md (guide edition 2) exactly.
 
 Module id: <kebab-case-id>
 Title: <full title>
@@ -478,7 +478,7 @@ type Gate =
 **`practice`** embeds one of your quiz templates (by id) under the narration with fresh numbers, its hints, instant feedback and "New numbers"; Next unlocks once the learner checks an answer (or skips). Use it right after a scene has shown a computation once, so the learner does it alone while the picture is still on screen. The attempt counts toward the skill's mastery.
 
 **`reflect`** asks for a short explanation in the learner's own words (≥ 3 words), then reveals your `model` answer (≤ 80 words) to compare against; the text is saved to the learner's notes. Ask *why* or *what would happen if* questions, not definitions: "Why use a rate set in advance instead of the actual overhead rate?"
-`when` expressions use Kodigo's own small, sandboxed expression parser (no `eval`): `==, !=, <, <=, >, >=, and, or, not, + - * / %`, parentheses, numbers, `'strings'`, `true`/`false`/`null`, dot paths (`freq.count`, `pair.0`), plus the functions `len(x)`, `has(arr, v)`, `abs(x)`, `round(x, d)`, `min(…)`, `max(…)`. Example: `'freq.count == 1 and minsup >= 4'`.
+`when` expressions use Qdigo's own small, sandboxed expression parser (no `eval`): `==, !=, <, <=, >, >=, and, or, not, + - * / %`, parentheses, numbers, `'strings'`, `true`/`false`/`null`, dot paths (`freq.count`, `pair.0`), plus the functions `len(x)`, `has(arr, v)`, `abs(x)`, `round(x, d)`, `min(…)`, `max(…)`. Example: `'freq.count == 1 and minsup >= 4'`.
 
 `@refs` inside a beat's `do[].args` are resolved against the scene scope when the beat runs, so `{ target: m, cmd: fill, args: { cell: 'u3,i1', value: '@f.p31' } }` works.
 

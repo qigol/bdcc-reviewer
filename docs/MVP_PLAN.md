@@ -1,8 +1,8 @@
-# Kodigo: MVP Plan
+# Qdigo: MVP Plan
 
 *A modular, self-hosted study site for BDCC (Big Data & Cloud Computing), built so new topics can be added as drop-in modules.*
 
-> "Kodigo" is a working name (Filipino slang for a crib sheet). Rename freely: it appears only in `package.json`, the page title, the Dexie DB name, and the Docker image name.
+> "Qdigo" is a play on "kodigo" (Filipino slang for a crib sheet). The display name appears in the page title, header and docs; internal identifiers (`@kodigo/*` packages, the `kodigo` CLI, the Dexie DB name, storage keys and the Docker image name) keep the old spelling so saved progress survives.
 
 ---
 
@@ -529,7 +529,7 @@ These outlines are the brief for building the three built-in modules; the `fim` 
 
 ## 19. Guided learning and workbenches (guide edition 2)
 
-Kodigo grew from a reviewer into a guided course: the site now sequences the lessons, makes the learner practice and explain inside them, and supports courses whose "code" is accounting records. All of it is additive to `schemaVersion: 1`; modules opt into the strict rules with `guide: 2`.
+Qdigo grew from a reviewer into a guided course: the site now sequences the lessons, makes the learner practice and explain inside them, and supports courses whose "code" is accounting records. All of it is additive to `schemaVersion: 1`; modules opt into the strict rules with `guide: 2`.
 
 | Feature | Module field | What the site does |
 |---|---|---|
