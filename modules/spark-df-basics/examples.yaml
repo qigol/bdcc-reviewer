@@ -1,0 +1,529 @@
+examples:
+  - id: string-read-show
+    source: "Session 1, \"Displaying a DataFrame with show\", on the lesson file; truth m1.read_header.show, m1.count"
+    fn: readTaxi
+    in: {"mode":"string"}
+    expect:
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|         22|         2|        24.8|\n|       1| 2017-10-02 08:00:14|                 N|           7|         261|              1|          9.8|       34.5|         6|        41.3|\n|       2| 2017-10-02 08:00:15|                 N|           7|         179|              1|         0.37|          4|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|                 N|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|                 N|          33|         140|              1|          8.1|         29|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|                 N|          41|         238|              1|         1.76|         12|         0|        12.8|\n|       2| 2017-10-02 08:00:51|                 N|           7|         260|              1|         1.51|          8|         0|         8.8|\n|       2| 2017-10-02 08:01:03|                 N|          75|          41|              1|         1.56|          8|         0|         8.8|\n|       1| 2017-10-02 08:01:08|                 N|          74|          75|              1|            1|          6|         0|         6.8|\n|       2| 2017-10-02 08:01:38|                 N|           7|         223|              2|         2.15|       10.5|         0|        11.3|\n|       1| 2017-10-02 10:47:29|                 Y|          33|         143|              1|          7.1|         31|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "count": 12
+      "rowsShown": 12
+      "footer": false
+    note: "All 12 trips, so no \"only showing\" line. Integers print without .0 because every column is text."
+  - id: string-read-show5
+    source: "Session 1, \"Displaying a DataFrame with show\" (show with a row count); truth m1.read_header.show5"
+    fn: readTaxi
+    in: {"mode":"string","n":5}
+    expect:
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|         22|         2|        24.8|\n|       1| 2017-10-02 08:00:14|                 N|           7|         261|              1|          9.8|       34.5|         6|        41.3|\n|       2| 2017-10-02 08:00:15|                 N|           7|         179|              1|         0.37|          4|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|                 N|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\nonly showing top 5 rows\n"
+      "rowsShown": 5
+      "footer": true
+  - id: string-read-vertical
+    source: "Session 1, \"Displaying a DataFrame with show\" (vertical); truth m1.read_header.show3_vertical"
+    fn: readTaxi
+    in: {"mode":"string","n":3,"truncate":false,"vertical":true}
+    expect:
+      "showText": "-RECORD 0-----------------------------------\n VendorID             | 2                   \n lpep_pickup_datetime | 2017-10-02 08:00:03 \n store_and_fwd_flag   | N                   \n PULocationID         | 41                  \n DOLocationID         | 238                 \n passenger_count      | 1                   \n trip_distance        | 1.94                \n fare_amount          | 11.5                \n tip_amount           | 2.46                \n total_amount         | 14.76               \n-RECORD 1-----------------------------------\n VendorID             | 2                   \n lpep_pickup_datetime | 2017-10-02 08:00:06 \n store_and_fwd_flag   | N                   \n PULocationID         | 97                  \n DOLocationID         | 137                 \n passenger_count      | 1                   \n trip_distance        | 5.08                \n fare_amount          | 22                  \n tip_amount           | 2                   \n total_amount         | 24.8                \n-RECORD 2-----------------------------------\n VendorID             | 1                   \n lpep_pickup_datetime | 2017-10-02 08:00:14 \n store_and_fwd_flag   | N                   \n PULocationID         | 7                   \n DOLocationID         | 261                 \n passenger_count      | 1                   \n trip_distance        | 9.8                 \n fare_amount          | 34.5                \n tip_amount           | 6                   \n total_amount         | 41.3                \nonly showing top 3 rows\n"
+  - id: show-truncate5
+    source: "Session 1, \"Discovery: what kind of thing is it?\": truncate as a number; Real Spark 4.0.1 run (harness), fix_m1/probe_fix.json show_truncate5"
+    fn: readTaxi
+    in: {"mode":"string","n":3,"truncate":5}
+    expect:
+      "call": "trips.show(3, truncate=5)"
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2|               20...|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2|               20...|                 N|          97|         137|              1|         5.08|         22|         2|        24.8|\n|       1|               20...|                 N|           7|         261|              1|          9.8|       34.5|         6|        41.3|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\nonly showing top 3 rows\n"
+    note: "Values longer than 5 characters keep 2 characters plus ...; shorter values stay whole."
+  - id: noheader-read
+    source: "Session 1, \"Reading CSV files\" (header default); truth m1.noheader.show3, m1.noheader.columns; count from Real Spark 4.0.1 run (harness), m1/probe_m1.json"
+    fn: readTaxi
+    in: {"mode":"noheader","n":3}
+    expect:
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|     _c0|                 _c1|               _c2|         _c3|         _c4|            _c5|          _c6|        _c7|       _c8|         _c9|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|         22|         2|        24.8|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\nonly showing top 3 rows\n"
+      "columnsRepr": "['_c0', '_c1', '_c2', '_c3', '_c4', '_c5', '_c6', '_c7', '_c8', '_c9']"
+      "count": 13
+    note: "Without header=True the names line becomes a data row: 13 rows, columns _c0 to _c9."
+  - id: string-read-columns-schema
+    source: "Session 1 \"DataFrame columns\" and Session 2 \"Column types\"; truth m1.columns, m1.printSchema_default, m1.dtypes_default"
+    fn: readTaxi
+    in: {"mode":"string"}
+    expect:
+      "columnsRepr": "['VendorID',\n 'lpep_pickup_datetime',\n 'store_and_fwd_flag',\n 'PULocationID',\n 'DOLocationID',\n 'passenger_count',\n 'trip_distance',\n 'fare_amount',\n 'tip_amount',\n 'total_amount']"
+      "schemaText": "root\n |-- VendorID: string (nullable = true)\n |-- lpep_pickup_datetime: string (nullable = true)\n |-- store_and_fwd_flag: string (nullable = true)\n |-- PULocationID: string (nullable = true)\n |-- DOLocationID: string (nullable = true)\n |-- passenger_count: string (nullable = true)\n |-- trip_distance: string (nullable = true)\n |-- fare_amount: string (nullable = true)\n |-- tip_amount: string (nullable = true)\n |-- total_amount: string (nullable = true)\n\n"
+      "dtypesRepr": "[('VendorID', 'string'),\n ('lpep_pickup_datetime', 'string'),\n ('store_and_fwd_flag', 'string'),\n ('PULocationID', 'string'),\n ('DOLocationID', 'string'),\n ('passenger_count', 'string'),\n ('trip_distance', 'string'),\n ('fare_amount', 'string'),\n ('tip_amount', 'string'),\n ('total_amount', 'string')]"
+      "nCols": 10
+      "fareType": "string"
+  - id: infer-read
+    source: "Session 2, \"Letting Spark guess the types\", on the lesson file; truth m1.infer.printSchema, m1.infer.show, m1.infer.dtypes"
+    fn: readTaxi
+    in: {"mode":"infer"}
+    expect:
+      "schemaText": "root\n |-- VendorID: integer (nullable = true)\n |-- lpep_pickup_datetime: timestamp (nullable = true)\n |-- store_and_fwd_flag: string (nullable = true)\n |-- PULocationID: integer (nullable = true)\n |-- DOLocationID: integer (nullable = true)\n |-- passenger_count: integer (nullable = true)\n |-- trip_distance: double (nullable = true)\n |-- fare_amount: double (nullable = true)\n |-- tip_amount: double (nullable = true)\n |-- total_amount: double (nullable = true)\n\n"
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|       22.0|       2.0|        24.8|\n|       1| 2017-10-02 08:00:14|                 N|           7|         261|              1|          9.8|       34.5|       6.0|        41.3|\n|       2| 2017-10-02 08:00:15|                 N|           7|         179|              1|         0.37|        4.0|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|                 N|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|                 N|          33|         140|              1|          8.1|       29.0|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|                 N|          41|         238|              1|         1.76|       12.0|       0.0|        12.8|\n|       2| 2017-10-02 08:00:51|                 N|           7|         260|              1|         1.51|        8.0|       0.0|         8.8|\n|       2| 2017-10-02 08:01:03|                 N|          75|          41|              1|         1.56|        8.0|       0.0|         8.8|\n|       1| 2017-10-02 08:01:08|                 N|          74|          75|              1|          1.0|        6.0|       0.0|         6.8|\n|       2| 2017-10-02 08:01:38|                 N|           7|         223|              2|         2.15|       10.5|       0.0|        11.3|\n|       1| 2017-10-02 10:47:29|                 Y|          33|         143|              1|          7.1|       31.0|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "dtypesRepr": "[('VendorID', 'int'),\n ('lpep_pickup_datetime', 'timestamp'),\n ('store_and_fwd_flag', 'string'),\n ('PULocationID', 'int'),\n ('DOLocationID', 'int'),\n ('passenger_count', 'int'),\n ('trip_distance', 'double'),\n ('fare_amount', 'double'),\n ('tip_amount', 'double'),\n ('total_amount', 'double')]"
+      "fareType": "double"
+      "flagType": "string"
+  - id: ddl-int-read
+    source: "Session 2, \"Giving Spark a schema\", flag INT; truth m1.ddl_int.printSchema, m1.ddl_int.show, m1.ddl_int.count_null"
+    fn: readTaxi
+    in: {"mode":"ddl_int"}
+    expect:
+      "schemaText": "root\n |-- VendorID: integer (nullable = true)\n |-- lpep_pickup_datetime: timestamp (nullable = true)\n |-- store_and_fwd_flag: integer (nullable = true)\n |-- PULocationID: integer (nullable = true)\n |-- DOLocationID: integer (nullable = true)\n |-- passenger_count: integer (nullable = true)\n |-- trip_distance: float (nullable = true)\n |-- fare_amount: float (nullable = true)\n |-- tip_amount: float (nullable = true)\n |-- total_amount: float (nullable = true)\n\n"
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|              NULL|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|              NULL|          97|         137|              1|         5.08|       22.0|       2.0|        24.8|\n|       1| 2017-10-02 08:00:14|              NULL|           7|         261|              1|          9.8|       34.5|       6.0|        41.3|\n|       2| 2017-10-02 08:00:15|              NULL|           7|         179|              1|         0.37|        4.0|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|              NULL|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|              NULL|          33|         140|              1|          8.1|       29.0|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|              NULL|          41|         238|              1|         1.76|       12.0|       0.0|        12.8|\n|       2| 2017-10-02 08:00:51|              NULL|           7|         260|              1|         1.51|        8.0|       0.0|         8.8|\n|       2| 2017-10-02 08:01:03|              NULL|          75|          41|              1|         1.56|        8.0|       0.0|         8.8|\n|       1| 2017-10-02 08:01:08|              NULL|          74|          75|              1|          1.0|        6.0|       0.0|         6.8|\n|       2| 2017-10-02 08:01:38|              NULL|           7|         223|              2|         2.15|       10.5|       0.0|        11.3|\n|       1| 2017-10-02 10:47:29|              NULL|          33|         143|              1|          7.1|       31.0|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "flagNulls": 12
+      "flagType": "integer"
+    note: "The silent null: NULL in all 12 flag cells, and no error."
+  - id: ddl-string-read
+    source: "Session 2, the fix in \"Broken on purpose: counting the Y trips\" (flag STRING), on the lesson file; truth m1.ddl_string.printSchema, m1.ddl_string.show"
+    fn: readTaxi
+    in: {"mode":"ddl_string"}
+    expect:
+      "schemaText": "root\n |-- VendorID: integer (nullable = true)\n |-- lpep_pickup_datetime: timestamp (nullable = true)\n |-- store_and_fwd_flag: string (nullable = true)\n |-- PULocationID: integer (nullable = true)\n |-- DOLocationID: integer (nullable = true)\n |-- passenger_count: integer (nullable = true)\n |-- trip_distance: float (nullable = true)\n |-- fare_amount: float (nullable = true)\n |-- tip_amount: float (nullable = true)\n |-- total_amount: float (nullable = true)\n\n"
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|       22.0|       2.0|        24.8|\n|       1| 2017-10-02 08:00:14|                 N|           7|         261|              1|          9.8|       34.5|       6.0|        41.3|\n|       2| 2017-10-02 08:00:15|                 N|           7|         179|              1|         0.37|        4.0|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|                 N|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|                 N|          33|         140|              1|          8.1|       29.0|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|                 N|          41|         238|              1|         1.76|       12.0|       0.0|        12.8|\n|       2| 2017-10-02 08:00:51|                 N|           7|         260|              1|         1.51|        8.0|       0.0|         8.8|\n|       2| 2017-10-02 08:01:03|                 N|          75|          41|              1|         1.56|        8.0|       0.0|         8.8|\n|       1| 2017-10-02 08:01:08|                 N|          74|          75|              1|          1.0|        6.0|       0.0|         6.8|\n|       2| 2017-10-02 08:01:38|                 N|           7|         223|              2|         2.15|       10.5|       0.0|        11.3|\n|       1| 2017-10-02 10:47:29|                 Y|          33|         143|              1|          7.1|       31.0|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "flagNulls": 0
+  - id: flag-int-check
+    source: "Session 2, \"Broken on purpose: counting the Y trips\", on the lesson file; truth m1.ddl_int.count_Y, m1.ddl_int.groupby_flag, m1.ddl_int.count_null"
+    fn: flagCheck
+    in: {"flagType":"INT"}
+    expect:
+      "nulls": 12
+      "groupText": "+------------------+-----+\n|store_and_fwd_flag|count|\n+------------------+-----+\n|              NULL|   12|\n+------------------+-----+\n\n"
+      "yOk": false
+      "yError": "Traceback (most recent call last):\n  File \"<cell 4>\", line 1, in <module>\n    trips.filter(trips.store_and_fwd_flag == \"Y\").count()\n  ...\npyspark.errors.exceptions.connect.NumberFormatException: [CAST_INVALID_INPUT] The value 'Y' of the type \"STRING\" cannot be cast to \"BIGINT\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018"
+      "describeCount": 0
+    note: "Under ANSI mode the comparison with \"Y\" raises CAST_INVALID_INPUT; show and groupBy stay silent. The real output's three == DataFrame == call-site lines are trimmed."
+  - id: flag-string-check
+    source: "Session 2 fix (same section) on the lesson file; truth m1.ddl_string.count_Y"
+    fn: flagCheck
+    in: {"flagType":"STRING"}
+    expect:
+      "nulls": 0
+      "yOk": true
+      "yCount": 1
+      "describeCount": 12
+  - id: failfast-check
+    source: "Session 2, \"Discovery: make Spark fail loudly\", on the lesson file: read, count(), show() in a fresh session; Real Spark 4.0.1 run (harness), fix_m1/probe_ff3.json (FAILFAST: count 12, show error); truth m1.failfast.show (error_causes)"
+    fn: failfastCheck
+    in: {}
+    expect:
+      "ok": false
+      "count": 12
+      "traceback": "Traceback (most recent call last):\n  File \"<cell 3>\", line 1, in <module>\n    trips.show()\n  ...\npyspark.errors.exceptions.connect.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file dbfs:/Volumes/workspace/default/bdcc/lessons/taxi12.csv.  SQLSTATE: KD001"
+      "causes": ["Caused by: org.apache.spark.SparkException: [MALFORMED_RECORD_IN_PARSING.WITHOUT_SUGGESTION] Malformed records are detected in record parsing: [2,1506931203000000,null,41,238,1,1.94,11.5,2.46,14.76].\nParse Mode: FAILFAST. To process malformed records as null result, try setting the option 'mode' as 'PERMISSIVE'.  SQLSTATE: 22023","Caused by: java.lang.NumberFormatException: For input string: \"N\""]
+      "errorClass": "FAILED_READ_FILE.NO_HINT"
+    note: "The final line only names the file; the reason is in the Caused by lines."
+  - id: describe-fare-infer
+    source: "Session 2, describe on a typed column; truth m1.infer.describe_fare"
+    fn: describeTaxi
+    in: {"mode":"infer","cols":["fare_amount"]}
+    expect:
+      "text": "+-------+------------------+\n|summary|       fare_amount|\n+-------+------------------+\n|  count|                12|\n|   mean|15.416666666666666|\n| stddev|10.714971118048151|\n|    min|               4.0|\n|    max|              34.5|\n+-------+------------------+\n\n"
+      "stats.fare_amount.count": "12"
+      "stats.fare_amount.mean": "15.416666666666666"
+      "stats.fare_amount.stddev": "10.714971118048151"
+      "stats.fare_amount.min": "4.0"
+      "stats.fare_amount.max": "34.5"
+  - id: describe-fare-string
+    source: "Session 2, \"Aha: summaries of text columns\", on the lesson file; truth m1.describe_fare_string"
+    fn: describeTaxi
+    in: {"mode":"string","cols":["fare_amount"]}
+    expect:
+      "text": "+-------+------------------+\n|summary|       fare_amount|\n+-------+------------------+\n|  count|                12|\n|   mean|15.416666666666666|\n| stddev|10.714971118048151|\n|    min|              10.5|\n|    max|               8.5|\n+-------+------------------+\n\n"
+      "stats.fare_amount.min": "10.5"
+      "stats.fare_amount.max": "8.5"
+    note: "Text comparison: \"8.5\" sorts after \"34.5\", and \"10.5\" before \"4\"."
+  - id: describe-all-string
+    source: "Session 2, describe() on the all-string read; truth m1.describe_all_string"
+    fn: describeTaxi
+    in: {"mode":"string"}
+    expect:
+      "text": "+-------+------------------+--------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n|summary|          VendorID|lpep_pickup_datetime|store_and_fwd_flag|      PULocationID|      DOLocationID|    passenger_count|    trip_distance|       fare_amount|        tip_amount|      total_amount|\n+-------+------------------+--------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n|  count|                12|                  12|                12|                12|                12|                 12|               12|                12|                12|                12|\n|   mean|              1.75|                NULL|              NULL|41.333333333333336|175.08333333333334| 1.0833333333333333|3.480833333333333|15.416666666666666|2.0083333333333333|18.225000000000005|\n| stddev|0.4522670168666454|                NULL|              NULL| 31.93838765593226| 71.73747383003635|0.28867513459481287|3.187565210265818|10.714971118048151|2.3805149684787774|12.908801437215406|\n|    min|                 1| 2017-10-02 08:00:03|                 N|                33|               137|                  1|             0.37|              10.5|                 0|             11.16|\n|    max|                 2| 2017-10-02 10:47:29|                 Y|                97|                75|                  2|              9.8|               8.5|              6.35|               8.8|\n+-------+------------------+--------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n\n"
+  - id: describe-all-infer
+    source: "Session 2, describe() on the inferSchema read; truth m1.infer.describe_all"
+    fn: describeTaxi
+    in: {"mode":"infer"}
+    expect:
+      "text": "+-------+------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n|summary|          VendorID|store_and_fwd_flag|      PULocationID|      DOLocationID|    passenger_count|    trip_distance|       fare_amount|        tip_amount|      total_amount|\n+-------+------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n|  count|                12|                12|                12|                12|                 12|               12|                12|                12|                12|\n|   mean|              1.75|              NULL|41.333333333333336|175.08333333333334| 1.0833333333333333|3.480833333333333|15.416666666666666|2.0083333333333333|18.225000000000005|\n| stddev|0.4522670168666454|              NULL| 31.93838765593226| 71.73747383003635|0.28867513459481287|3.187565210265818|10.714971118048151|2.3805149684787774|12.908801437215406|\n|    min|                 1|                 N|                 7|                41|                  1|             0.37|               4.0|               0.0|              5.76|\n|    max|                 2|                 Y|                97|               261|                  2|              9.8|              34.5|              6.35|              41.3|\n+-------+------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n\n"
+  - id: summary-infer
+    source: "Session 2, \"Summary statistics\", on the lesson file; truth m1.infer.summary"
+    fn: describeTaxi
+    in: {"mode":"infer","summary":true}
+    expect:
+      "text": "+-------+------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n|summary|          VendorID|store_and_fwd_flag|      PULocationID|      DOLocationID|    passenger_count|    trip_distance|       fare_amount|        tip_amount|      total_amount|\n+-------+------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n|  count|                12|                12|                12|                12|                 12|               12|                12|                12|                12|\n|   mean|              1.75|              NULL|41.333333333333336|175.08333333333334| 1.0833333333333333|3.480833333333333|15.416666666666666|2.0083333333333333|18.225000000000005|\n| stddev|0.4522670168666454|              NULL| 31.93838765593226| 71.73747383003635|0.28867513459481287|3.187565210265818|10.714971118048151|2.3805149684787774|12.908801437215406|\n|    min|                 1|                 N|                 7|                41|                  1|             0.37|               4.0|               0.0|              5.76|\n|    25%|                 1|              NULL|                 7|               137|                  1|              1.4|               8.0|               0.0|               8.8|\n|    50%|                 2|              NULL|                33|               166|                  1|             1.76|              10.5|              0.96|              11.3|\n|    75%|                 2|              NULL|                74|               238|                  1|             5.08|              22.0|              2.46|              24.8|\n|    max|                 2|                 Y|                97|               261|                  2|              9.8|              34.5|              6.35|              41.3|\n+-------+------------------+------------------+------------------+------------------+-------------------+-----------------+------------------+------------------+------------------+\n\n"
+      "stats.fare_amount.50%": "10.5"
+  - id: topandas-infer
+    source: "Session 2, \"Spark DataFrames and pandas\", limit(5); truth m1.infer.limit5_toPandas"
+    fn: pandasTaxi
+    in: {"mode":"infer","n":5}
+    expect:
+      "text": "   VendorID lpep_pickup_datetime store_and_fwd_flag  PULocationID  \\\n0         2  2017-10-02 08:00:03                  N            41   \n1         2  2017-10-02 08:00:06                  N            97   \n2         1  2017-10-02 08:00:14                  N             7   \n3         2  2017-10-02 08:00:15                  N             7   \n4         2  2017-10-02 08:00:16                  N            74   \n\n   DOLocationID  passenger_count  trip_distance  fare_amount  tip_amount  \\\n0           238                1           1.94         11.5        2.46   \n1           137                1           5.08         22.0        2.00   \n2           261                1           9.80         34.5        6.00   \n3           179                1           0.37          4.0        0.96   \n4           166                1           1.40          8.5        1.86   \n\n   total_amount  \n0         14.76  \n1         24.80  \n2         41.30  \n3          5.76  \n4         11.16  "
+  - id: topandas-string
+    source: "Session 2, limit(5).toPandas() on the all-string read; truth m1.limit5_toPandas_string"
+    fn: pandasTaxi
+    in: {"mode":"string","n":5}
+    expect:
+      "text": "  VendorID lpep_pickup_datetime store_and_fwd_flag PULocationID DOLocationID  \\\n0        2  2017-10-02 08:00:03                  N           41          238   \n1        2  2017-10-02 08:00:06                  N           97          137   \n2        1  2017-10-02 08:00:14                  N            7          261   \n3        2  2017-10-02 08:00:15                  N            7          179   \n4        2  2017-10-02 08:00:16                  N           74          166   \n\n  passenger_count trip_distance fare_amount tip_amount total_amount  \n0               1          1.94        11.5       2.46        14.76  \n1               1          5.08          22          2         24.8  \n2               1           9.8        34.5          6         41.3  \n3               1          0.37           4       0.96         5.76  \n4               1           1.4         8.5       1.86        11.16  "
+  - id: nameerror-fresh
+    source: "Session 1, \"Broken on purpose: run order\", in a brand-new session; truth m1.nameerror_fresh"
+    fn: runCells
+    in: {"order":["show"]}
+    expect:
+      "steps.0.text": "Traceback (most recent call last):\n  File \"<cell 1>\", line 1, in <module>\n    trips.show()\n    ^^^^^\nNameError: name 'trips' is not defined"
+      "ok": false
+      "firstFail": 1
+  - id: run-order-works
+    source: "Session 1 run order base, read, show; truth m1.read_header.show; Real Spark 4.0.1 run (harness), m1/probe_order.json ABC"
+    fn: runCells
+    in: {"order":["base","read","show"]}
+    expect:
+      "ok": true
+      "steps.2.text": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|         22|         2|        24.8|\n|       1| 2017-10-02 08:00:14|                 N|           7|         261|              1|          9.8|       34.5|         6|        41.3|\n|       2| 2017-10-02 08:00:15|                 N|           7|         179|              1|         0.37|          4|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|                 N|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|                 N|          33|         140|              1|          8.1|         29|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|                 N|          41|         238|              1|         1.76|         12|         0|        12.8|\n|       2| 2017-10-02 08:00:51|                 N|           7|         260|              1|         1.51|          8|         0|         8.8|\n|       2| 2017-10-02 08:01:03|                 N|          75|          41|              1|         1.56|          8|         0|         8.8|\n|       1| 2017-10-02 08:01:08|                 N|          74|          75|              1|            1|          6|         0|         6.8|\n|       2| 2017-10-02 08:01:38|                 N|           7|         223|              2|         2.15|       10.5|         0|        11.3|\n|       1| 2017-10-02 10:47:29|                 Y|          33|         143|              1|          7.1|         31|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "showWorked": true
+  - id: run-order-read-first
+    source: "Session 1 run order read, base, show; Real Spark 4.0.1 run (harness), m1/probe_order.json BAC"
+    fn: runCells
+    in: {"order":["read","base","show"]}
+    expect:
+      "steps.0.text": "Traceback (most recent call last):\n  File \"<cell 1>\", line 1, in <module>\n    trips = spark.read.csv(f\"{BASE}/lessons/taxi12.csv\", header=True)\n                              ^^^^\nNameError: name 'BASE' is not defined"
+      "steps.2.text": "Traceback (most recent call last):\n  File \"<cell 3>\", line 1, in <module>\n    trips.show()\n    ^^^^^\nNameError: name 'trips' is not defined"
+      "failCount": 2
+      "showWorked": false
+    note: "The failed read never created trips, so show() fails too, at cell 3."
+  - id: run-order-show-early
+    source: "Session 1 run order base, show, read; Real Spark 4.0.1 run (harness), m1/probe_order.json ACB"
+    fn: runCells
+    in: {"order":["base","show","read"]}
+    expect:
+      "steps.1.text": "Traceback (most recent call last):\n  File \"<cell 2>\", line 1, in <module>\n    trips.show()\n    ^^^^^\nNameError: name 'trips' is not defined"
+      "failCount": 1
+  - id: type-of-column
+    source: "Session 1, \"DataFrame columns\" and \"Discovery: what kind of thing is it?\"; truth m1.column_bracket, m1.type_column_obj"
+    fn: typeOf
+    in: {"expr":"trips[\"VendorID\"]"}
+    expect:
+      "repr": "Column<'VendorID'>"
+      "type": "<class 'pyspark.sql.connect.column.Column'>"
+      "kind": "Column"
+  - id: type-of-select
+    source: "Session 1 discovery; truth m1.select_repr, m1.type_select"
+    fn: typeOf
+    in: {"expr":"trips.select(\"VendorID\")"}
+    expect:
+      "repr": "DataFrame[VendorID: string]"
+      "type": "<class 'pyspark.sql.connect.dataframe.DataFrame'>"
+  - id: type-of-others
+    source: "Session 1, \"Discovery: what kind of thing is it?\"; truth m1.type_spark"
+    fn: typeOf
+    in: {"expr":"spark"}
+    expect:
+      "type": "<class 'pyspark.sql.connect.session.SparkSession'>"
+  - id: type-of-count
+    source: "Session 1, \"Discovery: what kind of thing is it?\"; truth m1.type_count, m1.count"
+    fn: typeOf
+    in: {"expr":"trips.count()"}
+    expect:
+      "type": "<class 'int'>"
+      "repr": "12"
+  - id: type-of-columns
+    source: "Session 1, \"Discovery: what kind of thing is it?\"; truth m1.type_columns, m1.columns"
+    fn: typeOf
+    in: {"expr":"trips.columns"}
+    expect:
+      "type": "<class 'list'>"
+      "repr": "['VendorID',\n 'lpep_pickup_datetime',\n 'store_and_fwd_flag',\n 'PULocationID',\n 'DOLocationID',\n 'passenger_count',\n 'trip_distance',\n 'fare_amount',\n 'tip_amount',\n 'total_amount']"
+  - id: taxi12-dataset
+    source: "Dataset taxi12 vs the lesson file read with inferSchema; truth m1.infer.show"
+    fn: taxiFromDataset
+    in: {"table":"@taxi12"}
+    expect:
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|                 N|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|                 N|          97|         137|              1|         5.08|       22.0|       2.0|        24.8|\n|       1| 2017-10-02 08:00:14|                 N|           7|         261|              1|          9.8|       34.5|       6.0|        41.3|\n|       2| 2017-10-02 08:00:15|                 N|           7|         179|              1|         0.37|        4.0|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|                 N|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|                 N|          33|         140|              1|          8.1|       29.0|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|                 N|          41|         238|              1|         1.76|       12.0|       0.0|        12.8|\n|       2| 2017-10-02 08:00:51|                 N|           7|         260|              1|         1.51|        8.0|       0.0|         8.8|\n|       2| 2017-10-02 08:01:03|                 N|          75|          41|              1|         1.56|        8.0|       0.0|         8.8|\n|       1| 2017-10-02 08:01:08|                 N|          74|          75|              1|          1.0|        6.0|       0.0|         6.8|\n|       2| 2017-10-02 08:01:38|                 N|           7|         223|              2|         2.15|       10.5|       0.0|        11.3|\n|       1| 2017-10-02 10:47:29|                 Y|          33|         143|              1|          7.1|       31.0|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "same": true
+      "count": 12
+  - id: vendor-flag-full
+    source: "Full data, flag STRING (Session 2 fix at scale); truth full.csv_infer.vendor_flag, full.csv.count, full.ddl_string.count_Y"
+    fn: vendorFlagTable
+    in: {"rows":"@q4facts.vendorFlag"}
+    expect:
+      "text": "+--------+------------------+-------+\n|VendorID|store_and_fwd_flag|  count|\n+--------+------------------+-------+\n|       1|                 N| 484123|\n|       1|                 Y|   3650|\n|       2|                 N|2218153|\n+--------+------------------+-------+\n\n"
+      "total": 2705926
+      "y": 3650
+    note: "Only vendor 1 ever sends Y."
+  - id: infer-walk
+    source: "Session 2 inferSchema, column by column; types parsed from truth m1.infer.printSchema"
+    fn: inferWalk
+    in: {}
+    expect:
+      "steps": 12
+      "types": [["VendorID","integer"],["lpep_pickup_datetime","timestamp"],["store_and_fwd_flag","string"],["PULocationID","integer"],["DOLocationID","integer"],["passenger_count","integer"],["trip_distance","double"],["fare_amount","double"],["tip_amount","double"],["total_amount","double"]]
+    note: "Walk visits all 10 columns (plus a first and a last step). Types are the printSchema names of truth m1.infer.printSchema."
+  - id: cast-walk-flag
+    source: "Session 2 silent null, cell by cell; truth m1.ddl_int.count_null"
+    fn: castWalk
+    in: {"col":"store_and_fwd_flag","type":"INT"}
+    expect:
+      "nulls": 12
+      "kept": 0
+      "steps": 14
+  - id: cast-walk-fare-int
+    source: "Fare declared INT; Real Spark 4.0.1 run (harness), m1/probe_m1.json (allint.show and allint.describe: fare count 8)"
+    fn: castWalk
+    in: {"col":"fare_amount","type":"INT"}
+    expect:
+      "nulls": 4
+      "kept": 8
+      "steps": 14
+    note: "Real run: 11.5, 34.5, 8.5 and 10.5 became NULL; describe printed count 8 and mean 15.0 for fare_amount."
+  - id: cast-walk-fare-int-key
+    source: "Session 2 ddl-schema scene, the second cast walk (fare declared INT) with its own progress key; Real Spark 4.0.1 run (harness), m1/probe_m1.json (allint)"
+    fn: castWalk
+    in: {"col":"fare_amount","type":"INT","key":"fareUpTo"}
+    expect:
+      "nulls": 4
+      "steps": 14
+      "trace.1.label": "Trip 1: \"11.5\" as INT? It does not fit, so NULL, not 11."
+      "trace.13.patch.fareUpTo": 12
+  - id: describe-walk-fare
+    source: "Session 2 describe by hand on the lesson file; truth m1.infer.describe_fare"
+    fn: describeWalk
+    in: {"col":"fare_amount","mode":"infer"}
+    expect:
+      "n": 12
+      "sum": 185
+      "mean": 15.416666666666666
+      "stddev": 10.714971118048151
+      "min": "4.0"
+      "max": "34.5"
+      "steps": 30
+    tol: 1e-9
+  - id: describe-walk-fare-text
+    source: "Session 2 aha by hand; truth m1.describe_fare_string"
+    fn: describeWalk
+    in: {"col":"fare_amount","mode":"string"}
+    expect:
+      "mean": 15.416666666666666
+      "stddev": 10.714971118048151
+      "min": "10.5"
+      "max": "8.5"
+    tol: 1e-9
+  - id: help-show-excerpt
+    source: "Session 1, \"Discovery: what kind of thing is it?\", help(trips.show); truth m1.help_show, lines 1-4 and 11-20"
+    fn: helpExcerpt
+    in: {"which":"show"}
+    expect:
+      "text": "Help on method show in module pyspark.sql.connect.dataframe:\n\nshow(n: int = 20, truncate: Union[bool, int] = True, vertical: bool = False) -> None method of pyspark.sql.connect.dataframe.DataFrame instance\n    Prints the first ``n`` rows of the DataFrame to the console.\n    ...\n    Parameters\n    ----------\n    n : int, optional, default 20\n        Number of rows to show.\n    truncate : bool or int, optional, default True\n        If set to ``True``, truncate strings longer than 20 chars.\n        If set to a number greater than one, truncates long strings to length ``truncate``\n        and align cells right.\n    vertical : bool, optional\n        If set to ``True``, print output rows vertically (one line per column value)."
+    note: "Copied line by line from the real help() output; \"    ...\" marks skipped lines."
+  - id: help-csv-excerpt
+    source: "Session 2, \"Discovery: make Spark fail loudly\", help(spark.read.csv); truth m1.help_read_csv, lines 1, 4-8 and 24-29"
+    fn: helpExcerpt
+    in: {"which":"csv"}
+    expect:
+      "text": "Help on method csv in module pyspark.sql.connect.readwriter:\n    ...\n    Loads a CSV file and returns the result as a  :class:`DataFrame`.\n\n    This function will go through the input once to determine the input schema if\n    ``inferSchema`` is enabled. To avoid going through the entire data once, disable\n    ``inferSchema`` option or specify the schema explicitly using ``schema``.\n    ...\n    Other Parameters\n    ----------------\n    Extra options\n        For the extra options, refer to\n        `Data Source Option <https://spark.apache.org/docs/latest/sql-data-sources-csv.html#data-source-option>`_\n        for the version you use."
+    note: "The manual lists mode in its signature but sends readers to the Data Source Option page."
+  - id: permissive-read
+    source: "Session 2 discovery, the default mode with the INT schema; truth m1.ddl_int.show, m1.count"
+    fn: failfastCheck
+    in: {"mode":"PERMISSIVE"}
+    expect:
+      "ok": true
+      "showText": "+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|VendorID|lpep_pickup_datetime|store_and_fwd_flag|PULocationID|DOLocationID|passenger_count|trip_distance|fare_amount|tip_amount|total_amount|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n|       2| 2017-10-02 08:00:03|              NULL|          41|         238|              1|         1.94|       11.5|      2.46|       14.76|\n|       2| 2017-10-02 08:00:06|              NULL|          97|         137|              1|         5.08|       22.0|       2.0|        24.8|\n|       1| 2017-10-02 08:00:14|              NULL|           7|         261|              1|          9.8|       34.5|       6.0|        41.3|\n|       2| 2017-10-02 08:00:15|              NULL|           7|         179|              1|         0.37|        4.0|      0.96|        5.76|\n|       2| 2017-10-02 08:00:16|              NULL|          74|         166|              1|          1.4|        8.5|      1.86|       11.16|\n|       2| 2017-10-02 08:00:30|              NULL|          33|         140|              1|          8.1|       29.0|      4.47|       34.27|\n|       2| 2017-10-02 08:00:38|              NULL|          41|         238|              1|         1.76|       12.0|       0.0|        12.8|\n|       2| 2017-10-02 08:00:51|              NULL|           7|         260|              1|         1.51|        8.0|       0.0|         8.8|\n|       2| 2017-10-02 08:01:03|              NULL|          75|          41|              1|         1.56|        8.0|       0.0|         8.8|\n|       1| 2017-10-02 08:01:08|              NULL|          74|          75|              1|          1.0|        6.0|       0.0|         6.8|\n|       2| 2017-10-02 08:01:38|              NULL|           7|         223|              2|         2.15|       10.5|       0.0|        11.3|\n|       1| 2017-10-02 10:47:29|              NULL|          33|         143|              1|          7.1|       31.0|      6.35|       38.15|\n+--------+--------------------+------------------+------------+------------+---------------+-------------+-----------+----------+------------+\n\n"
+      "count": 12
+  - id: session-code-trace
+    source: "Math & Code get-session (\"Notebook basics\" and \"The SparkSession: your waiter\"); truth m1.type_spark"
+    fn: sessionCode
+    in: {}
+    expect:
+      "typeSpark": "<class 'pyspark.sql.connect.session.SparkSession'>"
+      "steps": 4
+    note: "One step per line: BASE, the import, getOrCreate, type(spark)."
+  - id: read-code-trace
+    source: "Math & Code read-csv (\"Reading CSV files\") on the lesson file; truth m1.count, m1.columns"
+    fn: readCode
+    in: {}
+    expect:
+      "count": 12
+      "nCols": 10
+      "nLines": 13
+      "steps": 4
+    note: "One step per option line: path, sep, header, then the assignment."
+  - id: read-code-trace-noheader
+    source: "Math & Code read-csv without header=True; truth m1.noheader.columns; count from Real Spark 4.0.1 run (harness), m1/probe_m1.json"
+    fn: readCode
+    in: {"mode":"noheader"}
+    expect:
+      "count": 13
+      "headerLines": 0
+      "matrix.cols": ["_c0","_c1","_c2","_c3"]
+      "steps": 4
+  - id: show-code-trace
+    source: "Math & Code show-count (\"Displaying a DataFrame with show\" to \"Counting rows\"); truth m1.count, full.csv.count"
+    fn: showCode
+    in: {}
+    expect:
+      "count": 12
+      "shown": 12
+      "fullRows": 2705926
+      "steps": 6
+    note: "One step per line: show, vertical show, columns, two Column spellings, count."
+  - id: infer-code-trace
+    source: "Math & Code print-schema (\"Column types\" and \"Letting Spark guess the types\"); types parsed from truth m1.infer.printSchema"
+    fn: inferCode
+    in: {}
+    expect:
+      "inferred": [["VendorID","integer"],["lpep_pickup_datetime","timestamp"],["store_and_fwd_flag","string"],["PULocationID","integer"],["DOLocationID","integer"],["passenger_count","integer"],["trip_distance","double"],["fare_amount","double"],["tip_amount","double"],["total_amount","double"]]
+      "typed": 9
+      "type": "double"
+      "steps": 13
+    note: "Two lines, one step per column (10) for the inferSchema pass, then the new printSchema."
+  - id: cast-code-trace-int
+    source: "Math & Code ddl-schema (\"Giving Spark a schema\") on the lesson file; truth m1.ddl_int.count_null"
+    fn: castCode
+    in: {"type":"INT"}
+    expect:
+      "nulls": 12
+      "kept": 0
+      "steps": 16
+    note: "Two schema lines, 12 casts (one per trip), show and describe."
+  - id: cast-code-trace-string
+    source: "Math & Code ddl-schema with the fix (\"Broken on purpose: counting the Y trips\"); truth m1.ddl_string.count_Y"
+    fn: castCode
+    in: {"type":"STRING"}
+    expect:
+      "nulls": 0
+      "kept": 12
+      "steps": 16
+  - id: describe-code-trace
+    source: "Math & Code describe-stats (\"Summary statistics\" and \"Aha: summaries of text columns\") on the 12 lesson fares; truth m1.infer.describe_fare, m1.describe_fare_string"
+    fn: describeCode
+    in: {}
+    expect:
+      "n": 12
+      "sum": 185
+      "mean": 15.416666666666666
+      "stddev": 10.714971118048151
+      "printed.min": "4.0"
+      "printed.max": "34.5"
+      "textMin": "10.5"
+      "textMax": "8.5"
+      "fares": "[11.5, 22.0, 34.5, 4.0, 8.5, 29.0, 12.0, 8.0, 8.0, 6.0, 10.5, 31.0]"
+      "steps": 29
+    tol: 1e-9
+    note: "count, 12 additions, mean, 12 squared differences, stddev, min/max, then the text read. fares is the list the section's code types, in row order."
+  - id: limit-code-trace
+    source: "Math & Code limit-topandas (\"Spark DataFrames and pandas\") with limit(5); truth m1.infer.limit5_toPandas"
+    fn: limitCode
+    in: {"n":5}
+    expect:
+      "kept": 5
+      "pandas": "   VendorID lpep_pickup_datetime store_and_fwd_flag  PULocationID  \\\n0         2  2017-10-02 08:00:03                  N            41   \n1         2  2017-10-02 08:00:06                  N            97   \n2         1  2017-10-02 08:00:14                  N             7   \n3         2  2017-10-02 08:00:15                  N             7   \n4         2  2017-10-02 08:00:16                  N            74   \n\n   DOLocationID  passenger_count  trip_distance  fare_amount  tip_amount  \\\n0           238                1           1.94         11.5        2.46   \n1           137                1           5.08         22.0        2.00   \n2           261                1           9.80         34.5        6.00   \n3           179                1           0.37          4.0        0.96   \n4           166                1           1.40          8.5        1.86   \n\n   total_amount  \n0         14.76  \n1         24.80  \n2         41.30  \n3          5.76  \n4         11.16  "
+      "steps": 3
+  - id: limit-code-trace-10
+    source: "Math & Code limit-topandas (\"Spark DataFrames and pandas\"), limit(10) on the 12-trip lesson file; truth m1.count, full.csv.count"
+    fn: limitCode
+    in: {"n":10}
+    expect:
+      "kept": 10
+      "count": 12
+      "fullRows": 2705926
+      "steps": 3
+  - id: pickup-range-full
+    source: "Full data, bad clock values (Session 2 aha and application); truth full.csv_infer.min_max_pickup"
+    fn: pickupRange
+    in: {"min":"@q4facts.pickupMin","max":"@q4facts.pickupMax"}
+    expect:
+      "text": "+-------------------------+-------------------------+\n|min(lpep_pickup_datetime)|max(lpep_pickup_datetime)|\n+-------------------------+-------------------------+\n|      2008-12-31 18:56:40|      2018-03-26 16:00:22|\n+-------------------------+-------------------------+\n\n"
+    note: "Pickups dated 2008 and 2018 in a file of October to December 2017 trips."
+  - id: app-full-read-string
+    source: "Application cell check-the-schema: \"Reading CSV files\" and \"Column types\" on the full data; truth full.csv.printSchema_default"
+    fn: fullRead
+    in: {"mode":"string"}
+    expect:
+      "schemaText": "root\n |-- VendorID: string (nullable = true)\n |-- lpep_pickup_datetime: string (nullable = true)\n |-- lpep_dropoff_datetime: string (nullable = true)\n |-- store_and_fwd_flag: string (nullable = true)\n |-- RatecodeID: string (nullable = true)\n |-- PULocationID: string (nullable = true)\n |-- DOLocationID: string (nullable = true)\n |-- passenger_count: string (nullable = true)\n |-- trip_distance: string (nullable = true)\n |-- fare_amount: string (nullable = true)\n |-- extra: string (nullable = true)\n |-- mta_tax: string (nullable = true)\n |-- tip_amount: string (nullable = true)\n |-- tolls_amount: string (nullable = true)\n |-- ehail_fee: string (nullable = true)\n |-- improvement_surcharge: string (nullable = true)\n |-- total_amount: string (nullable = true)\n |-- payment_type: string (nullable = true)\n |-- trip_type: string (nullable = true)\n\n"
+      "code": "trips = spark.read.csv(\n    f\"{BASE}/nyctaxi/green_tripdata_2017-1*.csv\",\n    sep=\",\",\n    header=True,\n)\ntrips.printSchema()"
+      "flagType": "string"
+      "fareType": "string"
+      "nCols": 19
+  - id: app-full-read-infer
+    source: "Application cell check-the-schema: \"Letting Spark guess the types\"; truth full.csv_infer.printSchema"
+    fn: fullRead
+    in: {"mode":"infer"}
+    expect:
+      "schemaText": "root\n |-- VendorID: integer (nullable = true)\n |-- lpep_pickup_datetime: timestamp (nullable = true)\n |-- lpep_dropoff_datetime: timestamp (nullable = true)\n |-- store_and_fwd_flag: string (nullable = true)\n |-- RatecodeID: integer (nullable = true)\n |-- PULocationID: integer (nullable = true)\n |-- DOLocationID: integer (nullable = true)\n |-- passenger_count: integer (nullable = true)\n |-- trip_distance: double (nullable = true)\n |-- fare_amount: double (nullable = true)\n |-- extra: double (nullable = true)\n |-- mta_tax: double (nullable = true)\n |-- tip_amount: double (nullable = true)\n |-- tolls_amount: double (nullable = true)\n |-- ehail_fee: string (nullable = true)\n |-- improvement_surcharge: double (nullable = true)\n |-- total_amount: double (nullable = true)\n |-- payment_type: integer (nullable = true)\n |-- trip_type: integer (nullable = true)\n\n"
+      "code": "trips = spark.read.csv(\n    f\"{BASE}/nyctaxi/green_tripdata_2017-1*.csv\",\n    sep=\",\",\n    header=True,\n    inferSchema=True,\n)\ntrips.printSchema()"
+      "flagType": "string"
+      "fareType": "double"
+      "ehailType": "string"
+      "paymentType": "integer"
+    note: "ehail_fee is empty in every trip, so inferSchema has no number to go on and keeps it a string."
+  - id: app-full-read-ddl-int
+    source: "Application cell check-the-schema: the notebook's DDL schema, \"Giving Spark a schema\" (executed output of its printSchema)"
+    fn: fullRead
+    in: {"mode":"ddl_int"}
+    expect:
+      "schemaText": "root\n |-- VendorID: integer (nullable = true)\n |-- lpep_pickup_datetime: timestamp (nullable = true)\n |-- lpep_dropoff_datetime: timestamp (nullable = true)\n |-- store_and_fwd_flag: integer (nullable = true)\n |-- RatecodeID: integer (nullable = true)\n |-- PULocationID: integer (nullable = true)\n |-- DOLocationID: integer (nullable = true)\n |-- passenger_count: integer (nullable = true)\n |-- trip_distance: float (nullable = true)\n |-- fare_amount: float (nullable = true)\n |-- extra: float (nullable = true)\n |-- mta_tax: float (nullable = true)\n |-- tip_amount: float (nullable = true)\n |-- tolls_amount: float (nullable = true)\n |-- ehail_fee: float (nullable = true)\n |-- improvement_surcharge: float (nullable = true)\n |-- total_amount: float (nullable = true)\n |-- payment_type: string (nullable = true)\n |-- trip_type: string (nullable = true)\n\n"
+      "code": "schema = \"\"\"\nVendorID INT,\nlpep_pickup_datetime TIMESTAMP,\nlpep_dropoff_datetime TIMESTAMP,\nstore_and_fwd_flag INT,\nRatecodeID INT,\nPULocationID INT,\nDOLocationID INT,\npassenger_count INT,\ntrip_distance FLOAT,\nfare_amount FLOAT,\nextra FLOAT,\nmta_tax FLOAT,\ntip_amount FLOAT,\ntolls_amount FLOAT,\nehail_fee FLOAT,\nimprovement_surcharge FLOAT,\ntotal_amount FLOAT,\npayment_type STRING,\ntrip_type STRING\n\"\"\"\ntrips = spark.read.csv(\n    f\"{BASE}/nyctaxi/green_tripdata_2017-1*.csv\",\n    sep=\",\",\n    header=True,\n    schema=schema,\n)\ntrips.printSchema()"
+      "flagType": "integer"
+      "fareType": "float"
+      "paymentType": "string"
+  - id: app-full-read-ddl-string
+    source: "Application: the fixed DDL schema (\"Broken on purpose: counting the Y trips\") read with mode=\"FAILFAST\"; Real Spark 4.0.1 run (harness), m1/probe_app.json strict printSchema"
+    fn: fullRead
+    in: {"mode":"ddl_string"}
+    expect:
+      "schemaText": "root\n |-- VendorID: integer (nullable = true)\n |-- lpep_pickup_datetime: timestamp (nullable = true)\n |-- lpep_dropoff_datetime: timestamp (nullable = true)\n |-- store_and_fwd_flag: string (nullable = true)\n |-- RatecodeID: integer (nullable = true)\n |-- PULocationID: integer (nullable = true)\n |-- DOLocationID: integer (nullable = true)\n |-- passenger_count: integer (nullable = true)\n |-- trip_distance: float (nullable = true)\n |-- fare_amount: float (nullable = true)\n |-- extra: float (nullable = true)\n |-- mta_tax: float (nullable = true)\n |-- tip_amount: float (nullable = true)\n |-- tolls_amount: float (nullable = true)\n |-- ehail_fee: float (nullable = true)\n |-- improvement_surcharge: float (nullable = true)\n |-- total_amount: float (nullable = true)\n |-- payment_type: string (nullable = true)\n |-- trip_type: string (nullable = true)\n\n"
+      "flagType": "string"
+  - id: app-full-flag-int
+    source: "Application cell hunt-silent-nulls, flag INT: truth full.ddl_int.groupby_flag, full.ddl_int.count_null, full.ddl_int.count_Y; describe count from the executed notebook (\"Giving Spark a schema\")"
+    fn: fullFlag
+    in: {"flagType":"INT","facts":"@q4facts"}
+    expect:
+      "tableText": "+------------------+-------+\n|store_and_fwd_flag|  count|\n+------------------+-------+\n|              NULL|2705926|\n+------------------+-------+\n\n"
+      "nulls": 2705926
+      "describeCount": 0
+      "yText": "error [CAST_INVALID_INPUT]"
+    note: "Silent: every flag is NULL and describe counts 0. Only comparing the column with \"Y\" raises an error."
+  - id: app-full-flag-string
+    source: "Application cell hunt-silent-nulls, flag STRING: truth full.csv_infer.vendor_flag, full.ddl_string.count_Y; describe count from m1/probe_app.json (strict describe)"
+    fn: fullFlag
+    in: {"flagType":"STRING","facts":"@q4facts"}
+    expect:
+      "tableText": "+--------+------------------+-------+\n|VendorID|store_and_fwd_flag|  count|\n+--------+------------------+-------+\n|       1|                 N| 484123|\n|       1|                 Y|   3650|\n|       2|                 N|2218153|\n+--------+------------------+-------+\n\n"
+      "yCount": 3650
+      "describeCount": 2705926
+      "nulls": 0
+      "vendor1Y": 3650
+  - id: app-full-failfast
+    source: "Application cell make-it-loud: \"Discovery: make Spark fail loudly\" (executed output), the INT schema with mode=\"FAILFAST\" on the three files"
+    fn: fullFailfast
+    in: {}
+    expect:
+      "traceback": "Traceback (most recent call last):\n  File \"<cell 32>\", line 10, in <module>\n    trips_strict.show(5)\n  ...\npyspark.errors.exceptions.connect.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file dbfs:/Volumes/workspace/default/bdcc/nyctaxi/green_tripdata_2017-10.csv.  SQLSTATE: KD001"
+      "code": "# EXPECT-ERROR: SparkException\n# The broken INT schema again, read with the mode you found.\ntrips_strict = spark.read.csv(\n    f\"{BASE}/nyctaxi/green_tripdata_2017-1*.csv\",\n    sep=\",\",\n    header=True,\n    schema=schema,\n    mode=\"FAILFAST\",\n)\ntrips_strict.show(5)"
+      "errorClass": "FAILED_READ_FILE.NO_HINT"
+  - id: app-full-describe-text
+    source: "Application cell summarize-and-sanity-check: \"Aha: summaries of text columns\" (executed output), describe on the text read"
+    fn: fullDescribe
+    in: {"read":"string","facts":"@q4facts"}
+    expect:
+      "text": "+-------+------------------+------------------+--------------------+\n|summary|       fare_amount|      PULocationID|lpep_pickup_datetime|\n+-------+------------------+------------------+--------------------+\n|  count|           2705926|           2705926|             2705926|\n|   mean|12.018858043420222|111.29994870517524|                NULL|\n| stddev|10.500679661371395|  75.1865725633441|                NULL|\n|    min|             -0.01|                 1| 2008-12-31 18:56:40|\n|    max|              99.5|                99| 2018-03-26 16:00:22|\n+-------+------------------+------------------+--------------------+\n\n"
+      "code": "trips_text = spark.read.csv(f\"{BASE}/nyctaxi/green_tripdata_2017-1*.csv\", header=True)\ntrips_text.describe(\"fare_amount\", \"PULocationID\", \"lpep_pickup_datetime\").show()"
+      "fareMax": "99.5"
+      "puMax": "99"
+  - id: app-full-describe-infer
+    source: "Application cell summarize-and-sanity-check: the same describe on the inferSchema read; Real Spark 4.0.1 run (harness), m1/probe_app.json"
+    fn: fullDescribe
+    in: {"read":"infer","facts":"@q4facts"}
+    expect:
+      "text": "+-------+------------------+------------------+\n|summary|       fare_amount|      PULocationID|\n+-------+------------------+------------------+\n|  count|           2705926|           2705926|\n|   mean|12.018858043420222|111.29994870517524|\n| stddev|10.500679661371395|  75.1865725633441|\n|    min|           -400.09|                 1|\n|    max|            6003.5|               265|\n+-------+------------------+------------------+\n\n"
+      "fareMin": "-400.09"
+      "fareMax": "6003.5"
+      "nCols": 2
+    note: "Spark leaves the timestamp column out of a describe on typed columns."
+  - id: app-full-checks
+    source: "Application cells bad-clock-dates and decide; Real Spark 4.0.1 run (harness), m1/probe_app.json (filter counts on the inferSchema read); truth full.csv.count; the row count printed by the lab's first version"
+    fn: fullChecks
+    in: {"facts":"@q4facts"}
+    expect:
+      "badDates": 221
+      "negativeFares": 6523
+      "dropped": 224
+      "yAllVendor1": true
+      "fareMean": 12.018858043420222
+      "fareFloatMean": 12.018858043372008
+    tol: 1e-12

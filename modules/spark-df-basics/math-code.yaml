@@ -1,0 +1,585 @@
+sections:
+  # ------------------------------------------------------------------ Session 1
+  - id: get-session
+    title: Getting the SparkSession
+    skills: [spark-session, run-order]
+    summary: |
+      From the notebook's Session 1, "Notebook basics" and "The SparkSession: your waiter". Store the data folder's
+      path in a [[variable|variable]], then ask for the [[sparksession]] that Databricks already started. Each line uses only names made by the lines above it, so
+      this [[run-order|run order]] works in a fresh session.
+    keyFormula: '\texttt{spark = SparkSession.builder.getOrCreate()}'
+    derive:
+      - { fn: sessionCode, in: {}, out: sc }
+    live:
+      - id: names
+        widget: Matrix
+        props: { rows: '@sc.names.rows', cols: '@sc.names.cols', values: '@sc.names.values', title: 'Names Python knows after each line', rowHeader: name }
+    steps:
+      - tex: |
+          \anchor{base}{\texttt{BASE = "/Volumes/workspace/default/bdcc"}}
+        say: |
+          `BASE` is a [[variable|variable]] that holds the path of the folder with the course data. Later cells build file
+          paths from it, so it must run first.
+      - tex: |
+          \anchor{import}{\texttt{from pyspark.sql import SparkSession}}
+        say: |
+          Borrow the `SparkSession` class from the `pyspark` library. A class is a recipe for making objects. Module 2
+          explains `import` in detail.
+      - tex: |
+          \anchor{session}{\texttt{spark = SparkSession.builder.getOrCreate()}}
+        say: |
+          `getOrCreate()` means: give me the session that exists, or create one. Databricks already started it, so you
+          get that one back. Code written for a laptop often adds `.master("local[*]")`, meaning "run on this
+          laptop". Databricks chooses the machines, so the course notebook leaves it out.
+      - tex: |
+          \anchor{type}{\texttt{type(spark)}} \;\Rightarrow\; \text{a Spark Connect session}
+        say: |
+          Real output: `{=sc.typeSpark}`. The word `connect` means [[spark-connect]]: your notebook and the
+          [[cluster|cluster]] are in different places, linked over the network.
+    code:
+      lang: python
+      title: 'Session 1: "Notebook basics" and "The SparkSession: your waiter"'
+      source: |
+        """Session 1 of the course notebook: "Notebook basics" and "The SparkSession: your waiter"."""
+        # BASE is the folder (a Databricks "volume") that holds the course data.
+        BASE = "/Volumes/workspace/default/bdcc"  # @a:base
+
+        from pyspark.sql import SparkSession  # @a:import
+
+        spark = SparkSession.builder.getOrCreate()  # @a:session
+
+        type(spark)  # @a:type
+    links:
+      - { anchor: base, label: 'BASE: the data folder', say: 'A text value in double quotes. Later cells write `f"{BASE}/..."` to build paths (the `f` fills in `BASE`).' }
+      - { anchor: import, label: 'import SparkSession', say: 'Borrows one name from the `pyspark.sql` part of the library.' }
+      - { anchor: session, label: 'getOrCreate()', say: 'Returns the running session and stores it in the variable `spark`.' }
+      - { anchor: type, label: 'type(spark)', say: '`type(x)` names the kind of object `x` is.' }
+    trace: { fn: sessionCode, in: {} }
+    examples: [session-code-trace, type-of-others]
+    pitfalls:
+      - 'Copying `.master("local[*]")` from code written for a laptop. On Databricks the machines are already chosen, so the course notebook leaves `.master` out.'
+      - 'Running a later cell before `BASE` is set. Python stops with `NameError: name ''BASE'' is not defined` (real output).'
+      - 'Expecting your variables to survive a restart. Databricks makes `spark` again, but `BASE` and `trips` are gone until you rerun their cells.'
+    examTip: 'On Databricks `spark` already exists: `getOrCreate()` hands it back instead of building a new one.'
+    tryIt: [code-getorcreate, getorcreate-mcq, nameerror-mcq]
+
+  - id: read-csv
+    title: Reading a CSV file
+    skills: [read-csv]
+    summary: |
+      The cell under "Reading CSV files" (Session 1) reads all three monthly [[csv]] files from the [[volume|volume]] into one
+      [[dataframe]]. `header=True` takes the [[column|column]] names from the first line. The live example reads the
+      12-trip lesson file the same way.
+    keyFormula: '\texttt{trips = spark.read.csv(path, sep=",", header=True)}'
+    derive:
+      - { fn: readCode, in: {}, out: rc }
+      - { fn: rawCsv, in: { n: 3 }, out: raw }
+    live:
+      - id: file
+        widget: Text
+        props:
+          body: |
+            **The lesson file**, the first 4 of its {=raw.nLines} lines
+
+            {=raw.block}
+      - id: table
+        widget: Matrix
+        props: { rows: '@rc.matrix.rows', cols: '@rc.matrix.cols', values: '@rc.matrix.values', title: 'trips after the read (first 4 of 10 columns)', rowHeader: row }
+    steps:
+      - tex: |
+          \anchor{read}{\texttt{trips = spark.read.csv(...)}}
+        say: |
+          `spark.read.csv` returns a [[dataframe]] for the [[csv]] files, and `trips = ...` names it. The cell prints
+          nothing and reads nothing yet. Spark reads the names line when a later command first needs the column names.
+      - tex: |
+          \anchor{path}{\texttt{f"\{BASE\}/nyctaxi/green\_tripdata\_2017-1*.csv"}}
+        say: |
+          An f-string: Python puts the value of `BASE` where `{BASE}` stands. The `*` is a glob pattern that matches
+          any text, so the files for months `-10`, `-11` and `-12` become one table.
+      - tex: |
+          \anchor{sep}{\texttt{sep=","}} \qquad \anchor{header}{\texttt{header=True}}
+        say: |
+          `sep` names the character between values. `header=True` says the first line holds [[column|column]] names. Spark's
+          default is no header, so without it the names line becomes a [[row]].
+      - tex: |
+          \texttt{count()} = \text{lines} - \text{header line} = {=rc.nLines} - {=rc.headerLines} = {=rc.count}
+        say: |
+          Live, on the lesson file: 13 lines give 12 rows. Without `header=True` the count would be 13, and the columns
+          would be called `_c0` to `_c9` (real output).
+    code:
+      lang: python
+      title: 'Session 1: "Reading CSV files"'
+      source: |
+        """Session 1 of the course notebook: "Reading CSV files"."""
+        # @a read
+        trips = spark.read.csv(
+            f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",  # @a:path
+            sep=",",  # @a:sep
+            header=True,  # @a:header
+        )
+        # @end
+    links:
+      - { anchor: read, label: 'spark.read.csv(...)', say: 'Returns a DataFrame at once; nothing is read or printed yet.' }
+      - { anchor: path, label: 'the path, an f-string', say: 'The `f` before the quotes makes Python fill in `{BASE}`. The `*` matches all three months.' }
+      - { anchor: sep, label: 'sep: the separator', say: 'A comma, as in every CSV file.' }
+      - { anchor: header, label: 'header=True', say: 'The first line gives the column names.' }
+    trace: { fn: readCode, in: {} }
+    examples: [read-code-trace, read-code-trace-noheader, string-read-show, noheader-read]
+    pitfalls:
+      - 'Forgetting `header=True`. The names line becomes a data row, and the columns are called `_c0`, `_c1`… So `count()` is one too high: 13 instead of 12 on the lesson file.'
+      - 'Leaving out the `f` before the path. Then `"{BASE}/..."` keeps the braces as plain text, and Spark looks for a folder that does not exist.'
+    examTip: 'With `header=True`, `count()` is the number of lines minus 1; without it, Spark counts the names line as a row.'
+    tryIt: [header-count-numeric, code-read-csv]
+
+  - id: show-count
+    title: show, columns and count
+    skills: [show-inspect, column-objects]
+    summary: |
+      From Session 1's "Displaying a DataFrame with show", "DataFrame columns" and "Counting rows". `show()` and `count()` are
+      [[action|actions]]: Spark reads the trips. `trips.columns` and `trips["VendorID"]` are not: the first is a list of
+      names, the second a [[column-object|Column object]] with no values.
+    keyFormula: '\texttt{trips.show(n, truncate=False, vertical=True)}, \quad \texttt{trips.count()}'
+    data: [q4facts]
+    derive:
+      - { fn: showCode, in: {}, out: sc }
+    live:
+      - id: grid
+        widget: Matrix
+        props: { rows: '@sc.grid.rows', cols: '@sc.grid.cols', values: '@sc.grid.values', title: 'trips on the lesson file (4 of 10 columns)', rowHeader: row }
+      - id: facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'rows show() prints', value: '@sc.shown' }
+            - { label: 'count()', value: '@sc.count', tone: accent }
+            - { label: 'columns', value: '@sc.nCols' }
+    steps:
+      - tex: |
+          \anchor{show}{\texttt{trips.show(n=20)}} \Rightarrow \min(n,\ \texttt{count()}) \text{ rows}
+        say: |
+          `show()` prints at most n rows, 20 by default. When there are more, it adds the line `only showing top n rows`.
+      - tex: |
+          \anchor{vertical}{\texttt{show(3, truncate=False, vertical=True)}}
+        say: |
+          `vertical=True` prints each row as a list, one column per line. `truncate=False` prints long values in full
+          instead of cutting them at 20 characters.
+      - tex: |
+          \begin{gathered} \anchor{columns}{\texttt{trips.columns}} \Rightarrow \text{a list of names} \\ \anchor{colobj}{\texttt{trips["VendorID"]}} \Rightarrow \text{a Column object} \end{gathered}
+        say: |
+          Neither line reads any trips. A [[column-object|Column object]] prints as `Column<'VendorID'>`; `trips.VendorID` is another
+          spelling of it.
+      - tex: |
+          \begin{gathered} \anchor{count}{\texttt{trips.count()}} = {=sc.count} \text{ (lesson file)} \\ = {=sc.fullRows|comma} \text{ (three months)} \end{gathered}
+        say: |
+          `count()` reads every row and returns a whole number. The original course data had
+          {=q4facts.originalRows|comma} rows; the taxi commission has since republished its files.
+    code:
+      lang: python
+      title: 'Session 1: "Displaying a DataFrame with show", "DataFrame columns", "Counting rows"'
+      source: |
+        """Session 1 of the course notebook: "Displaying a DataFrame with show" to "Counting rows"."""
+        # Each line is its own cell in the notebook.
+        trips.show()  # @a:show
+        trips.show(3, truncate=False, vertical=True)  # @a:vertical
+        trips.columns  # @a:columns
+        # @a colobj
+        trips["VendorID"]
+        trips.VendorID
+        # @end
+        trips.count()  # @a:count
+    links:
+      - { anchor: show, label: 'show(): print rows', say: 'An action: Spark reads the data to print it.' }
+      - { anchor: vertical, label: 'vertical, untruncated', say: 'Easier to read when rows have many columns.' }
+      - { anchor: columns, label: 'columns: the names', say: 'A Python list in square brackets.' }
+      - { anchor: colobj, label: 'a Column object', say: 'A description used to build commands. It holds no values.' }
+      - { anchor: count, label: 'count(): the rows', say: 'An action that returns a Python whole number (`int`).' }
+    trace: { fn: showCode, in: {} }
+    examples: [show-code-trace, string-read-show5, string-read-vertical, type-of-column, type-of-count]
+    pitfalls:
+      - 'Expecting `trips["VendorID"]` to print the vendor IDs. It prints `Column<''VendorID''>`; values appear only through an action such as `show()`.'
+      - 'Looking for the table''s size in one command. Use `trips.count()` for the rows and `len(trips.columns)` for the columns (`len` counts the items of a list).'
+      - 'Trusting the order of the rows. Rows have no fixed order, so `show()` can print different rows first on another run.'
+    examTip: '`show(n)` prints at most n rows (20 by default); `count()` returns the number of rows as a whole number.'
+    tryIt: [code-show-vertical, action-multi, column-object-mcq]
+
+  # ------------------------------------------------------------------ Session 2
+  - id: print-schema
+    title: printSchema and inferSchema
+    skills: [schema-types]
+    summary: |
+      From Session 2's "Column types" and "Letting Spark guess the types". A plain [[csv]] read makes every column a
+      `string`. [[infer-schema|inferSchema]] reads all the data once more. For each column it picks the narrowest
+      [[data-type|data type]] that fits every value.
+    keyFormula: '\texttt{spark.read.csv(path, header=True, inferSchema=True)}'
+    state: { col: fare_amount }
+    derive:
+      - { fn: inferCode, in: { col: '@col' }, out: ic }
+    live:
+      - id: pick
+        widget: Choice
+        props:
+          label: Column for the last step
+          style: dropdown
+          options:
+            - { value: VendorID, label: VendorID }
+            - { value: lpep_pickup_datetime, label: lpep_pickup_datetime }
+            - { value: store_and_fwd_flag, label: store_and_fwd_flag }
+            - { value: fare_amount, label: fare_amount }
+        bind: { value: col }
+      - id: types
+        widget: Matrix
+        props: { rows: '@ic.types.rows', cols: '@ic.types.cols', values: '@ic.types.values', title: 'Lesson file: plain read vs inferSchema', rowHeader: column }
+    steps:
+      - tex: |
+          \anchor{schema}{\texttt{trips.printSchema()}} \;\Rightarrow\; \text{every column is } \texttt{string}
+        say: |
+          One line per [[column|column]]: its name, its [[data-type|data type]], and `nullable = true`, meaning missing values are
+          allowed. A plain read never looks at the values, so every type is `string`.
+      - tex: |
+          \anchor{dtypes}{\texttt{trips.dtypes}} \;\Rightarrow\; \text{the same, as (name, type) pairs}
+        say: |
+          A Python list you can use in code, where `printSchema()` only prints.
+      - tex: |
+          \anchor{infer}{\begin{gathered} \text{type}(c) = \text{the first of } \texttt{integer}, \texttt{double}, \texttt{timestamp}, \texttt{string} \\ \text{that fits every value of column } c \end{gathered}}
+        say: |
+          `inferSchema=True` tries the narrowest type first. One value that does not fit, like `11.5` for `integer`,
+          moves the whole column on to the next type. (Spark knows a few more, such as `long` for very big whole numbers.)
+      - tex: |
+          {=ic.colTex}: \ {=ic.whyTex} \;\Rightarrow\; {=ic.typeTex}
+        say: |
+          Live: pick a column above. To be sure every value fits, Spark must read all of them. On 2.7 million trips that
+          extra pass takes time.
+    code:
+      lang: python
+      title: 'Session 2: "Column types" and "Letting Spark guess the types"'
+      source: |
+        """Session 2 of the course notebook: "Column types" and "Letting Spark guess the types"."""
+        trips.printSchema()  # @a:schema
+        trips.dtypes  # @a:dtypes
+
+        trips = spark.read.csv(
+            f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+            sep=",",
+            header=True,
+            inferSchema=True,  # @a:infer
+        )
+        trips.printSchema()  # @a:schema
+    links:
+      - { anchor: schema, label: 'printSchema()', say: 'Prints the schema as a tree: `root`, then one `|--` line per column.' }
+      - { anchor: dtypes, label: 'dtypes', say: 'The same names and types as a list of pairs.' }
+      - { anchor: infer, label: 'inferSchema=True', say: 'One extra pass over all the data to guess each type.' }
+    trace: { fn: inferCode, in: { col: '@col' } }
+    examples: [infer-code-trace, string-read-columns-schema, infer-read, infer-walk]
+    pitfalls:
+      - 'Doing math on a column that is still text. After a plain read `fare_amount` is a `string`, so its minimum and maximum compare text.'
+      - 'Forgetting the cost. `inferSchema=True` reads all 2.7 million trips one extra time; a schema you write yourself (next section) avoids that pass.'
+      - 'Reading `nullable = true` as "this column has nulls". It only says missing values are allowed.'
+    examTip: '`inferSchema=True` costs one extra pass over the data; one decimal value makes a whole column `double`.'
+    tryIt: [code-infer-schema, infer-cost-mcq]
+
+  - id: ddl-schema
+    title: DDL schema strings and silent nulls
+    skills: [ddl-schema, silent-nulls]
+    summary: |
+      From Session 2's "Giving Spark a schema". A [[ddl-schema-string]] states each column's type, so Spark
+      skips the guessing pass. Spark trusts it: a value that cannot be [[cast|cast]] to its type becomes
+      [[null-value|NULL]] without any error, a [[silent-null|silent null]].
+    keyFormula: '\texttt{spark.read.csv(path, header=True, schema=schema)}'
+    data: [q4facts]
+    state: { flagType: INT }
+    derive:
+      - { fn: castCode, in: { type: '@flagType' }, out: cc }
+    live:
+      - id: fix
+        widget: Choice
+        props:
+          label: 'Declared type of `store_and_fwd_flag`'
+          options:
+            - { value: INT, label: 'INT (as in the notebook)' }
+            - { value: STRING, label: 'STRING (the fix)' }
+        bind: { value: flagType }
+      - id: cast
+        widget: Matrix
+        props: { rows: '@cc.sheet.rows', cols: '@cc.sheet.cols', values: '@cc.sheet.values', title: 'store_and_fwd_flag on the lesson file: text in the file, value Spark stores', rowHeader: trip }
+      - id: facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'NULL flags', value: '@cc.nulls', tone: bad }
+            - { label: 'count line of describe()', value: '@cc.kept', tone: accent }
+    steps:
+      - tex: |
+          \anchor{ddl}{\texttt{schema = "VendorID INT, \dots"}}
+        say: |
+          One `name TYPE` pair per line, in the file's column order: Spark matches the pairs to the file's columns by
+          position, not by name. `INT` is a whole number, `FLOAT` a decimal number, `TIMESTAMP` a date and time,
+          `STRING` text. `schema=schema` hands the string to the reader.
+      - tex: |
+          \anchor{flag}{\texttt{store\_and\_fwd\_flag INT}} \quad \text{but the file holds } \texttt{N} \text{ and } \texttt{Y}
+        say: |
+          The wrong type, kept on purpose. The notebook's next `printSchema()` shows `integer`: it prints what you
+          declared and checks nothing against the file.
+      - tex: |
+          \anchor{read}{v_i = \begin{cases} x_i \text{ as the declared type} & \text{if it fits} \\ \texttt{NULL} & \text{if not (no error)} \end{cases}}
+        say: |
+          $x_i$ ("x sub i") is the text in row $i$ of the file; $v_i$ is the value Spark stores. This is what Spark
+          does by default.
+      - tex: |
+          \begin{gathered} \anchor{show}{\texttt{trips.show(5)}} \Rightarrow \texttt{NULL} \text{ flags} \\ \anchor{count}{\text{count} = \#\{\, i : v_i \neq \texttt{NULL} \,\}} = {=cc.kept} \end{gathered}
+        say: |
+          `describe()` prints a short summary of a column. Its `count` line counts the values that are not NULL:
+          $\#\{i : v_i \neq \texttt{NULL}\}$ reads "how many rows $i$ have a value that is not NULL". Live: with
+          `{=flagType}` the lesson file keeps {=cc.kept} of 12 flags; on all three months the INT schema makes
+          {=q4facts.intSchemaNulls|comma} NULLs.
+    code:
+      lang: python
+      title: 'Session 2: "Giving Spark a schema"'
+      source: |
+        """Session 2 of the course notebook: "Giving Spark a schema". One type is wrong on purpose."""
+        # @a ddl
+        schema = """
+        VendorID INT,
+        lpep_pickup_datetime TIMESTAMP,
+        lpep_dropoff_datetime TIMESTAMP,
+        store_and_fwd_flag INT,  # @a:flag
+        RatecodeID INT,
+        PULocationID INT,
+        DOLocationID INT,
+        passenger_count INT,
+        trip_distance FLOAT,
+        fare_amount FLOAT,
+        extra FLOAT,
+        mta_tax FLOAT,
+        tip_amount FLOAT,
+        tolls_amount FLOAT,
+        ehail_fee FLOAT,
+        improvement_surcharge FLOAT,
+        total_amount FLOAT,
+        payment_type STRING,
+        trip_type STRING
+        """
+        # @end
+        # @a read
+        trips = spark.read.csv(
+            f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+            sep=",",
+            header=True,
+            schema=schema,
+        )
+        # @end
+        trips.printSchema()
+        trips.show(5)  # @a:show
+        trips.describe("store_and_fwd_flag").show()  # @a:count
+    extraCode:
+      - lang: python
+        title: 'Broken on purpose: counting the "Y" trips'
+        source: |
+          """Session 2, "Broken on purpose: counting the Y trips": with the INT schema this raises [CAST_INVALID_INPUT] (real output)."""
+          # filter keeps the rows where the condition is true (Module 2).
+          trips.filter(trips.store_and_fwd_flag == "Y").count()
+      - lang: python
+        title: Fix it (same notebook section)
+        source: |
+          """Session 2, the fix in the same section: the schema with the flag declared STRING. Count of Y: 3,650."""
+          schema_fixed = """
+          VendorID INT,
+          lpep_pickup_datetime TIMESTAMP,
+          lpep_dropoff_datetime TIMESTAMP,
+          store_and_fwd_flag STRING,
+          RatecodeID INT,
+          PULocationID INT,
+          DOLocationID INT,
+          passenger_count INT,
+          trip_distance FLOAT,
+          fare_amount FLOAT,
+          extra FLOAT,
+          mta_tax FLOAT,
+          tip_amount FLOAT,
+          tolls_amount FLOAT,
+          ehail_fee FLOAT,
+          improvement_surcharge FLOAT,
+          total_amount FLOAT,
+          payment_type STRING,
+          trip_type STRING
+          """
+          trips = spark.read.csv(
+              f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+              sep=",",
+              header=True,
+              schema=schema_fixed,
+          )
+          trips.filter(trips.store_and_fwd_flag == "Y").count()
+    links:
+      - { anchor: ddl, label: 'the DDL schema string', say: 'A multi-line string (`"""..."""`) with one `name TYPE` pair per line.' }
+      - { anchor: flag, label: 'store_and_fwd_flag INT', say: 'The wrong type: the column holds the letters N and Y.' }
+      - { anchor: read, label: 'cast or NULL, per value', say: 'The read converts each value as it goes; values that do not fit become NULL.' }
+      - { anchor: show, label: 'show(5): NULL flags', say: 'The first place the damage is visible.' }
+      - { anchor: count, label: 'describe count', say: '`describe()` summarizes a column; its count line counts the values that are not NULL: 0 for the flag.' }
+    trace: { fn: castCode, in: { type: '@flagType' } }
+    examples: [cast-code-trace-int, cast-code-trace-string, ddl-int-read, ddl-string-read, flag-int-check, flag-string-check, permissive-read, cast-walk-flag, cast-walk-fare-int]
+    pitfalls:
+      - 'Trusting `printSchema()` after a schema read. It prints the types you declared, not what the file holds; compare them with `show()`.'
+      - 'Following the `try_cast` hint in the `[CAST_INVALID_INPUT]` message. It turns `''Y''` into NULL, so nothing matches and the count is quietly 0; declare the column `STRING` instead.'
+      - 'Declaring a decimal column such as `fare_amount` as `INT`. Whole numbers survive, but 11.5, 34.5, 8.5 and 10.5 become NULL (real run on the lesson file).'
+    examTip: 'A wrong type in a DDL schema string gives NULL, not an error; check the schema against `show()` before trusting any count.'
+    errata:
+      - 'The lab''s first version declared `store_and_fwd_flag` as INT, but the files hold the letters N and Y, so every flag reads as NULL. It never showed this, because it read the data again with inferSchema before any show(). The course notebook keeps the mistake on purpose; the fix is STRING.'
+      - 'The same schema declares `payment_type` and `trip_type` as STRING, although both hold whole numbers. No nulls result, because any text fits STRING, but INT would fit better.'
+    tryIt: [code-ddl-fix, silent-null-mcq, two-ways-multi]
+
+  - id: describe-stats
+    title: describe and summary
+    skills: [pandas-describe]
+    summary: |
+      From Session 2's "Summary statistics" and "Aha: summaries of text columns". `describe()` prints [[summary-statistics|summary statistics]] for each column: count,
+      mean, [[standard-deviation|stddev]], min and max. `summary()` adds 25%, 50% and 75%: the values below which a
+      quarter, half and three quarters of the column fall. The plain Python lines below compute the same numbers.
+    keyFormula: '\texttt{trips.describe()}: \ \bar{x} = \tfrac{1}{n}\textstyle\sum_i x_i, \ s = \sqrt{\tfrac{\sum_i (x_i - \bar{x})^2}{n - 1}}'
+    derive:
+      - { fn: describeCode, in: {}, out: dc }
+    live:
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@dc.sheet.rows', cols: '@dc.sheet.cols', values: '@dc.sheet.values', format: 4, title: 'fare_amount on the lesson file (inferSchema read)', rowHeader: trip }
+      - id: stats
+        widget: Matrix
+        props: { rows: '@dc.stats.rows', cols: '@dc.stats.cols', values: '@dc.stats.values', title: 'What describe("fare_amount") prints', rowHeader: summary }
+    steps:
+      - tex: |
+          \anchor{count}{n = \#\{\, i : x_i \neq \texttt{NULL} \,\}}
+        say: |
+          `count` counts the values that are not null: $\#\{i : x_i \neq \texttt{NULL}\}$ reads "how many rows $i$ have
+          a value that is not NULL". $x_i$ is the value in row $i$. NULLs are left out first, not counted as zeros. In
+          the code, `fares` is a list (values in square brackets) of the 12 fares, none NULL; `len` counts its items.
+      - tex: |
+          \anchor{sum}{S = \sum_{i=1}^{n} x_i} \qquad \anchor{mean}{\bar{x} = \frac{S}{n}}
+        say: |
+          $\sum$ ("sigma") means "add up". The mean $\bar{x}$ ("x bar") is the total divided by n. In the code,
+          `for x in fares:` repeats the indented line once per fare, with `x` holding that fare; `total += x` adds it.
+      - tex: |
+          \anchor{ss}{\sum_{i=1}^{n} (x_i - \bar{x})^2} \qquad \anchor{stddev}{s = \sqrt{\frac{\sum_{i} (x_i - \bar{x})^2}{n - 1}}}
+        say: |
+          The [[standard-deviation|standard deviation]]: square each value's distance from the mean, add the squares, divide by $n - 1$,
+          then take the square root. Spark's `stddev` is this sample version. In the code, `** 2` squares a number and
+          `** 0.5` takes the square root.
+      - tex: |
+          \begin{gathered} \anchor{minmax}{\min_i x_i, \ \max_i x_i} \\ \anchor{textminmax}{\text{as text: } \texttt{"10.5"} < \texttt{"34.5"} < \texttt{"8.5"}} \end{gathered}
+        say: |
+          For numbers, min and max compare sizes. For a text column they compare character by character, like words
+          in a dictionary, so "8.5" comes last.
+      - tex: |
+          \begin{gathered} n = {=dc.n}, \quad \bar{x} = \frac{ {=dc.sum} }{ {=dc.n} } = {=dc.mean|4} \\ s = \sqrt{\frac{ {=dc.ss|4} }{ {=dc.n} - 1} } = {=dc.stddev|4} \end{gathered}
+        say: |
+          The 12 lesson fares. Spark prints mean {=dc.printed.mean} and stddev {=dc.printed.stddev} (real output).
+    code:
+      lang: python
+      title: 'Session 2: "Summary statistics" and "Aha", plus what describe() computes'
+      source: |
+        """Session 2 of the course notebook: "Summary statistics" and "Aha: summaries of text columns", plus what describe() computes on the 12 lesson fares."""
+        trips.summary().show()
+        trips.describe().toPandas()
+
+        # describe("fare_amount") by hand: the lesson file's fares, in row order (none is NULL).
+        fares = [11.5, 22.0, 34.5, 4.0, 8.5, 29.0, 12.0, 8.0, 8.0, 6.0, 10.5, 31.0]
+        n = len(fares)  # @a:count
+        total = 0  # @a:sum
+        for x in fares:
+            total += x  # @a:sum
+        mean = total / n  # @a:mean
+        ss = 0  # @a:ss
+        for x in fares:
+            ss += (x - mean) ** 2  # @a:ss
+        stddev = (ss / (n - 1)) ** 0.5  # @a:stddev
+        print(min(fares), max(fares))  # @a:minmax
+
+        trips_text = spark.read.csv(f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv", header=True)
+        trips_text.describe("fare_amount", "PULocationID", "lpep_pickup_datetime").show()  # @a:textminmax
+    links:
+      - { anchor: count, label: 'count: values that are not NULL', say: '`len` counts the items of the list: 12 fares, none NULL.' }
+      - { anchor: sum, label: 'the total', say: '`total += x` adds one value per pass of the loop.' }
+      - { anchor: mean, label: 'mean', say: 'The total divided by the count.' }
+      - { anchor: ss, label: 'sum of squared distances', say: '`** 2` squares a number.' }
+      - { anchor: stddev, label: 'stddev, dividing by n − 1', say: '`** 0.5` takes the square root.' }
+      - { anchor: minmax, label: 'min and max', say: 'Python''s built-in `min` and `max` on a list of numbers.' }
+      - { anchor: textminmax, label: 'min and max of text', say: 'From "Aha: summaries of text columns": on a text read, the fare''s text max is "99.5" and the zone''s is "99" (real output).' }
+    trace: { fn: describeCode, in: {} }
+    examples: [describe-code-trace, describe-fare-infer, describe-fare-string, summary-infer, describe-walk-fare, describe-walk-fare-text]
+    pitfalls:
+      - 'Dividing by n instead of n − 1. Spark''s `stddev` is the sample standard deviation, which divides by n − 1.'
+      - 'Treating NULLs as zeros. `count` and `mean` skip NULLs, so silent nulls shrink the count without warning.'
+      - 'Reading min and max of a text column as numbers. On the full data the text max of the pickup zone is "99", although the largest zone is 265 (real output).'
+      - 'Looking for the date columns in `describe()`. `summary()` and `describe()` skip timestamp columns.'
+    examTip: '`describe()` gives count, mean, stddev (dividing by n − 1), min and max; on a string column, min and max compare text.'
+    tryIt: [mean-numeric, stddev-hand, string-max-numeric]
+
+  - id: limit-topandas
+    title: limit, then toPandas
+    skills: [pandas-describe]
+    summary: |
+      From Session 2's "Spark DataFrames and pandas". `toPandas()` is an [[action|action]] that copies rows out of Spark into your notebook's own Python
+      memory, as a [[pandas]] table. With [[spark-connect]] your notebook is not the [[driver|driver]]. `limit(10)` keeps
+      10 rows first, so only those travel.
+    keyFormula: '\texttt{trips.limit(10).toPandas()}'
+    data: [q4facts]
+    derive:
+      - { fn: limitCode, in: { n: 10 }, out: lc }
+    live:
+      - id: rows
+        widget: Matrix
+        props: { rows: '@lc.rows.rows', cols: '@lc.rows.cols', values: '@lc.rows.values', title: 'The lesson file (4 of 10 columns)', rowHeader: row }
+      - id: facts
+        widget: Readout
+        props:
+          items:
+            - { label: 'rows copied with limit(10)', value: '@lc.kept', tone: good }
+            - { label: 'rows copied without limit, full data', value: '{=lc.fullRows|comma}', tone: bad }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            **`trips.limit(10).toPandas()`** on the lesson file, as plain Python prints it (Databricks shows a formatted table)
+
+            {=lc.pandasBlock}
+    steps:
+      - tex: |
+          \anchor{chain}{\texttt{trips.limit(10).toPandas()}}
+        say: |
+          The notebook's cell under "Spark DataFrames and pandas". Read it from left to right: take `trips`, keep 10
+          rows, copy them to pandas.
+      - tex: |
+          \anchor{limit}{\texttt{limit(n)}}: \ \text{rows kept} = \min(n,\ \texttt{count()})
+        say: |
+          `limit` keeps the first n rows Spark comes across. They are not a random sample.
+      - tex: |
+          \anchor{topandas}{\texttt{toPandas()}}: \ \text{every kept row travels to your notebook}
+        say: |
+          A [[pandas]] table lives in one computer's memory: here, your notebook's. You cannot pick rows by position in
+          a Spark table, so keep a few rows with `limit` first.
+      - tex: |
+          \begin{gathered} \min(10,\ {=lc.count}) = {=lc.kept} \text{ rows (lesson file)} \\ \text{vs. } {=lc.fullRows|comma} \text{ rows without } \texttt{limit} \text{ (full data)} \end{gathered}
+        say: |
+          On the full data the difference is ten rows against {=q4facts.rows|comma}.
+    code:
+      lang: python
+      title: 'Session 2: "Spark DataFrames and pandas"'
+      source: |
+        """Session 2 of the course notebook: "Spark DataFrames and pandas"."""
+        trips.limit(10).toPandas()  # @a:chain
+
+        # The same two steps, one per line:
+        first10 = trips.limit(10)  # @a:limit
+        first10.toPandas()  # @a:topandas
+
+        # Never on big data: trips.toPandas() would copy all 2,705,926 rows into your notebook.
+    links:
+      - { anchor: chain, label: 'the notebook cell', say: 'Two commands in a row: each works on the result of the one before.' }
+      - { anchor: limit, label: 'limit(10)', say: 'Still a Spark DataFrame; nothing has moved yet.' }
+      - { anchor: topandas, label: 'toPandas()', say: 'An action: the rows travel out of Spark into your notebook.' }
+    trace: { fn: limitCode, in: { n: 10 } }
+    examples: [limit-code-trace-10, limit-code-trace, topandas-infer, topandas-string]
+    pitfalls:
+      - 'Calling `trips.toPandas()` on the full data. All 2,705,926 rows go into your notebook''s memory, which can fill up and crash.'
+      - 'Treating `limit(10)` as a random sample. It keeps the first rows Spark comes across.'
+      - 'Trying to pick rows by position. You cannot do that in a Spark table, so keep a few rows with `limit` first.'
+    examTip: 'Always `limit` before `toPandas()`: every row it returns lands in your notebook''s memory.'
+    tryIt: [code-limit-topandas, topandas-mcq, stats-match]

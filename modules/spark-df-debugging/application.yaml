@@ -1,0 +1,421 @@
+intro: |
+  In real work you often fix a notebook someone else wrote. Its errors appear far from their causes, and one of
+  them has no message at all. This case runs a teammate's notebook on the twelve lesson trips, one real error at a
+  time. Fixing it takes everything from Sessions 3 and 4: imports, filter conditions, method chains, functions,
+  [[lazy-evaluation]] and tracebacks. Then the fixed code meets the full quarter of trips: the same three files as
+  your Databricks volume, run on open-source Spark 4.0.1.
+case:
+  id: fix-teammate
+  title: Fix a teammate's notebook
+  story: |
+    Your teammate Bea has a report due on Friday. Her question: among the trips with a tip and a fare above 5
+    dollars, which pickup zone has the best average tip? She tried her notebook on the twelve lesson trips first,
+    and it fails almost everywhere. She asks you to fix it. Every output below comes from a real run, in the order you meet it. The
+    cell numbers inside the errors count every cell run in that session, your fixes included.
+  state: { minFare: 5 }
+  derive:
+    - { fn: tripsView, in: { cols: [PULocationID, fare_amount, tip_amount] }, out: tv }
+    - { fn: realCell, in: { key: m2x.app.read }, out: c1 }
+    - { fn: realCell, in: { key: m2x.app.and }, out: c2 }
+    - { fn: realCell, in: { key: m2x.app.and_fix }, out: c3 }
+    - { fn: realCell, in: { key: m2x.app2.or_count }, out: orc }
+    - { fn: realCell, in: { key: m2x.app2.two_filters }, out: two }
+    - { fn: realCell, in: { key: m2x.app.typo_line }, out: c4 }
+    - { fn: realCell, in: { key: m2x.app.typo_show }, out: c5 }
+    - { fn: tracebackParts, in: { key: m2x.app.typo_show }, out: tp }
+    - { fn: realCell, in: { key: m2x.app.round }, out: c7 }
+    - { fn: realCell, in: { key: m2x.app.no_return }, out: c8 }
+    - { fn: realCell, in: { key: m2x.fixed2.dir_mean }, out: dm }
+    - { fn: realCell, in: { key: m2x.fixed.read }, out: f1 }
+    - { fn: realCell, in: { key: m2x.fixed.share }, out: share }
+    - { fn: bestZones, in: { minFare: '@minFare' }, out: bz }
+    - { fn: bestZones, in: { minFare: 5 }, out: bz5 }
+    - { fn: bestZones, in: { minFare: 0 }, out: bz0 }
+  cells:
+    - id: the-notebook
+      title: Bea's first cell
+      say: |
+        Bea's cell 1 reads the twelve lesson trips with `inferSchema=True`, so fares and tips are numbers. Then it
+        borrows every PySpark tool at once with a [[wildcard-import]]. The cell runs without an error. The table
+        shows each trip's pickup zone, fare and tip. Run her cells in order from here, and read each real error the
+        way Session 4 taught: last line first, then your cell's frame.
+      stage:
+        - id: cell-1
+          widget: Code
+          props: { source: '@c1.code', lang: python, title: 'Cell 1, as Bea wrote it' }
+        - id: trips
+          widget: Matrix
+          props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', emptyLabel: '@tv.emptyLabel', rowHeader: trip, title: 'The twelve trips: pickup zone, fare and tip' }
+
+    - id: and-trap
+      title: 'Cell 2: two conditions'
+      say: |
+        Cell 2 should keep the trips with a tip above 0 and a fare above 5 dollars. `trips.tip_amount` is the tip
+        [[column]], the same as `F.col("tip_amount")`. Bea joined her two [[condition|conditions]] with Python's
+        word `and`. The real run stops at once, before Spark runs anything. Read the last line: this message even
+        names the fix.
+      stage:
+        - id: cell-2
+          widget: Code
+          props: { source: '@c2.code', lang: python, title: Cell 2 }
+        - id: out-2
+          widget: Text
+          props: { body: '@c2.out' }
+      decision:
+        prompt: Which line should replace cell 2, and how many of the twelve trips will it keep? Count them in cell 1's table.
+        type: mcq
+        options:
+          - '`tipped = trips.filter((trips.tip_amount > 0) and (trips.fare_amount > 5))`, keeping {=bz5.tipped} trips'
+          - '`tipped = trips.filter((trips.tip_amount > 0) & (trips.fare_amount > 5))`, keeping {=bz0.tipped} trips'
+          - '`tipped = trips.filter((trips.tip_amount > 0) & (trips.fare_amount > 5))`, keeping {=bz5.tipped} trips'
+          - '`tipped = trips.filter(trips.tip_amount > 0 & trips.fare_amount > 5)`, keeping {=bz5.tipped} trips'
+        answer: 2
+        model: |
+          Only `&`, with each condition in its own parentheses, does what Bea meant. In cell 1's table, trips
+          {=bz5.trips} have a tip and a fare above 5, so your cell 3 keeps {=c3.printed} trips. Counting the tipped
+          trips alone gives {=bz0.tipped}: one of them has a fare below 5. Each line was also run for real.
+          Parentheses do not rescue `and`; that run raises the same error. Without parentheses, `&` fails too,
+          because Python works out `0 & trips.fare_amount` before the `>`. The `|` version runs but keeps
+          {=orc.printed} trips: every trip has a tip or a fare above 5. Two filters in a row,
+          `trips.filter(...).filter(...)`, also keep {=two.printed}.
+
+    - id: typo-waits
+      title: 'Cells 4 and 5: an error that waits'
+      say: |
+        Cell 4 groups the tipped trips by zone, then uses two tools Bea found herself, as in Session 3's discovery
+        task (search with `dir`, read with `help`). `agg(...)` makes one summary per group. `mean(...)` is the
+        average: the column's values added up, divided by how many there are. `.alias("avg_tip")` names the result.
+        Its type is a DataFrame: no complaint. Cell 5 sorts with `desc` and calls `show()`, an [[action]]. Only now
+        does the real run fail, with an [[analysis-exception]]. Under its message, the [[plan]] lines start with
+        `'Sort`.
+      stage:
+        - id: cell-4
+          widget: Code
+          props: { source: '@c4.code', lang: python, title: Cell 4 }
+        - id: out-4
+          widget: Text
+          props: { body: '@c4.out' }
+        - id: cell-5
+          widget: Code
+          props: { source: '@c5.code', lang: python, title: Cell 5 }
+        - id: out-5
+          widget: Text
+          props: { body: '@c5.out' }
+        - id: agg-note
+          widget: Callout
+          region: side
+          props:
+            kind: beyond
+            title: 'New tools: agg and mean'
+            body: |
+              `groupBy(...).count()` gives one count per group. `groupBy(...).agg(...)` gives any summary you ask
+              for, such as `mean(...)`, the average. Bea found both with `dir` and `help`. Module spark-df-formats
+              teaches `agg` properly in Session 5.
+      decision:
+        prompt: The frame names cell 5. Where is the mistake?
+        type: mcq
+        options:
+          - 'Cell 5: `desc("avg_tip")` names a column that does not exist'
+          - 'Cell 3: the filter threw away the `tip_amount` column'
+          - 'Cell 5: `show()` cannot print an average'
+          - 'Cell 4: `"tip_amont"` is misspelled'
+        answer: 3
+        model: |
+          Read the message, not only the first plan line. It names `tip_amont` and suggests
+          `{=tp.suggestions.0}` first. In the plan, `'avg('tip_amont)` (`avg` is Spark's name for the mean) sits on
+          the `'Aggregate` line: cell 4's `agg`. `agg` is a [[transformation]], so cell 4 only wrote a step on the plan. The action in cell 5
+          checked the names. `avg_tip` is fine: cell 4 created it with `alias`. Fix the spelling in cell 4, and cell
+          5 prints the table.
+
+    - id: round-clash
+      title: 'Cell 7: an error with no message'
+      say: |
+        Bea also wants the share of trips that pass her filter, rounded to two decimal places. Cell 7 divides one
+        count by the other and calls `round`. `count()` is an [[action]], so both counts are plain numbers. Yet the
+        real run ends with a bare `{=c7.final}`: no message at all.
+      stage:
+        - id: cell-7
+          widget: Code
+          props: { source: '@c7.code', lang: python, title: Cell 7 }
+        - id: out-7
+          widget: Text
+          props: { body: '@c7.out' }
+      decision:
+        prompt: Why does `round` fail here?
+        type: mcq
+        options:
+          - '`tipped.count() / trips.count()` is not a number'
+          - 'Cell 1''s star import replaced Python''s `round` with PySpark''s, which expects a column'
+          - '`round` cannot keep two decimal places'
+          - '`tipped` was never created, because cell 2 failed'
+        answer: 1
+        model: |
+          The [[wildcard-import]] in cell 1 copied PySpark's `round` over Python's
+          [[built-in-function|built-in]] one. PySpark's version expects a column, so a plain number makes it fail
+          without a message. The quick repair is `from builtins import round`. The lasting fix replaces the star
+          with `from pyspark.sql import functions as F`. In a fresh notebook with `as F`,
+          `print(round(tipped.count() / trips.count(), 2))` prints `{=share.printed}`: {=c3.printed} of the 12 trips.
+
+    - id: missing-return
+      title: 'Cell 8: a function that hands back nothing'
+      say: |
+        The graded problems want answers inside a [[function]], so Bea wrapped her chain in `best_zones(df)`.
+        Cell 8 defines it, then calls it on the tipped trips and shows the result. The real run fails at line 4,
+        the call.
+      stage:
+        - id: cell-8
+          widget: Code
+          props: { source: '@c8.code', lang: python, title: Cell 8 }
+        - id: out-8
+          widget: Text
+          props: { body: '@c8.out' }
+      decision:
+        prompt: |
+          The frame points at line 4, `best_zones(tipped).show()`. Where does the fix go, and how many rows will
+          line 4 print once it works? Use cell 1's table and the trips your cell 3 keeps.
+        type: mcq
+        options:
+          - 'Line 4: call `.count()` instead of `.show()`; it then prints {=bz5.zones}'
+          - 'Line 2: put `return` in front of the chain; {=bz5.tipped} rows, one per tipped trip'
+          - 'Line 2: put `return` in front of the chain; {=bz5.zones} rows, one per pickup zone'
+          - 'Line 1: rename the parameter `df` to `tipped`; {=bz5.zones} rows, one per pickup zone'
+        answer: 2
+        model: |
+          Line 2 builds the chain, then throws it away. A function without `return` hands back [[none|None]], and
+          None has no `show()`: `{=c8.final}`. The error surfaces at the call on line 4, but the fix belongs
+          inside the function. Calling `.count()` would fail the same way, since None has no `count()` either.
+          Once `return` is back, `groupBy` makes one row per pickup zone. The {=bz5.tipped} kept trips start in
+          {=bz5.zones} different zones (two of them in zone 33), so `show()` prints {=bz5.zones} rows.
+
+    - id: switch-to-f
+      title: Swap the star for F
+      say: |
+        The lasting fix starts a fresh notebook with `from pyspark.sql import functions as F` at the top. Deleting
+        the star line is not enough: the names it copied stay until the notebook's Python restarts. Every tool
+        borrowed from the toolbox now carries the `F.` label. Not sure a tool lives in `F`? Search the box with
+        `dir`, as in Session 3's discovery task: the line goes through every name in `dir(F)` and keeps the ones
+        that contain "mean". The answer is a [[list]], `{=dm.printed}`, so `F.mean` exists.
+      stage:
+        - id: dir-cell
+          widget: Code
+          props: { source: '@dm.code', lang: python, title: 'Is there a mean in F?' }
+        - id: dir-out
+          widget: Text
+          props: { body: '@dm.out' }
+      decision:
+        prompt: Which names in Bea's cells need `F.` in front once the star is gone?
+        type: mcq
+        options:
+          - '`mean` and `desc`'
+          - '`mean`, `desc` and `round`'
+          - '`filter`, `groupBy` and `orderBy`'
+          - 'None: `as F` brings back the bare names'
+        answer: 0
+        model: |
+          `mean` and `desc` came from the toolbox, so they become `F.mean` and `F.desc`. Cell 7's `round` rounds a
+          plain number, so it must stay Python's own. `filter`, `groupBy` and `orderBy` are [[method|methods]]:
+          they come with the table, so they need no import. A bare `mean` after `as F` would raise a
+          [[name-error]].
+
+    - id: fixed-notebook
+      title: The fixed notebook, and a question about its answer
+      say: |
+        Here is the whole fix in a fresh notebook. The filter moved inside `best_zones`, which now takes the raw
+        trips. At Bea's cut-off of 5 dollars the table is the real run: zone {=bz5.top} comes first, then zone
+        {=bz5.second}. Bea picked that cut-off herself. Slide it and watch the kept trips and the ranking change;
+        other cut-offs are computed on the same twelve trips. The last table counts the trips behind each average.
+      stage:
+        - id: fixed-1
+          widget: Code
+          props: { source: '@f1.code', lang: python, title: 'Cell 1 of the fresh notebook' }
+        - id: fixed-2
+          widget: Code
+          props: { source: '@bz.code', lang: python, title: 'Cell 2: the function and its answer' }
+        - id: best-out
+          widget: Text
+          props: { body: '@bz.out' }
+        - id: cut-off
+          widget: Slider
+          region: side
+          props: { label: 'Fare cut-off, in dollars', min: 0, max: 30, step: 5 }
+          bind: { value: minFare }
+        - id: kept-trips
+          widget: Matrix
+          region: side
+          props: { rows: '@bz.rows', cols: '@bz.cols', values: '@bz.values', rowHeader: trip, title: 'Trips the filter keeps' }
+        - id: fixed-3
+          widget: Code
+          props: { source: '@bz.countsCode', lang: python, title: 'Cell 3: how many trips stand behind each average?' }
+        - id: counts-out
+          widget: Text
+          props: { body: '@bz.countsOut' }
+      decision:
+        prompt: 'Bea wants to write: "Zone 7 gives the best tips." What do you tell her?'
+        type: mcq
+        options:
+          - 'Go ahead: 6.0 is the highest average in the table'
+          - 'Not yet: zone 7''s average rests on one trip, and a cut-off of 0 puts zone 33 first'
+          - 'Not yet: `F.mean` rounds the tips, so the averages are off'
+          - 'Not yet: the tie-break on zone number favours small zone numbers'
+        answer: 1
+        model: |
+          At a cut-off of 5, no average rests on more than {=bz5.mostTrips} trips. Zone {=bz5.top}'s average is
+          {=bz5.topMath}; zone {=bz5.second} averages {=bz5.secondMath}. Move the cut-off to 0 and a cheap tipped trip
+          joins zone {=bz5.top}: {=bz0.secondMath}, so zone {=bz0.top} leads instead. Twelve trips can test the code,
+          but they cannot answer the question. The full quarter, below, can. Even there, the top zones rest on a handful of
+          trips until you ask for at least 100 tipped trips per zone.
+
+    - id: ask-well
+      title: Ask the Assistant well
+      say: |
+        Before you arrived, Bea had asked the Databricks Assistant about the cell 5 error. Her whole question was
+        "my notebook is broken, how do I fix it?" The Assistant's answers are only as good as the question, and
+        this one gives it almost nothing to work with.
+      decision:
+        prompt: Rewrite Bea's question so the Assistant can help with the cell 5 error.
+        type: open
+        model: |
+          Give the four parts. **The code:** cells 4 and 5, pasted as text. **The full error:** the whole
+          traceback, from `Traceback (most recent call last)` to the plan lines. **The schema:** `trips.printSchema()`,
+          which lists `tip_amount: double`. **What you expected:** one row per pickup zone with its average tip.
+          Then ask one clear question: "Why does cell 4 run, but cell 5 fail with UNRESOLVED_COLUMN?"
+
+atScale:
+  title: The same notebook on the full quarter
+  body: |
+    On Databricks Free Edition, the fixed notebook needs one change: read the three monthly CSV files in your
+    volume (the Databricks folder that holds the course data) instead of the lesson file. In `green_tripdata_2017-1*.csv` the `*` matches any text, so October, November and
+    December are all read: 2,705,926 trips. `best_zones` itself does not change.
+
+    **Where the work happens.** Your notebook sends the [[plan]] through [[spark-connect|Spark Connect]] to the
+    computers Databricks runs for you (serverless compute). They share the rows out and work on them side by side.
+    A cell with `best.explain()` prints the plan. We ran the fixed notebook on the same three files with
+    open-source Spark 4.0.1 on our own computer, not on Databricks. Its plan showed these steps, read from the
+    bottom up:
+
+    - the scan still reads every line of the three CSV files, but keeps only the three columns the chain uses
+      (`ReadSchema: struct<PULocationID:int,fare_amount:double,tip_amount:double>`); Session 5 shows how Parquet
+      avoids reading the rest;
+    - the filter keeps the tipped trips with a fare above 5 dollars;
+    - the average is worked out in two rounds: each computer first adds up and counts the tips in its own piece of
+      the data (`partial_avg`), then those partial results are combined per zone (`avg`);
+    - a `Sort` puts the zones in order.
+
+    Databricks may print different names for these steps.
+
+    **Real numbers on the full quarter** (the same run). 964,733 trips have a tip and a fare above 5 dollars. The share line in
+    the second listing prints `0.36`. A cell with `best.count()` prints 236 zones. The top five:
+
+    ```text
+    +------------+-----------------+
+    |PULocationID|          avg_tip|
+    +------------+-----------------+
+    |           6|         20.88875|
+    |         115|18.66923076923077|
+    |          23|           18.162|
+    |         221|16.19958333333333|
+    |         176|             14.8|
+    +------------+-----------------+
+    only showing top 5 rows
+    ```
+
+    **The twelve-trip warning comes true.** The second listing also counts the trips behind each average. Zone 6
+    leads with only 8 tipped trips, and zone 176 with 2:
+
+    ```text
+    +------------+-----------------+------------+
+    |PULocationID|          avg_tip|tipped_trips|
+    +------------+-----------------+------------+
+    |           6|         20.88875|           8|
+    |         115|18.66923076923077|          39|
+    |          23|           18.162|          10|
+    |         221|16.19958333333333|          24|
+    |         176|             14.8|           2|
+    +------------+-----------------+------------+
+    only showing top 5 rows
+    ```
+
+    Keep the 128 zones with at least 100 tipped trips, and the ranking changes completely:
+
+    ```text
+    +------------+------------------+------------+
+    |PULocationID|           avg_tip|tipped_trips|
+    +------------+------------------+------------+
+    |         265|10.656204819277109|         166|
+    |         132| 9.439441860465116|         215|
+    |         138| 8.042696078431371|         204|
+    |          31| 5.815219665271965|         956|
+    |         174| 5.418501529051991|         654|
+    +------------+------------------+------------+
+    only showing top 5 rows
+    ```
+
+    **Errors at scale.** The `tip_amont` typo fails the same way, at the action. Its "Did you mean" list now draws
+    on the full files' 19 columns: [`tip_amount`, `fare_amount`, `tolls_amount`, `total_amount`, `trip_type`].
+  code:
+    - lang: python
+      title: 'The fixed notebook on the full quarter (real run, open-source Spark 4.0.1)'
+      source: |
+        BASE = "/Volumes/workspace/default/bdcc"
+        from pyspark.sql import functions as F
+
+        trips = spark.read.csv(f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv", header=True, inferSchema=True)
+
+        def best_zones(df):
+            tipped = df.filter((F.col("tip_amount") > 0) & (F.col("fare_amount") > 5))
+            by_zone = tipped.groupBy("PULocationID").agg(F.mean("tip_amount").alias("avg_tip"))
+            return by_zone.orderBy(F.desc("avg_tip"), "PULocationID")
+
+        best = best_zones(trips)
+        best.show(5)
+    - lang: python
+      title: 'The trips behind each average (beyond this module: agg with two summaries)'
+      source: |
+        tipped = trips.filter((F.col("tip_amount") > 0) & (F.col("fare_amount") > 5))
+        print(round(tipped.count() / trips.count(), 2))
+
+        by_zone = tipped.groupBy("PULocationID").agg(
+            F.mean("tip_amount").alias("avg_tip"),
+            F.count("tip_amount").alias("tipped_trips"),
+        )
+        by_zone.orderBy(F.desc("avg_tip"), "PULocationID").show(5)
+        (
+            by_zone.filter(F.col("tipped_trips") >= 100)
+            .orderBy(F.desc("avg_tip"), "PULocationID")
+            .show(5)
+        )
+
+tradeoffs:
+  title: Three ways to borrow PySpark's tools
+  columns: ['Question', 'Wildcard: import *', 'Named: import desc, mean', 'Labelled: functions as F']
+  rows:
+    - ['What you write later', '`mean(...)`, `desc(...)`', '`mean(...)`, `desc(...)`', '`F.mean(...)`, `F.desc(...)`']
+    - ['Python''s `round`, `max`, `sum`', 'Covered by PySpark''s: `round` on a number gives a bare `AssertionError`, `max(3, 7)` a `TypeError`', 'Untouched, unless you import those names too', 'Untouched']
+    - ['Where did a name come from?', 'Nobody can tell: every tool arrives without a label', 'The import line lists it', 'The `F.` label says Spark']
+    - ['A tool you did not import', 'Already there, with every other tool in the module', 'A [[name-error]]: add it to the import line', 'Already there: `F` holds every tool']
+    - ['Best for', 'Nothing in this course', 'A notebook that needs one or two tools', 'Every notebook in this course']
+
+connections:
+  - module: spark-df-basics
+    note: |
+      Sessions 1–2: the notebook, reading the CSV, `printSchema` and the silent null that this module's error zoo
+      builds on. It holds the course files: the
+      [course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb) (all six
+      sessions) and the [cheat sheet](/api/modules/spark-df-basics/files/assets/spark-cheatsheet.md).
+  - module: spark-df-formats
+    note: |
+      Sessions 5–6. There the full quarter is stored as Parquet, a file format that keeps each column on its own.
+      Session 5 teaches `agg` with `F.mean(...).alias(...)`, the tool Bea borrowed here. The capstone hides four
+      bugs like Bea's in one notebook.
+
+explainBack:
+  prompt: |
+    Explain to Bea, in plain words, why her notebook failed in four places and which habit prevents each failure.
+    Then say why her twelve-trip answer is not yet a finding.
+  rubric:
+    - 'The star import covered Python''s `round`; borrow tools with `as F` instead'
+    - 'Python''s `and` cannot join two Spark conditions; use `&`, with each condition in parentheses'
+    - 'The misspelled `tip_amont` surfaced at `show()`: transformations only add steps to the plan, and the action checks the names'
+    - 'Without `return` the function hands back None, so the error appears at the call while the fix goes inside the function'
+    - 'Each traceback is read last line first, then your own cell''s frame'
+    - 'An average over one or two trips proves little: count the trips behind each average before trusting a ranking'

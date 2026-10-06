@@ -1,0 +1,421 @@
+intro: |
+  New data deserves a check before anyone builds a report on it. A wrong column type does not always crash. It can
+  quietly turn real values into NULL, and the report then states a wrong number with confidence. In this case you
+  use every tool of this module on the full October to December 2017 green-taxi data. You run the cells in order,
+  read the files, compare the schema, hunt silent nulls, summarize, and decide.
+case:
+  id: new-month-check
+  title: Is the new data safe to use?
+  story: |
+    Monday morning. The last three months of 2017 sit in your team's volume as three CSV files, one per month. Your
+    manager wants two numbers for a report. First, how many trips the meter stored and sent later because it had lost
+    its signal: those trips have the letter `Y` in `store_and_fwd_flag`. Second, the average fare. A teammate's
+    notebook from last term already has the code, including its own schema. Before anyone trusts it, you check that
+    Spark reads the files correctly. Every output below comes from real Spark runs.
+  data: [q4facts]
+  state: { readMode: ddl_int, flagType: INT, descRead: string }
+  derive:
+    - { fn: runCells, in: { order: [show] }, out: rc }
+    - { fn: fullRead, in: { mode: '@readMode' }, out: fr }
+    - { fn: fullFlag, in: { flagType: '@flagType', facts: '@q4facts' }, out: ff }
+    - { fn: fullFailfast, in: {}, out: fx }
+    - { fn: fullDescribe, in: { read: '@descRead', facts: '@q4facts' }, out: fd }
+    - { fn: fullChecks, in: { facts: '@q4facts' }, out: chk }
+  cells:
+    - id: land-the-file
+      title: Open the notebook and count
+      say: |
+        You open the notebook and run its `trips.show()` cell first. Python stops with a [[name-error]]: this new
+        session has not run the cell that creates `trips`. [[run-order|Run order]] counts, not page order. So you run
+        the first cells in order: `BASE`, then the read. Now `trips.count()`, an [[action|action]], returns
+        {=q4facts.rows|comma} trips. The notebook's printout from last term says {=q4facts.originalRows|comma}.
+      stage:
+        - id: name-err
+          widget: Text
+          props:
+            body: |
+              **`trips.show()` in a new session** (real output, trimmed)
+
+              {=rc.output}
+        - id: first-cells
+          widget: Code
+          props:
+            title: 'The first cells, in order (from Session 1 of the notebook)'
+            source: |
+              BASE = "/Volumes/workspace/default/bdcc"
+
+              trips = spark.read.csv(
+                  f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+                  sep=",",
+                  header=True,
+              )
+
+              trips.count()
+        - id: counts
+          widget: Readout
+          region: side
+          props:
+            items:
+              - { label: 'Trips today, `count()`', value: '{=q4facts.rows|comma}', tone: accent }
+              - { label: "Last term's printout", value: '{=q4facts.originalRows|comma}' }
+      decision:
+        prompt: "Last term's notebook printed {=q4facts.originalRows|comma} trips. Today `count()` prints {=q4facts.rows|comma}. Work out the difference yourself. What goes in the report?"
+        type: mcq
+        options:
+          - "Today's count, with a note: the Taxi and Limousine Commission (TLC) republished its 2017 files with {=chk.droppedNoBorrow|comma} fewer trips"
+          - "Today's count, with a note: the Taxi and Limousine Commission (TLC) republished its 2017 files with {=chk.dropped|comma} fewer trips"
+          - "Last term's count, because the course already checked it"
+          - 'Nothing yet: `count()` only estimates on big data, so run it until the two numbers agree'
+        answer: 1
+        model: |
+          `count()` counts every row. It is not an estimate, and running it again gives the same number. The files
+          changed: {=q4facts.originalRows|comma} - {=q4facts.rows|comma} = {=chk.dropped|comma}, so the TLC
+          republished them with {=chk.dropped|comma} fewer trips. Report today's count, and name the files and the date
+          you read them, so a reader can trace the number.
+
+    - id: check-the-schema
+      title: Compare the schema with the values
+      say: |
+        The notebook reads the files with its own [[ddl-schema-string|DDL schema]]. Switch between three reads of the
+        same files and compare each [[schema|schema]] with what the columns hold. `store_and_fwd_flag` holds the letters `N`
+        and `Y`. `fare_amount` holds money. `payment_type` and `trip_type` hold whole numbers. `ehail_fee` is empty in
+        every trip.
+      stage:
+        - id: read-pick
+          widget: Choice
+          props:
+            label: How the files are read
+            options:
+              - { value: ddl_int, label: "The notebook's DDL schema" }
+              - { value: infer, label: 'inferSchema=True' }
+              - { value: string, label: 'header=True only' }
+          bind: { value: readMode }
+        - id: type-facts
+          widget: Readout
+          region: side
+          props:
+            items:
+              - { label: '`store_and_fwd_flag`', value: '@fr.flagType' }
+              - { label: '`fare_amount`', value: '@fr.fareType' }
+              - { label: '`payment_type`', value: '@fr.paymentType' }
+              - { label: '`ehail_fee`', value: '@fr.ehailType' }
+        - id: read-code
+          widget: Code
+          props: { title: The read cell, source: '@fr.code', maxHeight: 280 }
+        - id: schema-out
+          widget: Text
+          props:
+            body: |
+              **`trips.printSchema()`** with {=fr.label} (real output)
+
+              {=fr.schemaBlock}
+      decision:
+        prompt: "Which line of the notebook's schema damages the data?"
+        type: mcq
+        options:
+          - '`store_and_fwd_flag INT`: no letter fits a whole-number type'
+          - '`fare_amount FLOAT`: money needs `double`'
+          - '`ehail_fee FLOAT`: the column is empty'
+          - '`payment_type STRING`: the column holds whole numbers'
+        answer: 0
+        model: |
+          Only the flag line loses values. Spark cannot [[cast|cast]] `N` or `Y` to a whole number, so it stores NULL. The
+          other lines are choices, not damage. `FLOAT` keeps fewer digits than `double`, but every fare fits. Any type
+          fits an empty column; `inferSchema` calls it `string` because it has no number to go on. `payment_type` as
+          `STRING` keeps every value, but math on it would need a cast first.
+
+    - id: hunt-silent-nulls
+      title: Hunt for silent nulls
+      say: |
+        With the notebook's `INT` flag, Spark reads all {=q4facts.rows|comma} trips without a word. Yet `describe()`
+        counts {=q4facts.flagDescribeCount.INT} flags: every one is NULL. That is a [[silent-null|silent null]]. Switch the flag's
+        type and compare. The table counts the trips per flag value; its command, `groupBy`, comes in Module 2, so
+        here you only read the result.
+      stage:
+        - id: flag-pick
+          widget: Choice
+          props:
+            label: 'Type of `store_and_fwd_flag`'
+            options:
+              - { value: INT, label: "INT (the notebook's)" }
+              - { value: STRING, label: STRING }
+          bind: { value: flagType }
+        - id: flag-facts
+          widget: Readout
+          region: side
+          props:
+            items:
+              - { label: 'Flags counted by `describe()`', value: '{=ff.describeCount|comma}' }
+              - { label: NULL flags, value: '{=ff.nulls|comma}' }
+              - { label: 'Trips with `Y`', value: '{=ff.yText}', tone: accent }
+        - id: flag-table
+          widget: Text
+          props:
+            body: |
+              {=ff.tableTitle} (real output)
+
+              {=ff.tableBlock}
+      decision:
+        prompt: 'Your teammate says: "NULL means no flag, so no trip was stored and sent later. Report 0." Declare the flag `STRING` and read the table. What do you answer?'
+        type: mcq
+        options:
+          - 'Yes: NULL and 0 mean the same thing in a count'
+          - 'No: report {=q4facts.rows|comma}, the number of NULL flags'
+          - 'No: NULL means Spark could not cast `N` or `Y` to a whole number. Declared `STRING`, {=q4facts.vendorFlag.0.2|comma} trips have `Y`.'
+          - 'No: NULL means Spark could not cast `N` or `Y` to a whole number. Declared `STRING`, {=q4facts.flagY|comma} trips have `Y`.'
+        answer: 3
+        model: |
+          A [[null-value|null]] is a missing value, not 0 and not `N`. Every flag became NULL because no letter fits an
+          `INT` box. Declared `STRING`, the column keeps its letters: {=q4facts.flagY|comma} trips have `Y`, about
+          {=chk.yPct|2}% of all trips. Every one comes from vendor 1, one of the two companies that supply the meters'
+          records. That is worth a line in the report.
+
+    - id: make-it-loud
+      title: Make the next mistake loud
+      say: |
+        The `STRING` fix works today. But next month a wrong type could slip in again, and NULLs make no noise.
+        `help(spark.read.csv)` sent you to the "Data Source Option" page, which lists `mode="FAILFAST"`. Here is the
+        notebook's broken `INT` schema read that way, as in the notebook's "Discovery: make Spark fail loudly". The read
+        itself passes. The first [[action|action]] stops with an error that names the October file. The path is as our
+        local run printed it; Databricks may print it a little differently.
+      stage:
+        - id: loud-code
+          widget: Code
+          props: { title: 'Session 2: "Discovery: make Spark fail loudly"', source: '@fx.code' }
+        - id: loud-out
+          widget: Text
+          props:
+            body: |
+              **Output** (real, trimmed)
+
+              {=fx.block}
+      decision:
+        prompt: "Which read protects next month's report best?"
+        type: mcq
+        options:
+          - '`inferSchema=True` every month'
+          - 'The fixed DDL schema, with `mode="FAILFAST"`'
+          - 'The fixed DDL schema in the default mode, `PERMISSIVE`'
+          - '`header=True` only, so no value can turn into NULL'
+        answer: 1
+        model: |
+          With a schema you write and `FAILFAST`, a bad value stops the run with an error. It cannot become a quiet
+          NULL. In our run on the three files, the fixed schema with `FAILFAST` passed: `describe()`
+          finished and the count of `Y` was {=q4facts.flagY|comma}. `inferSchema` reads all the data one extra time,
+          and its guess can change when a month brings odd values. A text-only read loses nothing, but `min`, `max`
+          and math then work on text.
+
+    - id: summarize-and-sanity-check
+      title: Summarize the columns
+      say: |
+        Now the [[summary-statistics|summary statistics]] for the fare, the pickup zone and the pickup time. Switch between the text read
+        and the typed read. On text, `min` and `max` compare characters, so the "largest" fare is
+        {=q4facts.fareText.max} and the "largest" zone is {=q4facts.puText.max}. The typed read gives the true range.
+        Spark leaves the pickup time out of the typed summary; only the text read shows it.
+      stage:
+        - id: desc-pick
+          widget: Choice
+          props:
+            label: How the files were read
+            options:
+              - { value: string, label: 'header=True only (text)' }
+              - { value: infer, label: 'inferSchema=True (typed)' }
+          bind: { value: descRead }
+        - id: desc-facts
+          widget: Readout
+          region: side
+          props:
+            items:
+              - { label: Smallest fare, value: '{=fd.fareMin}' }
+              - { label: Largest fare, value: '{=fd.fareMax}', tone: accent }
+              - { label: Largest zone number, value: '{=fd.puMax}' }
+        - id: desc-code
+          widget: Code
+          props: { title: The summary cell, source: '@fd.code' }
+        - id: desc-out
+          widget: Text
+          props:
+            body: |
+              **Output** (real)
+
+              {=fd.block}
+      decision:
+        prompt: 'The typed read says fares run from {=q4facts.fare.min} to {=q4facts.fare.max}, and a count shows {=q4facts.negativeFares|comma} trips with a negative fare. What does that mean for the average fare in the report?'
+        type: mcq
+        options:
+          - '`describe()` already skips bad values, so the mean is safe'
+          - 'Use the text read: its largest fare, {=q4facts.fareText.max}, looks more normal'
+          - 'The mean, {=chk.fareMean|2}, includes these odd fares. Agree on which fares count, and say so in the report.'
+          - 'A standard deviation of {=q4facts.fare.stddev|2} proves the fares are clean'
+        answer: 2
+        model: |
+          `describe()` uses every value that is not NULL, odd ones included. A negative fare, or one above 6,000, is a
+          record to question, not a fact to average. Ask the data owner what such fares mean, agree on a rule, and write
+          the rule next to the number. The text read's "largest" fare, {=q4facts.fareText.max}, is only last in dictionary order.
+
+    - id: bad-clock-dates
+      title: Check the dates
+      say: |
+        The text read summarized `lpep_pickup_datetime`. Dates written like `2017-10-02 08:00:03` sort in time order
+        even as text. The earliest pickup is {=q4facts.pickupMin}, the latest {=q4facts.pickupMax}. Both lie outside
+        October to December 2017: some taxi meters had wrong clocks. A teammate counted the trips outside the quarter
+        with `filter`, a Module 2 tool.
+      stage:
+        - id: date-code
+          widget: Code
+          props:
+            title: "The teammate's two counts (inferSchema read)"
+            source: |
+              trips.filter(trips.lpep_pickup_datetime < "2017-10-01").count()
+              trips.filter(trips.lpep_pickup_datetime >= "2018-01-01").count()
+        - id: date-facts
+          widget: Readout
+          region: side
+          props:
+            items:
+              - { label: 'Pickups before 1 Oct 2017', value: '{=q4facts.pickupBeforeQ4}', tone: bad }
+              - { label: 'Pickups on or after 1 Jan 2018', value: '{=q4facts.pickupAfterQ4}', tone: bad }
+              - { label: Share of all trips, value: '{=chk.badDatesPct|4}%' }
+      decision:
+        prompt: 'Your manager also wants the number of trips per month. Using the two counts, how many trips do you leave out of the monthly counts?'
+        type: mcq
+        options:
+          - 'None: keep every trip, each in the month of its pickup date'
+          - '{=q4facts.pickupBeforeQ4}, with a note: their pickup dates fall outside October to December 2017'
+          - '{=q4facts.pickupAfterQ4}, with a note: their pickup dates fall outside October to December 2017'
+          - '{=chk.badDates}, with a note: their pickup dates fall outside October to December 2017'
+        answer: 3
+        model: |
+          Both counts lie outside the quarter: {=q4facts.pickupBeforeQ4} + {=q4facts.pickupAfterQ4} = {=chk.badDates}
+          trips. Keep the files as they are, and leave these trips out of the monthly counts, saying how many and why:
+          bad meter clocks. They are {=chk.badDatesPct|4}% of all trips, so the totals barely move. But a chart with a
+          bar for December 2008 would confuse every reader. Tell the data owner too: the same clocks may be wrong next
+          month.
+
+    - id: sample-for-report
+      title: A sample for the report
+      say: |
+        Your manager asks for "the trips in Excel". `toPandas()` copies a Spark table into [[pandas]], inside your
+        notebook's own Python. With [[spark-connect]] your notebook is not the [[driver|driver]]: it is the customer's
+        small table in the kitchen picture. All {=q4facts.rows|comma} trips would travel there at once. `limit(10)`
+        keeps 10 rows first, so only those travel, as in the notebook's "Spark DataFrames and pandas".
+      stage:
+        - id: sample-code
+          widget: Code
+          props:
+            title: 'Session 2: "Spark DataFrames and pandas"'
+            source: |
+              trips.limit(10).toPandas()
+      decision:
+        prompt: What do you send?
+        type: mcq
+        options:
+          - 'The summary numbers, plus a 10-row sample from `trips.limit(10).toPandas()`'
+          - 'All trips with `trips.toPandas()`: Spark copes with any size'
+          - 'The output of `trips.show(2705926)`, pasted into an email'
+          - 'Nothing: a Spark table can never leave Spark'
+        answer: 0
+        model: |
+          A report needs the numbers and a few example rows, not 2.7 million lines. `toPandas()` on every trip copies
+          all of them into your notebook's memory, which can fill up and crash. An Excel sheet holds at most 1,048,576 rows
+          anyway. Keep the big work in Spark, and bring only a small, chosen piece to pandas.
+
+    - id: decide
+      title: Decide
+      say: |
+        Time to answer your manager. Collect what you found: the count, the schema fix and the `Y` trips, the loud
+        read for next month, the odd fares and the bad dates. Then decide whether the data is ready, and what needs a
+        note.
+      stage:
+        - id: final-facts
+          widget: Readout
+          props:
+            items:
+              - { label: Trips, value: '{=q4facts.rows|comma}', tone: accent }
+              - { label: 'Mean fare (typed read)', value: '{=chk.fareMean|2}' }
+              - { label: Negative fares, value: '{=q4facts.negativeFares|comma}', tone: bad }
+      decision:
+        prompt: Is the data ready for the report? Write your message to the teammate.
+        type: open
+        model: |
+          Ready, with one fix and three notes.
+
+          1. Read with the notebook's schema, but declare `store_and_fwd_flag STRING`. Add `mode="FAILFAST"`, so the
+             next bad value stops the run instead of turning into NULL.
+          2. Report {=q4facts.rows|comma} trips and {=q4facts.flagY|comma} store-and-forward trips, all from vendor 1.
+          3. The mean fare, {=chk.fareMean|2}, includes {=q4facts.negativeFares|comma} negative fares and a few huge
+             ones. Agree on which fares count before the report goes out.
+          4. Leave the {=chk.badDates} trips with impossible pickup dates out of the monthly counts, and tell the data
+             owner.
+atScale:
+  title: The same check on Databricks Free Edition
+  body: |
+    **Where it runs.** Every output in this case came from the full data. The volume holds three CSV files of about 82,
+    77 and 80 MB (megabytes), 2,705,926 trips in all. On Databricks Free Edition, serverless compute runs your
+    cells: Databricks provides the machines and keeps them running. `spark` already exists, and the driver and
+    executors sit on Databricks' computers, reached through Spark Connect. You never choose machines.
+
+    **Try it yourself.** Run [00-setup-data.ipynb](/api/modules/spark-df-basics/files/assets/00-setup-data.ipynb) once to
+    fill your volume. Then work through Sessions 1 and 2 of
+    [the course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb), from "Notebook
+    basics" to "Discovery: make Spark fail loudly": those are the cells used here. Keep
+    [the cheat sheet](/api/modules/spark-df-basics/files/assets/spark-cheatsheet.md) next to it.
+
+    **What each read costs.** The read cell returns at once and reads nothing. Spark reads the header line, or with
+    `inferSchema=True` all three files once more, when a later command first needs the column names:
+    `trips.columns`, `printSchema()` or the first action. A DDL schema string needs no such pass: Spark has nothing
+    to guess. `count()`, `describe()` and `summary()` read the data each time you run them.
+
+    **When the data grows.** The glob `green_tripdata_2017-1*.csv` picks up every matching file, so the same cell reads
+    one month or many. More files give the executors more slices to share, not you more code. Module 3 saves the
+    cleaned trips as Parquet, a file format that stores each column's type, so nothing needs guessing.
+  code:
+    - lang: python
+      title: 'The monthly check on the three files (real results in the comments)'
+      source: |
+        # schema_fixed: the notebook's 19-column schema with store_and_fwd_flag STRING (its "Y" trips fix)
+        trips = spark.read.csv(
+            f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+            sep=",",
+            header=True,
+            schema=schema_fixed,
+            mode="FAILFAST",       # a value that does not fit stops the run
+        )
+        trips.printSchema()        # the types you declared
+        trips.count()              # 2705926
+        trips.describe("fare_amount", "PULocationID").show()   # mean fare 12.018858043372008 (FLOAT)
+        trips.filter(trips.store_and_fwd_flag == "Y").count()  # 3650
+    - lang: python
+      title: "The teammate's counts of odd values (inferSchema read; filter is taught in Module 2)"
+      source: |
+        trips.filter(trips.lpep_pickup_datetime < "2017-10-01").count()    # 94
+        trips.filter(trips.lpep_pickup_datetime >= "2018-01-01").count()   # 127
+        trips.filter(trips.fare_amount < 0).count()                        # 6523
+        trips.filter(trips.fare_amount > 1000).count()                     # 5
+tradeoffs:
+  title: Three ways to read a CSV file
+  columns: [Aspect, header=True only, inferSchema=True, DDL schema string]
+  rows:
+    - ['Column types', 'Every column `string`', "Spark's guess: the narrowest type that fits every value", 'The types you write']
+    - ['Extra reading to learn the types (at the first `printSchema()`, `columns` or action)', 'The header line', 'All the data, one extra time', 'None']
+    - ['Silent NULLs', 'Never: any text fits', 'Never: the guess fits every value', 'Yes, when a type is wrong (`store_and_fwd_flag INT`), unless `mode="FAILFAST"`']
+    - ['`min` and `max` of `fare_amount`', 'Compare text: "largest" fare 99.5', 'Compare numbers: largest fare 6003.5', 'Compare numbers']
+    - ['Money columns', 'Text: math needs a cast', '`double`: mean fare 12.018858043420222', 'What you declare: `FLOAT` gave 12.018858043372008']
+    - ['An empty column (`ehail_fee`)', '`string`', '`string`: no number to go on', 'What you declare']
+    - ['Good for', 'A first look at a new file', 'Exploring a file once', 'A check you run every month']
+connections:
+  - module: spark-df-debugging
+    note: 'Module 2 teaches the tools this case only borrowed: `filter` with conditions (the date and fare counts) and `groupBy().count()` (the flag tables). It also explains why the FAILFAST error appeared at `show()`, not at the read.'
+  - module: spark-df-formats
+    note: "Module 3 saves the trips as Parquet, which stores each column's type, so later reads need no schema string and no guessing. Its capstone hides the same `store_and_fwd_flag INT` bug in a teammate's notebook."
+explainBack:
+  prompt: |
+    Explain to your manager, in plain words, how you checked that the new taxi files were read correctly. Then say
+    why a read that raises no error can still be wrong.
+  rubric:
+    - 'Runs the cells in order (`BASE`, the read, then the actions) and checks the row count with `count()`'
+    - 'Compares `printSchema()` with the values each column really holds'
+    - 'Explains a silent null: a value that does not fit its declared type becomes NULL, with no error'
+    - 'Fixes the schema (`store_and_fwd_flag STRING`) and adds `mode="FAILFAST"` so the next mistake is loud'
+    - 'Uses `describe()` on typed columns to find impossible values, and knows that text columns give misleading `min` and `max`'
+    - 'Brings only a small sample to pandas, with `limit()` before `toPandas()`'

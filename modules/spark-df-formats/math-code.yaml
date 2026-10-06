@@ -1,0 +1,720 @@
+sections:
+  # =================================================================== Session 5
+  - id: parquet-read-write
+    title: Reading, listing and writing Parquet
+    skills: [columnar-parquet, read-write-parquet]
+    summary: |
+      [[parquet|Parquet]] keeps a table as a folder of files. `spark.read.parquet` reads the folder as one
+      [[dataframe|DataFrame]], and `dbutils.fs.ls` lists it. `write.parquet(..., partitionBy=[...])` saves a copy split
+      into one [[partition-folder|partition folder]] per value. Step through it with the 12 lesson trips.
+    keyFormula: '\texttt{df.write.parquet(path, mode="overwrite", partitionBy=["col"])}'
+    data: [taxi12]
+    state: { cols: [PULocationID, DOLocationID] }
+    derive:
+      - { fn: taxiView, in: { cols: [VendorID, PULocationID, DOLocationID, store_and_fwd_flag] }, out: tv }
+      - { fn: partitionWrite, in: { cols: '@cols', counts: false }, out: pw }
+    live:
+      - id: pick
+        widget: Choice
+        props:
+          label: 'partitionBy='
+          style: dropdown
+          options:
+            - { value: [PULocationID, DOLocationID], label: '["PULocationID", "DOLocationID"], as in the notebook' }
+            - { value: [VendorID], label: '["VendorID"]' }
+            - { value: [PULocationID], label: '["PULocationID"]' }
+            - { value: [VendorID, store_and_fwd_flag], label: '["VendorID", "store_and_fwd_flag"]' }
+        bind: { value: cols }
+      - id: table
+        widget: Matrix
+        props:
+          rows: '@tv.matrix.rows'
+          cols: '@tv.matrix.cols'
+          values: '@tv.matrix.values'
+          rowHeader: trip
+          title: 'The 12 lesson trips, standing in for trips.limit(100)'
+      - id: tree
+        widget: Tree
+        props: { root: '@pw.tree', orientation: right }
+      - id: back
+        widget: Text
+        props:
+          body: |
+            `spark.read.parquet(f"{BASE}/output/sample_write").printSchema()`
+
+            {=pw.readbackSchema}
+    steps:
+      - tex: |
+          \anchor{read}{\texttt{trips = spark.read.parquet(path)}} \qquad \text{one folder} \;\to\; \text{one table}
+        say: |
+          The Session 5 setup cell. No `header` and no schema: Parquet stores each [[column]]'s name and type. Spark
+          reads every part file of the folder as one table.
+      - tex: |
+          \anchor{ls}{\texttt{dbutils.fs.ls(path)}} \;\to\; \texttt{\_SUCCESS},\ \texttt{part-00000-\ldots.snappy.parquet},\ \ldots
+        say: |
+          The listing cell. The original notebook used a terminal command, `!ls -lr`, on a course-server path that Free
+          Edition does not have. `_SUCCESS` is an empty file written last; the `part-…` files hold the data. Their names
+          and number differ on Databricks, which may also add `_committed_…` and `_started_…` files.
+      - tex: |
+          \anchor{write}{\texttt{df.write.parquet(path, mode="overwrite",}}\ \anchor{partition}{\texttt{partitionBy=["PULocationID", "DOLocationID"])}}
+        say: |
+          The partitioned write. `mode="overwrite"` replaces an old folder of that name. `partitionBy` makes one folder
+          per value of the first column, and inside it one per value of the second.
+      - tex: |
+          \text{folders} = \text{number of different values of } {=pw.cols.0|text} = {=pw.folders}, \qquad \anchor{listing}{\texttt{ls} \to {=pw.folders} \text{ folders} + \texttt{\_SUCCESS}}
+        say: |
+          Live: the 12 trips split by your choice give {=pw.folders} top-level folders, one per different value. The
+          listing adds `_SUCCESS`. In our local run it sorted the names as text, so `=33/` came before `=7/`.
+      - tex: |
+          \anchor{readback}{[\,\text{other columns}\,] \;+\; [\,\text{partition columns, in order}\,]}
+        say: |
+          Reading the folder back rebuilds the split columns from the folder names and puts them **last** in the
+          [[schema]].
+    code:
+      lang: python
+      title: Reading, listing and writing Parquet (Session 5 notebook cells)
+      source: |
+        """Read, list and write Parquet (Session 5 notebook cells)."""
+        BASE = "/Volumes/workspace/default/bdcc"
+        from pyspark.sql import functions as F
+
+        trips = spark.read.parquet(f"{BASE}/nyctaxi/green_2017")  # @a:read
+
+        # @a ls
+        for info in dbutils.fs.ls(f"{BASE}/nyctaxi/green_2017"):
+            print(info.name, info.size)
+        # @end
+
+        (
+            # @a write
+            trips.limit(100).write.parquet(
+                f"{BASE}/output/sample_write",
+                mode="overwrite",
+                # @end
+                partitionBy=["PULocationID", "DOLocationID"],  # @a:partition
+            )
+        )
+
+        # @a listing
+        folders = dbutils.fs.ls(f"{BASE}/output/sample_write")
+        print(len(folders), "entries, for example:")
+        for info in folders[:3]:
+            print(" ", info.name)
+        for info in dbutils.fs.ls(folders[0].path):
+            print("    inside", folders[0].name, "->", info.name)
+        # @end
+
+        spark.read.parquet(f"{BASE}/output/sample_write").printSchema()  # @a:readback
+    links:
+      - { anchor: read, label: 'spark.read.parquet', say: 'Reads every part file in the folder as one DataFrame; the types come from the files.' }
+      - { anchor: ls, label: 'dbutils.fs.ls', say: 'Databricks'' file tool. Each entry has a `name`, a `size` in bytes and a full `path`. The `f` before the quotes fills in `BASE`; the `for` line prints each entry.' }
+      - { anchor: write, label: 'write.parquet, mode', say: 'Saves a folder. Without `mode="overwrite"`, Spark refuses to replace a folder that already exists.' }
+      - { anchor: partition, label: partitionBy, say: 'One `column=value` folder per value, nested in the order of the list.' }
+      - { anchor: listing, label: Listing the new folder, say: '`len(folders)` counts the entries, `folders[:3]` is the first three and `folders[0]` the first: Python counts from 0. Our local run made 39 entries; yours may differ, since `limit(100)` takes any 100 trips.' }
+      - { anchor: readback, label: Read back, say: 'Partition columns come back at the end of the schema.' }
+    trace: { fn: writeParquetCode, in: { cols: '@cols' } }
+    examples: [write-vendor, write-pu, write-two, write-flag, partition-walk-vendor, partition-walk-pu, write-code-trace, write-code-trace-two]
+    pitfalls:
+      - 'Expecting one `.parquet` file: Spark writes a folder with `_SUCCESS` and part files, and their names and number change from run to run.'
+      - 'Saving again without `mode="overwrite"`: the default mode refuses to replace an existing folder.'
+      - 'Looking for the split column in its old place: after reading back, partition columns come last.'
+      - 'Splitting by a column with many values: each value makes a folder, so 100 trips split by pickup and drop-off zone made 39 entries in our local run.'
+    errata:
+      - 'The original lab notebook listed this folder with the terminal command `!ls -lr /mnt/data/public/nyctaxi/green_2017`. That path does not exist on Free Edition, so the course notebook''s "Session 5 › A folder, not a file" section lists the volume folder with `dbutils.fs.ls`, Databricks'' file tool.'
+      - 'The original lab notebook wrote the split copy to the relative path `sample_write` and never listed it. The course notebook''s "Session 5 › Writing Parquet, split into partition folders" section writes to `BASE/output/sample_write` and lists the new folders.'
+    examTip: One folder per distinct value, plus `_SUCCESS`; the split columns come back last in the schema.
+    tryIt: [partition-folders-mcq, write-parquet-code, readback-schema-mcq]
+
+  - id: csv-vs-parquet
+    title: 'Problem 1: CSV versus Parquet'
+    skills: [csv-vs-parquet, restart-run-order]
+    summary: |
+      Problem 1 runs the Session 2 and 3 cells again on the Parquet folder. The answers match once the types match.
+      Few-column work ran 2.7 to 7.4 times faster; the full `describe()` did not speed up in this run. After a
+      [[restart]], the section must [[import]] [[explode]] and `desc` itself.
+    keyFormula: '\text{speed-up} = \text{CSV time} \div \text{Parquet time}'
+    data: [p1timing]
+    derive:
+      - { fn: timingTable, in: { timing: '@p1timing' }, out: tt }
+    live:
+      - id: chart
+        widget: Chart
+        props: { kind: bar, series: '@tt.series', xLabel: operation, yLabel: seconds, title: 'Run time in seconds: local laptop, Spark 4.0.1, the middle value (median) of 3 runs' }
+      - id: legend
+        widget: Text
+        props: { body: '{=tt.md}' }
+    steps:
+      - tex: |
+          \anchor{parquet}{\texttt{trips = spark.read.parquet(\ldots)}} \quad \text{vs.} \quad \texttt{spark.read.csv(\ldots, inferSchema=True)}
+        say: |
+          The Session 5 setup cell reads the Parquet folder. Session 3 ran the same cells on the CSV files, read with
+          `inferSchema=True` (second code tab).
+      - tex: |
+          \text{speed-up} = \frac{\text{CSV time}}{\text{Parquet time}} \qquad \left(> 1: \text{Parquet faster},\ < 1: \text{Parquet slower}\right)
+        say: One number per cell. Times change from machine to machine, so compare ratios, not seconds.
+      - tex: |
+          \begin{aligned}
+          \anchor{allcols}{\texttt{describe().toPandas()}} &: \tfrac{ {=tt.rows.0.csv|3} }{ {=tt.rows.0.parquet|3} } = {=tt.rows.0.ratio|1} \\
+          \anchor{onecol}{\texttt{describe("PULocationID")}} &: \tfrac{ {=tt.rows.1.csv|3} }{ {=tt.rows.1.parquet|3} } = {=tt.rows.1.ratio|1} \\
+          \anchor{freq}{\texttt{freqItems + explode}} &: \tfrac{ {=tt.rows.2.csv|3} }{ {=tt.rows.2.parquet|3} } = {=tt.rows.2.ratio|1} \\
+          \anchor{group}{\texttt{groupby/count/orderBy}} &: \tfrac{ {=tt.rows.3.csv|3} }{ {=tt.rows.3.parquet|3} } = {=tt.rows.3.ratio|1} \\
+          \anchor{cast}{\texttt{cast/groupby/sum/describe}} &: \tfrac{ {=tt.rows.4.csv|3} }{ {=tt.rows.4.parquet|3} } = {=tt.rows.4.ratio|1} \\
+          \anchor{filter}{\texttt{filter 264 -> 193}} &: \tfrac{ {=tt.rows.5.csv|3} }{ {=tt.rows.5.parquet|3} } = {=tt.rows.5.ratio|1}
+          \end{aligned}
+        say: |
+          The real timings, each the middle value (median) of 3 runs. Every cell that touches a few columns sped up. The
+          full `describe()` did not: it needs every number and text column, so there is little to skip. A second run
+          gave about 27 s on CSV against 19 s on Parquet, so it gains little either way. `columns`, the trips per zone,
+          the sums and the ten filtered trips matched on both reads. `freqItems` estimates rather than counting
+          exactly, so its two lists differed.
+      - tex: |
+          \anchor{imports}{\texttt{from pyspark.sql.functions import explode, desc}}
+        say: |
+          The original notebook's Problem 1 cells used `explode` and `desc` without this line. After a [[restart]] they
+          raise a [[name-error|NameError]]. In the course notebook, the fix cell under "Broken on purpose: running a
+          section on its own" imports both, so the rest of the section runs.
+    code:
+      lang: python
+      title: The Problem 1 section (Session 5 notebook cells)
+      source: |
+        """Problem 1 cells, run on the Parquet folder after the Session 5 restart."""
+        BASE = "/Volumes/workspace/default/bdcc"
+        from pyspark.sql import functions as F
+        trips = spark.read.parquet(f"{BASE}/nyctaxi/green_2017")  # @a:parquet
+
+        from pyspark.sql.functions import explode, desc  # @a:imports
+
+        trips.describe().toPandas()  # @a:allcols
+        trips.describe("PULocationID").show()  # @a:onecol
+        (
+            trips.freqItems(["PULocationID"], 0.01)
+            .withColumn("freq_items", explode("PULocationID_freqItems"))  # @a:freq
+            .drop("PULocationID_freqItems")
+            .show()
+        )
+        (trips.groupby(trips["PULocationID"]).count().orderBy(desc("count")).show())  # @a:group
+        (
+            trips.withColumn("total_amount", trips.total_amount.cast("float"))  # @a:cast
+            .groupby("VendorID")
+            .sum("total_amount")
+            .describe()
+            .show()
+        )
+        (
+            trips.filter(
+                (trips["PULocationID"] == 264) & (trips["DOLocationID"] == 193)  # @a:filter
+            )
+            .limit(10)
+            .toPandas()
+        )
+    extraCode:
+      - lang: python
+        title: The CSV side (Session 3)
+        source: |
+          """Session 3's read: the CSV files, with types guessed by inferSchema."""
+          BASE = "/Volumes/workspace/default/bdcc"
+
+          trips = spark.read.csv(
+              f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+              sep=",",
+              header=True,
+              inferSchema=True,
+          )
+    links:
+      - { anchor: parquet, label: The Parquet read, say: 'The session''s setup cell, run after the restart.' }
+      - { anchor: imports, label: The section's own import, say: 'Added by the course notebook so the section runs on its own after a restart.' }
+      - { anchor: allcols, label: 'describe() of all columns', say: 'Five statistics for each of 17 columns (describe skips the two timestamps): the one cell that did not speed up in this run.' }
+      - { anchor: onecol, label: 'describe of one column', say: 'One column, one drawer: the biggest gain.' }
+      - { anchor: freq, label: 'freqItems + explode', say: 'The pickup zones found in at least 1% of trips, one per row. `freqItems` estimates, so the CSV list (with zones 29 and 31) and the Parquet list (with 21 and 34) differed.' }
+      - { anchor: group, label: 'groupby, count, orderBy', say: 'Trips per pickup zone, busiest first. The same counts on both reads.' }
+      - { anchor: cast, label: 'cast to float, sum, describe', say: 'The total paid per vendor, summarized. `float` is a 32-bit number, so the sums show small rounding artifacts.' }
+      - { anchor: filter, label: 'filter 264 to 193', say: 'Ten trips from zone 264 to zone 193, as a pandas table. The same rows on both reads.' }
+    trace: { fn: p1Walk, in: { timing: '@p1timing' } }
+    examples: [p1-ratios, p1-walk, timing-pick-describe-all, timing-pick-one-column, restart-cell92, restart-cell91, restart-cell91-fixed, restart-fix-import, restart-fix-f]
+    pitfalls:
+      - 'Reading the seconds as Databricks times: they come from a laptop and change from run to run. Compare ratios.'
+      - 'Expecting `max` to agree on a CSV read with no types: text is compared character by character, so "99" beats "265".'
+      - 'Running a section alone that relies on an earlier section''s imports: after a restart those names are gone.'
+      - 'Expecting Parquet to speed up everything: a summary of every number and text column gained little.'
+    errata:
+      - 'In the original lab notebook, two Problem 1 cells use `explode` and `desc` without importing them. They worked only because the Session 3 sections "Frequent items" and "Grouping, counting and sorting" had imported both earlier. The course notebook keeps them as "Session 5 › Problem 1 › Broken on purpose: running a section on its own".'
+      - 'The Problem 1 cell that sums `total_amount` per vendor first casts it to `float`, a 32-bit number, so the sums show artifacts such as `6731878.54189492`.'
+      - 'The original lab notebook''s Parquet introduction ("once such") and Problem 1 text ("executiion") have spelling slips; the course notebook corrects them.'
+    examTip: Parquet wins when a query reads a few columns; a summary of every column gains little.
+    tryIt: [parquet-why-faster-mcq, restart-error-mcq, csv-parquet-multi]
+
+  - id: pair-count
+    title: 'Problem 2 (graded): the top row of a count'
+    skills: [aggregations, graded-workflow]
+    summary: |
+      [[group-by|groupBy]] makes one group per value, and `count()` counts each group. `orderBy(F.desc("count"))` puts
+      the biggest first, `first()` returns that row as a [[row-object|Row]], and `tuple(row)` turns it into a
+      [[tuple]]. The notebook shows it per vendor. Problem 2 asks the same of (pickup, drop-off) pairs.
+    keyFormula: '\texttt{df.groupBy("k").count().orderBy(F.desc("count")).first()}'
+    data: [taxi12]
+    derive:
+      - { fn: taxiView, in: { cols: [VendorID, PULocationID, DOLocationID] }, out: tv }
+      - { fn: vendorFirst, in: {}, out: vf }
+    live:
+      - id: table
+        widget: Matrix
+        props:
+          rows: '@tv.matrix.rows'
+          cols: '@tv.matrix.cols'
+          values: '@tv.matrix.values'
+          rowHeader: trip
+          title: The 12 lesson trips
+      - id: result
+        widget: Text
+        props:
+          body: |
+            The two cells on the 12 lesson trips (real output):
+            {=vf.block}
+    steps:
+      - tex: |
+          \anchor{group}{\text{one group per vendor } v}: \qquad \anchor{count}{n_v = \text{number of trips } i \text{ with } \text{VendorID}_i = v}
+        say: |
+          $n_v$ ("n of v") counts the trips $i$ whose `VendorID` is $v$. With two columns, as in Problem 2, each
+          different pair of values is one group.
+      - tex: |
+          \anchor{order}{\text{sort by } n_v \text{, largest first}} \;\to\; \anchor{first}{\text{the first row}} \;\to\; \anchor{tuple}{(v,\ n_v)}
+        say: |
+          `first()` is an [[action]]: it runs the chain and returns one [[row-object|Row]]. `tuple(row)` keeps the
+          values in column order.
+      - tex: |
+          \anchor{tuple}{({=vf.vendor},\ {=vf.count})} \;\text{on the 12 lesson trips}
+        say: |
+          Vendor {=vf.vendor} has {=vf.count} of the 12 trips. On all the trips the notebook prints
+          `Row(VendorID=2, count=2218153)`. Problem 2's row holds three values, because it groups by two columns.
+    code:
+      lang: python
+      title: first() and the Row object (Session 5 notebook cells)
+      source: |
+        """The busiest vendor as a Row, then its values (Session 5 notebook cells)."""
+        row = (
+            trips.groupBy("VendorID")  # @a:group
+            .count()  # @a:count
+            .orderBy(F.desc("count"))  # @a:order
+            .first()  # @a:first
+        )
+        row
+
+        print(row["count"], row[0], tuple(row))  # @a:tuple
+    links:
+      - { anchor: group, label: 'groupBy("VendorID")', say: 'Gives GroupedData, a set of groups, not a table yet.' }
+      - { anchor: count, label: 'count()', say: 'One row per vendor, with a new column `count`.' }
+      - { anchor: order, label: 'orderBy(F.desc("count"))', say: '`F.desc` sorts from the largest count down.' }
+      - { anchor: first, label: 'first()', say: 'An action: it runs the plan and returns the top row as a Row.' }
+      - { anchor: tuple, label: 'row["count"], row[0], tuple(row)', say: 'A value by name, a value by position (Python counts from 0), and all values as a tuple.' }
+    trace: { fn: firstRowCode, in: {} }
+    examples: [top-pair-show, pair-groups, pair-walk, pair-code-trace, vendor-first-row]
+    pitfalls:
+      - 'Writing `orderBy("count")`: that sorts the smallest count first.'
+      - 'Returning `row["count"]` or the whole DataFrame instead of the three values: the test checks three values by position. A Row is itself a kind of tuple; `tuple(row)` makes the triple plain to read.'
+      - 'Ending the chain with `show()`: it prints a table and returns `None`, Python''s value for "nothing", so the function returns nothing useful.'
+    errata:
+      - 'The original Problem 2 test checks only the length and `pudo_max[0] == 7`; the test in the course notebook''s "Session 5 › Problem 2 (graded)" section checks all three values, (7, 7, 38832).'
+    examTip: '`first()` is an action that returns a Row; `tuple(row)` turns it into plain values you can compare by position.'
+    tryIt: [top-pair-hand, pudo-code]
+
+  - id: group-mean
+    title: 'Problem 3 (graded): an average per group'
+    skills: [aggregations, graded-workflow]
+    summary: |
+      Group, then [[aggregation|aggregate]]: inside `agg(...)`, `F.mean("tip_amount")` averages each group's tips, and
+      `.alias("mean tip")` names the result column. `orderBy` sorts the groups. The notebook shows it per vendor.
+      Problem 3 asks for the average fare per pickup zone, under the exact name its spec gives.
+    keyFormula: '\texttt{df.groupBy("k").agg(F.mean("x").alias("name")).orderBy("k")}'
+    data: [taxi12]
+    derive:
+      - { fn: taxiView, in: { cols: [VendorID, tip_amount] }, out: tv }
+      - { fn: groupMean, in: { key: VendorID, value: tip_amount, alias: 'mean tip' }, out: gm }
+    live:
+      - id: table
+        widget: Matrix
+        props:
+          rows: '@tv.matrix.rows'
+          cols: '@tv.matrix.cols'
+          values: '@tv.matrix.values'
+          rowHeader: trip
+          title: The 12 lesson trips
+      - id: result
+        widget: Text
+        props:
+          body: |
+            The cell on the 12 lesson trips (real output):
+            {=gm.show}
+    steps:
+      - tex: |
+          \anchor{group}{g = \text{one vendor}}: \qquad \anchor{agg}{\bar{x}_g = \frac{1}{n_g} \sum_{i \in g} x_i}
+        say: |
+          $\bar{x}_g$ ("x-bar of g") is the mean tip of vendor $g$. Σ (the Greek letter sigma) means "add up", and
+          $i \in g$ reads "trip i of vendor g". So add the tips $x_i$ of its $n_g$ trips, then divide by $n_g$. Spark's
+          `F.mean` is the same as `F.avg`.
+      - tex: |
+          \anchor{alias}{\texttt{.alias("mean tip")}} \qquad \anchor{order}{\texttt{.orderBy("VendorID")}}
+        say: |
+          Without the [[alias]], Spark names the column `avg(tip_amount)`. A test compares names exactly, spaces
+          included, and checks rows in order. So name and sort exactly as the spec says.
+      - tex: |
+          \bar{x}_{ {=gm.groups.0.key} } = \anchor{agg}{\frac{ {=gm.groups.0.terms} }{ {=gm.groups.0.n} }} = {=gm.groups.0.mean|4}
+        say: 'Vendor {=gm.groups.0.key} of the lesson trips. Step through for both vendors.'
+    code:
+      lang: python
+      title: An average per group, with a name (Session 5 notebook cell)
+      source: |
+        """The average tip per vendor, in a column called "mean tip" (Session 5 notebook cell)."""
+        (
+            trips.groupBy("VendorID")  # @a:group
+            .agg(
+                F.mean("tip_amount")  # @a:agg
+                .alias("mean tip")  # @a:alias
+            )
+            .orderBy("VendorID")  # @a:order
+            .show()
+        )
+    links:
+      - { anchor: group, label: 'groupBy("VendorID")', say: 'One group per vendor.' }
+      - { anchor: agg, label: 'F.mean', say: 'The average of each group, computed inside `agg(...)`.' }
+      - { anchor: alias, label: 'alias', say: 'The result column''s name. In a graded problem, copy it exactly from the spec.' }
+      - { anchor: order, label: 'orderBy', say: 'Groups come out in no fixed order until you sort them.' }
+    trace: { fn: meanTipCode, in: {} }
+    examples: [mean-alias-show, ave-amount-pandas, mean-walk, mean-code-trace, mean-tip-vendor, mean-vs-avg]
+    pitfalls:
+      - 'A slightly different name, such as `mean_fare_amount`: the test compares column names exactly.'
+      - 'Leaving out `orderBy(...)`: group order is not guaranteed, so the first rows will not match the test.'
+      - 'Putting `.alias` on the DataFrame instead of on `F.mean(...)` inside `agg`: only a column can be renamed this way.'
+    errata:
+      - 'The original Problem 3 test expects 255 pickup zones. Today''s release of the taxi data has 224 fewer trips and 4 fewer zones, so the test in the course notebook''s "Session 5 › Problem 3 (graded)" section expects 251; the first ten averages did not change.'
+    examTip: Name the result with `.alias(...)` exactly as the spec writes it, and sort before you compare rows.
+    tryIt: [group-mean-numeric, ave-amount-code, mean-rank-hand]
+
+  # =================================================================== Session 6
+  - id: json-nested
+    title: Reading JSON and dot paths
+    skills: [json-nested, nested-select]
+    summary: |
+      `spark.read.json` reads [[json-lines|JSON Lines]], even compressed (gzip) files. Nested values become [[struct]]
+      columns, drawn as a tree by `printSchema()`. A [[dot-path|dot path]] such as `"actor.login"` reaches a field, and
+      the result column takes the last name.
+    keyFormula: '\texttt{df.select("actor.login", "repo.name")}'
+    data: [gh8]
+    state: { paths: [actor.login, repo.name] }
+    derive:
+      - { fn: ghView, in: {}, out: gv }
+      - { fn: ghSelect, in: { paths: '@paths' }, out: gs }
+    live:
+      - id: pick
+        widget: Choice
+        props:
+          label: 'select(...)'
+          style: dropdown
+          options:
+            - { value: [actor.login, repo.name], label: '"actor.login", "repo.name"' }
+            - { value: [actor.login], label: '"actor.login"' }
+            - { value: [repo.name, type], label: '"repo.name", "type"' }
+        bind: { value: paths }
+      - id: schema
+        widget: Tree
+        props: { root: '@gv.tree', orientation: right }
+      - id: result
+        widget: Text
+        props:
+          body: |
+            `{=gs.code}` on the 8 lesson events:
+            {=gs.show}
+    steps:
+      - tex: |
+          \anchor{read}{\texttt{events = spark.read.json(f"\{BASE\}/gharchive/*.json.gz")}}
+        say: |
+          The Session 6 read: three compressed (gzip) files of JSON Lines, 35,061 events. Spark unpacks `.gz` files by
+          itself. The live example uses 8 of the events.
+      - tex: |
+          \anchor{schema}{\texttt{actor: struct} \;\to\; \texttt{login: string}}
+        say: |
+          `printSchema()` prints over 700 lines for the full events. The lines that start at the far left with ` |-- `
+          are the top-level columns; deeper lines are fields inside them.
+      - tex: |
+          \anchor{select}{\texttt{select("actor.login", "repo.name").columns} = [\texttt{"login"},\ \texttt{"name"}]}
+        say: The notebook's dot-path cell. Each result column takes the last part of its path.
+    code:
+      lang: python
+      title: Reading JSON and dot paths (Session 6 notebook cells)
+      source: |
+        """Read the GH Archive events and reach inside them (Session 6 notebook cells)."""
+        BASE = "/Volumes/workspace/default/bdcc"
+        from pyspark.sql import functions as F
+
+        events = spark.read.json(f"{BASE}/gharchive/*.json.gz")  # @a:read
+
+        events.printSchema()  # @a:schema
+        events.select("actor", "repo", "type").printSchema()  # @a:schema
+
+        events.select("actor.login", "repo.name").limit(10).show()  # @a:select
+
+        # Broken on purpose: events.select("login").show() raises
+        # [UNRESOLVED_COLUMN.WITH_SUGGESTION], because login lives inside actor.
+        events.select("actor.login").show(5)  # the fix
+    links:
+      - { anchor: read, label: 'spark.read.json', say: 'One record per line; `*` matches the three hour files; `.gz` is unpacked for you.' }
+      - { anchor: schema, label: 'printSchema()', say: 'Indentation shows nesting. `select(...).printSchema()` shows only the columns you pick.' }
+      - { anchor: select, label: 'Dot paths in select', say: 'Folder, dot, field. The result is named after the field.' }
+    trace: { fn: jsonSelectCode, in: { paths: '@paths' } }
+    examples: [gh8-schema, gh8-show, gh8-show-full, gh8-select-schema, gh8-select-nested, gh8-select-login, gh8-select-logn, gh8-case, gh-path-login, gh-path-logn, gh-raw-lines, json-code-trace]
+    pitfalls:
+      - 'Writing the field alone, `select("login")`: Spark looks only at the top-level columns and raises `[UNRESOLVED_COLUMN.WITH_SUGGESTION]`.'
+      - 'A typo after the dot, `"actor.logn"`, raises `[FIELD_NOT_FOUND]` instead.'
+      - 'Expecting the result column to be called `actor.login`: it is `login`. `F.col("actor.login").alias("user")` gives a clearer name; `F.col` names a column.'
+    errata:
+      - 'The original lab notebook''s JSON introduction says "Unlike Pandas dataframes …, Pandas dataframes allow `Struct` types"; the second "Pandas" should be "Spark". The course notebook''s Session 6 introduction fixes it.'
+      - 'The original JSON section read a Twitter sample stored on the course server, which is not public; the port reads GH Archive events instead.'
+    examTip: 'The Did-you-mean list shows top-level columns only; the one that holds the field you mean goes before the dot.'
+    tryIt: [login-error-mcq, result-names-mcq, json-schema-mcq]
+
+  - id: rank-repos
+    title: 'Problem 5 (graded): ranking with a tie-break'
+    skills: [rank-ties, nested-select, graded-workflow]
+    summary: |
+      Problem 5 ranks repositories by stars. The notebook's dot-path cells show the parts on event types. Group and
+      count, then sort by the count and by name as a [[tie-break]]. `limit` keeps the first k rows, and a
+      [[dot-path|dot path]] with an [[alias]] renames a nested field.
+    keyFormula: '\texttt{.orderBy(F.desc("count"), "type").limit(k)}'
+    data: [gh8, p5top]
+    state: { limit: 3 }
+    derive:
+      - { fn: ghView, in: {}, out: gv }
+      - { fn: typeCount, in: { limit: '@limit' }, out: tc }
+      - { fn: p5Board, in: { board: '@p5top' }, out: pb }
+    live:
+      - id: events
+        widget: Matrix
+        props:
+          rows: '@gv.matrix.rows'
+          cols: '@gv.matrix.cols'
+          values: '@gv.matrix.values'
+          rowHeader: event
+          title: The 8 lesson events
+      - id: k-slider
+        widget: Slider
+        props: { label: 'k in limit(k), for the 8 lesson events', min: 1, max: 4, step: 1 }
+        bind: { value: limit }
+      - id: result
+        widget: Text
+        props:
+          body: |
+            The ranking with `limit({=limit})` on the 8 lesson events (computed; with k = 4 it matches the real output):
+            {=tc.show}
+      - id: fork
+        widget: Text
+        props:
+          body: |
+            The ForkEvent cell on the 8 lesson events (real output):
+            {=tc.forkShow}
+      - id: board
+        widget: Text
+        props:
+          body: |
+            Problem 5's ranking on all 35,061 events, places 1 to 14 (real output):
+            {=pb.board}
+    steps:
+      - tex: |
+          \anchor{group}{\text{group by } \texttt{type}} \;\to\; \anchor{agg}{n_t = \text{number of events of type } t}
+        say: 'One group per kind of event $t$; $n_t$ ("n of t") counts its events. Problem 5 does the same with the stars of each repository.'
+      - tex: |
+          \anchor{order}{\text{sort by } n_t \text{ (high to low), then by } \texttt{type} \text{ (A to Z)}}
+        say: |
+          The second key is the [[tie-break]]. On the 8 events, `CreateEvent` and `ForkEvent` tie at 1, so the name puts
+          `CreateEvent` first. Names compare by character code, capitals before lowercase:
+          `MostafaGazar` < `Netflix` < `STRML` < `inf0rmer`.
+      - tex: |
+          \anchor{limit}{\texttt{limit(k)}}: \quad \text{keep the first } k \text{ rows of the sorted table}
+        say: |
+          With `limit(3)`, `ForkEvent` drops out: the tie-break decided it. Problem 5 keeps ten rows. On the full data,
+          places 9 to 11 tie at 11 stars. So the name decides who makes the top ten.
+      - tex: |
+          \anchor{filter}{\texttt{type == "ForkEvent"}} \;\to\; \anchor{alias}{\texttt{F.col("actor.login").alias("user")}}
+        say: |
+          A dot path works in `filter`, `select` and `groupBy` too. `F.col` names a column, and `.alias` renames the
+          result, so `user` replaces `login`.
+    code:
+      lang: python
+      title: Dot paths and tie-breaks (Session 6 notebook cells)
+      source: |
+        """Rank the event types, then rename nested fields (Session 6 notebook cells)."""
+        (
+            events.groupBy("type")  # @a:group
+            .count()  # @a:agg
+            .orderBy(F.desc("count"), "type")  # @a:order
+            .show()
+        )
+        # The same ranking, cut to its first 3 rows:
+        events.groupBy("type").count().orderBy(F.desc("count"), "type").limit(3).show()  # @a:limit
+
+        (
+            events.filter(F.col("type") == "ForkEvent")  # @a:filter
+            .select(F.col("actor.login").alias("user"), F.col("repo.name").alias("repo_name"))  # @a:alias
+            .show(5, truncate=False)
+        )
+    links:
+      - { anchor: group, label: 'groupBy("type")', say: 'One group per kind of event.' }
+      - { anchor: agg, label: 'count()', say: 'Rows per group, in a new column `count`.' }
+      - { anchor: order, label: 'orderBy with a tie-break', say: 'The count first (high to low), then the name breaks ties.' }
+      - { anchor: limit, label: 'limit(3)', say: 'Keeps the first rows of the sorted table, so sort first. Added to the notebook cell to show the cut.' }
+      - { anchor: filter, label: 'filter ForkEvent', say: '`type` is a top-level column, so no dot path is needed here.' }
+      - { anchor: alias, label: 'Dot paths with an alias', say: '`F.col("repo.name").alias("repo_name")` reaches a nested field and renames it.' }
+    trace: { fn: typeCountCode, in: { limit: '@limit' } }
+    examples: [stars-tiebreak, stars-no-tiebreak, stars-alias, stars-top2, p5-board, stars-walk, stars-code-trace, type-counts]
+    pitfalls:
+      - 'Sorting only by the count: tied counts come out in no guaranteed order, so the kept rows can change between runs.'
+      - 'Calling `limit(10)` before `orderBy`: you keep ten arbitrary rows, then sort them.'
+      - 'Leaving out the aliases: `groupBy("repo.name").count()` names the columns `name` and `count`. Name them as the spec asks.'
+    errata:
+      - 'Problem 5 replaces the original lab notebook''s `friendliest` problem, whose Twitter sample is not public. The new spec, in the course notebook''s "Session 6 › Problem 5 (graded)" section, names a tie-break because places 9 to 11 tie.'
+    examTip: Sort by the count, then by the name, and only then `limit(k)`.
+    tryIt: [tie-break-mcq, starriest-code, stars-hand]
+
+  - id: explode-commits
+    title: One row per commit with explode
+    skills: [explode-arrays]
+    summary: |
+      `F.explode("payload.commits")` turns each element of the [[array]] into its own row and copies the other columns.
+      Events whose list is NULL or empty give no row, so the count is the number of commits, not of events.
+    keyFormula: '\texttt{df.select("actor.login", F.explode("payload.commits").alias("commit"))}'
+    data: [gh8]
+    derive:
+      - { fn: ghView, in: {}, out: gv }
+      - { fn: explodeCommits, in: {}, out: ec }
+    live:
+      - id: events
+        widget: Matrix
+        props:
+          rows: '@gv.matrix.rows'
+          cols: '@gv.matrix.cols'
+          values: '@gv.matrix.values'
+          rowHeader: event
+          title: The 8 lesson events
+      - id: payload
+        widget: Text
+        props:
+          body: |
+            `events.select("type", "payload.commits").show(truncate=False)` (real output):
+            {=ec.payloadShow}
+      - id: result
+        widget: Text
+        props:
+          body: |
+            After `explode`, with the login, author name and message of each commit (real output):
+            {=ec.show}
+    steps:
+      - tex: |
+          \anchor{select}{\texttt{select("actor.login", \ldots)}}: \text{ keep the login of each event}
+        say: The login column is copied into every row that `explode` makes.
+      - tex: |
+          \anchor{explode}{\text{rows} = \sum_{e} \left|\text{commits}_e\right|}, \qquad \left|\text{NULL}\right| = \left|\,[\,]\,\right| = 0
+        say: |
+          Each event $e$ adds one row per commit in its list. The bars $|\text{commits}_e|$ mean "the length of event
+          e's list", and Σ (sigma) adds them up. A NULL or empty list adds nothing.
+      - tex: |
+          \anchor{count}{\texttt{count()}} = {=ec.terms} = {=ec.count}
+        say: The 8 lesson events. On all 35,061 events the same code counts 31,701 commits (real output).
+    code:
+      lang: python
+      title: One row per commit (Session 6 notebook)
+      source: |
+        """One row per commit (Session 6 notebook)."""
+        help(F.explode)  # "Returns a new row for each element in the given array or map."
+
+        commits = events.select(
+            "actor.login",  # @a:select
+            F.explode("payload.commits").alias("commit"),  # @a:explode
+        )
+        commits.printSchema()
+        commits.count()  # @a:count
+    links:
+      - { anchor: select, label: 'select the login', say: 'Any other column you select is copied into each new row.' }
+      - { anchor: explode, label: 'F.explode', say: 'One row per list element.' }
+      - { anchor: count, label: 'count()', say: 'An action: the number of commits.' }
+    trace: { fn: explodeCode, in: {} }
+    examples: [explode-commits, explode-messages, explode-walk, explode-code-trace]
+    pitfalls:
+      - 'Counting PushEvents instead of commits: one push can carry several commits.'
+      - 'Expecting a row for every event: rows whose list is NULL or empty disappear (`explode_outer` would keep them).'
+      - 'Two `explode` calls in one `select`: `help(F.explode)` says only one is allowed. Spark 4 runs it but multiplies the rows (2 commits × 2 = 4 rows for hex7c0). Explode one list per `select`.'
+    examTip: Rows after explode equal the total length of all the lists; NULL or empty lists give none.
+    tryIt: [explode-code, explode-multi, explode-login-hand]
+
+  - id: file-path
+    title: Which file each row came from
+    skills: [file-metadata]
+    summary: |
+      Every DataFrame read from files has a hidden `_metadata` column. Grouping by
+      [[file-path-metadata|_metadata.file_path]] counts the rows that came from each file, and those counts add up to
+      `count()`.
+    keyFormula: '\texttt{df.groupBy(F.col("\_metadata.file\_path")).count()}'
+    data: [ghfiles]
+    derive:
+      - { fn: filePath, in: { files: '@ghfiles' }, out: fp }
+    live:
+      - id: files
+        widget: Matrix
+        props: { rows: '@fp.matrix.rows', cols: '@fp.matrix.cols', values: '@fp.matrix.values', format: int, rowHeader: '#', title: 'Events per hour file (real counts)' }
+      - id: full
+        widget: Text
+        props:
+          body: |
+            The same count, written `events.groupBy("_metadata.file_path").count().orderBy("file_path").show(truncate=False)`.
+            Real counts; each path is shown as Databricks is expected to print it, because our local run printed a
+            laptop path. The notebook's cell names the column `file` instead.
+
+            {=fp.full}
+    steps:
+      - tex: |
+          \anchor{meta}{\texttt{F.col("\_metadata.file\_path")}} = \text{the path of the file a row came from}
+        say: |
+          The original notebook used `input_file_name()`. Databricks' data storage set-up (Unity Catalog) does not
+          support it, so the port reads the hidden `_metadata` column instead.
+      - tex: |
+          \anchor{group}{\text{group by file } f} \;\to\; \anchor{count}{n_f = \text{rows that came from } f}
+        say: One group per file $f$, and one count $n_f$ ("n of f") per group.
+      - tex: |
+          \sum_f n_f = {=fp.counts.0} + {=fp.counts.1} + {=fp.counts.2} = {=fp.total} = \texttt{events.count()}
+        say: Σ (sigma) adds the counts of all the files. Every event came from exactly one file, so they add up to the whole table.
+    code:
+      lang: python
+      title: Events per hour file (Session 6 notebook cell)
+      source: |
+        """Events per GH Archive hour file (Session 6 notebook cell)."""
+        (
+            events.groupBy(  # @a:group
+                F.col("_metadata.file_path").alias("file")  # @a:meta
+            )
+            .count()  # @a:count
+            .orderBy("file")
+            .show(truncate=False)
+        )
+    extraCode:
+      - lang: python
+        title: The text-file version (Session 6 notebook cell)
+        source: |
+          """The file name of each book (Session 6 notebook cell)."""
+          (
+              spark.read.text(
+                  f"{BASE}/gutenberg/1/1/1/*/*/?????.txt", wholetext=True
+              )
+              .withColumn("filename", F.col("_metadata.file_path"))
+              .show()
+          )
+    links:
+      - { anchor: meta, label: '_metadata.file_path', say: 'A dot path into the hidden column. It does not appear in `columns` or `printSchema()`.' }
+      - { anchor: group, label: 'groupBy the path', say: 'One group per file.' }
+      - { anchor: count, label: 'count()', say: 'Rows from each file; `truncate=False` keeps the long paths whole.' }
+    trace: { fn: filePathCode, in: { files: '@ghfiles' } }
+    examples: [file-path-gh8, file-path-full, file-code-trace]
+    pitfalls:
+      - 'Using `input_file_name()` from the original notebook: Databricks'' data storage set-up (Unity Catalog) does not support it.'
+      - 'Leaving out `truncate=False`: `show()` cuts the long paths to 20 characters.'
+      - 'Looking for `_metadata` in `columns` or `printSchema()`: it is hidden, so ask for it by name.'
+    errata:
+      - 'The original lab notebook used `input_file_name()`, which Databricks'' data storage set-up (Unity Catalog) does not support. The course notebook''s "Session 6 › Which file did a row come from?" section uses `_metadata.file_path` instead.'
+    examTip: Group by `F.col("_metadata.file_path")`; the per-file counts add up to `count()`.
+    tryIt: [file-path-mcq, file-path-code]

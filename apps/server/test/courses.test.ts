@@ -17,9 +17,9 @@ describe('module courses', () => {
     await reg.init();
     const list = await reg.list();
     const bdcc = list.filter((m) => m.course === 'BDCC').map((m) => m.id).sort();
-    expect(bdcc).toEqual(['fim', 'lf-cf', 'nb-cf']);
+    expect(bdcc).toEqual(['fim', 'lf-cf', 'nb-cf', 'spark-df-basics', 'spark-df-debugging', 'spark-df-formats']);
     for (const m of list) expect(m.courseSource).toBe('manifest');
-  });
+  }, 30_000); // list() validates every built-in module in the background
 
   it('puts a module without `course` in the default course, and admin overrides win until cleared', async () => {
     const builtin = path.join(dataDir, 'builtin');
@@ -43,5 +43,5 @@ describe('module courses', () => {
 
     await reg.patch('fim', { course: '' });
     expect(await course()).toMatchObject({ course: DEFAULT_COURSE, courseSource: 'default' });
-  });
+  }, 30_000);
 });
