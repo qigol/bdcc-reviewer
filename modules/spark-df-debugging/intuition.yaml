@@ -1,0 +1,1130 @@
+scenes:
+  # =====================================================================================
+  # Session 3: imports and method chains
+  # =====================================================================================
+  - id: toolbox
+    title: Borrowing tools from a toolbox
+    goal: 'Spark has a tool that sorts biggest-first. Why can a fresh notebook not use it yet, and what is the safest way to ask for it?'
+    skills: [imports]
+    state: { style: none }
+    derive:
+      - { fn: tripsView, in: {}, out: tv }
+      - { fn: importScope, in: { style: '@style' }, out: imp }
+      - { fn: importScope, in: { style: F }, out: impF }
+      - { fn: realCell, in: { key: m2x.imp.none.desc }, out: nd }
+    stage:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', emptyLabel: '@tv.emptyLabel', rowHeader: trip, title: '`trips`: twelve real trips, 4 of their 10 columns' }
+      - id: cell
+        widget: Code
+        hidden: true
+        props: { source: '@imp.code', lang: python, title: 'An import line (or none), then five cells of one line each' }
+      - id: err
+        widget: Text
+        hidden: true
+        props: { body: '@nd.out' }
+      - id: answers
+        widget: Text
+        hidden: true
+        props: { body: '@imp.md' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Import line at the top
+          style: dropdown
+          options:
+            - { value: none, label: no import line }
+            - { value: one, label: 'from pyspark.sql.functions import desc' }
+            - { value: F, label: 'from pyspark.sql import functions as F' }
+        bind: { value: style }
+    beats:
+      - say: |
+          Session 3 starts here: open the [course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb)
+          in Databricks, the website where you run it, at "Session 3". If the course files are not in your workspace
+          yet, run the [setup notebook](/api/modules/spark-df-basics/files/assets/00-setup-data.ipynb) once first.
+          Session 3's picture: borrowing tools from a shared toolbox.
+      - say: |
+          The notebook first loads `trips`, a **DataFrame**: a table held by Spark, the engine that spreads work over
+          many computers. Each **row** is one of twelve real New York taxi trips. Each **column** is one named field,
+          such as `fare_amount`.
+        define: [dataframe, row, column]
+        do:
+          - { target: trips, cmd: highlight, args: { sel: 'col:fare_amount', tone: accent } }
+      - say: |
+          A notebook is built from **cells**: boxes of code you run one at a time. In a fresh notebook, one cell asks
+          for `desc("count")`, Spark's tool for sorting biggest-first. Nobody has loaded any tools yet.
+        define: [cell]
+        hide: [trips]
+        show: [cell]
+        do:
+          - { target: cell, cmd: highlight, args: { sel: 'line:6', tone: accent } }
+        gate:
+          type: predict
+          question: What happens when the `desc("count")` cell runs?
+          options:
+            - 'It returns a sort instruction for the column `count`'
+            - It sorts the trips, biggest first
+            - Nothing at all
+            - 'An error: Python has never heard of `desc`'
+          answer: 3
+          explain: 'The real run stops with `{=nd.final}`. The tool exists, but it sits in a toolbox nobody has opened.'
+      - say: |
+          Python stops and prints an error report. Read its last line first. A **NameError** means "I was never given
+          that name". You will see it after a skipped cell, after a restart, or when a tool was never loaded.
+        define: [name-error]
+        show: [err]
+      - say: |
+          Python comes with some tools. A **function** is a named piece of code you call with parentheses; the values
+          inside are its arguments. `round(4.567, 1)` rounds to one decimal place. `round`, `max` and `sum` are
+          **built-in functions**: they work with nothing loaded. `[1, 2, 3]` is a **list**: several values in square
+          brackets. The table shows each answer.
+        define: [function, built-in-function, list]
+        hide: [err]
+        show: [answers]
+      - say: |
+          Spark's tools for Python (PySpark) live in a **module**: a named collection of ready-made tools, here
+          `pyspark.sql.functions`. An **import** line loads a module's tools into your notebook. Picture a shared
+          toolbox: `from pyspark.sql import functions as F` borrows the whole box and writes its name on every tool:
+          `F.desc`, `F.col`, `F.sum`.
+        define: [module, import]
+        set: { style: F }
+        hide: [answers]
+        gate:
+          type: predict
+          question: With `as F` loaded, what does `round(4.567, 1)` print?
+          answer: { value: 4.6 }
+          explain: '`{=impF.rows.0.result}`, from a real run. `as F` leaves Python''s own `round` alone; Spark''s version is `F.round`.'
+      - say: |
+          Your own `round` stays yours. A second style borrows one tool under its bare name:
+          `from pyspark.sql.functions import desc`. A third style, the star, gets its own scene next. Try the styles
+          and compare the answers.
+        set: { style: none }
+        show: [answers, pick]
+        gate:
+          type: when
+          prompt: Find the import line that makes the bare `desc("count")` work, without `F.`.
+          when: 'imp.descWorks == true'
+          hint: Look for the line that names `desc` itself.
+    takeaway: '`as F` borrows Spark''s whole toolbox under one label: `F.desc` works, and Python''s own `round`, `max` and `sum` stay untouched.'
+
+  - id: two-sums
+    title: Two tools called round
+    goal: 'Why does round(4.567, 1) suddenly fail after one extra import line?'
+    skills: [builtin-clash]
+    state: { call: round, star: false }
+    derive:
+      - { fn: clashCell, in: { call: '@call', star: '@star' }, out: cc }
+      - { fn: clashCell, in: { call: round, star: true }, out: rs }
+      - { fn: realCell, in: { key: m2x.app.builtins_back }, out: back }
+    stage:
+      - id: cell
+        widget: Code
+        props: { source: '@cc.code', lang: python, title: 'A fresh notebook (a `# cell` line starts each new cell)' }
+      - id: out
+        widget: Text
+        props: { body: '@cc.out' }
+      - id: star-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: First line
+          options:
+            - { value: false, label: no import line }
+            - { value: true, label: '`import *`' }
+        bind: { value: star }
+      - id: call-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Call
+          options:
+            - { value: round, label: '`round(4.567, 1)`' }
+            - { value: max, label: '`max(3, 7)`' }
+            - { value: sum, label: '`sum([1, 2, 3])`' }
+        bind: { value: call }
+      - id: fix
+        widget: Code
+        hidden: true
+        props: { source: '@back.code', lang: python, title: 'The fix, from the notebook''s "Session 3 › Broken on purpose: the wildcard import"' }
+      - id: fix-out
+        widget: Text
+        hidden: true
+        props: { body: '@back.out' }
+    beats:
+      - say: |
+          In a fresh notebook, Python's own `round(4.567, 1)` prints the answer below. Now a teammate runs one more
+          cell first: `from pyspark.sql.functions import *`. The star means "every tool in the module".
+      - say: Here are the two cells, the import first. Same call, same numbers.
+        set: { star: true }
+        hide: [out]
+        gate:
+          type: predict
+          question: What does `round(4.567, 1)` print now?
+          options:
+            - An error
+            - '`4.6`, as before'
+            - '`5`'
+            - '`4.57`'
+          answer: 0
+          explain: 'An error. The real run ends with a bare `{=rs.final}`: no message at all, one of the least helpful errors in Python. An AssertionError means a check inside a tool failed: PySpark''s `round` expected a column and got a number.'
+      - say: |
+          The star copied every PySpark tool under its bare name. PySpark has its own `round`, which expects a column,
+          and it replaced Python's. A line like this is a **wildcard import**: it brings in every tool and silently
+          covers any tool with the same name.
+        define: [wildcard-import]
+        show: [out, star-pick]
+      - say: PySpark also has its own `max` and `sum`. Try them, with and without the star.
+        show: [call-pick]
+        gate:
+          type: when
+          prompt: Run `max(3, 7)` after the star import.
+          when: 'call == ''max'' and star == true'
+          hint: Pick `max(3, 7)` and switch the first line to `import *`.
+      - say: |
+          This time the last line names a different error. A **TypeError** says a function was handed something it
+          cannot use. PySpark's `max` expects one column; it was handed two plain numbers.
+        define: [type-error]
+      - say: |
+          Two fixes. The quick repair takes Python's versions back from the `builtins` module, where they live, as
+          the notebook's "Session 3 › Broken on purpose: the wildcard import" section does. The better habit: never
+          use the star. Write `F.round` when you mean Spark's, and `round` keeps meaning Python's.
+        show: [fix, fix-out]
+      - say: 'Your turn, from memory: a fresh notebook, the star import, then `sum`.'
+        hide: [cell, out, star-pick, call-pick]
+        gate:
+          type: practice
+          template: clash-mcq
+    takeaway: A wildcard import silently replaces Python's `round`, `max` and `sum` with PySpark's. Borrow with `as F` instead.
+
+  - id: assembly-line
+    title: The assembly line
+    goal: 'Which pickup zone starts the most of the twelve trips? And how do you make zones with equal counts come out in the same order every time?'
+    skills: [group-order]
+    state: { upTo: 1, tallyUpTo: 0, order: desc }
+    derive:
+      - { fn: stationView, in: { upTo: '@upTo' }, out: sv }
+      - { fn: tripsView, in: { cols: [PULocationID] }, out: tz }
+      - { fn: tallySheet, in: { upTo: '@tallyUpTo' }, out: ts }
+      - { fn: sortView, in: { order: '@order' }, out: so }
+      - { fn: sortView, in: { order: desc }, out: sd }
+      - { fn: zoneCount, in: { zone: 7 }, out: z7 }
+    stage:
+      - id: chain
+        widget: Code
+        props: { source: '@sv.code', lang: python, title: 'The chain cut after the last station run, then `.show()`' }
+      - id: station-out
+        widget: Text
+        props: { body: '@sv.out' }
+      - id: stations
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: stations run, min: 0, max: 2, step: 1 }
+        bind: { value: upTo }
+      - id: trips
+        widget: Matrix
+        hidden: true
+        props: { rows: '@tz.rows', cols: '@tz.cols', values: '@tz.values', rowHeader: trip, title: Pickup zone of each trip }
+      - id: tally
+        widget: Matrix
+        hidden: true
+        props: { rows: '@ts.rows', cols: '@ts.cols', values: '@ts.values', emptyLabel: '@ts.emptyLabel', format: int, rowHeader: zone, title: 'Tally: which trips start in each zone' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: tallyWalk, in: {}, roles: { trips: trips, tally: tally }, speed: 1 }
+      - id: sort-code
+        widget: Code
+        hidden: true
+        props: { source: '@so.code', lang: python, title: Sorting the counts }
+      - id: sort-out
+        widget: Text
+        hidden: true
+        props: { body: '@so.out' }
+      - id: sort-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Sort
+          style: dropdown
+          options:
+            - { value: none, label: no orderBy }
+            - { value: desc, label: 'orderBy(F.desc("count"))' }
+            - { value: descTie, label: 'orderBy(F.desc("count"), "PULocationID")' }
+        bind: { value: order }
+    beats:
+      - say: |
+          Which zone starts the most trips? `PULocationID` is each trip's pickup zone. A **method** is a function that
+          belongs to a table: you call it with a dot after the table's name. `trips.select("PULocationID")` keeps only
+          the columns you name and hands back a new table; `.show()` prints a table.
+        define: [method]
+      - say: |
+          Every method hands back a new table, so you can call the next method on it. That is a **method chain**: an
+          assembly line where each station takes a table, changes it, and hands a new one on. The outer parentheses
+          let the chain run over several lines, one station per line.
+        define: [method-chain]
+        show: [stations]
+        gate:
+          type: when
+          prompt: Run the chain up to station 2, `groupBy`.
+          when: 'upTo == 2'
+      - say: |
+          At station 2 there is no table to print, so the cell asks for its type instead: `groupBy` returns **GroupedData**,
+          the trips sorted into one group per zone, waiting for a summary. It is not a table yet.
+        define: [grouped-data]
+      - say: |
+          Station 3, `count()`, counts the trips in each group and writes the result in a new column, `count`.
+          The trips table now on stage lists the pickup zone of each trip.
+        set: { upTo: 2 }
+        hide: [stations]
+        show: [trips]
+        gate:
+          type: predict
+          question: How many of the twelve trips start in zone 7?
+          answer: { value: 4 }
+          explain: 'One tick per trip from zone 7, trip by trip: ${=z7.terms} = {=z7.count}$ (trips {=z7.trips}).'
+      - say: Count along. The player walks the twelve trips and writes each one into its zone's row of the tally.
+        hide: [chain, station-out, stations]
+        show: [trips, tally, player]
+        gate:
+          type: event
+          prompt: Play all the steps.
+          target: player
+          event: done
+      - say: |
+          Real Spark counts the same way: the cell's `.show()` prints the counts, the same numbers as your tally, in
+          Spark's own order. `show()` is an **action**: a command that asks for a result. Only an action makes Spark
+          do the work.
+        define: [action]
+        set: { upTo: 3, tallyUpTo: 12 }
+        hide: [player, trips]
+        show: [chain, station-out]
+      - say: |
+          To put the biggest count first, sort with `orderBy(F.desc("count"))`: `desc` means descending. Three zones
+          have 2 trips each. In this real run they came out as {=sd.tied}. Nothing guarantees that order: run it again
+          and it may change.
+        set: { order: desc }
+        hide: [chain, station-out]
+        show: [sort-code, sort-out]
+        do:
+          - { target: tally, cmd: highlight, args: { sel: ['row:33', 'row:41', 'row:74'], tone: warn } }
+      - say: |
+          Add a second sort key, the zone number: `orderBy(F.desc("count"), "PULocationID")`. Zones with equal counts
+          are then sorted by zone number, smallest first.
+        gate:
+          type: predict
+          question: With the second key, which zone prints in the second row?
+          options: ['41', '74', '33', '97']
+          answer: 2
+          explain: 'Zone 7 (4 trips) comes first. Then the zones with 2 trips, smallest number first: 33, 41, 74.'
+      - say: |
+          That second key is a **tie-break**: it decides the order of rows whose first key is equal. The result is
+          then the same in every run. Graded problems that say "then by name" are asking for one.
+        define: [tie-break]
+        show: [sort-pick]
+        gate:
+          type: when
+          prompt: Switch to the sort with the tie-break and read the real output.
+          when: 'order == ''descTie'''
+      - say: 'Your turn: count one zone in a fresh set of trips.'
+        gate:
+          type: practice
+          template: group-count-numeric
+    takeaway: A method chain is an assembly line; groupBy, count, then orderBy with a tie-break gives the same ranking every run.
+
+  - id: filter-conditions
+    title: Keeping the rows you want
+    goal: 'How do you keep only the trips you care about, such as fares above 10 dollars that also got a tip?'
+    skills: [select-filter]
+    state: { cond: fare10, fUpTo: 0 }
+    derive:
+      - { fn: filterSheet, in: { cond: '@cond', upTo: '@fUpTo' }, out: fs }
+      - { fn: filterView, in: { cond: '@cond' }, out: fv }
+      - { fn: filterView, in: { cond: fare10 }, out: f10 }
+      - { fn: realCell, in: { key: m2.filter_gt10_count }, out: c10 }
+    stage:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@fs.rows', cols: '@fs.cols', values: '@fs.values', emptyLabel: '@fs.emptyLabel', rowHeader: trip, title: 'The twelve trips; kept: does the condition hold?' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: filterWalk, in: { cond: fare10 }, roles: { trips: trips }, speed: 1 }
+      - id: player2
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: filterWalk, in: { cond: fareTip }, roles: { trips: trips }, speed: 1 }
+      - id: fcode
+        widget: Code
+        hidden: true
+        props: { source: '@fv.code', lang: python, title: The filter cell }
+      - id: fout
+        widget: Text
+        hidden: true
+        props: { body: '@fv.out' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Condition
+          style: dropdown
+          options:
+            - { value: fare10, label: 'fare > 10' }
+            - { value: fareTip, label: 'fare > 10 & tip > 0' }
+            - { value: zone7or33, label: 'zone 7 | zone 33' }
+            - { value: notN, label: 'flag is not N (with ~)' }
+        bind: { value: cond }
+    beats:
+      - say: |
+          Which trips had a fare above 10 dollars? Write the test as a **condition**: `F.col("fare_amount") > 10`.
+          `F.col` points to a column by its name; `trips.fare_amount` and `trips["fare_amount"]` are two shorter
+          ways to point to the same column. A condition is true or false for each row, and `filter` keeps the rows
+          where it is true.
+        define: [condition]
+      - say: The table shows the fare of each trip. The `kept` column is still empty.
+        gate:
+          type: predict
+          question: How many of the twelve trips does `trips.filter(F.col("fare_amount") > 10)` keep?
+          answer: { value: 7 }
+          explain: 'Trips {=f10.kept} have fares above 10: {=f10.count} trips. `>` is strict, so a fare of exactly 10 would not count.'
+      - say: Count along. The player tests one trip at a time and ticks the ones the filter keeps.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play all the steps.
+          target: player
+          event: done
+      - say: |
+          Real Spark agrees: `trips.filter(F.col("fare_amount") > 10).count()` prints {=c10.printed}. `count()` is an
+          [[action]]: it asks for the number of rows that survived.
+      - say: |
+          Join conditions with `&` (and: both true), `|` (or: either true) and `~` (not: flips true and false). Put
+          each condition in its own parentheses. `==` asks "is equal to?" (two equals signs; one `=` stores a value),
+          and `>=` means "at least". Pick a condition to see which trips it keeps.
+        set: { fUpTo: 12 }
+        hide: [player]
+        show: [pick, fcode, fout]
+        gate:
+          type: when
+          prompt: Keep the trips with a fare above 10 **and** a tip above 0.
+          when: 'cond == ''fareTip'''
+      - say: |
+          Count along with both tests. For each trip the player checks the fare, then the tip, and ticks the trip
+          only when both are true.
+        set: { cond: fareTip, fUpTo: 0 }
+        hide: [pick, fcode, fout]
+        show: [player2]
+        gate:
+          type: event
+          prompt: Play all the steps.
+          target: player2
+          event: done
+      - say: In everyday Python you would join two tests with the word `and`.
+        hide: [player2]
+        gate:
+          type: predict
+          question: 'What happens with `(F.col("fare_amount") > 10) and (F.col("tip_amount") > 0)` inside `filter`?'
+          options:
+            - 'The same 5 trips as with `&`'
+            - Only the first condition is used
+            - Zero trips
+            - An error, before Spark runs anything
+          answer: 3
+          explain: 'An error. Python''s `and` needs one plain true or false, but a condition holds one answer per row.'
+      - say: |
+          Here is the real error. Read its last line: it even names the fix, `&` for and, `|` for or, `~` for not.
+          `bool` (short for Boolean) is Python's type for one true-or-false value. Python's `and` wants one; a Spark
+          condition is twelve of them, one per row.
+        set: { cond: pyAnd }
+        show: [fcode, fout]
+      - say: 'Fixed with `&`, {=fv.count} trips survive. Your turn: two conditions joined with `&` on fresh trips.'
+        set: { cond: fareTip }
+        gate:
+          type: practice
+          template: filter-and-numeric
+    takeaway: A condition is true or false per row; filter keeps the true rows. Join conditions with &, | and ~, each in parentheses.
+
+  - id: read-a-chain
+    title: One station at a time
+    goal: 'A long chain gives a strange answer. How can you see what each step does?'
+    skills: [method-chain]
+    state: { k: 1, kMax: 2 }
+    derive:
+      - { fn: chainPrefix, in: { k: '@k' }, out: cp }
+      - { fn: chainPrefix, in: { k: 3 }, out: c3 }
+      - { fn: chainPrefix, in: { k: 4 }, out: c4 }
+      - { fn: realCell, in: { key: m2.freqitems.step1 }, out: fq1 }
+      - { fn: realCell, in: { key: m2.freqitems.step2 }, out: fq2 }
+    stage:
+      - id: chain
+        widget: Code
+        props: { source: '@cp.code', lang: python, title: 'The chain cut after station k, then .show()' }
+      - id: out
+        widget: Text
+        props: { body: '@cp.out' }
+      - id: ks
+        widget: Slider
+        region: side
+        props: { label: 'k: stations run', min: 1, max: '@kMax', step: 1 }
+        bind: { value: k }
+      - id: freq-code
+        widget: Code
+        hidden: true
+        props: { source: '@fq2.code', lang: python, title: 'The notebook''s "Frequent items" chain, cut after `explode`' }
+      - id: freq-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **After `freqItems`** (one row holding one list)
+
+            {=fq1.out}
+
+            **After `explode`** (one row per item)
+
+            {=fq2.out}
+    beats:
+      - say: |
+          A teammate's five-station [[method-chain]] asks which zones had the most tipped trips. The stations: keep the
+          trips with a tip, keep two columns, group by zone, count, sort. To check a chain, cut it after any station
+          and add `.show()`. Here k = 1: only the filter runs.
+      - say: Station 1 kept the trips with a tip. Now add station 2.
+        gate:
+          type: when
+          prompt: Run the first two stations.
+          when: 'k == 2'
+      - say: Two columns now, but the same rows. `select` with plain column names changes the columns, never the number of rows.
+        hide: [ks]
+        gate:
+          type: predict
+          question: What does `.show()` print at k = 3, right after `groupBy`?
+          options:
+            - A table of the zones
+            - 'An error: there is no table to show yet'
+            - The tipped trips again
+            - Each group on its own line
+          answer: 1
+          explain: 'Station 3 returns [[grouped-data]], which has no `show()`. The real run ends with `{=c3.final}`.'
+      - say: |
+          The last line is an **AttributeError**: GroupedData has no method called `show`. (An attribute is anything
+          you reach with a dot.) The error names line 5 of the cell, the `.show()` line, because that is where Python
+          stopped. A chain that ends at `groupBy` needs a summary such as `count()` before anything can print.
+        define: [attribute-error]
+        set: { k: 3 }
+      - say: Station 4 counts the tipped trips in each zone. Here is station 2's table again, the tipped trips and their zones.
+        set: { k: 2 }
+        gate:
+          type: predict
+          question: How many rows will the table at k = 4 have?
+          answer: { value: 5 }
+          explain: 'One row per zone with a tipped trip. The tipped trips at station 2 start in {=c4.rows} different zones.'
+      - say: Finish the chain and compare the sorted answer with station 4.
+        set: { kMax: 5 }
+        show: [ks]
+        gate:
+          type: when
+          prompt: Run all five stations.
+          when: 'k == 5'
+      - say: |
+          The sort puts the busiest zones first, and the zone number breaks the tie at the top. Each station's table
+          could be checked against the one before it.
+        gate:
+          type: reflect
+          prompt: Why check a chain one station at a time instead of running it all at once?
+          model: |
+            Each station hands a new table to the next, so a wrong answer can start at any station. Cutting the chain
+            and adding `show()` lets you see each table and find the first one whose rows or columns look wrong. It
+            also reveals a station that returns something that is not a table, like GroupedData, which cannot be shown.
+      - say: |
+          The notebook's "Session 3 › Frequent items" section holds a chain with new stations. `freqItems` lists the zones
+          found in at least 30% of the trips, as one row holding a [[list]]. `withColumn` adds a new column; here
+          `explode` fills it, giving each item of the list its own row. `drop` then removes a column.
+        hide: [chain, out, ks]
+        show: [freq-code, freq-out]
+    takeaway: Cut a chain after any station and add .show(); the first table that looks wrong points to the station to fix.
+
+  - id: wrap-in-function
+    title: Naming the assembly line
+    goal: 'The graded problems want your chain saved under a name, ready to run on any table. What can go wrong when you wrap it?'
+    skills: [functions-def]
+    state: { withReturn: true, topic: dirHour }
+    derive:
+      - { fn: wrapCell, in: { withReturn: '@withReturn' }, out: wc }
+      - { fn: wrapCell, in: { withReturn: false }, out: nr }
+      - { fn: helpView, in: { topic: '@topic' }, out: hv }
+      - { fn: helpView, in: { topic: helpDateTrunc }, out: hdt }
+      - { fn: dateTruncView, in: { unit: hour }, out: dt }
+    stage:
+      - id: cell
+        widget: Code
+        props: { source: '@wc.code', lang: python, title: A chain wrapped in a function }
+      - id: out
+        widget: Text
+        props: { body: '@wc.out' }
+      - id: ret-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: The function body
+          options:
+            - { value: true, label: with `return` }
+            - { value: false, label: without `return` }
+        bind: { value: withReturn }
+      - id: helper
+        widget: Code
+        hidden: true
+        props:
+          lang: python
+          title: Helper variables inside a function
+          source: |
+            def busy_zones(df, min_trips):
+                counts = df.groupBy("PULocationID").count()
+                return counts.filter(F.col("count") >= min_trips)
+      - id: help-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: What you run
+          style: dropdown
+          options:
+            - { value: dirHour, label: 'dir(F), names with "hour"' }
+            - { value: dirTrunc, label: 'dir(F), names with "trunc"' }
+            - { value: helpDateTrunc, label: 'help(F.date_trunc)' }
+        bind: { value: topic }
+      - id: help-cell
+        widget: Code
+        hidden: true
+        props: { source: '@hv.code', lang: python, title: The cell }
+      - id: help-out
+        widget: Text
+        hidden: true
+        props: { body: '@hv.out' }
+      - id: dt-code
+        widget: Code
+        hidden: true
+        props: { source: '@dt.code', lang: python, title: 'The discovery, solved' }
+      - id: dt-out
+        widget: Text
+        hidden: true
+        props: { body: '@dt.out' }
+    beats:
+      - say: |
+          The graded problems ask you to write a [[function]] yourself: your assembly line saved under a name, ready
+          to run on any table. `def top_pickups(df):` starts it. `df` is a parameter, a placeholder for whatever table
+          you pass in. The indented line builds the chain, and `return` hands the result back to whoever called it.
+      - say: |
+          `top_pickups(trips)` runs the body with `df` standing for `trips`, and `.show()` prints what came back.
+          Now a classmate forgets the word `return`.
+        set: { withReturn: false }
+        hide: [out]
+        gate:
+          type: predict
+          question: What happens at `top_pickups(trips).show()` now?
+          options:
+            - 'An error: nothing came back to call `show()` on'
+            - The same table as before
+            - An empty table
+            - '`NameError`: `top_pickups` is not defined'
+          answer: 0
+          explain: 'The real run ends with `{=nr.final}`.'
+      - say: |
+          **None** is Python's value for "nothing". A function that ends without a `return` line hands back None.
+          The chain inside still ran, but its result was thrown away, and None has no `show()`: another
+          [[attribute-error|AttributeError]].
+        define: [none]
+        show: [out]
+      - say: Repair the function.
+        show: [ret-pick]
+        gate:
+          type: when
+          prompt: Put the `return` back.
+          when: 'withReturn == true'
+      - say: |
+          A function may also use helper variables over several lines; the graded problems allow it. `counts = ...`
+          stores the count table in a **variable** called `counts`: a name that holds a value. Only the value after
+          `return` comes out. This one keeps the zones with at least `min_trips` trips.
+        define: [variable]
+        show: [helper]
+        gate:
+          type: reflect
+          prompt: Why does a missing `return` cause an error only at `.show()`, and not inside the function?
+          model: |
+            Without `return`, the function runs its chain, throws the result away and hands back None. Python sees
+            nothing wrong until the next step asks None for `show()`, which None does not have. So the error points
+            at the call, while the fix belongs inside the function: put `return` in front of the chain.
+      - say: |
+          Session 3 ends with a discovery task: round each pickup time down to its hour. Nobody has shown you a tool
+          for that. `dir(F)` lists every tool in the box. `[name for name in dir(F) if "hour" in name]` goes through
+          every name in `dir(F)` and keeps the ones that contain "hour"; the answer is a [[list]].
+        hide: [cell, out, ret-pick, helper]
+        show: [help-cell, help-out]
+      - say: Neither `hour` nor `hours` rounds a time down. Widen the search, then read a manual. `help(...)` prints a tool's manual.
+        show: [help-pick]
+        gate:
+          type: when
+          prompt: Search for "trunc", then open the manual of `date_trunc`.
+          when: 'topic == ''helpDateTrunc'''
+      - say: |
+          A manual starts with the signature, the tool's name and its arguments in order. Its Parameters part says
+          what each argument holds. Use them to write the call yourself.
+        gate:
+          type: predict
+          question: Which call rounds each pickup time down to its hour?
+          options:
+            - '`F.date_trunc("lpep_pickup_datetime", "hour")`'
+            - '`F.hour("lpep_pickup_datetime")`'
+            - '`F.date_trunc("hour", "lpep_pickup_datetime")`'
+            - '`F.date_trunc(hour, "lpep_pickup_datetime")`'
+          answer: 2
+          explain: 'The signature reads `{=hdt.sig}`: the unit (`format`, a piece of text such as `"hour"`) comes first, then the column of times. Without quotes, Python would look for a variable called `hour`. And `F.hour` does not round a time down, as the search showed.'
+      - say: |
+          Used inside `select`, it rounds every pickup down to its hour. `.alias("pickup_hour")` gives the new column
+          a short name; without it the header would be the whole expression.
+        hide: [help-pick]
+        show: [dt-code, dt-out]
+        gate:
+          type: reflect
+          prompt: 'Why did the search for "hour" miss the tool you needed, and what made the second search work?'
+          model: |
+            A search only finds names that contain your word. "hour" found `hour` and `hours`, but neither rounds a
+            time down. Rounding down is also called truncating, so "trunc" found `date_trunc`. Its manual then gave the
+            order of the arguments. When a search misses, try another word for the same action, and read the manual
+            before guessing.
+    takeaway: A function hands back only what follows return. Without return you get None, and the next .show() fails.
+
+  # =====================================================================================
+  # Session 4: debugging
+  # =====================================================================================
+  - id: shopping-list
+    title: The shopping list
+    goal: 'Why does a misspelled column name pass quietly on one line and fail two lines later?'
+    skills: [lazy-eval]
+    state: { planUpTo: 0 }
+    derive:
+      - { fn: planView, in: { upTo: '@planUpTo', typo: true }, out: pv }
+      - { fn: planView, in: { upTo: 4, typo: true }, out: pall }
+      - { fn: realCell, in: { key: m2x.lazy.explain_cell98 }, out: ex }
+      - { fn: eagerBins, in: {}, out: eb }
+    stage:
+      - id: cells
+        widget: Code
+        props: { source: '@pall.code', lang: python, title: 'Four cells, one line each' }
+      - id: list
+        widget: Text
+        region: side
+        props: { body: "**The list so far**\n\n{=pv.list}" }
+      - id: out
+        widget: Text
+        props: { body: '@pv.out' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: lazyWalk, in: { typo: true }, roles: { cells: cells }, speed: 1 }
+      - id: explain-code
+        widget: Code
+        hidden: true
+        props: { source: '@ex.code', lang: python, title: 'The plan cell from "Session 4 › Transformations, actions and the plan", on the twelve trips' }
+      - id: explain-out
+        widget: Text
+        hidden: true
+        props: { body: '@ex.out' }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@eb.chips', bins: '@eb.bins', solution: '@eb.solution' }
+    beats:
+      - say: |
+          Session 4 starts here: open the [course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb)
+          at "Session 4". Its picture is a shopping list. Writing a list buys nothing. Misspell "tomatoe" on it and
+          nothing stops you; you find out only at the store, when you try to buy it.
+      - say: |
+          Spark works the same way. `select`, `filter`, `orderBy`, `withColumn`: each is a **transformation**, a
+          command that only writes a new step on the list and returns at once. An [[action]] such as `show()` or
+          `count()` is the trip to the store.
+        define: [transformation]
+      - say: |
+          Waiting until an action asks is **lazy evaluation**. The list of steps is the **plan**. `explain()` prints
+          the plan without running it (the notebook's "Session 4 › Transformations, actions and the plan" section).
+          Read it from the bottom up: scan the CSV (comma-separated values) file, count per zone, then sort.
+        define: [lazy-evaluation, plan]
+        hide: [cells, out]
+        show: [explain-code, explain-out]
+      - say: |
+          You do not need every word of it. `FileScan` reads the file. The two `HashAggregate` lines count per zone:
+          first in pieces, then combined. Each `Exchange` moves data between computers, and `Sort` sorts. Numbers
+          such as `#249` are Spark's own labels for columns. On Databricks the step names may differ.
+      - say: |
+          The course notebook runs on Databricks serverless: Databricks starts and runs the computers for you. Your
+          notebook talks to Spark through **Spark Connect**: it sends the plan to a Spark computer elsewhere. In our
+          Spark Connect runs, that computer checked the plan only when the notebook asked it something: an action, or
+          a question about the columns.
+        define: [spark-connect]
+        hide: [explain-code, explain-out]
+        show: [cells, out]
+      - say: |
+          Cell 1 reads the lesson file. `BASE` holds the folder of the course files, and the f-string
+          `f"{BASE}/lessons/taxi12.csv"` pastes it into the text. `header=True` says the first line holds names;
+          `inferSchema=True` asks Spark to guess each type. Cell 2 misspells the pickup column: `PULocatonID`,
+          without the second i.
+        do:
+          - { target: cells, cmd: highlight, args: { sel: 'line:2', tone: warn } }
+        gate:
+          type: predict
+          question: What happens when cell 2, `pu = trips.select("PULocatonID")`, runs?
+          options:
+            - An error on that line
+            - Spark quietly fixes the spelling
+            - '`pu` becomes an empty table'
+            - 'No error: the step only goes on the list'
+          answer: 3
+          explain: 'No error. `select` is a transformation: it writes the misspelled step on the list and returns at once.'
+      - say: Play the four cells and watch the list grow.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play all the steps.
+          target: player
+          event: done
+      - say: |
+          The error appears at `pu.show()`, two cells after the typo: a mistake surfaces at the action, not where you
+          made it. It is an **AnalysisException**: Spark could not find that column in the plan. Its "Did you mean"
+          list suggests the fix, `select("PULocationID")`. Capital letters do not matter, so `"PULocationId"` also
+          works; a missing letter does not.
+        define: [analysis-exception]
+      - say: |
+          Not every command waits. A few look at the column list straight away. Sort these real misspellings: which
+          wait for an action, and which raise on their own line?
+        set: { planUpTo: 4 }
+        hide: [player]
+        show: [bins]
+        gate:
+          type: event
+          prompt: Put every command in the right bin.
+          target: bins
+          event: solved
+      - say: |
+          The rule: Spark builds a plan and checks most names only when an action runs. `groupBy("name")`,
+          `df["name"]` and `df.name` check at once. Your turn: find the cell that raises.
+        gate:
+          type: practice
+          template: lazy-line-numeric
+    takeaway: Transformations only add steps to the plan; an action runs it. Most misspelled names therefore fail at the action, not where you typed them.
+
+  - id: read-the-receipt
+    title: Reading the receipt
+    goal: 'A very long error lands in your notebook. Which two parts tell you what went wrong?'
+    skills: [tracebacks]
+    derive:
+      - { fn: receipt, in: {}, out: rc }
+      - { fn: tracebackParts, in: { key: m2.lazy.select_typo.show }, out: tp }
+      - { fn: realCell, in: { key: m2x.lazy.multiline, plan: 1 }, out: ml }
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@rc.chips', bins: '@rc.bins', solution: '@rc.solution' }
+      - id: receipt
+        widget: Text
+        hidden: true
+        props: { body: '@rc.trimmed' }
+      - id: ml-code
+        widget: Code
+        hidden: true
+        props: { source: '@ml.code', lang: python, title: One cell with four lines }
+      - id: ml-out
+        widget: Text
+        hidden: true
+        props: { body: '@ml.out' }
+      - id: dbx
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: note
+          title: On Databricks (not checked here)
+          body: |
+            Databricks usually shows your cell's frame as `File <command-…>, line N` instead of
+            `File "<cell N>", line N`. It may also print the error's name as `AnalysisException:`, without the long
+            `pyspark.errors.exceptions.connect.` in front. The message itself is the same.
+    beats:
+      - say: |
+          When a cell fails, Python prints a **traceback**: the chain of calls from your cell down to the failure. It
+          ends with the error's name and message. In Session 4's picture it is the long receipt. In our local run,
+          the full one for `pu.show()` had {=rc.fullLines} lines; yours will differ.
+        define: [traceback]
+      - say: |
+          Here are ten real lines from that receipt. Sort them: your own code, the message, or machinery inside
+          Python and Spark that you can skip. `JVM stacktrace:` starts Spark's own report (JVM: the Java Virtual
+          Machine that Spark runs on).
+        gate:
+          type: event
+          prompt: Put every line in the right bin.
+          target: bins
+          event: solved
+      - say: |
+          Here is what survives the trim; the `...` line marks the lines we cut. Read it from the bottom. The last
+          line names the problem: first the error's name, here [[analysis-exception|AnalysisException]], then its
+          message.
+        hide: [bins]
+        show: [receipt]
+      - say: |
+          The name in square brackets, `[{=tp.errorClass}]`, is Spark's more exact error code, which Spark calls the
+          error class; search the web for it. Then comes a "Did you mean" list. Its first suggestion,
+          `{=tp.suggestions.0}`, is usually the right one.
+      - say: |
+          Second, find your own cell. Each `File …, line N` entry is a **frame**: one step of the chain of calls,
+          naming a file or a cell and the line that ran. Yours is `File "<cell {=tp.frame.cell}>", line {=tp.frame.line}`,
+          with `pu.show()` under it: the error surfaced at the action, not at the cell with the typo.
+        define: [frame]
+      - say: This cell prints the trip count, then fails.
+        show: [ml-code]
+        gate:
+          type: predict
+          question: Which line of the cell will the frame name?
+          answer: { value: 4 }
+          explain: 'Line 4, `pu.show()`: the action. Lines 1 to 3 ran fine, and line 1 only wrote a step on the plan.'
+      - say: |
+          Under the message Spark prints its plan, last step on top. Find the line that holds the misspelled name:
+          here `{=tp.planFirst}`, where `Project` is Spark's word for `select`. Databricks may decorate the same report
+          a little differently.
+        show: [ml-out, dbx]
+      - say: 'Your turn: read the frame of a real traceback.'
+        hide: [ml-code, ml-out]
+        gate:
+          type: practice
+          template: traceback-line-numeric
+      - say: Before you go, say the reading order in your own words.
+        gate:
+          type: reflect
+          prompt: Why read the last line first, and then your own cell's frame?
+          model: |
+            The last line names the problem: the error's name and its message, often with a "Did you mean" fix. Your
+            frame then says where it surfaced in your code. Everything in between is Python's and Spark's own
+            machinery. With a lazy error the frame points at the action, so the real mistake may sit in an earlier line.
+    takeaway: In a traceback, read the last line (what went wrong), then your cell's frame (where it surfaced). Skip the machinery in between.
+
+  - id: error-zoo
+    title: Four kinds of trouble
+    goal: 'The same few problems come up again and again. How do you tell them apart, and what do you check first?'
+    skills: [error-types]
+    state: { kind: analysis }
+    derive:
+      - { fn: errorZoo, in: { kind: '@kind' }, out: ez }
+      - { fn: errorZoo, in: { kind: type }, out: te }
+      - { fn: realCell, in: { key: m1.ddl_int.groupby_flag }, out: ng }
+    stage:
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Kind of trouble
+          options:
+            - { value: analysis, label: AnalysisException }
+            - { value: name, label: NameError }
+            - { value: type, label: TypeError }
+            - { value: silent, label: no error at all }
+        bind: { value: kind }
+      - id: cell
+        widget: Code
+        props: { source: '@ez.code', lang: python, title: What you ran }
+      - id: out
+        widget: Text
+        props: { body: '@ez.out' }
+      - id: check
+        widget: Code
+        props: { source: '@ez.check', lang: python, title: The first thing to check }
+      - id: check-out
+        widget: Text
+        props: { body: '@ez.checkOut' }
+      - id: ng-code
+        widget: Code
+        hidden: true
+        props: { source: '@ng.code', lang: python, title: 'Grouped by the flag, under the wrong schema' }
+      - id: ng-out
+        widget: Text
+        hidden: true
+        props: { body: '@ng.out' }
+      - id: toolkit
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: tip
+          title: The inspection toolkit
+          body: |
+            Look at the data before you change any code:
+            - `trips.printSchema()`: each column's name and type, as a tree;
+            - `trips.dtypes`: the same, as a list of (name, type) pairs;
+            - `trips.show(5)`: the first 5 rows;
+            - `trips.columns`: the exact spelling of every column name;
+            - `trips.count()`: how many rows there are;
+            - `trips.limit(10).toPandas()`: 10 rows copied into an ordinary Python table (pandas, Python's everyday table library).
+    beats:
+      - say: |
+          Four kinds of trouble cause most problems in this course. You have met the first: an
+          [[analysis-exception]] for a misspelled column. First check: `trips.columns`, the exact spelling of every name.
+      - say: |
+          Second, a [[name-error]]: Python was never given a name. Here `desc` was used before any import. First check:
+          run the cells above in order, the import cell included, or write `F.desc`.
+        set: { kind: name }
+      - say: |
+          Third, the notebook's next broken cell tries to keep the trips that cost more than 1,000 dollars:
+          `trips.filter("total_amount" > 1000)`. The column name sits in quotes.
+        gate:
+          type: predict
+          question: What goes wrong?
+          options:
+            - Python cannot compare a piece of text with a number
+            - Spark reports an unknown column
+            - It keeps 0 trips, with no error
+            - It keeps every trip
+          answer: 0
+          explain: 'Python raises `{=te.final}` before Spark sees anything. `"total_amount"` is text, not the column.'
+      - say: |
+          That is a [[type-error]]: a value of the wrong kind. First check: `type(...)` of the suspect; here it is
+          `str`, plain text. The fix compares the column with the number: `trips.filter(trips.total_amount > 1000)`.
+        set: { kind: type }
+      - say: |
+          The fourth kind is the sneakiest, because nothing goes red. A **schema** is the list of column names with
+          their types. This read used a schema that promises a whole number for `store_and_fwd_flag`, a column of
+          the letters N and Y. Then `trips.show()` runs.
+        define: [schema]
+        set: { kind: silent }
+        hide: [out]
+        gate:
+          type: predict
+          question: 'What does `trips.show()` print in the `store_and_fwd_flag` column?'
+          options:
+            - 'An error: N and Y are not whole numbers'
+            - NULL in every row
+            - N and Y, as in the file
+            - 0 for N and 1 for Y
+          answer: 1
+          explain: 'NULL in every row, and no error at all. Spark quietly replaced each value that does not fit the promised type.'
+      - say: |
+          Here is the real output. Each value that does not fit becomes NULL (missing), with no complaint: a
+          **silent null**. Compare the four kinds of trouble side by side. Then the trips are grouped by their flag.
+        define: [silent-null]
+        show: [out, pick]
+        gate:
+          type: predict
+          question: 'How many rows does `trips.groupBy("store_and_fwd_flag").count().show()` print?'
+          answer: { value: 1 }
+          explain: 'One. Every flag became NULL, and `groupBy` puts all the NULLs in one group: a single row, NULL with count 12.'
+      - say: |
+          Here is the real grouped output. First check for a silent null: `printSchema()`, then `show(5)` or `describe()`.
+          The card lists the whole inspection toolkit: commands that look at the data without changing it.
+        show: [ng-code, ng-out, toolkit]
+      - say: 'Your turn: match each symptom to its kind of trouble.'
+        gate:
+          type: practice
+          template: error-match
+    takeaway: AnalysisException, NameError, TypeError and the silent null each have a first check. A silent null shows no error at all.
+
+  - id: ask-for-help
+    title: Reading the manual, asking well
+    goal: 'A tool may do more than you were shown. How do you find out, and how do you ask for help well?'
+    skills: [find-help]
+    state: { topic: helpFilter }
+    derive:
+      - { fn: helpView, in: { topic: '@topic' }, out: hv }
+      - { fn: helpView, in: { topic: sqlFilter }, out: sq }
+      - { fn: helpView, in: { topic: whereSql }, out: wq }
+      - { fn: filterView, in: { cond: total30 }, out: t30 }
+      - { fn: tripsView, in: { cols: [total_amount] }, out: tt }
+    stage:
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: What you run
+          style: dropdown
+          options:
+            - { value: helpFilter, label: 'help(trips.filter)' }
+            - { value: sqlFilter, label: 'filter("total_amount > 30")' }
+            - { value: whereSql, label: 'where("total_amount > 30")' }
+        bind: { value: topic }
+      - id: cell
+        widget: Code
+        props: { source: '@hv.code', lang: python, title: The cell }
+      - id: out
+        widget: Text
+        props: { body: '@hv.out' }
+      - id: totals
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { rows: '@tt.rows', cols: '@tt.cols', values: '@tt.values', rowHeader: trip, title: 'The total of each trip, in dollars' }
+      - id: ask
+        widget: Callout
+        hidden: true
+        props:
+          kind: tip
+          title: A good question for the Assistant
+          body: |
+            1. The code you ran.
+            2. The **full** error, copied as text.
+            3. The `printSchema()` output of the table involved.
+            4. What you expected to happen.
+    beats:
+      - say: |
+          Nobody can teach you every tool. Three habits find the rest: `dir()` lists the names inside something,
+          `help()` prints a tool's manual, and the online docs show examples. Session 4's discovery task: run
+          `help(trips.filter)` and read the Parameters part. Here is the real manual, trimmed.
+      - say: |
+          The manual says `condition : Column or str`: a Column of true/false values, or a string (a piece of text)
+          holding a condition in SQL (Structured Query Language), the classic language for asking questions of
+          tables. So `trips.filter("total_amount > 30")` works too. The side table lists each trip's total.
+        show: [totals]
+        gate:
+          type: predict
+          question: 'How many trips does `trips.filter("total_amount > 30").count()` return?'
+          answer: { value: 3 }
+          explain: 'It prints {=sq.printed}: trips {=t30.kept} cost more than 30 dollars in total.'
+      - say: |
+          The manual also says `where` is an alias (another name) for `filter`: `trips.where(...)` does the same.
+          Try both forms on the twelve trips.
+        set: { topic: sqlFilter }
+        show: [pick]
+        gate:
+          type: when
+          prompt: Run the same count with `where`.
+          when: 'topic == ''whereSql'''
+          hint: Pick the `where` line.
+      - say: '`where` prints {=wq.printed} as well: two names for one method.'
+        gate:
+          type: reflect
+          prompt: Why read the Parameters part of a manual before guessing at arguments?
+          model: |
+            The Parameters part lists every kind of value the tool accepts. For `filter` it showed a second form, a SQL
+            text, that no example so far had used, and it named the twin `where`. Guessing only finds the forms you
+            already know, and each wrong guess costs an error to read.
+      - say: |
+          Databricks has a built-in artificial intelligence (AI) helper, the Assistant. Its answers are only as good
+          as your question, so give it the four parts on the card. Then test its answer as you would a classmate's
+          advice.
+        hide: [pick, totals]
+        show: [ask]
+        gate:
+          type: reflect
+          prompt: 'Write the question you would send the Assistant about the `pu.show()` error from the shopping-list scene.'
+          model: |
+            "My cell `pu = trips.select("PULocatonID")` ran fine, but `pu.show()` fails with
+            `AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION]` (full error pasted below). `trips.printSchema()`
+            shows a column `PULocationID: integer`. I expected the twelve pickup zones. Why does it fail, and why only
+            at `show()`?"
+    takeaway: 'dir() finds names, help() reads the manual, and a good Assistant question has the code, full error, printSchema() and what you expected.'

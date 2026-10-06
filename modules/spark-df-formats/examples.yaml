@@ -1,0 +1,898 @@
+# Every expected value comes from a real Spark 4.0.1 run (truth.json or the extra runs m3x.* in
+# SCRATCH/m3x/extra_truth.json), or is a count stated there. The engine fns must reproduce them exactly.
+examples:
+  - id: top-pair-show
+    source: 'Session 5, Problem 2 (graded) shape on taxi12; Real Spark 4.0.1 run (harness), truth m3.top_pair.show/.first/.tuple'
+    fn: pairCount
+    in: {}
+    expect:
+      showLines: 
+        - '+------------+------------+-----+'
+        - '|PULocationID|DOLocationID|count|'
+        - '+------------+------------+-----+'
+        - '|          41|         238|    2|'
+        - '|           7|         179|    1|'
+        - '|           7|         223|    1|'
+        - '|           7|         260|    1|'
+        - '|           7|         261|    1|'
+        - '|          33|         140|    1|'
+        - '|          33|         143|    1|'
+        - '|          74|          75|    1|'
+        - '|          74|         166|    1|'
+        - '|          75|          41|    1|'
+        - '|          97|         137|    1|'
+        - '+------------+------------+-----+'
+      firstRepr: 'Row(PULocationID=41, DOLocationID=238, count=2)'
+      tupleRepr: '(41, 238, 2)'
+    note: 'groupBy("PULocationID", "DOLocationID").count(): (41, 238) is the only pair seen twice.'
+  - id: pair-groups
+    source: 'Session 5, Problem 2 on taxi12; Real Spark 4.0.1 run (harness), extra runs m3x.pair_groups_count and m3x.pu_groups_count'
+    fn: pairCount
+    in: {}
+    expect:
+      groups: 11
+      puGroups: 6
+      topCount: 2
+      secondCount: 1
+    note: '11 distinct pairs but only 6 pickup zones.'
+  - id: mean-alias-show
+    source: 'Session 5, Problem 3 (graded) shape on taxi12; Real Spark 4.0.1 run (harness), truth m3.mean_alias.show'
+    fn: groupMean
+    in: {}
+    expect:
+      showLines: 
+        - '+------------+----------------+'
+        - '|PULocationID|mean fare amount|'
+        - '+------------+----------------+'
+        - '|           7|           14.25|'
+        - '|          33|            30.0|'
+        - '|          41|           11.75|'
+        - '|          74|            7.25|'
+        - '|          75|             8.0|'
+        - '|          97|            22.0|'
+        - '+------------+----------------+'
+      columns: ['PULocationID', 'mean fare amount']
+      means: [14.25, 30, 11.75, 7.25, 8, 22]
+      keys: [7, 33, 41, 74, 75, 97]
+    note: 'Zone 7: (34.5 + 4.0 + 8.0 + 10.5) / 4 = 14.25.'
+  - id: ave-amount-pandas
+    source: 'Session 5, Problem 3 test reads toPandas(); Real Spark 4.0.1 run (harness), extra run m3x.ave_amount_pandas'
+    fn: groupMean
+    in: {}
+    expect:
+      pandasLines: 
+        - '   PULocationID  mean fare amount'
+        - '0             7             14.25'
+        - '1            33             30.00'
+        - '2            41             11.75'
+        - '3            74              7.25'
+        - '4            75              8.00'
+        - '5            97             22.00'
+    note: 'pandas prints 30.00 and 8.00 to line the column up.'
+  - id: mean-tip-vendor
+    source: 'Session 5 › Tools for Problems 2 and 3 (agg + alias) on taxi12; Real Spark 4.0.1 run (harness), extra run m3x.mean_tip_vendor'
+    fn: groupMean
+    in: { key: 'VendorID', value: 'tip_amount', alias: 'mean tip' }
+    expect:
+      showLines: 
+        - '+--------+------------------+'
+        - '|VendorID|          mean tip|'
+        - '+--------+------------------+'
+        - '|       1| 4.116666666666666|'
+        - '|       2|1.3055555555555556|'
+        - '+--------+------------------+'
+  - id: vendor-first-row
+    source: 'Session 5 › Tools for Problems 2 and 3 (first() and the Row) on taxi12; Real Spark 4.0.1 run (harness), extra runs m3x.vendor_first, m3x.vendor_first_print'
+    fn: vendorFirst
+    in: {}
+    expect:
+      firstRepr: 'Row(VendorID=2, count=9)'
+      printLine: '9 2 (2, 9)'
+      count: 9
+  - id: mean-vs-avg
+    source: 'Session 5 › Discovery: what can a group do?; Real Spark 4.0.1 run (harness), truth m3.mean_vs_avg and extra run m3x.type_groupby'
+    fn: meanVsAvg
+    in: {}
+    expect:
+      groupedType: '<class ''pyspark.sql.connect.group.GroupedData''>'
+      meanRepr: 'Column<''avg(fare_amount)''>'
+      avgRepr: 'Column<''avg(fare_amount)''>'
+    note: 'Truth prints (False, Column<''avg(fare_amount)''>, Column<''avg(fare_amount)''>): two functions, the same column.'
+  - id: write-vendor
+    source: 'Session 5 › Writing Parquet, split into partition folders, done with taxi12; Real Spark 4.0.1 run (harness), truth m3.write.ls_names, m3.write.readback_printSchema, m3.write.readback_count_vendor'
+    fn: partitionWrite
+    in: { cols: ['VendorID'] }
+    expect:
+      names: ['VendorID=1/', 'VendorID=2/', '_SUCCESS']
+      readbackLines: 
+        - 'root'
+        - ' |-- lpep_pickup_datetime: timestamp (nullable = true)'
+        - ' |-- store_and_fwd_flag: string (nullable = true)'
+        - ' |-- PULocationID: integer (nullable = true)'
+        - ' |-- DOLocationID: integer (nullable = true)'
+        - ' |-- passenger_count: integer (nullable = true)'
+        - ' |-- trip_distance: double (nullable = true)'
+        - ' |-- fare_amount: double (nullable = true)'
+        - ' |-- tip_amount: double (nullable = true)'
+        - ' |-- total_amount: double (nullable = true)'
+        - ' |-- VendorID: integer (nullable = true)'
+      countsLines: 
+        - '+--------+-----+'
+        - '|VendorID|count|'
+        - '+--------+-----+'
+        - '|       1|    3|'
+        - '|       2|    9|'
+        - '+--------+-----+'
+      folders: 2
+    note: 'The partition column moves to the end of the read-back schema.'
+  - id: write-pu
+    source: 'Session 5, partitionBy PULocationID on taxi12; Real Spark 4.0.1 run (harness), extra runs m3x.write_pu.*'
+    fn: partitionWrite
+    in: { cols: ['PULocationID'] }
+    expect:
+      names: 
+        - 'PULocationID=33/'
+        - 'PULocationID=41/'
+        - 'PULocationID=7/'
+        - 'PULocationID=74/'
+        - 'PULocationID=75/'
+        - 'PULocationID=97/'
+        - '_SUCCESS'
+      readbackLines: 
+        - 'root'
+        - ' |-- VendorID: integer (nullable = true)'
+        - ' |-- lpep_pickup_datetime: timestamp (nullable = true)'
+        - ' |-- store_and_fwd_flag: string (nullable = true)'
+        - ' |-- DOLocationID: integer (nullable = true)'
+        - ' |-- passenger_count: integer (nullable = true)'
+        - ' |-- trip_distance: double (nullable = true)'
+        - ' |-- fare_amount: double (nullable = true)'
+        - ' |-- tip_amount: double (nullable = true)'
+        - ' |-- total_amount: double (nullable = true)'
+        - ' |-- PULocationID: integer (nullable = true)'
+      countsLines: 
+        - '+------------+-----+'
+        - '|PULocationID|count|'
+        - '+------------+-----+'
+        - '|           7|    4|'
+        - '|          33|    2|'
+        - '|          41|    2|'
+        - '|          74|    2|'
+        - '|          75|    1|'
+        - '|          97|    1|'
+        - '+------------+-----+'
+      folders: 6
+    note: 'Folder names sort as text: PULocationID=33/ comes before PULocationID=7/.'
+  - id: write-two
+    source: 'Session 5, partitionBy two columns on taxi12; Real Spark 4.0.1 run (harness), extra runs m3x.write_two.*'
+    fn: partitionWrite
+    in: { cols: ['VendorID', 'store_and_fwd_flag'] }
+    expect:
+      names: ['VendorID=1/', 'VendorID=2/', '_SUCCESS']
+      readbackLines: 
+        - 'root'
+        - ' |-- lpep_pickup_datetime: timestamp (nullable = true)'
+        - ' |-- PULocationID: integer (nullable = true)'
+        - ' |-- DOLocationID: integer (nullable = true)'
+        - ' |-- passenger_count: integer (nullable = true)'
+        - ' |-- trip_distance: double (nullable = true)'
+        - ' |-- fare_amount: double (nullable = true)'
+        - ' |-- tip_amount: double (nullable = true)'
+        - ' |-- total_amount: double (nullable = true)'
+        - ' |-- VendorID: integer (nullable = true)'
+        - ' |-- store_and_fwd_flag: string (nullable = true)'
+      folders: 2
+      leafFolders: 3
+    note: 'VendorID=1/ holds store_and_fwd_flag=N/ and =Y/; VendorID=2/ holds only =N/ (m3x.write_two.ls_inside1/2).'
+  - id: write-flag
+    source: 'Session 5, partitionBy store_and_fwd_flag on taxi12; Real Spark 4.0.1 run (harness), extra runs m3x.write_flag.*'
+    fn: partitionWrite
+    in: { cols: ['store_and_fwd_flag'] }
+    expect:
+      names: ['_SUCCESS', 'store_and_fwd_flag=N/', 'store_and_fwd_flag=Y/']
+      readbackLines: 
+        - 'root'
+        - ' |-- VendorID: integer (nullable = true)'
+        - ' |-- lpep_pickup_datetime: timestamp (nullable = true)'
+        - ' |-- PULocationID: integer (nullable = true)'
+        - ' |-- DOLocationID: integer (nullable = true)'
+        - ' |-- passenger_count: integer (nullable = true)'
+        - ' |-- trip_distance: double (nullable = true)'
+        - ' |-- fare_amount: double (nullable = true)'
+        - ' |-- tip_amount: double (nullable = true)'
+        - ' |-- total_amount: double (nullable = true)'
+        - ' |-- store_and_fwd_flag: string (nullable = true)'
+    note: '_SUCCESS sorts before lowercase folder names (code-point order).'
+  - id: p1-ratios
+    source: 'Session 5, Problem 1 timings; Real Spark 4.0.1 run (harness) on a local laptop, problems.json P1'
+    fn: timingTable
+    in: { timing: '@p1timing' }
+    expect:
+      ratios: [0.5882893598615917, 7.362857142857143, 6.018789144050104, 2.7298325722983257, 5.2998296422487225, 5.283950617283951]
+    tol: 0.001
+    note: 'describe().toPandas() is the one operation where Parquet was slower (ratio below 1).'
+  - id: restart-cell92
+    source: 'Session 5 › Problem 1 › Broken on purpose: the desc cell after a restart; Real Spark 4.0.1 run (harness), truth m3.restart.cell92'
+    fn: restartRun
+    in: { cell: 'desc', fix: 'none' }
+    expect:
+      outputLines: 
+        - 'Traceback (most recent call last):'
+        - '  File "<cell 3>", line 1, in <module>'
+        - '    (trips.groupby(trips["PULocationID"]).count().orderBy(desc("count")).show())'
+        - '                                                          ^^^^'
+        - 'NameError: name ''desc'' is not defined'
+      errorName: 'NameError'
+      ok: false
+  - id: restart-cell91
+    source: 'Session 5 › Problem 1 › Broken on purpose: the explode cell after a restart; Real Spark 4.0.1 run (harness), truth m3.restart.cell91'
+    fn: restartRun
+    in: { cell: 'explode', fix: 'none' }
+    expect:
+      outputLines: 
+        - 'Traceback (most recent call last):'
+        - '  File "<cell 2>", line 3, in <module>'
+        - '    .withColumn("freq_items", explode("PULocationID_freqItems"))'
+        - '                              ^^^^^^^'
+        - 'NameError: name ''explode'' is not defined'
+  - id: restart-fix-import
+    source: 'Session 5 fix, import at the top of the section; Real Spark 4.0.1 run (harness), truth m3.restart.fix_import'
+    fn: restartRun
+    in: { cell: 'desc', fix: 'import', pucounts: '@pucounts' }
+    expect:
+      outputLines: 
+        - '+------------+------+'
+        - '|PULocationID| count|'
+        - '+------------+------+'
+        - '|          74|167207|'
+        - '|          41|150186|'
+        - '|          75|149227|'
+        - '|           7|137966|'
+        - '|          82|127071|'
+        - '|         166|114460|'
+        - '|         255| 92982|'
+        - '|          42| 88615|'
+        - '|         181| 87262|'
+        - '|          97| 84196|'
+        - '|         129| 76111|'
+        - '|          33| 73776|'
+        - '|          95| 71792|'
+        - '|          25| 69632|'
+        - '|          65| 65991|'
+        - '|         244| 64259|'
+        - '|         260| 59804|'
+        - '|          66| 54805|'
+        - '|         223| 54271|'
+        - '|         116| 39841|'
+        - '+------------+------+'
+        - 'only showing top 20 rows'
+      ok: true
+  - id: restart-fix-f
+    source: 'Session 5 fix with F.desc; Real Spark 4.0.1 run (harness), truth m3.restart.fix_F'
+    fn: restartRun
+    in: { cell: 'desc', fix: 'F', pucounts: '@pucounts' }
+    expect:
+      outputLines: 
+        - '+------------+------+'
+        - '|PULocationID| count|'
+        - '+------------+------+'
+        - '|          74|167207|'
+        - '|          41|150186|'
+        - '|          75|149227|'
+        - '|           7|137966|'
+        - '|          82|127071|'
+        - '+------------+------+'
+        - 'only showing top 5 rows'
+  - id: gh8-schema
+    source: 'Session 6 introduction (read, printSchema, columns, count) on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.printSchema, m3.gh8.columns, m3.gh8.count'
+    fn: ghView
+    in: {}
+    expect:
+      schemaLines: 
+        - 'root'
+        - ' |-- actor: struct (nullable = true)'
+        - ' |    |-- login: string (nullable = true)'
+        - ' |-- created_at: string (nullable = true)'
+        - ' |-- id: string (nullable = true)'
+        - ' |-- payload: struct (nullable = true)'
+        - ' |    |-- commits: array (nullable = true)'
+        - ' |    |    |-- element: struct (containsNull = true)'
+        - ' |    |    |    |-- author: struct (nullable = true)'
+        - ' |    |    |    |    |-- name: string (nullable = true)'
+        - ' |    |    |    |-- message: string (nullable = true)'
+        - ' |-- repo: struct (nullable = true)'
+        - ' |    |-- name: string (nullable = true)'
+        - ' |-- type: string (nullable = true)'
+      columnsRepr: '[''actor'', ''created_at'', ''id'', ''payload'', ''repo'', ''type'']'
+      count: 8
+    note: 'JSON inference sorts the top-level columns by name.'
+  - id: gh8-show
+    source: 'Session 6 on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.show'
+    fn: ghView
+    in: {}
+    expect:
+      showLines: 
+        - '+-----------------+--------------------+----------+--------------------+--------------------+-----------+'
+        - '|            actor|          created_at|        id|             payload|                repo|       type|'
+        - '+-----------------+--------------------+----------+--------------------+--------------------+-----------+'
+        - '|        {petroav}|2015-01-01T15:00:00Z|2489651045|                NULL|     {petroav/6.828}|CreateEvent|'
+        - '|           {rspt}|2015-01-01T15:00:01Z|2489651051|{[{{rspt}, Fix ma...|   {rspt/rspt-theme}|  PushEvent|'
+        - '|{SametSisartenep}|2015-01-01T15:00:03Z|2489651057|                NULL| {visionmedia/debug}| WatchEvent|'
+        - '|       {comcxx11}|2015-01-01T15:00:05Z|2489651078|                NULL|{phpsysinfo/phpsy...| WatchEvent|'
+        - '|        {Soufien}|2015-01-01T15:00:10Z|2489651128|                NULL|{wasabeef/awesome...|  ForkEvent|'
+        - '|         {hex7c0}|2015-01-01T15:00:39Z|2489651405|{[{{hex7c0}, trav...|{hex7c0/json-decr...|  PushEvent|'
+        - '|     {mhparker23}|2015-01-01T15:01:05Z|2489651591|                NULL|{vinta/awesome-py...| WatchEvent|'
+        - '|         {x2bool}|2015-01-01T15:23:34Z|2489661785|                NULL|{vinta/awesome-py...| WatchEvent|'
+        - '+-----------------+--------------------+----------+--------------------+--------------------+-----------+'
+  - id: gh8-show-full
+    source: 'Session 6 on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.show_full'
+    fn: ghView
+    in: { truncate: false }
+    expect:
+      showLines: 
+        - '+-----------------+--------------------+----------+-----------------------------------------------------------------+------------------------------------+-----------+'
+        - '|actor            |created_at          |id        |payload                                                          |repo                                |type       |'
+        - '+-----------------+--------------------+----------+-----------------------------------------------------------------+------------------------------------+-----------+'
+        - '|{petroav}        |2015-01-01T15:00:00Z|2489651045|NULL                                                             |{petroav/6.828}                     |CreateEvent|'
+        - '|{rspt}           |2015-01-01T15:00:01Z|2489651051|{[{{rspt}, Fix main header height on mobile}]}                   |{rspt/rspt-theme}                   |PushEvent  |'
+        - '|{SametSisartenep}|2015-01-01T15:00:03Z|2489651057|NULL                                                             |{visionmedia/debug}                 |WatchEvent |'
+        - '|{comcxx11}       |2015-01-01T15:00:05Z|2489651078|NULL                                                             |{phpsysinfo/phpsysinfo}             |WatchEvent |'
+        - '|{Soufien}        |2015-01-01T15:00:10Z|2489651128|NULL                                                             |{wasabeef/awesome-android-libraries}|ForkEvent  |'
+        - '|{hex7c0}         |2015-01-01T15:00:39Z|2489651405|{[{{hex7c0}, travis docker}, {{hex7c0}, update devDependencies}]}|{hex7c0/json-decrypt}               |PushEvent  |'
+        - '|{mhparker23}     |2015-01-01T15:01:05Z|2489651591|NULL                                                             |{vinta/awesome-python}              |WatchEvent |'
+        - '|{x2bool}         |2015-01-01T15:23:34Z|2489661785|NULL                                                             |{vinta/awesome-python}              |WatchEvent |'
+        - '+-----------------+--------------------+----------+-----------------------------------------------------------------+------------------------------------+-----------+'
+  - id: gh8-select-schema
+    source: 'Session 6 introduction (select(...).printSchema()) on gh8; Real Spark 4.0.1 run (harness), extra run m3x.gh8.select_actor_schema'
+    fn: ghView
+    in: { cols: ['actor', 'repo', 'type'] }
+    expect:
+      schemaLines: 
+        - 'root'
+        - ' |-- actor: struct (nullable = true)'
+        - ' |    |-- login: string (nullable = true)'
+        - ' |-- repo: struct (nullable = true)'
+        - ' |    |-- name: string (nullable = true)'
+        - ' |-- type: string (nullable = true)'
+  - id: gh8-select-nested
+    source: 'Session 6 › Dot paths, on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.select_nested, m3.gh8.select_nested_columns'
+    fn: ghSelect
+    in: {}
+    expect:
+      showLines: 
+        - '+---------------+--------------------+'
+        - '|          login|                name|'
+        - '+---------------+--------------------+'
+        - '|        petroav|       petroav/6.828|'
+        - '|           rspt|     rspt/rspt-theme|'
+        - '|SametSisartenep|   visionmedia/debug|'
+        - '|       comcxx11|phpsysinfo/phpsys...|'
+        - '|        Soufien|wasabeef/awesome-...|'
+        - '|         hex7c0| hex7c0/json-decrypt|'
+        - '|     mhparker23|vinta/awesome-python|'
+        - '|         x2bool|vinta/awesome-python|'
+        - '+---------------+--------------------+'
+      columnsRepr: '[''login'', ''name'']'
+      ok: true
+  - id: gh8-select-login
+    source: 'Session 6 › Broken on purpose: a field without its folder, on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.select_login'
+    fn: ghSelect
+    in: { paths: ['login'] }
+    expect:
+      errorLines: 
+        - 'Traceback (most recent call last):'
+        - '  File "<cell 9>", line 1, in <module>'
+        - '    events.select("login").show()'
+        - '  ...'
+        - 'pyspark.errors.exceptions.connect.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `login` cannot be resolved. Did you mean one of the following? [`id`, `repo`, `type`, `actor`, `payload`]. SQLSTATE: 42703;'
+        - '''Project [''login]'
+        - '+- Relation [actor#1023,created_at#1024,id#1025,payload#1026,repo#1027,type#1028] json'
+      errorClass: 'UNRESOLVED_COLUMN.WITH_SUGGESTION'
+      suggestions: ['id', 'repo', 'type', 'actor', 'payload']
+    note: 'The suggestions are top-level columns only; actor is the one that holds login.'
+  - id: gh8-select-logn
+    source: 'Session 6, a typo inside the path; Real Spark 4.0.1 run (harness), extra run m3x.gh8.select_logn'
+    fn: ghSelect
+    in: { paths: ['actor.logn'], cell: 2 }
+    expect:
+      errorLines: 
+        - 'Traceback (most recent call last):'
+        - '  File "<cell 2>", line 1, in <module>'
+        - '    events.select("actor.logn").show()'
+        - '  ...'
+        - 'pyspark.errors.exceptions.connect.AnalysisException: [FIELD_NOT_FOUND] No such struct field `logn` in `login`. SQLSTATE: 42704'
+      errorClass: 'FIELD_NOT_FOUND'
+  - id: gh8-case
+    source: 'Session 6, names ignore capitals; Real Spark 4.0.1 run (harness), extra run m3x.gh8.case_insensitive'
+    fn: ghSelect
+    in: { paths: ['Actor.Login'], n: 3 }
+    expect:
+      showLines: 
+        - '+---------------+'
+        - '|          Login|'
+        - '+---------------+'
+        - '|        petroav|'
+        - '|           rspt|'
+        - '|SametSisartenep|'
+        - '+---------------+'
+        - 'only showing top 3 rows'
+  - id: stars-tiebreak
+    source: 'Session 6, Problem 5 chain on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.stars_name'
+    fn: starsChain
+    in: { upTo: 4, tiebreak: true }
+    expect:
+      finalLines: 
+        - '+--------------------+-----+'
+        - '|                name|count|'
+        - '+--------------------+-----+'
+        - '|vinta/awesome-python|    2|'
+        - '|phpsysinfo/phpsys...|    1|'
+        - '|   visionmedia/debug|    1|'
+        - '+--------------------+-----+'
+      watchEvents: 4
+  - id: stars-no-tiebreak
+    source: 'Session 6 on gh8 without the tie-break; Real Spark 4.0.1 run (harness), truth m3.gh8.stars_no_tiebreak'
+    fn: starsChain
+    in: { upTo: 4, tiebreak: false }
+    expect:
+      finalLines: 
+        - '+--------------------+-----+'
+        - '|                name|count|'
+        - '+--------------------+-----+'
+        - '|vinta/awesome-python|    2|'
+        - '|   visionmedia/debug|    1|'
+        - '|phpsysinfo/phpsys...|    1|'
+        - '+--------------------+-----+'
+    note: 'This order is not guaranteed between runs; the engine reproduces the real one.'
+  - id: stars-alias
+    source: 'Session 6, Problem 5 shape on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.stars_alias'
+    fn: starsChain
+    in: { upTo: 4, alias: true }
+    expect:
+      finalLines: 
+        - '+--------------------+-----+'
+        - '|           repo_name|stars|'
+        - '+--------------------+-----+'
+        - '|vinta/awesome-python|    2|'
+        - '|phpsysinfo/phpsys...|    1|'
+        - '|   visionmedia/debug|    1|'
+        - '+--------------------+-----+'
+  - id: stars-top2
+    source: 'Session 6, Problem 5 with limit(2) on gh8; Real Spark 4.0.1 run (harness), extra run m3x.gh8.starriest_top2'
+    fn: starsChain
+    in: { upTo: 5, alias: true, limit: 2, truncate: false }
+    expect:
+      finalLines: 
+        - '+---------------------+-----+'
+        - '|repo_name            |stars|'
+        - '+---------------------+-----+'
+        - '|vinta/awesome-python |2    |'
+        - '|phpsysinfo/phpsysinfo|1    |'
+        - '+---------------------+-----+'
+    note: 'The name tie-break keeps phpsysinfo/phpsysinfo and drops visionmedia/debug.'
+  - id: p5-board
+    source: 'Session 6, Problem 5 on the full data; Real Spark 4.0.1 run (harness), truth p5.boundary and p5.starriest'
+    fn: p5Board
+    in: { board: '@p5top' }
+    expect:
+      boardLines: 
+        - '+--------------------------------------------+-----+'
+        - '|repo_name                                   |stars|'
+        - '+--------------------------------------------+-----+'
+        - '|cachethq/Cachet                             |37   |'
+        - '|prakhar1989/awesome-courses                 |34   |'
+        - '|wasabeef/awesome-android-ui                 |26   |'
+        - '|begriffs/postgrest                          |20   |'
+        - '|vinta/awesome-python                        |18   |'
+        - '|lexrus/VPNOn                                |17   |'
+        - '|h5bp/Front-end-Developer-Interview-Questions|13   |'
+        - '|Araq/Nim                                    |12   |'
+        - '|MostafaGazar/soas                           |11   |'
+        - '|Netflix/ice                                 |11   |'
+        - '|STRML/react-grid-layout                     |11   |'
+        - '|inf0rmer/blanket                            |10   |'
+        - '|Pathgather/please-wait                      |9    |'
+        - '|alvarotrigo/fullPage.js                     |9    |'
+        - '+--------------------------------------------+-----+'
+        - 'only showing top 14 rows'
+      topLines: 
+        - '+--------------------------------------------+-----+'
+        - '|repo_name                                   |stars|'
+        - '+--------------------------------------------+-----+'
+        - '|cachethq/Cachet                             |37   |'
+        - '|prakhar1989/awesome-courses                 |34   |'
+        - '|wasabeef/awesome-android-ui                 |26   |'
+        - '|begriffs/postgrest                          |20   |'
+        - '|vinta/awesome-python                        |18   |'
+        - '|lexrus/VPNOn                                |17   |'
+        - '|h5bp/Front-end-Developer-Interview-Questions|13   |'
+        - '|Araq/Nim                                    |12   |'
+        - '|MostafaGazar/soas                           |11   |'
+        - '|Netflix/ice                                 |11   |'
+        - '+--------------------------------------------+-----+'
+      tieAtCut: true
+      kept: ['MostafaGazar/soas', 'Netflix/ice']
+      dropped: ['STRML/react-grid-layout']
+      cutStars: 11
+  - id: explode-commits
+    source: 'Session 6 › Discovery: where do the commits live?, on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.explode_commits, m3.gh8.explode_count, m3.gh8.payload_commits_show; extra run m3x.gh8.explode_schema'
+    fn: explodeCommits
+    in: {}
+    expect:
+      showLines: 
+        - '+------+------+--------------------------------+'
+        - '|login |name  |message                         |'
+        - '+------+------+--------------------------------+'
+        - '|rspt  |rspt  |Fix main header height on mobile|'
+        - '|hex7c0|hex7c0|travis docker                   |'
+        - '|hex7c0|hex7c0|update devDependencies          |'
+        - '+------+------+--------------------------------+'
+      count: 3
+      schemaLines: 
+        - 'root'
+        - ' |-- login: string (nullable = true)'
+        - ' |-- commit: struct (nullable = true)'
+        - ' |    |-- author: struct (nullable = true)'
+        - ' |    |    |-- name: string (nullable = true)'
+        - ' |    |-- message: string (nullable = true)'
+      payloadLines: 
+        - '+-----------+---------------------------------------------------------------+'
+        - '|type       |commits                                                        |'
+        - '+-----------+---------------------------------------------------------------+'
+        - '|CreateEvent|NULL                                                           |'
+        - '|PushEvent  |[{{rspt}, Fix main header height on mobile}]                   |'
+        - '|WatchEvent |NULL                                                           |'
+        - '|WatchEvent |NULL                                                           |'
+        - '|ForkEvent  |NULL                                                           |'
+        - '|PushEvent  |[{{hex7c0}, travis docker}, {{hex7c0}, update devDependencies}]|'
+        - '|WatchEvent |NULL                                                           |'
+        - '|WatchEvent |NULL                                                           |'
+        - '+-----------+---------------------------------------------------------------+'
+  - id: explode-messages
+    source: 'Session 6 on gh8; Real Spark 4.0.1 run (harness), extra runs m3x.gh8.messages, m3x.gh8.explode_count_login'
+    fn: explodeCommits
+    in: {}
+    expect:
+      messagesLines: 
+        - '+-----------+---------------------------------------+'
+        - '|type       |message                                |'
+        - '+-----------+---------------------------------------+'
+        - '|CreateEvent|NULL                                   |'
+        - '|PushEvent  |[Fix main header height on mobile]     |'
+        - '|WatchEvent |NULL                                   |'
+        - '|WatchEvent |NULL                                   |'
+        - '|ForkEvent  |NULL                                   |'
+        - '|PushEvent  |[travis docker, update devDependencies]|'
+        - '|WatchEvent |NULL                                   |'
+        - '|WatchEvent |NULL                                   |'
+        - '+-----------+---------------------------------------+'
+      perLoginLines: 
+        - '+------+-----+'
+        - '| login|count|'
+        - '+------+-----+'
+        - '|hex7c0|    2|'
+        - '|  rspt|    1|'
+        - '+------+-----+'
+  - id: file-path-gh8
+    source: 'Session 6, _metadata.file_path on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.file_path'
+    fn: filePath
+    in: {}
+    expect:
+      gh8Lines: 
+        - '+------------------------------------------------------+'
+        - '|file_path                                             |'
+        - '+------------------------------------------------------+'
+        - '|dbfs:/Volumes/workspace/default/bdcc/lessons/gh8.jsonl|'
+        - '+------------------------------------------------------+'
+      gh8Files: 1
+  - id: file-path-full
+    source: 'Session 6 › Which file did a row come from?, on the three hour files; Real Spark 4.0.1 run (harness), truth full.gh.file_path_counts'
+    fn: filePath
+    in: { files: '@ghfiles' }
+    expect:
+      fullLines: 
+        - '+--------------------------------------------------------------------+-----+'
+        - '|file_path                                                           |count|'
+        - '+--------------------------------------------------------------------+-----+'
+        - '|dbfs:/Volumes/workspace/default/bdcc/gharchive/2015-01-01-15.json.gz|11351|'
+        - '|dbfs:/Volumes/workspace/default/bdcc/gharchive/2015-01-01-16.json.gz|11749|'
+        - '|dbfs:/Volumes/workspace/default/bdcc/gharchive/2015-01-01-17.json.gz|11961|'
+        - '+--------------------------------------------------------------------+-----+'
+      total: 35061
+      counts: [11351, 11749, 11961]
+    note: 'The three counts add up to events.count() = 35061 (truth full.gh.count).'
+  - id: layout-read-fare
+    source: 'Session 5 analogy (blueprint 5): values read for the average fare of the 12 trips; a count, not a Spark output'
+    fn: layoutRead
+    in: { layout: 'column', need: ['fare_amount'] }
+    expect:
+      valuesRead: 12
+      rowValues: 120
+      colValues: 12
+      skipped: 108
+  - id: layout-walk-row
+    source: 'Session 5 count-along, row layout; mean fare of taxi12 = truth m1.infer.describe_fare mean (Real Spark 4.0.1 run (harness))'
+    fn: layoutWalk
+    in: { layout: 'row' }
+    expect:
+      steps: 14
+      valuesRead: 120
+      sum: 185
+      mean: 15.416666666666666
+  - id: layout-walk-column
+    source: 'Session 5 count-along, column layout'
+    fn: layoutWalk
+    in: { layout: 'column' }
+    expect:
+      steps: 14
+      valuesRead: 12
+  - id: pair-walk
+    source: 'Session 5 count-along for Problem 2 on taxi12: 12 trips, ending at the tally (the sort and first() are left to the next beat)'
+    fn: pairCountWalk
+    in: {}
+    expect:
+      steps: 13
+      groups: 11
+      'result.PULocationID': 41
+      'result.DOLocationID': 238
+      'result.count': 2
+  - id: mean-walk
+    source: 'Session 5 count-along for Problem 3 on taxi12: one zone per step (truth m3.mean_alias.show)'
+    fn: groupMeanWalk
+    in: {}
+    expect:
+      steps: 8
+      zones: 6
+      means: [14.25, 30, 11.75, 7.25, 8, 22]
+  - id: stars-walk
+    source: 'Session 6 count-along for Problem 5 on gh8: 8 events, sort, tie-break (truth m3.gh8.stars_alias)'
+    fn: starsWalk
+    in: {}
+    expect:
+      steps: 11
+      ranked: 
+        - ['vinta/awesome-python', 2]
+        - ['phpsysinfo/phpsysinfo', 1]
+        - ['visionmedia/debug', 1]
+  - id: explode-walk
+    source: 'Session 6 count-along for explode on gh8 (truth m3.gh8.explode_count)'
+    fn: explodeWalk
+    in: {}
+    expect:
+      steps: 9
+      rows: 3
+  - id: pair-code-trace
+    source: 'Math & Code trace of the first() cells of Session 5 › Tools for Problems 2 and 3, on taxi12; Real Spark 4.0.1 run (harness), extra runs m3x.vendor_first, m3x.vendor_first_print'
+    fn: firstRowCode
+    in: {}
+    expect:
+      steps: 6
+      groups: 2
+      result: [2, 9]
+      printLine: '9 2 (2, 9)'
+    note: 'Retargeted 2026-10-06 from the Problem 2 solution trace to the notebook technique cells, so no graded answer is shown.'
+  - id: mean-code-trace
+    source: 'Math & Code trace of the agg cell of Session 5 › Tools for Problems 2 and 3, on taxi12; Real Spark 4.0.1 run (harness), extra run m3x.mean_tip_vendor'
+    fn: meanTipCode
+    in: {}
+    expect:
+      steps: 5
+      means: [4.116666666666666, 1.3055555555555556]
+    note: 'Retargeted 2026-10-06 from the Problem 3 solution trace to the notebook technique cell.'
+  - id: stars-code-trace
+    source: 'Math & Code trace of the cells of Session 6 › Dot paths everywhere, on gh8, with limit(3) after the sort; the full sorted table is truth m3.gh8.type_counts, the limit(3) cut is computed'
+    fn: typeCountCode
+    in: { limit: 3 }
+    expect:
+      steps: 13
+      kept:
+        - ['WatchEvent', 4]
+        - ['PushEvent', 2]
+        - ['CreateEvent', 1]
+    note: 'Retargeted 2026-10-06 from the Problem 5 solution trace. CreateEvent and ForkEvent tie at 1; the name keeps CreateEvent.'
+  - id: type-counts
+    source: 'Session 6 › Dot paths everywhere, on gh8; Real Spark 4.0.1 run (harness), truth m3.gh8.type_counts and extra run m3x.gh8.fork_alias'
+    fn: typeCount
+    in: { limit: 4 }
+    expect:
+      fullLines:
+        - '+-----------+-----+'
+        - '|       type|count|'
+        - '+-----------+-----+'
+        - '| WatchEvent|    4|'
+        - '|  PushEvent|    2|'
+        - '|CreateEvent|    1|'
+        - '|  ForkEvent|    1|'
+        - '+-----------+-----+'
+      forkLines:
+        - '+-------+----------------------------------+'
+        - '|user   |repo_name                         |'
+        - '+-------+----------------------------------+'
+        - '|Soufien|wasabeef/awesome-android-libraries|'
+        - '+-------+----------------------------------+'
+      types: 4
+  - id: explode-code-trace
+    source: 'Math & Code trace of explode on gh8 (truth m3.gh8.explode_count)'
+    fn: explodeCode
+    in: {}
+    expect:
+      steps: 10
+      count: 3
+  - id: file-code-trace
+    source: 'Math & Code trace of the per-file count (truth full.gh.file_path_counts, full.gh.count)'
+    fn: filePathCode
+    in: { files: '@ghfiles' }
+    expect:
+      steps: 5
+      total: 35061
+  - id: write-code-trace
+    source: 'Math & Code trace of the partitioned write of taxi12 (truth m3.write.ls_names)'
+    fn: writeParquetCode
+    in: { cols: ['VendorID'] }
+    expect:
+      steps: 7
+      folders: 2
+  - id: json-code-trace
+    source: 'Math & Code trace of reading gh8 and selecting dot paths (truth m3.gh8.select_nested_columns)'
+    fn: jsonSelectCode
+    in: {}
+    expect:
+      steps: 5
+      columns: ['login', 'name']
+  - id: p1-walk
+    source: 'Math & Code trace of Problem 1, one operation per step (problems.json P1)'
+    fn: p1Walk
+    in: { timing: '@p1timing' }
+    expect:
+      steps: 8
+      ratios: [0.5883, 7.3629, 6.0188, 2.7298, 5.2998, 5.2840]
+    tol: 0.001
+    note: 'Two steps (the setup read and the section import), then one per timed cell; describe().toPandas() is the only ratio below 1.'
+  - id: write-code-trace-two
+    source: 'Math & Code trace of the Session 5 Parquet cells (read, list, split write) with the 12 trips split by PULocationID, then DOLocationID; folder names as in extra run m3x.write_pu.ls_names'
+    fn: writeParquetCode
+    in: { cols: ['PULocationID', 'DOLocationID'] }
+    expect:
+      steps: 11
+      folders: 6
+    note: 'Three steps (read, list, write), one per top-level folder, then the listing and the read-back.'
+  - id: partition-walk-vendor
+    source: 'Session 5 count-along of the partitioned write of taxi12; Real Spark 4.0.1 run (harness), truth m3.write.ls_names and m3.write.readback_count_vendor'
+    fn: partitionWalk
+    in: { cols: ['VendorID'] }
+    expect:
+      steps: 14
+      folders: 2
+      folderRows:
+        - { folder: 'VendorID=1/', rows: 3 }
+        - { folder: 'VendorID=2/', rows: 9 }
+    note: 'One step per trip, then _SUCCESS: VendorID 1 has 3 trips, VendorID 2 has 9.'
+  - id: partition-walk-pu
+    source: 'Session 5 count-along, split by PULocationID; Real Spark 4.0.1 run (harness), extra runs m3x.write_pu.ls_names and m3x.write_pu.readback_count_pu'
+    fn: partitionWalk
+    in: { cols: ['PULocationID'] }
+    expect:
+      steps: 14
+      folders: 6
+      folderRows:
+        - { folder: 'PULocationID=33/', rows: 2 }
+        - { folder: 'PULocationID=41/', rows: 2 }
+        - { folder: 'PULocationID=7/', rows: 4 }
+        - { folder: 'PULocationID=74/', rows: 2 }
+        - { folder: 'PULocationID=75/', rows: 1 }
+        - { folder: 'PULocationID=97/', rows: 1 }
+    note: 'Folders listed in text order, as dbutils.fs.ls shows them (=33/ before =7/).'
+  - id: timing-pick-describe-all
+    source: 'Problem 1 timing of describe().toPandas() (problems.json P1, local laptop, Spark 4.0.1, median of 3)'
+    fn: timingPick
+    in: { timing: '@p1timing', op: 1 }
+    expect:
+      csv: 10.881
+      parquet: 18.496
+      ratio: 0.5883
+      faster: false
+    tol: 0.001
+  - id: timing-pick-one-column
+    source: 'Problem 1 timing of describe("PULocationID").show() (problems.json P1, local laptop, Spark 4.0.1, median of 3)'
+    fn: timingPick
+    in: { timing: '@p1timing', op: 2 }
+    expect:
+      ratio: 7.3629
+      faster: true
+    tol: 0.001
+  - id: restart-cell91-fixed
+    source: 'Session 5 › Problem 1 › Broken on purpose: the fixed explode cell on the Parquet folder; Real Spark 4.0.1 run (harness), truth p1.pq.freqitems'
+    fn: restartRun
+    in: { cell: 'explode', fix: 'import' }
+    expect:
+      ok: true
+      outputLines:
+        - '+----------+'
+        - '|freq_items|'
+        - '+----------+'
+        - '|       256|'
+        - '|       260|'
+        - '|         7|'
+        - '|       264|'
+        - '|        14|'
+        - '|        17|'
+        - '|        18|'
+        - '|        20|'
+        - '|        21|'
+        - '|        24|'
+        - '|        25|'
+        - '|        26|'
+        - '|        33|'
+        - '|        34|'
+        - '|        35|'
+        - '|        36|'
+        - '|        37|'
+        - '|        40|'
+        - '|        41|'
+        - '|        42|'
+        - '+----------+'
+        - 'only showing top 20 rows'
+  - id: gh-path-login
+    source: 'Session 6 › Broken on purpose: a field without its folder, on gh8, picked in the lesson; Real Spark 4.0.1 run (harness), truth m3.gh8.select_login'
+    fn: ghPath
+    in: { path: 'login' }
+    expect:
+      ok: false
+      outLines:
+        - 'Traceback (most recent call last):'
+        - '  File "<cell 9>", line 1, in <module>'
+        - '    events.select("login").show()'
+        - '  ...'
+        - 'pyspark.errors.exceptions.connect.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `login` cannot be resolved. Did you mean one of the following? [`id`, `repo`, `type`, `actor`, `payload`]. SQLSTATE: 42703;'
+        - '''Project [''login]'
+        - '+- Relation [actor#1023,created_at#1024,id#1025,payload#1026,repo#1027,type#1028] json'
+  - id: gh-path-logn
+    source: 'Session 6, a typo inside the path, picked in the lesson; Real Spark 4.0.1 run (harness), extra run m3x.gh8.select_logn'
+    fn: ghPath
+    in: { path: 'actor.logn' }
+    expect:
+      ok: false
+      outLines:
+        - 'Traceback (most recent call last):'
+        - '  File "<cell 2>", line 1, in <module>'
+        - '    events.select("actor.logn").show()'
+        - '  ...'
+        - 'pyspark.errors.exceptions.connect.AnalysisException: [FIELD_NOT_FOUND] No such struct field `logn` in `login`. SQLSTATE: 42704'
+  - id: gh-raw-lines
+    source: 'The first lines of the lesson file gh8.jsonl (real GH Archive events, fields trimmed; truth/gh8.jsonl)'
+    fn: ghRaw
+    in: { n: 1 }
+    expect:
+      lines:
+        - '{"id": "2489651045", "type": "CreateEvent", "actor": {"login": "petroav"}, "repo": {"name": "petroav/6.828"}, "created_at": "2015-01-01T15:00:00Z"}'
+  - id: cap-flag-int
+    source: 'Application, capstone bug 4 at small scale (capstone Cell 10 after a DDL read of the 12 lesson trips, as in Session 2 › Giving Spark a schema); Real Spark 4.0.1 run (harness), truth m1.ddl_int.read / m1.ddl_int.groupby_flag / m1.ddl_int.count_null'
+    fn: capFlag
+    in: { flag: 'INT' }
+    expect:
+      groups: 1
+      nulls: 12
+      ys: 0
+      showLines:
+        - '+------------------+-----+'
+        - '|store_and_fwd_flag|count|'
+        - '+------------------+-----+'
+        - '|              NULL|   12|'
+        - '+------------------+-----+'
+    note: 'Declared INT, every N and Y becomes NULL without an error: one NULL group of 12 trips.'
+  - id: cap-flag-string
+    source: 'Application, the fix for capstone bug 4 on the 12 lesson trips; Real Spark 4.0.1 run (harness), truth m1.ddl_string.read / m1.ddl_string.count_Y (1 Y of 12 trips); the group table is computed by the engine'
+    fn: capFlag
+    in: { flag: 'STRING' }
+    expect:
+      groups: 2
+      nulls: 0
+      ys: 1
+      showLines:
+        - '+------------------+-----+'
+        - '|store_and_fwd_flag|count|'
+        - '+------------------+-----+'
+        - '|                 N|   11|'
+        - '|                 Y|    1|'
+        - '+------------------+-----+'
+    note: 'Declared STRING, the flags survive: 11 N and 1 Y (vendor 1''s trip at 10:47).'

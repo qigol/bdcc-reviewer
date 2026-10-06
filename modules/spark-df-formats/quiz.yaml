@@ -1,0 +1,1118 @@
+templates:
+  # =================================================================== Session 5: row vs column storage
+  - id: values-read-numeric
+    type: numeric
+    skills: [columnar-parquet]
+    difficulty: 1
+    tags: [math]
+    generator: valuesReadQ
+    lessonRef: { tab: intuition, id: novel-vs-cabinet }
+    prompt: |
+      The table below holds {=nRows} real trips and {=nCols} [[column|columns]]. It is stored as {=fileKind}.
+      How many values must be read to find {=question}?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Which columns does the question mention?
+      - 'A [[row-layout|row layout]] reads every value of every row. A [[columnar-layout|columnar layout]] reads only the needed columns, every row of each.'
+      - 'The columns needed here: {=need}.'
+    explanation: |
+      The question needs {=k} column(s): {=need}. Parquet would read {=nRows} × {=k} values; a CSV reads all
+      {=nRows} × {=nCols}. This file is {=fileKind}, so the answer is **{=answer}**.
+
+  - id: parquet-why-faster-mcq
+    type: mcq
+    skills: [columnar-parquet, csv-vs-parquet]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: novel-vs-cabinet }
+    prompt: Why is averaging `fare_amount` faster on [[parquet|Parquet]] than on [[csv|CSV]] files that hold the same trips?
+    options:
+      - 'Parquet keeps each column together, so Spark reads only the fare column; a CSV is read row by row, every value of every row'
+      - Parquet holds fewer trips than the CSV files
+      - Parquet sorts the trips by fare, so the average is already stored
+      - Parquet drops the trips that have missing values
+    answer: 0
+    optionFeedback:
+      '1': 'Both hold the same 2,705,926 trips: Problem 1 counted them.'
+      '2': 'Parquet stores no ready-made answers. It stores each column together, packed small and with its type.'
+      '3': 'No rows are dropped; the counts match exactly.'
+    hints:
+      - 'Think of the novel and the filing cabinet: what must you open to find one column?'
+    explanation: |
+      A CSV is a [[row-layout|row layout]]: to reach each fare, Spark reads whole rows. Parquet is a
+      [[columnar-layout|columnar layout]]: it opens only the `fare_amount` column, already packed small and typed.
+      Same trips, far less to read.
+
+  - id: layout-match
+    type: match
+    skills: [columnar-parquet]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: novel-vs-cabinet }
+    prompt: Match each description with the storage idea it describes.
+    pairs:
+      - ['Each trip''s 10 values sit together, one line per trip', 'Row layout (CSV)']
+      - ['All 12 fares sit together, then all 12 tips', 'Columnar layout (Parquet)']
+      - ['The file remembers that `fare_amount` is a double', 'Parquet stores the schema']
+      - ['Every value comes back as text unless you infer or give the types', 'A CSV stores no types']
+      - ['Similar values packed into fewer bytes', 'Compression']
+    hints:
+      - 'Ask: what sits next to what in the file?'
+    explanation: |
+      A [[csv|CSV]] keeps rows together and stores only text. [[parquet|Parquet]] keeps columns together, compressed,
+      with each column's name and type (its [[schema]]).
+
+  # =================================================================== Session 5: Parquet folders
+  - id: partition-folders-numeric
+    type: numeric
+    skills: [read-write-parquet]
+    difficulty: 2
+    tags: [code]
+    generator: partitionFoldersQ
+    lessonRef: { tab: math-code, id: parquet-read-write }
+    prompt: |
+      These {=nRows} real trips, held in `sample`, are saved with:
+      ```python
+      sample.write.parquet(
+          f"{BASE}/output/sample_write",
+          mode="overwrite",
+          partitionBy=[{=colsText}],
+      )
+      ```
+      {=ask}
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Count the different values of each partition column in the table. Repeated values share one folder.
+      - '`_SUCCESS` is an empty marker file, not a folder. With two columns, a sub-folder exists only for value pairs that occur.'
+    explanation: |
+      Spark makes one [[partition-folder|partition folder]] per value. In our local run the listing was {=names}. {=leafText}
+      Answer: **{=answer}**.
+
+  - id: partition-folders-mcq
+    type: mcq
+    skills: [read-write-parquet]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: folder-of-files }
+    prompt: The notebook saves 100 trips with `partitionBy=["PULocationID", "DOLocationID"]`. What does the saved folder look like?
+    options:
+      - 'One folder per pickup zone, such as `PULocationID=106/`, each holding one folder per drop-off zone, such as `DOLocationID=79/`'
+      - One Parquet file per trip, named after its pickup and drop-off zones
+      - 'Two folders, `PULocationID/` and `DOLocationID/`, each holding one column'
+      - One single file, sorted by pickup zone and then by drop-off zone
+    answer: 0
+    hints:
+      - Look for the pattern column=value.
+    explanation: |
+      `partitionBy` splits the rows into [[partition-folder|partition folders]] named `column=value`, nested in the
+      order given. Our local run listed 39 entries, such as `PULocationID=106/`, holding `DOLocationID=257/` and
+      `DOLocationID=79/`; yours may differ, since `limit(100)` takes any 100 trips. Reading the folder back rebuilds
+      both columns from the names.
+
+  - id: write-parquet-code
+    type: code-fill
+    skills: [read-write-parquet]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: parquet-read-write }
+    prompt: Save the 12 lesson trips as Parquet, replacing any old copy, with one folder per vendor.
+    code: |
+      trips12.write.__BLANK_1__(
+          f"{BASE}/output/sample_write",
+          mode="__BLANK_2__",
+          partitionBy=[__BLANK_3__],
+      )
+    blanks:
+      '1': { accept: ['parquet'] }
+      '2': { accept: ['overwrite'] }
+      '3': { accept: ['"VendorID"'], hint: a list of column names }
+    hints:
+      - The writer method is named after the file format.
+      - Which mode replaces a folder that already exists?
+    explanation: |
+      `write.parquet(path, mode="overwrite", partitionBy=["VendorID"])` left `VendorID=1/` (3 trips),
+      `VendorID=2/` (9 trips) and `_SUCCESS` in the folder in our local run.
+
+  - id: readback-schema-mcq
+    type: mcq
+    skills: [read-write-parquet]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: folder-of-files }
+    prompt: |
+      The 12 trips were written with `partitionBy=["VendorID", "store_and_fwd_flag"]`. Then you run:
+      ```python
+      spark.read.parquet(f"{BASE}/output/sample_write").printSchema()
+      ```
+      Which columns are the last two lines of the [[schema]]?
+    options:
+      - '`VendorID`, then `store_and_fwd_flag`: the split columns, in the order of the list'
+      - '`store_and_fwd_flag`, then `VendorID`: the deepest folder comes first'
+      - 'Neither: partition columns are lost when you write'
+      - '`tip_amount`, then `total_amount`: the split columns stay where they were'
+    answer: 0
+    hints:
+      - Where are the vendor and the flag stored after a partitioned write?
+    explanation: |
+      The real output ends with `|-- VendorID: integer` and then `|-- store_and_fwd_flag: string`. The values now
+      live in folder names such as `VendorID=1/store_and_fwd_flag=N/`, not inside the data files. So Spark adds both
+      columns back at the end, in the order of the `partitionBy` list.
+
+  - id: partition-query-hand
+    type: hand-calc
+    skills: [read-write-parquet, columnar-parquet]
+    difficulty: 3
+    tags: [math]
+    generator: partitionQueryQ
+    lessonRef: { tab: intuition, id: folder-of-files }
+    prompt: |
+      These {=n} real trips are saved with `partitionBy=["{=col}"]` into `sample_write/`. A query then reads the
+      folder back and averages the fares of one value:
+      ```python
+      back = spark.read.parquet(f"{BASE}/output/sample_write")
+      back.filter(F.col("{=col}") == {=keep}).agg(F.mean("fare_amount")).show()
+      ```
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: How many partition folders does the write make?
+        answer: { var: folders, tol: 0 }
+        hint: One folder per different value of the split column.
+        misconceptions:
+          - { var: n, feedback: 'That is the number of rows. Rows with the same value share one folder.' }
+          - { var: lsEntries, feedback: '`_SUCCESS` is an empty marker file, not a partition folder.' }
+      - prompt: The filter is on the split column. How many folders can Spark skip without opening them?
+        answer: { var: skip, tol: 0 }
+        hint: The folder names already say which value each folder holds.
+        misconceptions:
+          - { value: 0, feedback: 'The folder names tell Spark which folder holds `{=col}={=keep}`, so it opens only that one.' }
+          - { var: folders, feedback: 'Spark still opens the one folder whose rows the filter keeps.' }
+      - prompt: 'Count values as in the filing-cabinet picture: one value per row for every column read. How many values does the query read from the data files?'
+        answer: { var: valuesRead, tol: 0 }
+        hint: Which columns does the query need from inside the kept folder?
+        misconceptions:
+          - { var: n, feedback: 'Spark skips the other folders, so their rows are never read.' }
+          - { var: keptTwo, feedback: 'The `{=col}` values are not in the data files: Spark takes them from the folder name.' }
+      - prompt: What average fare does it print? Round to 2 decimal places.
+        answer: { var: mean, tol: 0.01 }
+        misconceptions:
+          - { var: allMean, feedback: 'That averages every trip. The filter keeps only `{=col}` {=keep}.' }
+          - { var: sum, feedback: 'That is the sum. Divide it by the number of trips kept.' }
+    hints:
+      - 'Draw the folders first: one per different value of `{=col}`.'
+      - 'The filter decides which folder is opened; the `agg` decides which column is read inside it.'
+    explanation: |
+      The write makes {=folders} folders: {=folderList}. The filter keeps only `{=col}={=keep}/`, so Spark skips
+      the other {=skip}. Inside that folder the query needs only `fare_amount`, one value for each of its
+      {=keptRows} trips: {=valuesRead} values. A CSV would read every column of all {=n} trips. The average is
+      $({=terms}) / {=keptRows} = {=mean|2}$.
+
+  # =================================================================== Session 5: Problem 1
+  - id: speedup-numeric
+    type: numeric
+    skills: [csv-vs-parquet]
+    difficulty: 1
+    tags: [math]
+    generator: speedupQ
+    lessonRef: { tab: intuition, id: same-question-two-files }
+    prompt: |
+      On a laptop, `{=op}` took {=csv|3} s on the CSV files and {=parquet|3} s on the Parquet folder. Each time is the
+      middle value (median) of 3 runs.
+      How many times faster was Parquet? Give CSV time ÷ Parquet time, rounded to 2 decimal places; a value below 1
+      means Parquet was slower.
+    answer: { var: ratio, tol: 0.05 }
+    hints:
+      - '"How many times" means divide, not subtract.'
+      - Put the CSV time on top.
+    explanation: |
+      ${=csv|3} \div {=parquet|3} = {=ratio|2}$. Operations that touch one or two columns gained the most. The full
+      `describe()` needs every number and text column and spends its time computing, so it gained little.
+
+  - id: csv-parquet-multi
+    type: multi
+    skills: [csv-vs-parquet]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: csv-vs-parquet }
+    prompt: Problem 1 re-ran cells from Sessions 2 and 3 on Parquet. Which statements match the real runs?
+    options:
+      - '`columns`, the trips per zone and the ten filtered trips were the same on both'
+      - Parquet kept the column types; a plain CSV read gave every column as a string
+      - '`freqItems` returned different lists, because its answer is an estimate'
+      - The full `describe()` of every number and text column ran much faster on Parquet
+      - Parquet lost some trips, so the counts differed
+    answer: [0, 1, 2]
+    hints:
+      - Two statements contradict the timing table or the counts.
+    explanation: |
+      Same data, same answers: `columns`, group counts, sums and filters agreed. The types differ (all strings from a
+      plain CSV read), and `freqItems` only estimates, so its lists differed. The full `describe()` was *not* much
+      faster. The timed run took 10.881 s on CSV and 18.496 s on Parquet; a second run took about 27 s against 19 s.
+      It spends its time computing, so it gains little either way.
+
+  - id: string-max-mcq
+    type: mcq
+    skills: [csv-vs-parquet]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: same-question-two-files }
+    prompt: '`describe("PULocationID")` printed `max` = `99` on the plain CSV read, but `265` on Parquet. Why?'
+    options:
+      - 'The CSV read keeps every column as text, so max compares strings: "99" comes after "265" because "9" comes after "2"'
+      - The CSV files are missing the trips from zones 100 to 265
+      - Zone numbers above 99 became NULL in the text read, and max skips NULL
+      - describe() looks only at the first 99 rows of a CSV
+    answer: 0
+    hints:
+      - What type does a CSV column get without inferSchema or a schema?
+    explanation: |
+      Without types, `min` and `max` compare text character by character, like words in a dictionary. Parquet stores
+      `PULocationID` as an integer, so 265 is the real maximum. The `mean`, 111.29994870517524, matched on both,
+      because Spark converts the text to numbers to average it.
+
+  # =================================================================== Session 5: restart
+  - id: restart-error-mcq
+    type: mcq
+    skills: [restart-run-order]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: restart-and-run }
+    prompt: |
+      After a [[restart]], you run only this cell from the Problem 1 section:
+      ```python
+      (
+          trips.freqItems(["PULocationID"], 0.01)
+          .withColumn("freq_items", explode("PULocationID_freqItems"))
+          .drop("PULocationID_freqItems")
+          .show()
+      )
+      ```
+      What happens?
+    options:
+      - "NameError: name 'explode' is not defined"
+      - 'AnalysisException: the column `PULocationID_freqItems` cannot be resolved'
+      - It runs, because Session 3 already imported explode
+      - "NameError: name 'trips' is not defined"
+    answer: 0
+    optionFeedback:
+      '2': 'A restart forgets everything that earlier sessions imported.'
+      '3': 'The setup cell ran after the restart and read `trips` again, so `trips` exists. The missing name is the borrowed `explode`.'
+    hints:
+      - What does a restart forget?
+    explanation: |
+      The restart forgot every [[import]], so the name `explode` does not exist. Python stops with a
+      [[name-error|NameError]] before Spark sees anything. Fix: add `from pyspark.sql.functions import explode, desc`
+      at the top of the section, or write `F.explode` after `from pyspark.sql import functions as F`.
+
+  - id: restart-fix-code
+    type: code-fill
+    skills: [restart-run-order]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: csv-vs-parquet }
+    prompt: |
+      Make this Problem 1 cell run on its own after a [[restart]], without adding an import line. The setup cell ran
+      `from pyspark.sql import functions as F`.
+    code: |
+      (trips.groupby(trips["PULocationID"]).count().orderBy(__BLANK_1__("count")).show())
+    blanks:
+      '1': { accept: ['F.desc'], hint: 'the toolbox name, a dot, then the name of the sort' }
+    hints:
+      - The cell sorts with `desc`, which this section never borrowed.
+      - Which short name did the setup cell give Spark's toolbox of column tools?
+    explanation: |
+      `F.desc("count")` works, because the setup cell borrowed the whole toolbox as `F`. The other fix adds
+      `from pyspark.sql.functions import explode, desc` at the top of the section, so its cells work after a
+      [[restart]].
+
+  - id: section-order
+    type: order
+    skills: [restart-run-order]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: restart-and-run }
+    prompt: Put the steps for checking that a notebook section runs on its own in order.
+    items:
+      - Restart Python (or Clear state), so every variable and import is forgotten
+      - Run the section's first cell, which sets BASE, imports what it needs and reads the data
+      - Run the section's other cells from top to bottom
+      - If a NameError appears, add the missing import or variable to the section's first cell
+      - Restart and run the section again, until it finishes without errors
+    hints:
+      - You cannot test "on its own" while old variables are still in memory.
+    explanation: |
+      A section is self-contained when it runs after a fresh [[restart]]. Its [[import|imports]] and reads belong in
+      its first cell.
+
+  # =================================================================== Session 5: graded workflow
+  - id: assert-actual-mcq
+    type: mcq
+    skills: [graded-workflow]
+    difficulty: 1
+    tags: [code]
+    data: [testerrors]
+    lessonRef: { tab: intuition, id: spec-and-test }
+    prompt: |
+      The original Problem 3 test failed with this real output:
+      ```text
+      {=testerrors.len.text}
+      ```
+      Which number did the function produce?
+    options: ['251', '255', '11', '4']
+    answer: 0
+    optionFeedback:
+      '1': 'DESIRED is what the test expected, not what the code produced.'
+      '2': 'That is the line number of the test that failed.'
+    hints:
+      - ACTUAL is the code's result; DESIRED is the test's.
+    explanation: |
+      An [[assertion-error|AssertionError]] prints ACTUAL (the result) and DESIRED (the expected value). The original
+      test expected 255 pickup zones; the current data has 251. Here the old test was out of date, so the notebook's
+      test now expects 251.
+
+  - id: spec-test-mismatch-mcq
+    type: mcq
+    skills: [graded-workflow]
+    difficulty: 2
+    tags: [intuition]
+    data: [testerrors]
+    lessonRef: { tab: intuition, id: spec-and-test }
+    prompt: |
+      The Problem 4 [[spec]] says to name the column `pickup_location`. You did, and the test failed:
+      ```text
+      {=testerrors.pickup.text}
+      ```
+      What should you do?
+    options:
+      - 'Rename the column `pickup_locations`, as the test expects: the test is what checks your work'
+      - Keep `pickup_location`, because the spec is always right
+      - Change the test cell so it expects `pickup_location`
+      - Return both column names so that either one passes
+    answer: 0
+    hints:
+      - Which cell decides whether your answer passes?
+    explanation: |
+      The spec and the test disagree by one letter. `item=1` with ACTUAL `'pickup_location'` and DESIRED
+      `'pickup_locations'` says exactly where. Change your code, not the test.
+
+  - id: graded-steps-order
+    type: order
+    skills: [graded-workflow]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: spec-and-test }
+    prompt: Put the graded-problem workflow in order.
+    items:
+      - Read the spec and note the exact column names and sort order
+      - Replace `raise NotImplementedError()` in the stub cell with your code
+      - Run the stub cell, so that the function exists
+      - Run the test cell
+      - If it fails, compare ACTUAL with DESIRED, fix the function and run both cells again
+    hints:
+      - A test can only call a function that has already been defined.
+    explanation: |
+      Spec, stub, test. An [[assertion-error|AssertionError]] shows ACTUAL (yours) and DESIRED (expected): fix the
+      function, re-run its cell, then re-run the test.
+
+  # =================================================================== Session 5: groupBy, count, agg (Problems 2 and 3)
+  - id: pair-groups-numeric
+    type: numeric
+    skills: [aggregations]
+    difficulty: 1
+    tags: [math]
+    generator: pairQ
+    lessonRef: { tab: intuition, id: top-pair }
+    prompt: How many rows does `trips.groupBy("PULocationID", "DOLocationID").count()` return for these {=n} trips?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: groups, tol: 0 }
+    hints:
+      - Each different (pickup, drop-off) pair becomes one row.
+      - List the pairs and cross out repeats.
+    explanation: |
+      [[group-by|groupBy]] on two columns makes one group per different pair. There are **{=groups}** pairs here
+      (but only {=puGroups} pickup zones):
+
+      {=resultMd}
+
+  - id: top-pair-hand
+    type: hand-calc
+    skills: [aggregations, graded-workflow]
+    difficulty: 3
+    tags: [math]
+    generator: pairQ
+    lessonRef: { tab: math-code, id: pair-count }
+    prompt: |
+      Work Problem 2 by hand on these {=n} trips. `pudo` returns `(PULocationID, DOLocationID, count)` of the most
+      frequent pair.
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: How many groups does `groupBy("PULocationID", "DOLocationID").count()` make?
+        answer: { var: groups, tol: 0 }
+        hint: One group per different pair.
+        misconceptions:
+          - { var: puGroups, feedback: 'That groups by pickup zone only. Group by the (pickup, drop-off) pair.' }
+          - { var: n, feedback: 'That is the number of rows. Repeated pairs share one group.' }
+      - prompt: After `orderBy(F.desc("count"))`, what is the count in the first row?
+        answer: { var: topCount, tol: 0 }
+        hint: The biggest count comes first.
+        misconceptions:
+          - { var: puTop, feedback: 'That counts every trip from that pickup zone. Count only trips with the same pickup **and** drop-off zone.' }
+      - prompt: What is the `PULocationID` of that first row?
+        answer: { var: topPU, tol: 0 }
+      - prompt: And its `DOLocationID`?
+        answer: { var: topDO, tol: 0 }
+    hints:
+      - 'Group, count, sort by count from biggest to smallest, then take the first row.'
+    explanation: |
+      The pairs and their counts:
+
+      {=resultMd}
+
+      `first()` returns the top row as a [[row-object|Row]], and `tuple(row)` gives **{=tupleText}**.
+
+  - id: group-mean-numeric
+    type: numeric
+    skills: [aggregations]
+    difficulty: 2
+    tags: [math]
+    generator: groupMeanQ
+    lessonRef: { tab: math-code, id: group-mean }
+    prompt: |
+      For these {=nRows} real trips, what does `groupBy("PULocationID").agg(F.mean("{=value}"))` give for zone
+      **{=zone}**? Round to 2 decimal places.
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: mean, tol: 0.01 }
+    hints:
+      - Keep only the rows of zone {=zone}.
+      - Add their `{=value}` values and divide by how many there are.
+    explanation: |
+      Zone {=zone} has {=trips} trips: $({=terms}) / {=trips} = {=mean|4}$. The mean of the whole table,
+      {=overall|4}, mixes in the other zones.
+
+  - id: group-mean-hand
+    type: hand-calc
+    skills: [aggregations]
+    difficulty: 1
+    tags: [math]
+    generator: groupMeanQ
+    lessonRef: { tab: intuition, id: top-pair }
+    prompt: Work out the Problem 3 value for zone **{=zone}** step by step, using `{=value}`.
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: How many trips start in zone {=zone}?
+        answer: { var: trips, tol: 0 }
+        hint: Count the rows whose PULocationID is {=zone}.
+      - prompt: What is the sum of their `{=value}`?
+        answer: { var: sum, tol: 0.01 }
+        hint: Add only that zone's values.
+      - prompt: What is their mean? Round to 2 decimal places.
+        answer: { var: mean, tol: 0.01 }
+        misconceptions:
+          - { var: overall, feedback: 'That averages every trip in the table. Use only zone {=zone}.' }
+          - { var: sum, feedback: 'Divide the sum by the number of trips.' }
+    hints:
+      - '`groupBy` first: work with one zone at a time.'
+    explanation: |
+      $({=terms}) / {=trips} = {=mean|4}$. With `.alias("{=alias}")`, Spark names the result column `{=alias}`.
+
+  - id: pudo-code
+    type: code-fill
+    skills: [aggregations, graded-workflow]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: pair-count }
+    prompt: Find the busiest vendor and print its values as a tuple, as the notebook's `first()` cells do.
+    code: |
+      row = (
+          trips.groupBy("VendorID")
+          .__BLANK_1__()
+          .orderBy(F.desc("count"))
+          .__BLANK_2__()
+      )
+      print(__BLANK_3__(row))
+    blanks:
+      '1': { accept: ['count'] }
+      '2': { accept: ['first', 'head'] }
+      '3': { accept: ['tuple'] }
+    hints:
+      - Which action returns only the top row?
+      - Which built-in turns a Row into a plain sequence of values?
+    explanation: |
+      `count()` makes one row per vendor and `orderBy(F.desc("count"))` puts the biggest first. `first()` returns a
+      [[row-object|Row]], and `tuple(row)` turns it into a [[tuple]]. It prints `(2, 9)` on the 12 lesson trips and
+      `(2, 2218153)` on all the trips (real outputs). Problem 2 uses the same steps with two grouping columns.
+
+  - id: ave-amount-code
+    type: code-fill
+    skills: [aggregations, graded-workflow]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: group-mean }
+    prompt: Show the average tip of each vendor in a column called `mean tip`, sorted by `VendorID`.
+    code: |
+      (
+          trips.groupBy("VendorID")
+          .agg(F.__BLANK_1__("tip_amount").__BLANK_2__("mean tip"))
+          .__BLANK_3__("VendorID")
+          .show()
+      )
+    blanks:
+      '1': { accept: ['mean', 'avg'] }
+      '2': { accept: ['alias', 'name'] }
+      '3': { accept: ['orderBy', 'sort'] }
+    hints:
+      - Which `F` function averages a column?
+      - Which method gives a result column a new name?
+    explanation: |
+      `F.mean("tip_amount")` and `F.avg("tip_amount")` both build `avg(tip_amount)`. `.alias("mean tip")`, or its
+      other name `.name("mean tip")`, renames it, and `orderBy("VendorID")` sorts the vendors. On the 12 lesson trips
+      vendor 1 averages 4.116666666666666 and vendor 2 1.3055555555555556 (real output). Problem 3 takes the same steps
+      per pickup zone.
+
+  - id: mean-rank-hand
+    type: hand-calc
+    skills: [aggregations, rank-ties]
+    difficulty: 3
+    tags: [math]
+    generator: meanRankQ
+    lessonRef: { tab: math-code, id: group-mean }
+    prompt: |
+      A ranking like the capstone's question 2, by hand on {=n} real trips held in `trips`:
+      ```python
+      (
+          trips.filter(F.col("trip_distance") {=op} {=cut})
+          .groupBy("PULocationID")
+          .agg(F.mean("{=value}").alias("{=alias}"))
+          .orderBy(F.desc("{=alias}"), "PULocationID")
+          .first()
+      )
+      ```
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: How many trips are left after the filter?
+        answer: { var: kept, tol: 0 }
+        hint: 'Keep only the trips {=cmpWord} than {=cut} miles.'
+        misconceptions:
+          - { var: n, feedback: 'That is every trip. `filter` keeps only the trips {=cmpWord} than {=cut} miles.' }
+          - { var: short, feedback: 'Those are the trips the filter removes. Count the rows where the test is true.' }
+      - prompt: How many rows does the `agg` give?
+        answer: { var: groups, tol: 0 }
+        hint: One row per pickup zone that still has a trip.
+        misconceptions:
+          - { var: groupsAll, feedback: 'That counts the zones of every trip. Only zones with a trip {=cmpWord} than {=cut} miles remain.' }
+          - { var: kept, feedback: 'That is the number of trips. Trips from the same zone share one row.' }
+      - prompt: 'What is `{=alias}` in the first row? Round to 2 decimal places.'
+        answer: { var: topMean, tol: 0.01 }
+        misconceptions:
+          - { var: topAllMean, feedback: 'That is the top average before the filter. Average only the trips that pass it.' }
+          - { var: keptMean, feedback: 'That averages all the kept trips together. `groupBy` first: one average per zone.' }
+      - prompt: Which `PULocationID` is in that first row?
+        answer: { var: topZone, tol: 0 }
+        misconceptions:
+          - { var: topAllZone, feedback: 'That zone leads only when every trip is counted. Filter first.' }
+    hints:
+      - 'Filter first: cross out every trip {=dropWord}.'
+      - 'Then average the `{=value}` of each zone that is left, and sort from the highest average down.'
+    explanation: |
+      After the filter, {=kept} trips remain, in {=groups} pickup zones:
+
+      {=rankedMd}
+
+      `first()` returns zone **{=topZone}**, with `{=alias}` {=topMean|2}. {=tieText} Without the filter, zone
+      {=topAllZone} would lead: the filter changes which trips stand behind each average.
+
+  - id: agg-match
+    type: match
+    skills: [aggregations]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: top-pair }
+    prompt: Match each piece of code with what it gives back.
+    pairs:
+      - ['`trips.groupBy("VendorID")`', 'GroupedData: groups waiting for a summary, not a table you can show']
+      - ['`.count()` after groupBy', 'A DataFrame with one row per group and a `count` column']
+      - ['`F.mean("tip_amount")`', 'A column expression named `avg(tip_amount)`']
+      - ['`.alias("mean tip")`', 'The same values under a new column name']
+      - ['`.first()`', 'One Row, such as Row(VendorID=2, count=9)']
+    hints:
+      - Only one of them is an action.
+    explanation: |
+      [[group-by|groupBy]] returns GroupedData; `count()` and `agg(...)` turn it back into a DataFrame. `F.mean`
+      builds a column, [[alias]] renames it, and `first()` is the [[action]] that returns a [[row-object|Row]].
+
+  # =================================================================== Session 6: nested JSON and dot paths
+  - id: json-schema-mcq
+    type: mcq
+    skills: [json-nested]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: nested-folders }
+    prompt: |
+      Here is the start of the real `events.printSchema()` output for the 8 lesson events:
+      ```text
+      root
+       |-- actor: struct (nullable = true)
+       |    |-- login: string (nullable = true)
+       |-- created_at: string (nullable = true)
+      ```
+      What is `actor`?
+    options:
+      - 'A column whose values hold a named field, `login`'
+      - A text column that holds the word "login"
+      - A list of logins, one per commit
+      - A second table stored next to the events
+    answer: 0
+    hints:
+      - A line indented under a column is a field inside it.
+    explanation: |
+      In `printSchema()`, a field indented under a column lives inside it: `actor` is a [[struct]] with the field
+      `login`. (The full GH Archive data has more fields; the lesson file keeps only `login`.) Reach it with the
+      [[dot-path|dot path]] `"actor.login"`.
+
+  - id: dot-path-code
+    type: code-fill
+    skills: [nested-select]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: json-nested }
+    prompt: Select the GitHub user name stored inside `actor`, and the repository name stored inside `repo`.
+    code: |
+      events.select("__BLANK_1__", "__BLANK_2__").show()
+    blanks:
+      '1': { accept: ['actor.login'] }
+      '2': { accept: ['repo.name'] }
+    hints:
+      - Write the path from the outer column to the field, joined by a dot.
+    explanation: |
+      [[dot-path|Dot paths]] walk into a [[struct]]. The result columns are named after the last part of each path:
+      `login` and `name`.
+
+  - id: login-error-mcq
+    type: mcq
+    skills: [nested-select]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: nested-folders }
+    prompt: |
+      In the notebook, this cell on all the events fails with a real error:
+      ```text
+      Traceback (most recent call last):
+        File "<cell 11>", line 1, in <module>
+          events.select("login").show()
+        ...
+      pyspark.errors.exceptions.connect.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `login` cannot be resolved. Did you mean one of the following? [`org`, `id`, `repo`, `type`, `actor`]. SQLSTATE: 42703;
+      'Project ['login]
+      +- Relation [actor#10840,created_at#10841,id#10842,org#10843,payload#10844,public#10845,repo#10846,type#10847] json
+      ```
+      You want the user name of whoever did each event. How do you fix it?
+    options:
+      - 'Write `events.select("actor.login")`: Spark looks only at top-level columns, and `actor` (who did it) holds `login`'
+      - 'Write `events.select("org.login")`: the first suggestion is the fix'
+      - Add `inferSchema=True` to the read
+      - Import `login` from `pyspark.sql.functions`
+    answer: 0
+    optionFeedback:
+      '1': '`org` also holds a `login`, but it names the organization, not the person who did the event.'
+    hints:
+      - Which suggestion holds the person who did the event?
+    explanation: |
+      The "Did you mean" list offers top-level columns only, closest spelling first. None of them is `login`. Both
+      `org` and `actor` are [[struct|structs]] with a `login` field, so pick by meaning: `actor` is who did it.
+      Give the full [[dot-path|dot path]], `"actor.login"`.
+
+  - id: result-names-mcq
+    type: mcq
+    skills: [nested-select]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: nested-folders }
+    prompt: What does `events.select("type", "payload.commits").columns` return?
+    options:
+      - "['type', 'commits']"
+      - "['type', 'payload.commits']"
+      - "['type', 'payload']"
+      - "['commits']"
+    answer: 0
+    hints:
+      - The result keeps only one part of each path.
+    explanation: |
+      The real output's header reads `type` and `commits`. A [[dot-path|dot path]] result is named after its last
+      part, and a top-level column keeps its name. Use `.alias(...)` when you want a clearer name.
+
+  # =================================================================== Session 6: ranking with ties (Problem 5)
+  - id: stars-numeric
+    type: numeric
+    skills: [rank-ties, nested-select]
+    difficulty: 2
+    tags: [math]
+    generator: starsQ
+    lessonRef: { tab: intuition, id: stars-ranking }
+    prompt: |
+      Starring a repository on GitHub creates a `WatchEvent`. For the {=n} events below, how many stars does
+      **{=repo}** get from this code?
+      ```python
+      events.filter(F.col("type") == "WatchEvent").groupBy("repo.name").count()
+      ```
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: stars, tol: 0 }
+    hints:
+      - Keep only the WatchEvent rows.
+      - Then count the rows of {=repo}.
+    explanation: |
+      After the filter, {=watch} WatchEvents remain. Counting them per repository:
+
+      {=countMd}
+
+      **{=repo}** has {=stars}.
+
+  - id: tie-break-mcq
+    type: mcq
+    skills: [rank-ties]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: stars-ranking }
+    prompt: |
+      On the full data, `Pathgather/please-wait` and `alvarotrigo/fullPage.js` both have 9 stars, at places 13 and
+      14. Suppose the ranking sorts by `F.desc("stars")`, then by `"repo_name"`, and keeps 13 rows with
+      `limit(13)`. Which of the two is left out?
+    options:
+      - alvarotrigo/fullPage.js
+      - Pathgather/please-wait
+      - 'Neither: limit(13) keeps both'
+      - It changes from run to run
+    answer: 0
+    optionFeedback:
+      '1': 'Spark compares character codes, and every capital letter comes before every small letter: "P" sorts before "a".'
+      '3': 'Only without a tie-break. Sorting by repo_name as well fixes the order.'
+    hints:
+      - 'Spark compares character codes, and capital letters come before small ones.'
+    explanation: |
+      With the [[tie-break]] `"repo_name"`, tied rows are sorted by character code, and capitals come first: "P"
+      before "a". So `Pathgather/please-wait` is 13th and `alvarotrigo/fullPage.js` 14th (real ranking), and
+      `limit(13)` drops the 14th. A dictionary would put "a" first, but Spark does not ignore capitals here.
+
+  - id: starriest-code
+    type: code-fill
+    skills: [rank-ties, nested-select]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: math-code, id: rank-repos }
+    prompt: |
+      First show who forked which repository, with the columns renamed `user` and `repo_name`. Then count the events
+      of each type, most first, with tied counts sorted by type.
+    code: |
+      (
+          events.filter(F.col("type") == "__BLANK_1__")
+          .select(F.col("actor.login").__BLANK_2__("user"), F.col("repo.name").alias("repo_name"))
+          .show(truncate=False)
+      )
+      (
+          events.groupBy("type").count()
+          .orderBy(F.__BLANK_3__("count"), "__BLANK_4__")
+          .show()
+      )
+    blanks:
+      '1': { accept: ['ForkEvent'] }
+      '2': { accept: ['alias', 'name'] }
+      '3': { accept: ['desc'] }
+      '4': { accept: ['type'] }
+    hints:
+      - A fork is one kind of event.
+      - The second sort key breaks ties.
+    explanation: |
+      Keep the forks, reach inside `actor` and `repo` with [[dot-path|dot paths]], and rename with `alias`. Then count
+      per type and sort by the count, most first, with `type` as the [[tie-break]]. On the 8 lesson events the real
+      outputs show one fork, by `Soufien` of `wasabeef/awesome-android-libraries`. The counts are WatchEvent 4,
+      PushEvent 2, CreateEvent 1 and ForkEvent 1: the tied CreateEvent comes first by name.
+
+  - id: stars-hand
+    type: hand-calc
+    skills: [rank-ties]
+    difficulty: 3
+    tags: [math]
+    generator: starsQ
+    lessonRef: { tab: math-code, id: rank-repos }
+    prompt: Work the Problem 5 chain by hand on these {=n} events (stars are WatchEvents).
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: How many rows are left after `filter(F.col("type") == "WatchEvent")`?
+        answer: { var: watch, tol: 0 }
+        hint: Count only the WatchEvent rows.
+        misconceptions:
+          - { var: n, feedback: 'Remove every event that is not a WatchEvent first.' }
+      - prompt: How many groups (repositories) does the groupBy make?
+        answer: { var: groups, tol: 0 }
+      - prompt: After `orderBy(F.desc("stars"), "repo_name")`, how many stars does the first row have?
+        answer: { var: topStars, tol: 0 }
+      - prompt: And the second row?
+        answer: { var: secondStars, tol: 0 }
+    hints:
+      - Filter, then count per repository, then sort from most to fewest stars.
+    explanation: |
+      Stars per repository, sorted with the [[tie-break]]:
+
+      {=rankedMd}
+
+      First comes **{=topRepo}** with {=topStars}.
+
+  - id: nested-order
+    type: order
+    skills: [rank-ties, nested-select]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: math-code, id: rank-repos }
+    prompt: Put the steps of `starriest` in the order the chain runs them.
+    items:
+      - Keep only the WatchEvent rows
+      - Group by `repo.name`, renamed `repo_name`
+      - Count the rows of each group as `stars`
+      - Sort by `stars` from most to fewest, then by `repo_name`
+      - Keep the first 10 rows
+    hints:
+      - You can only keep "the first 10" after sorting.
+    explanation: |
+      filter, groupBy, agg(count), orderBy with a [[tie-break]], limit. Limiting before sorting would keep 10
+      arbitrary repositories.
+
+  # =================================================================== Session 6: explode
+  - id: explode-rows-numeric
+    type: numeric
+    skills: [explode-arrays]
+    difficulty: 1
+    tags: [math]
+    generator: explodeRowsQ
+    lessonRef: { tab: intuition, id: one-row-per-commit }
+    prompt: |
+      The table shows {=n} events and the commit messages of each (`NULL` means no commits). How many rows does this
+      code count?
+      ```python
+      events.select("actor.login", F.explode("payload.commits").alias("commit")).count()
+      ```
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '[[explode]] makes one row per element of the list.'
+      - A NULL or empty list gives no row.
+    explanation: |
+      Add up the list lengths: each commit becomes one row, and events with NULL (or `[]`) give none. Total
+      **{=answer}**, from {=pushes} PushEvents among {=events} events.
+
+  - id: explode-code
+    type: code-fill
+    skills: [explode-arrays]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: explode-commits }
+    prompt: Make one row per commit, keeping the login of whoever pushed it.
+    code: |
+      commits = events.select("actor.login", F.__BLANK_1__("__BLANK_2__").alias("commit"))
+      commits.select("login", "commit.message").show(truncate=False)
+    blanks:
+      '1': { accept: ['explode'] }
+      '2': { accept: ['payload.commits'] }
+    hints:
+      - 'Where do the commits live? Follow the schema: payload, then commits.'
+    explanation: |
+      `F.explode("payload.commits")` turns each element of the [[array]] into a row; `commit.message` then reaches
+      inside the new struct. On the 8 lesson events this gives 3 rows.
+
+  - id: explode-multi
+    type: multi
+    skills: [explode-arrays, json-nested]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: one-row-per-commit }
+    prompt: 'About `events.select("actor.login", F.explode("payload.commits").alias("commit"))`, which statements are true?'
+    options:
+      - Each commit becomes its own row
+      - The login is copied onto every row made from the same event
+      - Events whose commits are NULL give no row
+      - The number of rows always equals the number of events
+      - A push with 2 commits gives 1 row holding both
+    answer: [0, 1, 2]
+    hints:
+      - 'Check against the lesson data: 8 events, 3 commits.'
+    explanation: |
+      [[explode]] makes one row per element and copies the other selected columns. The 8 lesson events give 3 rows:
+      1 from `rspt` and 2 from `hex7c0`. The six events with NULL commits give none.
+
+  - id: explode-login-hand
+    type: hand-calc
+    skills: [explode-arrays, aggregations]
+    difficulty: 3
+    tags: [math]
+    generator: explodeLoginQ
+    lessonRef: { tab: math-code, id: explode-commits }
+    prompt: |
+      Who pushed the most commits? The table shows {=n} events and the commit messages of each push (`NULL` means
+      no commits, `[]` an empty list). Work this chain by hand:
+      ```python
+      (
+          events.select("actor.login", F.explode("payload.commits").alias("commit"))
+          .groupBy("login").count()
+          .orderBy(F.desc("count"), "login")
+          .first()
+      )
+      ```
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: How many rows does the `select` with `explode` give?
+        answer: { var: rowsEx, tol: 0 }
+        hint: One row per commit; NULL or empty lists give none.
+        misconceptions:
+          - { var: n, feedback: 'That is the number of events. `explode` makes one row per commit.' }
+          - { var: pushes, feedback: 'That is the number of pushes. A push with 2 commits gives 2 rows, and an empty list gives none.' }
+      - prompt: How many rows does `groupBy("login").count()` give?
+        answer: { var: groups, tol: 0 }
+        hint: One row per login that still has a commit row.
+        misconceptions:
+          - { var: loginsAll, feedback: 'That counts every login in the table. Only users whose pushes carry commits are left after the explode.' }
+          - { var: rowsEx, feedback: 'That is the number of commit rows. Rows with the same login share one group.' }
+      - prompt: What is the `count` in the first row?
+        answer: { var: topCount, tol: 0 }
+        misconceptions:
+          - { var: maxPush, feedback: 'That is the biggest single push. Add up the commits of every push by the same login.' }
+          - { var: topPushes, feedback: 'That counts pushes, not commits.' }
+    hints:
+      - 'Explode first: write one row per commit, carrying its login.'
+      - 'Then count the rows of each login and sort from most to fewest.'
+    explanation: |
+      `explode` gives {=rowsEx} rows, one per commit, from {=pushes} pushes. Counting them per login, most first:
+
+      {=countMd}
+
+      The first row is **{=topLogin}** with {=topCount} commits.
+
+  # =================================================================== Session 6: which file?
+  - id: file-path-code
+    type: code-fill
+    skills: [file-metadata]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: file-path }
+    prompt: Count the events that came from each GH Archive hour file.
+    code: |
+      (
+          events.groupBy(F.col("__BLANK_1__").alias("file"))
+          .count()
+          .orderBy("file")
+          .show(truncate=False)
+      )
+    blanks:
+      '1': { accept: ['_metadata.file_path'] }
+    hints:
+      - A hidden column of every file-based DataFrame holds the path.
+    explanation: |
+      [[file-path-metadata|_metadata.file_path]] holds each row's source file. The real counts are 11,351, 11,749
+      and 11,961 events: 35,061 in all.
+
+  - id: file-path-mcq
+    type: mcq
+    skills: [file-metadata]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: where-did-it-come-from }
+    prompt: |
+      `events` was read from `gharchive/*.json.gz`, which matches three files. How many rows does this print?
+      ```python
+      events.select("_metadata.file_path").distinct().show(truncate=False)
+      ```
+    options: ['3', '1', '35061', '8']
+    answer: 0
+    hints:
+      - '`distinct()` keeps one row per different value.'
+    explanation: |
+      One row per hour file: the `-15`, `-16` and `-17` files, in no fixed order (add `.orderBy("file_path")` to
+      sort them). On the single lesson file it prints one row.
+
+  - id: json-match
+    type: match
+    skills: [json-nested, nested-select, explode-arrays]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: nested-folders }
+    prompt: Match each word with what it means in nested JSON data.
+    pairs:
+      - ['JSON Lines', 'One JSON record per line of the file']
+      - ['Struct', 'A column whose values hold named fields']
+      - ['Dot path', '"actor.login": walk into a column to one field']
+      - ['Array', 'A column whose value is a list']
+      - ['explode', 'One row per element of a list']
+      - ['NULL', 'No value at all, like the commits of a WatchEvent']
+    pick: 5
+    hints:
+      - Think of folders inside folders.
+    explanation: |
+      Nested JSON holds [[struct|structs]] (named fields) and [[array|arrays]] (lists). A [[dot-path|dot path]]
+      reaches a field; [[explode]] turns a list into rows.
+
+  # =================================================================== capstone
+  - id: zone-tips-code
+    type: code-fill
+    skills: [aggregations, rank-ties]
+    difficulty: 3
+    tags: [code, application]
+    lessonRef: { tab: application, id: fixed-answers }
+    prompt: |
+      Rank the pickup zones by their average tip on long trips (over 10 miles), keeping only zones with at least
+      100 long trips. Show the highest average first; equal averages go by the smaller zone number.
+    code: |
+      zone_tips = (
+          trips.__BLANK_1__(F.col("trip_distance") > 10)
+          .groupBy("PULocationID")
+          .agg(
+              F.mean("tip_amount").alias("mean_tip"),
+              F.__BLANK_2__("*").alias("trips"),
+          )
+      )
+      (
+          zone_tips.filter(F.col("__BLANK_3__") >= 100)
+          .orderBy(F.__BLANK_4__("mean_tip"), "__BLANK_5__")
+          .show(5)
+      )
+    blanks:
+      '1': { accept: ['filter', 'where'] }
+      '2': { accept: ['count'] }
+      '3': { accept: ['trips'] }
+      '4': { accept: ['desc'] }
+      '5': { accept: ['PULocationID'] }
+    hints:
+      - Keep the long trips first, then group and summarize each zone.
+      - The minimum applies to a column that you named inside `agg`.
+    explanation: |
+      `filter` keeps the long trips. `agg` computes each zone's `mean_tip` and counts its trips with `F.count("*")`,
+      named `trips`. Filtering on `trips` drops the zones with too few trips. `F.desc("mean_tip")` sorts from the
+      highest average, and `"PULocationID"` is the [[tie-break]]. On the fixed capstone this prints zone 166 first:
+      7.777539724059902 over 2,077 long trips (real output).
+
+  - id: capstone-bugs-match
+    type: match
+    skills: [restart-run-order]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: application, id: teammate-notebook }
+    prompt: The capstone notebook has four planted bugs. Match each real symptom with its kind of bug.
+    pairs:
+      - ["`NameError: name 'trips' is not defined` in Cell 2", 'Run order: a cell uses a variable that a later cell creates']
+      - ["`NameError: name 'desc' is not defined` in Cell 5", 'Imports: a function used without importing it']
+      - ['`AnalysisException` for `tip_amont`, raised at `show()` in Cell 9', 'A misspelled column that shows up only at an action']
+      - ['One `NULL` group of 2,705,926 trips and no `Y` row in Cell 10', 'A schema type error: the flag declared INT']
+    hints:
+      - Only one symptom comes with no error at all.
+    explanation: |
+      Fix the cause, not the place where it shows. The typo sits in Cell 7 although the error appears in Cell 9:
+      Spark checks most column names only when an [[action]] runs. The flag holds the letters N and Y, so declaring
+      it INT turns every value into NULL without any error.

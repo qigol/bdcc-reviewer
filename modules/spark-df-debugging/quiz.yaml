@@ -1,0 +1,1245 @@
+templates:
+  # =====================================================================================
+  # Session 3: imports and the built-in clash
+  # =====================================================================================
+  - id: import-style-mcq
+    type: mcq
+    skills: [imports]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: toolbox }
+    prompt: |
+      A fresh notebook runs one [[import]] line, then `F.desc("count")`. Which import line makes `F.desc("count")` work?
+    options:
+      - '`from pyspark.sql import functions as F`'
+      - '`from pyspark.sql.functions import desc`'
+      - '`from pyspark.sql.functions import *`'
+      - '`import pyspark`'
+    answer: 0
+    optionFeedback:
+      '1': 'This borrows `desc` under its bare name. The name `F` is never created, so `F.desc` raises `NameError: name ''F'' is not defined`.'
+      '2': 'The star copies every tool under its bare name, but it does not create the name `F`. A real run gives `NameError: name ''F'' is not defined`.'
+      '3': 'This loads the package, but no name `F` exists afterwards.'
+    hints:
+      - '`F.desc` asks for something called `F`. Which line creates that name?'
+    explanation: |
+      `as F` gives the whole [[module]] `pyspark.sql.functions` the short name `F`. Only then does `F.desc(...)` find
+      the tool. In the real runs, the other import lines all end in `NameError: name 'F' is not defined`.
+
+  - id: clash-mcq
+    type: mcq
+    skills: [builtin-clash]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: two-sums }
+    prompt: |
+      A fresh notebook runs `from pyspark.sql.functions import *` in one [[cell]], then `sum([1, 2, 3])` in the next.
+      What happens?
+    options:
+      - 'An error: a bare `AssertionError` with no message'
+      - 'It prints `6`, as before'
+      - 'A `TypeError`, as with `max(3, 7)`'
+      - '`NameError: name ''sum'' is not defined`'
+    answer: 0
+    optionFeedback:
+      '1': 'That is what Python''s own `sum` does. After the star import, `sum` means PySpark''s `sum`.'
+      '2': 'Only `max` gives a TypeError. PySpark''s `sum` also wants a column, but a check inside it fails first, with a bare AssertionError.'
+      '3': 'The name exists: the star import brought in PySpark''s `sum`. That is exactly the problem.'
+    hints:
+      - The star copied every PySpark tool under its bare name. Does PySpark have a tool called `sum`?
+    explanation: |
+      The [[wildcard-import]] replaced Python's [[built-in-function]] `sum` with PySpark's `sum`, which expects a
+      column, not the [[list]] `[1, 2, 3]`. The real output:
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 4>", line 1, in <module>
+          sum([1, 2, 3])
+        ...
+      AssertionError
+      ```
+
+  - id: clash-why-mcq
+    type: mcq
+    skills: [builtin-clash, imports]
+    difficulty: 2
+    tags: [code, intuition]
+    lessonRef: { tab: math-code, id: import-styles }
+    prompt: |
+      After `from pyspark.sql.functions import *`, why does `round(4.567, 1)` fail, and how does
+      the `F.` style prevent it?
+    options:
+      - 'The star import replaced Python''s `round` with PySpark''s, which expects a column. With `F`, Spark''s version is `F.round` and Python''s `round` is untouched.'
+      - 'PySpark switches off Python''s built-in functions. Importing with `F` switches them back on.'
+      - '`round` needs an import before it works. `as F` is that import.'
+      - 'Spark cannot round numbers with three decimals. `F` uses a more precise number type.'
+    answer: 0
+    hints:
+      - Which `round` does the name `round` point to after the star import?
+      - With `as F`, where do PySpark's tools live?
+    explanation: |
+      A [[wildcard-import]] copies every PySpark tool under its bare name. The copies replace Python's
+      [[built-in-function|built-in functions]] with the same names (`round`, `max`, `sum` and nine others). With
+      `from pyspark.sql import functions as F` every PySpark tool keeps the label `F.`. So `round` still means
+      Python's `round` (4.6), and `F.round` means Spark's.
+
+  - id: import-match
+    type: match
+    skills: [imports, builtin-clash]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: import-styles }
+    prompt: Match each [[import]] line with what it does.
+    pairs:
+      - ['`from pyspark.sql.functions import desc`', 'Borrows one tool, under its bare name `desc`']
+      - ['`from pyspark.sql.functions import *`', 'Borrows every tool under bare names, which can hide Python''s `round`, `max` and `sum`']
+      - ['`from pyspark.sql import functions as F`', 'Borrows the whole toolbox under the label `F`']
+      - ['`from builtins import round, max, sum`', 'Takes Python''s own `round`, `max` and `sum` back']
+    hints:
+      - 'Look at what comes after the word `import`: one name, a star, or a module with `as`.'
+    explanation: |
+      One name gives one bare tool. The star gives every tool, bare, and can cover Python's
+      [[built-in-function|built-in functions]]. `as F` keeps every Spark tool behind the label `F.`. The `builtins`
+      module is where Python keeps its own `round`, `max` and `sum`.
+
+  - id: code-import-f
+    type: code-fill
+    skills: [imports]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: import-styles }
+    prompt: Complete the recommended [[import]] line, so that later cells can write `F.desc("count")`.
+    code: |
+      from pyspark.sql import __BLANK_1__ as __BLANK_2__
+    blanks:
+      '1': { accept: ['functions'], hint: 'the module that holds desc and sum' }
+      '2': { accept: ['F'], hint: the short label }
+    explanation: '`from pyspark.sql import functions as F` loads the [[module]] `pyspark.sql.functions` under the short name `F`.'
+
+  - id: import-notebook-hand
+    type: hand-calc
+    skills: [imports, builtin-clash]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: intuition, id: two-sums }
+    prompt: |
+      A fresh notebook runs these five [[cell|cells]] in order. When a cell raises an error, you read it and run
+      the next cell anyway. Follow what each name means after every cell.
+    show:
+      - id: c
+        widget: Code
+        props:
+          lang: python
+          source: |
+            # cell 1
+            from pyspark.sql.functions import *
+
+            # cell 2
+            print(round(4.567, 1))
+
+            # cell 3
+            from builtins import round
+
+            # cell 4
+            print(round(4.567, 1))
+
+            # cell 5
+            F.desc("count")
+    steps:
+      - prompt: Which cell is the first to raise an error?
+        answer: { value: 2, tol: 0 }
+        misconceptions:
+          - { value: 1, feedback: 'The star import itself runs without complaint. The trouble starts when a covered name is used.' }
+          - { value: 5, feedback: 'Cell 5 fails too, but cell 2 fails first: after the star, `round` means PySpark''s, which expects a column.' }
+        hint: After cell 1, which `round` does the name `round` point to?
+      - prompt: What does cell 4 print?
+        answer: { value: 4.6, tol: 0.001 }
+        misconceptions:
+          - { value: 4.57, feedback: '`round(4.567, 1)` keeps one decimal place, not two.' }
+        hint: Cell 3 takes Python's own `round` back from the `builtins` module.
+      - prompt: Which cell raises the next error after cell 2?
+        answer: { value: 5, tol: 0 }
+        misconceptions:
+          - { value: 4, feedback: 'Cell 3 took Python''s `round` back, so cell 4 prints 4.6.' }
+        hint: Does any of the cells create the name `F`?
+    hints:
+      - 'The star covers `round`, `max` and `sum`; `from builtins import round` takes `round` back.'
+      - 'The star copies tools under their bare names. It never creates a name called `F`.'
+    explanation: |
+      Cell 1's [[wildcard-import]] copies every PySpark tool under its bare name, so cell 2's `round` is PySpark's
+      and fails with a bare `AssertionError`. Cell 3 takes Python's [[built-in-function]] back, so cell 4 prints
+      4.6. The star never creates the name `F`, so cell 5 raises `NameError: name 'F' is not defined`. Real runs
+      gave each of these results.
+
+  # =====================================================================================
+  # Session 3: group, count, sort
+  # =====================================================================================
+  - id: group-count-numeric
+    type: numeric
+    skills: [group-order]
+    difficulty: 1
+    tags: [code]
+    generator: groupCountQ
+    lessonRef: { tab: intuition, id: assembly-line }
+    prompt: |
+      Here are {=k} of the twelve trips. You run `trips.groupBy("PULocationID").count().show()`.
+      Which number appears in the `count` column next to zone **{=zone}**?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '`groupBy` makes one group per pickup zone. `count()` counts the trips in each group.'
+      - 'Go down the `PULocationID` column and tally every {=zone}.'
+    explanation: |
+      Zone {=zone} appears {=answer} time(s) among the {=k} trips, so its row says {=answer}. The result has
+      {=groups} rows, one per zone:
+
+      {=result}
+
+  - id: group-rows-numeric
+    type: numeric
+    skills: [group-order]
+    difficulty: 1
+    tags: [code]
+    generator: groupRowsQ
+    lessonRef: { tab: math-code, id: group-count-order }
+    prompt: |
+      Here are {=k} of the twelve trips. How many rows does `{=code}` print?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '`groupBy("{=col}")` makes one group for each different value in that column.'
+      - 'List the different values of `{=col}` you can see, then count them.'
+    explanation: |
+      The result has one row per different value of `{=col}`. This table holds {=answer} different values, so
+      `show()` prints {=answer} rows. The biggest count inside the result is {=topCount}.
+
+  - id: top-zone-numeric
+    type: numeric
+    skills: [group-order]
+    difficulty: 2
+    tags: [code]
+    generator: topZoneQ
+    lessonRef: { tab: math-code, id: group-count-order }
+    prompt: |
+      Here are {=k} of the twelve trips. You run
+      `trips.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID").show()`.
+      Which `PULocationID` is printed in row **{=r}** of the result?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - First count the trips in every zone.
+      - Sort the counts from biggest to smallest. If two zones have the same count, the smaller zone number comes first.
+    explanation: |
+      The counts sorted with `F.desc("count")`, then with the [[tie-break]] `"PULocationID"` (smallest zone first):
+
+      {=result}
+
+      Row {=r} holds zone {=answer}.
+
+  - id: group-hand
+    type: hand-calc
+    skills: [group-order]
+    difficulty: 3
+    tags: [code]
+    generator: groupHandQ
+    lessonRef: { tab: intuition, id: assembly-line }
+    prompt: |
+      Work out by hand what `trips.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID").show()`
+      prints for these {=k} trips.
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: 'The `count` for zone {=zoneA}'
+        answer: { var: countA, tol: 0 }
+        hint: Tally the rows whose `PULocationID` is {=zoneA}.
+      - prompt: 'The `count` for zone {=zoneB}'
+        answer: { var: countB, tol: 0 }
+      - prompt: How many rows does the result have?
+        answer: { var: groups, tol: 0 }
+        misconceptions:
+          - { var: k, feedback: 'That is the number of trips. The result has one row per zone.' }
+        hint: One row per different zone.
+      - prompt: Which zone is printed in the first row?
+        answer: { var: topZone, tol: 0 }
+        misconceptions:
+          - { var: wrongTie, feedback: 'Right count, wrong [[tie-break]]: `"PULocationID"` puts the smaller zone number first.' }
+        hint: Biggest count first; among equal counts, the smallest zone number.
+    hints:
+      - Count every zone first, then sort the counts.
+    explanation: |
+      Zone {=zoneA} has {=countA} trip(s) and zone {=zoneB} has {=countB}. There are {=groups} zones, so {=groups} rows.
+      The biggest count is {=topCount}; with the [[tie-break]] the first row is zone {=topZone}:
+
+      {=result}
+
+  - id: tie-mcq
+    type: mcq
+    skills: [group-order]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: assembly-line }
+    prompt: |
+      In the twelve trips, zones 33, 41 and 74 each have 2 trips. After
+      `trips.groupBy("PULocationID").count().orderBy(F.desc("count")).show()`, in which order do these three zones print?
+    options:
+      - 'Spark does not promise an order for them. Add `"PULocationID"` as a second sort key to fix it.'
+      - 'Always 33, 41, 74: Spark sorts tied rows by their first column.'
+      - 'Always 74, 41, 33: descending applies to every column.'
+      - 'Always in the order the trips appear in the file: 41, 74, 33.'
+    answer: 0
+    optionFeedback:
+      '1': 'Spark does not sort tied rows by any column unless you ask. One real run printed 41 first.'
+      '2': '`F.desc` applies only to the column it wraps, `count`. Nothing sorts the zone numbers.'
+      '3': 'Nothing promises file order after `groupBy`: Spark groups the rows in its own order.'
+    hints:
+      - '`orderBy(F.desc("count"))` sorts by one thing only. What decides between equal counts?'
+    explanation: |
+      With one sort key, rows with equal counts can come out in any order, and the order can change from run to
+      run. One real run printed 41, 33, 74. A [[tie-break]] such as `orderBy(F.desc("count"), "PULocationID")` makes
+      it 33, 41, 74 every time.
+
+  - id: code-tiebreak
+    type: code-fill
+    skills: [group-order]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: group-count-order }
+    prompt: |
+      Two zones have exactly the same trip count. Complete the chain so the busiest zone comes first
+      and tied zones always come out in the same order (smallest zone number first).
+    code: |
+      (
+          trips.groupBy("PULocationID")
+          .count()
+          .orderBy(F.__BLANK_1__("count"), __BLANK_2__)
+          .show()
+      )
+    blanks:
+      '1': { accept: ['desc'], hint: biggest first }
+      '2': { accept: ['"PULocationID"', 'F.col("PULocationID")', 'F.asc("PULocationID")', 'F.col("PULocationID").asc()', 'trips.PULocationID', 'trips["PULocationID"]'], hint: the second sort key }
+    explanation: |
+      `F.desc("count")` puts the biggest count first. The second key `"PULocationID"` is the [[tie-break]]: among
+      equal counts it sorts by zone number, smallest first.
+
+  - id: cast-float-mcq
+    type: mcq
+    skills: [group-order]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: group-count-order }
+    prompt: |
+      The notebook's "Session 3 › Grouping, counting and sorting" section casts `total_amount` to `float` (casting
+      converts a column to another type) before summing per vendor. Without the cell's final `.describe()`, on the
+      twelve trips it prints:
+
+      ```text
+      +--------+------------------+
+      |VendorID| sum(total_amount)|
+      +--------+------------------+
+      |       1| 86.25000095367432|
+      |       2|132.45000076293945|
+      +--------+------------------+
+      ```
+
+      Without the cast the sums are 86.25 and 132.45. Why the extra digits?
+    options:
+      - '`cast("float")` stores each amount with fewer digits, so tiny rounding errors appear and add up.'
+      - 'The data really holds those digits; the version without the cast hides them.'
+      - '`float` keeps more digits than `double`, so the cast shows digits that were there all along.'
+      - '`groupby` in lowercase is an older, less exact version of `groupBy`.'
+    answer: 0
+    optionFeedback:
+      '1': 'The file holds 14.76 and the other amounts with two decimals. The extra digits are made by the cast.'
+      '2': 'It is the other way round: `double` keeps about 16 digits, `float` only about 7.'
+      '3': '`groupby` and `groupBy` are two spellings of the same method.'
+    hints:
+      - '`total_amount` was already a `double`. What does converting it to `float` change?'
+    explanation: |
+      `inferSchema=True` already read `total_amount` as `double` (about 16 digits). Casting means converting a column
+      to another type; `float` keeps only about 7 digits, so 14.76 becomes a number very close to, but not exactly,
+      14.76. The sums show that rounding error.
+
+  # =====================================================================================
+  # Session 3: filters
+  # =====================================================================================
+  - id: filter-count-numeric
+    type: numeric
+    skills: [select-filter]
+    difficulty: 1
+    tags: [code]
+    generator: filterCountQ
+    lessonRef: { tab: math-code, id: filter-rows }
+    prompt: |
+      Here are {=k} of the twelve trips. What does this line return?
+
+      `{=code}`
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - 'Go down the `{=col}` column and test each value against {=x}.'
+      - '`>` is strict: a value equal to {=x} fails the test.'
+    explanation: |
+      The [[condition]] `F.col("{=col}") > {=x}` is true for {=answer} of the {=k} trips, and `filter` keeps exactly
+      those rows. A trip with exactly {=x} is dropped; `>=` would keep {=geq}.
+
+  - id: filter-and-numeric
+    type: numeric
+    skills: [select-filter]
+    difficulty: 2
+    tags: [code]
+    generator: filterAndQ
+    lessonRef: { tab: intuition, id: filter-conditions }
+    prompt: |
+      Here are {=k} of the twelve trips. What does this line return?
+
+      `{=code}`
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '`&` means "and": a trip is kept only if both conditions are true.'
+      - 'Mark the fares above {=x}, then check the tip of each marked trip.'
+    explanation: |
+      {=firstOnly} trip(s) pass the fare test and {=secondOnly} pass the tip test, but only {=answer} pass both, so
+      `count()` returns {=answer}. With `|` (or) it would be {=orCount}.
+
+  - id: filter-or-numeric
+    type: numeric
+    skills: [select-filter]
+    difficulty: 2
+    tags: [code]
+    generator: filterOrQ
+    lessonRef: { tab: math-code, id: filter-rows }
+    prompt: |
+      Here are {=k} of the twelve trips. What does this line return?
+
+      `{=code}`
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '`|` means "or": one true condition is enough to keep a trip.'
+      - A trip that passes both tests is still kept only once.
+    explanation: |
+      Keep every trip from zone {=z} and every trip with a fare above {=x}. That gives {=answer} rows. Adding the two
+      separate counts gives {=sumBoth}, because {=andCount} trip(s) pass both tests and would be counted twice.
+
+  - id: or-not-numeric
+    type: numeric
+    skills: [select-filter]
+    difficulty: 3
+    tags: [code]
+    generator: orNotQ
+    lessonRef: { tab: intuition, id: filter-conditions }
+    prompt: |
+      Here are {=k} of the twelve trips. What does this line return?
+
+      `{=code}`
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '`~` flips a test: `~(F.col("tip_amount") > 0)` is true for the trips whose tip is **not** above 0.'
+      - 'With `|`, a trip is kept when it starts in zone {=z}, or has no tip, or both.'
+      - 'Count the zone {=z} trips and the trips without a tip, then take away the trips you counted twice.'
+    explanation: |
+      {=zoneN} trip(s) start in zone {=z}, and {=notN} have no tip. {=both} of them are both, and `filter` keeps
+      each row once: {=zoneN} + {=notN} − {=both} = {=answer}. Without the `~`, the line would keep
+      {=withoutNot} trips.
+
+  - id: and-error-mcq
+    type: mcq
+    skills: [select-filter]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: filter-conditions }
+    prompt: |
+      This cell fails:
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 18>", line 1, in <module>
+          trips.filter((F.col("fare_amount") > 10) and (F.col("tip_amount") > 0))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ...
+      pyspark.errors.exceptions.base.PySparkValueError: [CANNOT_CONVERT_COLUMN_INTO_BOOL] Cannot convert column into bool: please use '&' for 'and', '|' for 'or', '~' for 'not' when building DataFrame boolean expressions.
+      ```
+
+      Which change fixes it?
+    options:
+      - 'Replace `and` with `&`'
+      - 'Replace `and` with `+`'
+      - 'Remove the parentheses around each condition'
+      - 'Write `AND` in capital letters'
+    answer: 0
+    optionFeedback:
+      '2': 'Removing the parentheses keeps the `and`, so the same CANNOT_CONVERT_COLUMN_INTO_BOOL error appears. Keep them for the `&` fix too: without them Python reads `10 & F.col(...)` first and raises the same error.'
+      '3': '`AND` works inside a SQL text such as `"fare_amount > 10 AND tip_amount > 0"`, but not between two Python column expressions.'
+    hints:
+      - The last line of the error names the replacement for `and`.
+    explanation: |
+      Python's `and` needs a plain true or false, but a Spark [[condition]] is a column of true/false values. The
+      message itself gives the fix: `&` for `and`, `|` for `or`, `~` for `not`, each condition in its own parentheses.
+
+  - id: code-and-fix
+    type: code-fill
+    skills: [select-filter]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: filter-rows }
+    prompt: |
+      Fix this line: `trips.filter(trips.fare_amount > 10 and trips.tip_amount > 0)`.
+    code: |
+      trips.filter((trips.fare_amount > 10) __BLANK_1__ (trips.tip_amount > 0))
+    blanks:
+      '1': { accept: ['&'], hint: '"and" for Spark conditions' }
+    explanation: |
+      Between Spark [[condition|conditions]] use `&` (and), `|` (or) and `~` (not), with each condition in its own
+      parentheses. On the twelve trips the fixed line keeps 5 rows.
+
+  # =====================================================================================
+  # Session 3: reading a chain
+  # =====================================================================================
+  - id: chain-order
+    type: order
+    skills: [method-chain]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: chain-steps }
+    prompt: |
+      Put the stations of this [[method-chain]] in order. It should list the pickup zones of the trips that got a tip,
+      busiest zone first.
+    items:
+      - '`trips`'
+      - '`.filter(F.col("tip_amount") > 0)`'
+      - '`.groupBy("PULocationID")`'
+      - '`.count()`'
+      - '`.orderBy(F.desc("count"), "PULocationID")`'
+      - '`.show()`'
+    hints:
+      - '`count()` needs groups, and `orderBy(F.desc("count"))` needs the `count` column.'
+    explanation: |
+      Filter first, while `tip_amount` is still there. `groupBy` hands over [[grouped-data|GroupedData]], `count()`
+      turns it into a table with a `count` column, `orderBy` sorts that column, and `show()` is the
+      [[action]] that prints. On the twelve trips the result is 7 and 33 (2 trips each), then 41, 74 and 97.
+
+  - id: chain-rows-numeric
+    type: numeric
+    skills: [method-chain]
+    difficulty: 2
+    tags: [code]
+    generator: chainRowsQ
+    lessonRef: { tab: math-code, id: chain-steps }
+    prompt: |
+      Here are {=k} of the twelve trips. How many rows does this chain produce?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Read the chain one station at a time. Which trips survive the filter?
+      - Then count the different zones among the surviving trips only.
+    explanation: |
+      After the filter, {=afterFilter} trips are left. `groupBy` + `count` makes one row per zone among those trips:
+      {=answer} rows. Grouping all {=k} trips would give {=allGroups}.
+
+  - id: chain-hand
+    type: hand-calc
+    skills: [method-chain, select-filter, group-order]
+    difficulty: 3
+    tags: [code]
+    generator: chainHandQ
+    lessonRef: { tab: intuition, id: read-a-chain }
+    prompt: |
+      Read this chain one station at a time on these {=k} trips. The full `trips` table has {=allCols} columns.
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+    steps:
+      - prompt: Rows left after `filter`
+        answer: { var: nf, tol: 0 }
+        misconceptions:
+          - { var: geq, feedback: '`>` is strict: fares equal to {=x} are dropped.' }
+        hint: Keep the fares strictly above {=x}.
+      - prompt: Columns left after `select`
+        answer: { var: cols, tol: 0 }
+        misconceptions:
+          - { var: allCols, feedback: '`select` keeps only the columns you name.' }
+      - prompt: Rows after `groupBy("PULocationID").count()`
+        answer: { var: groups, tol: 0 }
+        misconceptions:
+          - { var: nf, feedback: 'That is the number of trips. The count table has one row per zone.' }
+        hint: One row per different zone among the kept trips.
+      - prompt: The `count` in the first printed row
+        answer: { var: topCount, tol: 0 }
+      - prompt: The `PULocationID` in the first printed row
+        answer: { var: topZone, tol: 0 }
+        misconceptions:
+          - { var: wrongTie, feedback: 'Right count, wrong [[tie-break]]: the smaller zone number comes first.' }
+    hints:
+      - Work station by station, writing down the table each one hands on.
+    explanation: |
+      `filter` keeps {=nf} trips, and `select` keeps {=cols} columns. `groupBy` + `count` gives {=groups} rows. The top
+      count is {=topCount}, and with the [[tie-break]] the first row is zone {=topZone}.
+
+  - id: groupeddata-mcq
+    type: mcq
+    skills: [method-chain]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: read-a-chain }
+    prompt: |
+      You cut a chain after `groupBy` to check it:
+
+      ```python
+      (
+          trips.filter(F.col("tip_amount") > 0)
+          .select("PULocationID", "tip_amount")
+          .groupBy("PULocationID")
+          .show()
+      )
+      ```
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 43>", line 5, in <module>
+          .show()
+           ^^^^
+      AttributeError: 'GroupedData' object has no attribute 'show'
+      ```
+
+      Why does it fail?
+    options:
+      - '`groupBy` returns GroupedData, which has no `show()`. Add a summary such as `.count()` first.'
+      - '`PULocationID` is misspelled.'
+      - '`show()` needs a number of rows, such as `show(5)`.'
+      - '`select` must come after `groupBy`.'
+    answer: 0
+    hints:
+      - The error names the kind of object that has no `show`. What does `groupBy` hand on?
+    explanation: |
+      `groupBy` hands on [[grouped-data|GroupedData]]: the rows sorted into groups, waiting for a summary. Only a
+      summary such as `count()` turns it back into a [[dataframe|DataFrame]] you can show.
+
+  # =====================================================================================
+  # Session 3: functions
+  # =====================================================================================
+  - id: none-mcq
+    type: mcq
+    skills: [functions-def]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: wrap-in-function }
+    prompt: |
+      ```python
+      def top_pickups(df):
+          df.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID")
+
+      top_pickups(trips).show()
+      ```
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 47>", line 4, in <module>
+          top_pickups(trips).show()
+          ^^^^^^^^^^^^^^^^^^^^^^^
+      AttributeError: 'NoneType' object has no attribute 'show'
+      ```
+
+      What went wrong?
+    options:
+      - 'The function has no `return` line, so it hands back `None`, which has no `show()`.'
+      - '`trips` is not defined inside the function.'
+      - '`groupBy` needs a list of column names.'
+      - '`show()` cannot follow a function call.'
+    answer: 0
+    hints:
+      - "`'NoneType' object` means the thing before `.show()` is `None`. Where could `None` come from?"
+    explanation: |
+      The chain inside the [[function]] is built and then thrown away. A function that ends without `return` hands
+      back [[none|None]], and `None` has no `show` method. Put `return` in front of the chain.
+
+  - id: code-return
+    type: code-fill
+    skills: [functions-def]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: function-wrap }
+    prompt: Complete the [[function]] so that the last line prints the busiest pickup zones.
+    code: |
+      def top_pickups(df):
+          __BLANK_1__ df.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID")
+
+      top_pickups(trips).show(5)
+    blanks:
+      '1': { accept: ['return'], hint: hand the result back }
+    explanation: |
+      `return` hands the sorted count table back to the caller, so `.show(5)` has a [[dataframe|DataFrame]] to print.
+      Without it the function gives back [[none|None]].
+
+  - id: function-rows-numeric
+    type: numeric
+    skills: [functions-def]
+    difficulty: 3
+    tags: [code]
+    generator: functionRowsQ
+    lessonRef: { tab: math-code, id: function-wrap }
+    prompt: |
+      `trips` holds the {=k} trips below. What does the last line of this cell return?
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - 'Inside the function, `df` stands for `trips` and `min_trips` for {=m}.'
+      - 'Count the trips per zone, then keep the zones with at least {=m}.'
+    explanation: |
+      `counts` has one row per zone. The filter keeps the zones whose count is at least {=m} (`>=` includes {=m}
+      itself), and `.count()` counts those rows: {=answer}. They hold {=tripsIn} trips together.
+
+      {=result}
+
+  - id: function-hand
+    type: hand-calc
+    skills: [functions-def, group-order]
+    difficulty: 3
+    tags: [code]
+    generator: functionRowsQ
+    lessonRef: { tab: intuition, id: wrap-in-function }
+    prompt: |
+      `trips` holds the {=k} trips below. Work through the [[function]] call one line at a time.
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+    steps:
+      - prompt: 'How many rows does `counts` hold inside the function?'
+        answer: { var: groups, tol: 0 }
+        misconceptions:
+          - { var: k, feedback: 'That is the number of trips. `counts` has one row per zone.' }
+        hint: One row per different `PULocationID`.
+      - prompt: What does the last line return?
+        answer: { var: answer, tol: 0 }
+        misconceptions:
+          - { var: strict, feedback: '`>=` keeps zones with exactly {=m} trips too. You used a strict `>`.' }
+          - { var: tripsIn, feedback: 'That is the number of trips in those zones. The function returns one row per zone.' }
+        hint: 'Keep the rows of `counts` whose count is at least {=m}, then count those rows.'
+      - prompt: 'How many of the {=k} trips start in the zones the function keeps?'
+        answer: { var: tripsIn, tol: 0 }
+        misconceptions:
+          - { var: answer, feedback: 'That is the number of zones. Add up their counts instead.' }
+    hints:
+      - 'Inside the function, `df` stands for `trips` and `min_trips` for {=m}.'
+      - Write down the count table first; every later answer comes from it.
+    explanation: |
+      `counts` has {=groups} rows, one per zone. `return` hands back only the zones with at least {=m} trips, and
+      `.count()` counts those rows: {=answer}. Their counts add up to {=tripsIn} trips.
+
+      {=result}
+
+  # =====================================================================================
+  # Session 4: lazy evaluation
+  # =====================================================================================
+  - id: lazy-mcq
+    type: mcq
+    skills: [lazy-eval]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: shopping-list }
+    prompt: |
+      `pu = trips.select("PULocatonID")` runs with no error, although the name is misspelled.
+      Why, and where will the error appear?
+    options:
+      - '`select` only adds a step to the plan. Spark checks the name at the first action, such as `pu.show()`.'
+      - 'Spark fixes small spelling mistakes by itself, so there will be no error.'
+      - 'The error appears on the `select` line the second time you run it.'
+      - 'Column names are never checked; `pu` will be an empty table.'
+    answer: 0
+    hints:
+      - Is `select` a transformation or an action?
+    explanation: |
+      `select` is a [[transformation]]: it writes a step into the [[plan]] and returns at once. This is
+      [[lazy-evaluation|lazy evaluation]]. On [[spark-connect|Spark Connect]] the names are checked when an
+      [[action]] such as `pu.show()` sends the plan, and that line raises the error.
+
+  - id: action-multi
+    type: multi
+    skills: [lazy-eval]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: lazy-plan }
+    prompt: Which of these are [[action|actions]], the commands that make Spark do the work?
+    options:
+      - '`show()`'
+      - '`count()`'
+      - '`toPandas()`'
+      - '`first()`'
+      - '`filter(...)`'
+      - '`select(...)`'
+      - '`orderBy(...)`'
+      - '`groupBy(...)`'
+    answer: [0, 1, 2, 3]
+    hints:
+      - An action asks for a result you can see or use in Python.
+    explanation: |
+      `show`, `count`, `toPandas` and `first` ask for a result, so they run the [[plan]]. `filter`, `select`,
+      `orderBy` and `groupBy` are [[transformation|transformations]]: they only describe the next table.
+
+  - id: lazy-order
+    type: order
+    skills: [lazy-eval]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: shopping-list }
+    prompt: Put these events in the order they happen.
+    items:
+      - '`pu = trips.select("PULocatonID")` adds a step to the plan'
+      - '`type(pu)` prints DataFrame, still with no error'
+      - '`pu.show()` sends the plan to Spark'
+      - 'Spark checks every column name in the plan'
+      - 'Spark raises an AnalysisException with a "Did you mean" list'
+    hints:
+      - Nothing is checked until something asks for a result.
+    explanation: |
+      [[lazy-evaluation|Lazy evaluation]]: the misspelled `select` only lands in the [[plan]]. The [[action]]
+      `show()` sends the plan, Spark checks the names, and the [[analysis-exception]] appears on the `show()` line.
+
+  - id: lazy-line-numeric
+    type: numeric
+    skills: [lazy-eval]
+    difficulty: 3
+    tags: [code]
+    generator: lazyLineQ
+    lessonRef: { tab: intuition, id: shopping-list }
+    prompt: |
+      Each line below is its own [[cell]], run from top to bottom. One column name is misspelled.
+      Which cell raises the error?
+    show:
+      - { id: t, widget: Text, props: { body: '{=cells}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Find the misspelled name, then ask whether that command checks names at once or only adds to the plan.
+      - '`groupBy("name")` and `df["name"]` check on their own line; `select`, `filter`, `orderBy` and `withColumn` wait for an action.'
+    explanation: |
+      The misspelling `{=typoName}` is in cell {=typoLine}. Here it surfaces in cell {=answer}: {=why}. Most
+      [[transformation|transformations]] only write the name into the [[plan]]; the [[action]] or a command that needs
+      the column list straight away is where Spark notices.
+
+  - id: eager-mcq
+    type: mcq
+    skills: [lazy-eval]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: lazy-plan }
+    prompt: |
+      Each line is run on its own, before any action. Which one raises an error **on that very line**?
+    options:
+      - '`g = trips.groupBy("PULocatonID")`'
+      - '`pu = trips.select("PULocatonID")`'
+      - '`big = trips.filter(F.col("fare_amt") > 10)`'
+      - '`srt = trips.orderBy("fare_amt")`'
+    answer: 0
+    optionFeedback:
+      '1': '`select` only adds a step to the plan. In the real run the error waited for an action such as `show()`.'
+      '2': '`filter` only adds a step to the plan. In the real run the error came at `count()`.'
+      '3': '`orderBy` only adds a step to the plan. In the real run the error came at `show(3)`.'
+    hints:
+      - Most commands only write into the plan. A few need the list of column names straight away.
+    explanation: |
+      `groupBy("name")` looks the name up in the column list at once, so the misspelling fails on that line. In the
+      real runs, `select`, `filter` and `orderBy` with the same misspellings raised nothing until an [[action]] such as
+      `show()` or `count()`.
+
+  - id: case-insensitive-mcq
+    type: mcq
+    skills: [lazy-eval, error-types]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: lazy-plan }
+    prompt: |
+      `trips.select("PULocationId").show(3)` (small **d** at the end) prints a table instead of an error. Why?
+    options:
+      - 'Spark matches column names without caring about upper or lower case. The header keeps the spelling you typed.'
+      - 'Spark corrected the spelling to `PULocationID` and printed that header.'
+      - 'Spark accepts any name that is close enough, as a search engine does.'
+      - 'The error is only raised the next time the cell runs.'
+    answer: 0
+    optionFeedback:
+      '2': 'Close is not enough: `PULocatonID`, one letter short, raises an error. Only capital letters are ignored.'
+    hints:
+      - Compare the two spellings letter by letter. Is anything missing, or only a letter's size?
+    explanation: |
+      Spark compares column names ignoring case, so `PULocationId` finds `PULocationID`. The real output's header says
+      `PULocationId`. A missing or extra letter, as in `PULocatonID`, is a real misspelling and raises an
+      [[analysis-exception]] at the [[action]].
+
+  # =====================================================================================
+  # Session 4: reading the receipt
+  # =====================================================================================
+  - id: traceback-part-multi
+    type: multi
+    skills: [tracebacks]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: read-the-receipt }
+    prompt: In our local run, the full [[traceback]] of a failed `pu.show()` ran to 96 lines; yours will differ. Which two parts do you read first?
+    options:
+      - 'The last line: the error''s name and its message'
+      - 'The frame that names your own cell, such as `File "<cell 52>", line 1`, and the code under it'
+      - 'The first line, `Traceback (most recent call last):`'
+      - 'The `JVM stacktrace:` block'
+      - 'The frames inside pyspark''s own files'
+    answer: [0, 1]
+    hints:
+      - Which lines talk about your code, and which line says what went wrong?
+    explanation: |
+      The last line says **what** went wrong (for example an [[analysis-exception]] naming the bad column). The frame
+      with your [[cell]] says **where** it surfaced. The pyspark frames and the Java block are Spark's own machinery.
+
+  - id: traceback-line-numeric
+    type: numeric
+    skills: [tracebacks]
+    difficulty: 1
+    tags: [code]
+    generator: tracebackLineQ
+    lessonRef: { tab: intuition, id: read-the-receipt }
+    prompt: |
+      This [[cell]] printed the [[traceback]] below. On which line of the cell did Python stop?
+    show:
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+      - { id: e, widget: Text, props: { body: '{=errBlock}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Find the line that starts with `File "<cell`.
+      - The number after the word "line" is the line inside the cell.
+    explanation: |
+      The frame `File "<cell {=cell}>", line {=answer}` says Python stopped on line {=answer}, the line printed under
+      it: `{=frameCode}`. The cell number ({=cell}) only counts how many cells ran before.
+
+  - id: code-typo-fix
+    type: code-fill
+    skills: [tracebacks]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: shopping-list }
+    prompt: |
+      On the twelve lesson trips, `pu = trips.select("PULocatonID")` ran without complaint, then `pu.show()` printed:
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 52>", line 1, in <module>
+          pu.show()
+        ...
+      pyspark.errors.exceptions.connect.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `PULocatonID` cannot be resolved. Did you mean one of the following? [`PULocationID`, `DOLocationID`, `VendorID`, `tip_amount`, `fare_amount`]. SQLSTATE: 42703;
+      'Project ['PULocatonID]
+      ```
+
+      Fix the line that built `pu`.
+    code: |
+      pu = trips.select("__BLANK_1__")
+      pu.show()
+    blanks:
+      '1':
+        accept: ['PULocationID']
+        regex: '^[Pp][Uu][Ll][Oo][Cc][Aa][Tt][Ii][Oo][Nn][Ii][Dd]$'
+        hint: the first name in the "Did you mean" list
+    explanation: |
+      The first suggestion, `PULocationID`, is the right column. Spark ignores capitals in column names, so any
+      capitalisation of that spelling works too.
+
+  # =====================================================================================
+  # Session 4: the four errors and the debugging steps
+  # =====================================================================================
+  - id: error-match
+    type: match
+    skills: [error-types]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: error-zoo }
+    prompt: Match what you see with its usual cause.
+    pairs:
+      - ['`AnalysisException` with `UNRESOLVED_COLUMN`', 'A column name is misspelled or does not exist']
+      - ['`NameError: name ... is not defined`', 'A cell was skipped, the notebook restarted, or an import is missing']
+      - ['`TypeError`', 'A value of the wrong kind was used, such as text compared with a number']
+      - ['No error, but NULL in every row of a column', 'The schema''s type does not fit the data']
+      - ['`''GroupedData'' object has no attribute ''show''`', 'A `groupBy` was not followed by a summary such as `count()`']
+      - ['`''NoneType'' object has no attribute ''show''`', 'A function forgot its `return`']
+    pick: 5
+    hints:
+      - Which errors come from Python before Spark runs, and which from Spark itself?
+    explanation: |
+      [[analysis-exception|AnalysisException]] comes from Spark checking the plan; [[name-error|NameError]] and
+      [[type-error|TypeError]] come from Python itself. A [[silent-null]] raises nothing at all, which makes it the
+      hardest to spot.
+
+  - id: error-first-check-mcq
+    type: mcq
+    skills: [error-types]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: error-zoo }
+    prompt: |
+      A classmate reopens the notebook the next day and runs one cell first:
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 1>", line 1, in <module>
+          trips.show()
+          ^^^^^
+      NameError: name 'trips' is not defined
+      ```
+
+      What do you check first?
+    options:
+      - 'Whether the cell that loads `trips` ran in this session; if not, run the cells above in order'
+      - '`trips.printSchema()`, to see the types of the columns'
+      - 'The spelling of the column names'
+      - 'Whether `show` must be imported from PySpark first'
+    answer: 0
+    optionFeedback:
+      '1': '`trips.printSchema()` needs `trips` too, so it raises the same NameError.'
+      '2': 'No column is named in this cell. The missing name is `trips` itself.'
+      '3': '`show` is a method of the table and needs no import. The error names `trips`, not `show`.'
+    hints:
+      - Is this a Spark error or a Python error? Which name is Python missing?
+    explanation: |
+      A [[name-error|NameError]] means Python was never given that name. `<cell 1>` says this was the first [[cell]]
+      run since the notebook started, so the cell that reads the file into `trips` never ran in this session. Run
+      the cells above in order, starting with the imports and the read.
+
+  - id: null-group-numeric
+    type: numeric
+    skills: [error-types]
+    difficulty: 2
+    tags: [code]
+    generator: nullGroupQ
+    lessonRef: { tab: intuition, id: error-zoo }
+    prompt: |
+      These trips (below the header line) of a CSV file are read with a [[schema]] that says `store_and_fwd_flag INT`. Then
+      `trips.groupBy("store_and_fwd_flag").count().show()` prints one row. What number is in its `count` column?
+    show:
+      - { id: t, widget: Text, props: { body: '{=csv}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - The file holds the letters N and Y in that column. What becomes of a letter in a column that must hold whole numbers?
+      - Then count the rows that end up with that value.
+    explanation: |
+      `N` and `Y` are not whole numbers, so every flag becomes NULL without an error: a [[silent-null]]. All {=k} trips
+      fall into the single NULL group:
+
+      {=result}
+
+  - id: code-typeerror-fix
+    type: code-fill
+    skills: [error-types]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: debug-recipe }
+    prompt: |
+      `trips.filter("total_amount" > 1000)` raises
+      `TypeError: '>' not supported between instances of 'str' and 'int'`. Write two correct versions: one that
+      compares the column, one that uses a SQL text.
+    code: |
+      trips.filter(__BLANK_1__ > 1000).count()
+      trips.filter(__BLANK_2__).count()
+    blanks:
+      '1': { accept: ['trips.total_amount', 'F.col("total_amount")', 'trips["total_amount"]'], hint: 'the column, not the text' }
+      '2': { accept: ['"total_amount > 1000"', '"1000 < total_amount"'], hint: the whole condition inside quotes }
+    explanation: |
+      `"total_amount"` is a piece of text, and Python cannot compare text with 1000: a [[type-error|TypeError]] before
+      Spark sees anything. Compare the [[column]] (`trips.total_amount`, `F.col("total_amount")`) or give `filter` the
+      whole condition as SQL text. On the full quarter both return 5.
+
+  - id: debug-order
+    type: order
+    skills: [tracebacks, error-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: debug-recipe }
+    prompt: Put the debugging steps in order.
+    items:
+      - 'Read the last line of the traceback: the error''s name and its message'
+      - 'Find the frame that names your cell and read that line'
+      - 'Inspect what the line uses: `columns`, `printSchema()`, `show(5)` or `type(...)`'
+      - 'Change one thing that fixes the cause'
+      - 'Run the cell again and check the output'
+    hints:
+      - Which step needs the error message, and which step changes code?
+    explanation: |
+      The last line of the [[traceback]] says what went wrong, your frame says where, inspecting the data says why.
+      Only then change one thing and run again, so you know which change fixed it.
+
+  # =====================================================================================
+  # Session 4: finding help
+  # =====================================================================================
+  - id: help-mcq
+    type: mcq
+    skills: [find-help]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: ask-for-help }
+    prompt: |
+      `help(trips.filter)` describes the condition as "A Column of types.BooleanType or a string of SQL
+      expressions." (BooleanType means true-or-false values.) Which line uses the string form correctly?
+    options:
+      - '`trips.filter("total_amount > 30")`'
+      - '`trips.filter("total_amount" > 30)`'
+      - '`trips.filter(total_amount > 30)`'
+      - '`trips.filter["total_amount > 30"]`'
+    answer: 0
+    optionFeedback:
+      '1': 'Only the name is in quotes, so Python compares text with 30 and raises a TypeError.'
+      '2': 'Without quotes Python looks for a variable called `total_amount` and raises a NameError.'
+    hints:
+      - The whole condition goes inside one pair of quotes.
+    explanation: |
+      The whole condition is one piece of SQL text. On the twelve trips `trips.filter("total_amount > 30").count()`
+      returns 3, and its twin `trips.where("total_amount > 30").count()` returns 3 as well.
+
+  - id: code-sql-where
+    type: code-fill
+    skills: [find-help]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: ask-for-help }
+    prompt: |
+      The manual of `filter` says another method does exactly the same thing. Write its name; the line should
+      still count the trips above 30 dollars.
+    code: |
+      trips.__BLANK_1__("total_amount > 30").count()
+    blanks:
+      '1': { accept: ['where'], hint: filter's twin }
+    explanation: |
+      `help(trips.filter)` says "`where` is an alias for `filter`": two names for one [[method]]. Both return 3 on the
+      twelve trips.
+
+  - id: code-date-trunc
+    type: code-fill
+    skills: [find-help]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: intuition, id: wrap-in-function }
+    prompt: |
+      `help(F.date_trunc)` starts with `date_trunc(format: str, timestamp: 'ColumnOrName')`. Complete the cell so it
+      shows each pickup time rounded down to its hour.
+    code: |
+      trips.select(
+          "lpep_pickup_datetime",
+          F.__BLANK_1__(__BLANK_2__, "lpep_pickup_datetime").alias("pickup_hour"),
+      ).show()
+    blanks:
+      '1': { accept: ['date_trunc'], hint: the function you found with dir(F) }
+      '2': { accept: ['"hour"'], regex: '^["''][Hh][Oo][Uu][Rr]["'']$', hint: 'the unit, in quotes' }
+    explanation: |
+      The signature says the unit comes first, then the timestamp column. On the twelve trips,
+      `F.date_trunc("hour", ...)` turns the last pickup, `2017-10-02 10:47:29`, into `2017-10-02 10:00:00`;
+      `.alias("pickup_hour")` names the new column.
+
+  - id: assistant-multi
+    type: multi
+    skills: [find-help]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: ask-for-help }
+    prompt: You ask the Databricks Assistant about an error. Which belong in a good question?
+    options:
+      - The code you ran
+      - The full error, copied as text
+      - 'The output of `printSchema()` for the table involved'
+      - What you expected to happen
+      - '"It doesn''t work, fix it" and nothing else'
+      - Your Databricks password
+    answer: [0, 1, 2, 3]
+    hints:
+      - What would a classmate need to see to help you without guessing?
+    explanation: |
+      The Assistant can only reason about what you give it: the code, the exact error, the [[schema]] and what you
+      expected. Never paste passwords or keys. Test its answer before you trust it.
+
+  # =====================================================================================
+  # Integrative problems (several skills in one notebook)
+  # =====================================================================================
+  - id: debug-chain-hand
+    type: hand-calc
+    skills: [lazy-eval, select-filter, group-order]
+    difficulty: 3
+    tags: [code]
+    generator: debugChainQ
+    lessonRef: { tab: math-code, id: lazy-plan }
+    prompt: |
+      A classmate runs these five [[cell|cells]] from top to bottom on the {=k} trips below. One column name is
+      misspelled. Find where Spark complains, then work out what the fixed notebook prints.
+    show:
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: Which cell raises the error?
+        answer: { var: failAt, tol: 0 }
+        misconceptions:
+          - { var: typoCell, feedback: 'The misspelling sits in cell {=typoCell}, but `orderBy` only adds a step to the plan. The error waits for the action.' }
+          - { var: lastCell, feedback: '`groupBy("name")` looks the name up on its own line, so the error comes before `show()`.' }
+        hint: Does the command with the misspelling check names on its own line, or only add a step to the plan?
+      - prompt: 'You fix the spelling and run the cells again. How many trips does `kept` hold?'
+        answer: { var: nf, tol: 0 }
+        misconceptions:
+          - { var: otherOp, feedback: 'That is the count with the other operator. `&` (and) needs both tests true; `|` (or) needs one.' }
+          - { var: fareOnly, feedback: 'You used only the fare test. The tip test counts too.' }
+        hint: 'Test each trip twice (fare above {=x}, tip above 0), then join the two answers with `{=op}` ({=opWord}).'
+      - prompt: How many rows does `top.show()` print?
+        answer: { var: groups, tol: 0 }
+        misconceptions:
+          - { var: nf, feedback: 'That is the number of kept trips. `groupBy` + `count` makes one row per zone.' }
+      - prompt: Which `PULocationID` is printed in the first row?
+        answer: { var: topZone, tol: 0 }
+        misconceptions:
+          - { var: wrongTie, feedback: 'Right count, wrong [[tie-break]]: `"PULocationID"` puts the smaller zone number first.' }
+        hint: Biggest count first; among equal counts, the smallest zone number.
+    hints:
+      - Find the misspelled name first, then decide where Spark notices it.
+      - 'After the fix, work cell by cell: the filter, then one row per zone, then the sort with its tie-break.'
+    explanation: |
+      The misspelling `PULocatonID` is in cell {=typoCell}, and the error appears in cell {=failAt}: {=why}.
+      After the fix, {=nf} of the {=k} trips have a fare above {=x} {=opWord} a tip above 0. They start in
+      {=groups} zones, so `top.show()` prints {=groups} rows, zone {=topZone} first with {=topCount} trip(s):
+
+      {=result}
+
+  - id: share-hand
+    type: hand-calc
+    skills: [select-filter, builtin-clash]
+    difficulty: 3
+    tags: [code, application]
+    generator: shareQ
+    lessonRef: { tab: application, id: round-clash }
+    prompt: |
+      `trips` holds the {=k} trips below. A fresh notebook, with no star import, runs Bea's share cell:
+    show:
+      - { id: t, widget: Text, props: { body: '{=table}' } }
+      - { id: c, widget: Code, props: { source: '@code', lang: python } }
+    steps:
+      - prompt: What does `tipped.count()` return?
+        answer: { var: nf, tol: 0 }
+        misconceptions:
+          - { var: tipOnly, feedback: 'You checked only the tip. The fare must also be above {=x}.' }
+          - { var: fareOnly, feedback: 'You checked only the fare. The tip must also be above 0.' }
+        hint: 'A trip counts when its tip is above 0 **and** its fare is above {=x}.'
+      - prompt: 'What does the `print` line show? Type the decimal it prints: `round(..., 2)` keeps at most two decimal places.'
+        answer: { var: share, tol: 0.001 }
+        misconceptions:
+          - { var: shareTip, feedback: 'That share leaves out the fare test: it divides every tipped trip by all trips.' }
+          - { var: upsideDown, feedback: 'The division is upside down. `tipped.count() / trips.count()` puts the kept trips on top, so the share is at most 1.' }
+        hint: 'Divide the kept trips by all {=k} trips, then round to two decimal places.'
+      - prompt: 'Now the notebook starts with `from pyspark.sql.functions import *`. Which line of the cell fails?'
+        answer: { value: 2, tol: 0 }
+        misconceptions:
+          - { value: 1, feedback: 'Line 1 is fine: `trips.tip_amount` and `&` need no import.' }
+        hint: Which name on these two lines does the star import cover?
+    hints:
+      - Count the kept trips first, then divide by every trip in the table.
+    explanation: |
+      {=nf} of the {=k} trips have a tip and a fare above {=x}, so the line prints {=share}: {=nf} / {=k} rounded to
+      two decimal places. After a star import, line 2 fails with a bare `AssertionError`: `round` then means
+      PySpark's, which expects a column. Line 1 uses no imported name, so it still runs.

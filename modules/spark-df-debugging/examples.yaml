@@ -1,0 +1,464 @@
+examples:
+  # ---- the lesson data -------------------------------------------------------------------
+  - id: taxi12-dataset
+    source: 'Blueprint §2a; lessons/taxi12.csv read with header=True, inferSchema=True (truth m2.setup)'
+    fn: datasetCheck
+    in: { table: '@taxi12' }
+    expect: { same: true, rows: 12, columns: 10, types: [int, timestamp, string, int, int, int, double, double, double, double] }
+    note: The dataset file equals the engine's read of the lesson CSV, value for value; the types match truth m2.dtypes.
+  - id: t12-dtypes
+    source: 'Notebook, Session 4 › Your inspection toolkit (dtypes); real Spark 4.0.1 run (harness), truth m2.dtypes'
+    fn: realMatch
+    in: { key: m2.dtypes }
+    expect: { same: true }
+
+  # ---- Session 3: imports ---------------------------------------------------------------
+  - id: import-f-scope
+    source: 'Notebook, Session 3 › Imports: borrowing tools; real Spark 4.0.1 runs (harness), m2x.imp.F.*'
+    fn: importScope
+    in: { style: F }
+    expect: { okCount: 4, roundWorks: true, descWorks: false, fdescWorks: true }
+    note: 'With `functions as F`, Python''s own round/max/sum still work, `F.desc` works, bare `desc` raises NameError.'
+  - id: import-star-scope
+    source: 'Notebook, Session 3 › Broken on purpose: the wildcard import; real Spark 4.0.1 runs (harness), m2x.imp.star.* = truth m2.wildcard.*'
+    fn: importScope
+    in: { style: star }
+    expect: { okCount: 1, roundWorks: false, descWorks: true, fdescWorks: false }
+  - id: import-code-trace
+    source: 'Section import-styles trace (Session 3 › Imports: borrowing tools, then the wildcard import and its fix); truth m2.builtins.*, m2.type_F, m2.wildcard.round, m2x.app.builtins_back'
+    fn: importCode
+    in: {}
+    expect: { steps: 10, clash: AssertionError, fixed: 4.6 7 6, results.round: '4.6', results.typeF: "<class 'module'>" }
+    note: 'One step per executed line: 3 built-ins, 3 lines of the F import, 2 of the wildcard cell, 2 of the fix.'
+  - id: wildcard-round-error
+    source: 'Notebook, Session 3 › Broken on purpose: the wildcard import; real Spark 4.0.1 run (harness), truth m2.wildcard.round'
+    fn: realMatch
+    in: { key: m2.wildcard.round }
+    expect: { same: true, part: final }
+    note: 'A bare `AssertionError` with no message.'
+  - id: wildcard-max-error
+    source: 'Notebook, Session 3 › Broken on purpose: the wildcard import (text); real Spark 4.0.1 run (harness), truth m2.wildcard.max'
+    fn: realMatch
+    in: { key: m2.wildcard.max }
+    expect: { same: true }
+  - id: desc-without-import
+    source: 'The grouping chain (Session 3 › Grouping, counting and sorting) run before its import; real Spark 4.0.1 run (harness), truth m2.desc_without_import'
+    fn: realMatch
+    in: { key: m2.desc_without_import }
+    expect: { same: true }
+
+  # ---- Session 3: select, group, count, sort ---------------------------------------------
+  - id: t12-select-pu
+    source: 'Session 3 › Choosing columns with select, one column, on taxi12; truth m2.select_pu'
+    fn: realMatch
+    in: { key: m2.select_pu }
+    expect: { same: true }
+  - id: t12-select-two
+    source: 'Session 3 › Choosing columns with select, two columns, on taxi12; truth m2.select_two'
+    fn: realMatch
+    in: { key: m2.select_two }
+    expect: { same: true }
+  - id: t12-describe-two
+    source: 'Session 3 › Choosing columns with select, describe, on taxi12; truth m2.describe_two'
+    fn: realMatch
+    in: { key: m2.describe_two }
+    expect: { same: true }
+    note: 'mean 41.333333333333336 and 175.08333333333334; sample stddev 31.93838765593226 and 71.73747383003635.'
+  - id: t12-groupby-count
+    source: 'Session 3 › Grouping, counting and sorting, without orderBy, on taxi12; truth m2.groupby_count'
+    fn: realMatch
+    in: { key: m2.groupby_count }
+    expect: { same: true }
+    note: Spark prints the groups in its own (hash) order 41, 7, 97, 75, 33, 74.
+  - id: t12-groupby-desc
+    source: 'Session 3 › Grouping, counting and sorting, F style without a tie-break, on taxi12; truth m2.groupby_count_desc'
+    fn: realMatch
+    in: { key: m2.groupby_count_desc }
+    expect: { same: true }
+    note: Without a tie-break the three zones with 2 trips came out 41, 33, 74 in this run; that order is not guaranteed.
+  - id: t12-groupby-tiebreak
+    source: 'Session 3 › Grouping, counting and sorting, with the tie-break, on taxi12; truth m2.groupby_count_desc_tiebreak'
+    fn: realMatch
+    in: { key: m2.groupby_count_desc_tiebreak }
+    expect: { same: true }
+  - id: t12-assembly-chain
+    source: 'Scene assembly-line chain (select, groupBy, count, orderBy); real Spark 4.0.1 run (harness), m2x.lazy.assembly'
+    fn: realMatch
+    in: { key: m2x.lazy.assembly }
+    expect: { same: true }
+  - id: tally-walk
+    source: 'Count-along of the Session 3 grouping chain on taxi12 (truth m2.groupby_count_desc_tiebreak)'
+    fn: tallyWalk
+    in: {}
+    expect: { steps: 15, top: 7, topCount: 4, tied: [33, 41, 74], order: [7, 33, 41, 74, 75, 97] }
+    note: One step per trip (12), plus the empty start, the top zone and the tie-break.
+  - id: group-count-code
+    source: 'Section group-count-order trace on taxi12 (truth m2.groupby_count_desc_tiebreak)'
+    fn: groupCountCode
+    in: {}
+    expect: { groups: 6, top: 7, topCount: 4, shown: 6 }
+  - id: group-count-code-show5
+    source: 'Section group-count-order trace with the notebook''s show(5) (m2x.lazy.top_pickups_show5 prints 5 of 6 rows)'
+    fn: groupCountCode
+    in: { n: 5 }
+    expect: { groups: 6, shown: 5 }
+    note: 'One step for groupBy, one per trip (12), one for the sort and one for show(5): 15 steps.'
+  - id: zone-count-7
+    source: 'Count of zone 7 on taxi12 (truth m2.groupby_count: zone 7 has 4 trips)'
+    fn: zoneCount
+    in: { zone: 7 }
+    expect: { count: 4, trips: [3, 4, 8, 11] }
+  - id: station-grouped
+    source: 'Truth m2.type_groupby: groupBy alone returns GroupedData'
+    fn: stationView
+    in: { upTo: 2 }
+    expect: { grouped: true, type: "<class 'pyspark.sql.connect.group.GroupedData'>" }
+  - id: station-count
+    source: 'Truth m2.groupby_count (6 zones)'
+    fn: stationView
+    in: { upTo: 3 }
+    expect: { rows: 6, cols: 2 }
+  - id: t12-cast-float-sum
+    source: 'Session 3 › Grouping, counting and sorting, the cast example without describe, on taxi12; truth m2.withcolumn_cast_sum'
+    fn: realMatch
+    in: { key: m2.withcolumn_cast_sum }
+    expect: { same: true }
+    note: 'cast("float") shows float artifacts: 86.25000095367432 and 132.45000076293945 instead of 86.25 and 132.45 (truth m2.withcolumn_cast_sum_double).'
+  - id: t12-sum-double
+    source: 'Truth m2.withcolumn_cast_sum_double'
+    fn: realMatch
+    in: { key: m2.withcolumn_cast_sum_double }
+    expect: { same: true }
+
+  # ---- Session 3: the freqItems chain ---------------------------------------------
+  - id: t12-freqitems
+    source: 'Session 3 › Frequent items, on taxi12, support 0.3; truth m2.freqitems.step1'
+    fn: realMatch
+    in: { key: m2.freqitems.step1 }
+    expect: { same: true }
+  - id: t12-freqitems-explode
+    source: 'Session 3 › Frequent items chain, cut after explode; truth m2.freqitems.step2'
+    fn: realMatch
+    in: { key: m2.freqitems.step2 }
+    expect: { same: true }
+  - id: t12-cell63
+    source: 'Session 3 › Frequent items chain on taxi12; truth m2.freqitems.step3'
+    fn: realMatch
+    in: { key: m2.freqitems.step3 }
+    expect: { same: true }
+  - id: freq-chain-code
+    source: 'Section chain-steps trace; truth m2.freqitems.step1-3'
+    fn: freqChainCode
+    in: { support: 0.3 }
+    expect: { items: [33, 7, 74], rows: 3, sure: [7], extra: [33, 74] }
+    note: 'freqItems is approximate: 33 and 74 appear in only 2 of 12 trips (below 30%), while 41, also 2, is left out.'
+
+  # ---- Session 3: filters ---------------------------------------------------------------
+  - id: t12-filter-gt10-count
+    source: 'Session 3 › Broken on purpose: and between conditions, the fare test alone, on taxi12; truth m2.filter_gt10_count'
+    fn: filterView
+    in: { cond: fare10 }
+    expect: { count: 7, kept: [1, 2, 3, 6, 7, 11, 12] }
+  - id: t12-filter-gt10-show
+    source: 'Truth m2.filter_gt10_show'
+    fn: realMatch
+    in: { key: m2.filter_gt10_show }
+    expect: { same: true }
+  - id: t12-filter-and
+    source: 'Session 3 › Broken on purpose: and between conditions, the fix with &, on taxi12; truth m2.filter_and'
+    fn: filterView
+    in: { cond: fareTip }
+    expect: { count: 5, kept: [1, 2, 3, 6, 12] }
+  - id: t12-filter-and-show
+    source: 'Truth m2.filter_and'
+    fn: realMatch
+    in: { key: m2.filter_and }
+    expect: { same: true }
+  - id: t12-filter-or
+    source: 'Session 3 › Filtering rows, the or example, on taxi12; truth m2.filter_or'
+    fn: realMatch
+    in: { key: m2.filter_or }
+    expect: { same: true }
+  - id: t12-filter-or-count
+    source: 'Truth m2.filter_or (6 rows)'
+    fn: filterView
+    in: { cond: zone7or33 }
+    expect: { count: 6, kept: [3, 4, 6, 8, 11, 12] }
+  - id: t12-filter-sql
+    source: 'Session 4 › Discovery: other ways to filter (SQL string) on taxi12; truth m2.filter_sql_string'
+    fn: realMatch
+    in: { key: m2.filter_sql_string }
+    expect: { same: true }
+  - id: t12-where-alias
+    source: 'where is filter''s twin; truth m2.where_alias'
+    fn: realMatch
+    in: { key: m2.where_alias }
+    expect: { same: true }
+  - id: filter-code-trace
+    source: 'Section filter-rows trace, (fare > 10) & (tip > 0); truth m2.filter_and has 5 rows'
+    fn: filterCode
+    in: { x: 10, y: 0 }
+    expect: { count: 5 }
+  - id: filter-walk-fare
+    source: 'Scene filter-conditions count-along; truth m2.filter_gt10_count = 7'
+    fn: filterWalk
+    in: { cond: fare10 }
+    expect: { steps: 14, count: 7, bits: [1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1] }
+    note: 'An empty start, one step per trip (12), then the sum of the ticks.'
+  - id: filter-walk-fare-tip
+    source: 'Same walk with (fare > 10) & (tip > 0); truth m2.filter_and has 5 rows'
+    fn: filterWalk
+    in: { cond: fareTip }
+    expect: { steps: 14, count: 5 }
+  - id: filter-python-and
+    source: 'Session 3 › Broken on purpose: and between conditions; truth m2.filter_python_and'
+    fn: realMatch
+    in: { key: m2.filter_python_and }
+    expect: { same: true }
+
+  # ---- Session 3: reading a chain, functions ----------------------------------------------
+  - id: t12-chain-step2
+    source: 'Read-a-chain prefix 2; truth m2.chain5.step2'
+    fn: realMatch
+    in: { key: m2.chain5.step2 }
+    expect: { same: true }
+  - id: t12-chain-step3-error
+    source: 'Read-a-chain prefix 3; truth m2.chain5.step3'
+    fn: realMatch
+    in: { key: m2.chain5.step3 }
+    expect: { same: true }
+  - id: t12-chain-step4
+    source: 'Read-a-chain prefix 4; truth m2.chain5.step4'
+    fn: realMatch
+    in: { key: m2.chain5.step4 }
+    expect: { same: true }
+  - id: t12-chain-step5
+    source: 'Read-a-chain full chain; truth m2.chain5.step5'
+    fn: realMatch
+    in: { key: m2.chain5.step5 }
+    expect: { same: true }
+  - id: chain-prefix-rows
+    source: 'Truth m2.chain5.step4 (5 zones with a tipped trip)'
+    fn: chainPrefix
+    in: { k: 4 }
+    expect: { rows: 5, error: false }
+  - id: t12-def-return
+    source: 'Session 3 › Broken on purpose: the missing return, the fix; truth m2.def_with_return'
+    fn: realMatch
+    in: { key: m2.def_with_return }
+    expect: { same: true }
+  - id: t12-def-no-return
+    source: 'Session 3 › Broken on purpose: the missing return; truth m2.def_no_return'
+    fn: realMatch
+    in: { key: m2.def_no_return }
+    expect: { same: true }
+  - id: t12-top-pickups-show5
+    source: 'Session 3 › Wrapping a chain in a function, on taxi12; real Spark 4.0.1 run (harness), m2x.lazy.top_pickups_show5'
+    fn: realMatch
+    in: { key: m2x.lazy.top_pickups_show5 }
+    expect: { same: true }
+  - id: function-code
+    source: 'Section function-wrap trace; m2x.lazy.top_pickups_show5'
+    fn: functionCode
+    in: { n: 5 }
+    expect: { rows: 6, shown: 5 }
+
+  # ---- Session 4: lazy evaluation and where errors appear -------------------------------
+  - id: t12-case-insensitive
+    source: 'Session 4 › Databricks shows errors slightly differently (capital letters), on taxi12; truth m2.lazy.select_PULocationId.show'
+    fn: realMatch
+    in: { key: m2.lazy.select_PULocationId.show }
+    expect: { same: true }
+    note: Column names are matched without caring about case; the header keeps the typed spelling.
+  - id: t12-typo-at-action
+    source: 'Session 4 › Broken on purpose: a typo that waits, on taxi12; truth m2.lazy.select_typo.show'
+    fn: realMatch
+    in: { key: m2.lazy.select_typo.show }
+    expect: { same: true }
+    note: 'The full trimmed traceback, including the plan lines (attribute ids #276-#285 from that run).'
+  - id: t12-typo-multiline
+    source: 'Real Spark 4.0.1 run (harness), m2x.lazy.multiline: the error surfaces on line 4'
+    fn: realMatch
+    in: { key: m2x.lazy.multiline }
+    expect: { same: true }
+  - id: t12-filter-typo
+    source: 'Truth m2.lazy.filter_typo.count (exception line)'
+    fn: realMatch
+    in: { key: m2.lazy.filter_typo.count }
+    expect: { same: true }
+  - id: t12-orderby-typo
+    source: 'Real Spark 4.0.1 run (harness), m2x.lazy.orderby_typo_show (exception line)'
+    fn: realMatch
+    in: { key: m2x.lazy.orderby_typo_show }
+    expect: { same: true }
+  - id: t12-groupby-typo-eager
+    source: 'Real Spark 4.0.1 run (harness), m2x.lazy.groupby_typo: raises on the groupBy line itself'
+    fn: realMatch
+    in: { key: m2x.lazy.groupby_typo }
+    expect: { same: true }
+  - id: t12-getitem-typo-eager
+    source: 'Real Spark 4.0.1 run (harness), m2x.lazy.getitem_typo: raises on the trips["..."] line itself'
+    fn: realMatch
+    in: { key: m2x.lazy.getitem_typo }
+    expect: { same: true }
+  - id: fail-line-lazy
+    source: 'Real Spark 4.0.1 runs: m2x.wait.filter_on_bad (no error on the filter line), m2x.wait.count_on_bad (error at the action)'
+    fn: failLine
+    in: { steps: [{ op: read }, { op: select, typo: true }, { op: filter }, { op: show }] }
+    expect: { line: 4 }
+  - id: fail-line-eager
+    source: 'Real Spark 4.0.1 runs: m2x.wait.groupby_typo_assign (error on the groupBy line)'
+    fn: failLine
+    in: { steps: [{ op: read }, { op: filter }, { op: groupBy, typo: true }, { op: count }] }
+    expect: { line: 3 }
+  - id: lazy-code-typo
+    source: 'Section lazy-plan trace; truth m2.lazy.select_typo.show suggests PULocationID first'
+    fn: lazyCode
+    in: { typo: true }
+    expect: { ok: false, suggestion: PULocationID }
+  - id: lazy-walk
+    source: 'Scene shopping-list walk (Session 4 › Broken on purpose: a typo that waits): truth m2.lazy.select_typo (no error) and m2.lazy.select_typo.show (error)'
+    fn: lazyWalk
+    in: { typo: true }
+    expect: { steps: 5, errorAt: 4 }
+    note: 'An empty list, then one step per cell; the error appears in the fourth cell of the scene, the action.'
+  - id: eager-bins
+    source: 'Real Spark 4.0.1 runs: m2.lazy.select_typo, m2x.wait.filter_typo, m2x.lazy.orderby_typo, m2x.wait.withcolumn_typo (no error); m2x.wait.groupby_typo_assign, m2x.lazy.getitem_typo, m2x.wait.dot_typo_assign (error on the line)'
+    fn: eagerBins
+    in: {}
+    expect: { waits: 4, now: 3, solution.groupby: now, solution.select: wait }
+
+  # ---- Session 4: reading tracebacks, the four errors, inspection --------------------------
+  - id: receipt-parts
+    source: 'Truth m2.lazy.select_typo.show (trimmed traceback)'
+    fn: tracebackParts
+    in: { key: m2.lazy.select_typo.show }
+    expect:
+      frame.cell: 52
+      frame.line: 1
+      cls: AnalysisException
+      errorClass: UNRESOLVED_COLUMN.WITH_SUGGESTION
+      suggestions: [PULocationID, DOLocationID, VendorID, tip_amount, fare_amount]
+      planFirst: '''Project [''PULocatonID]'
+  - id: chain-step3-frame
+    source: 'Truth m2.chain5.step3: the frame names line 5 of the cell'
+    fn: tracebackParts
+    in: { key: m2.chain5.step3 }
+    expect: { frame.cell: 43, frame.line: 5, cls: AttributeError }
+  - id: t12-columns
+    source: 'Inspection toolkit, trips.columns; truth m1.columns'
+    fn: realMatch
+    in: { key: m1.columns }
+    expect: { same: true }
+  - id: t12-print-schema
+    source: 'Inspection toolkit, trips.printSchema(); real Spark 4.0.1 run (harness), m2x.lazy.printSchema'
+    fn: realMatch
+    in: { key: m2x.lazy.printSchema }
+    expect: { same: true }
+  - id: str-gt-typeerror
+    source: 'Session 4 › Broken on purpose: a TypeError, on taxi12; truth m2.filter_str_gt'
+    fn: realMatch
+    in: { key: m2.filter_str_gt }
+    expect: { same: true }
+  - id: debug-recipe-counts
+    source: 'Session 4 › Broken on purpose: a TypeError, the fix; truth full.csv_infer.total_gt_1000 (5 on the full data); taxi12 has no total above 1000 (m2x.lazy.sql_gt_1000)'
+    fn: debugCode
+    in: {}
+    expect: { fixed: 0, sqlCount: 0, full: 5 }
+  - id: t12-sql-gt-1000
+    source: 'Real Spark 4.0.1 run (harness), m2x.lazy.sql_gt_1000'
+    fn: realMatch
+    in: { key: m2x.lazy.sql_gt_1000 }
+    expect: { same: true }
+  - id: ddl-int-show
+    source: 'Error zoo, silent nulls; truth m1.ddl_int.show'
+    fn: realMatch
+    in: { key: m1.ddl_int.show }
+    expect: { same: true }
+  - id: ddl-int-groupby
+    source: 'Error zoo, silent nulls; truth m1.ddl_int.groupby_flag (one NULL group of 12)'
+    fn: realMatch
+    in: { key: m1.ddl_int.groupby_flag }
+    expect: { same: true }
+  - id: t12-date-trunc
+    source: 'Session 3 › Discovery: find a function nobody taught you, the answer; truth m2.date_trunc_alias_show'
+    fn: realMatch
+    in: { key: m2.date_trunc_alias_show }
+    expect: { same: true }
+  - id: date-trunc-first
+    source: 'Truth m2.date_trunc_alias_show, first row'
+    fn: dateTruncView
+    in: { unit: hour }
+    expect: { first: '2017-10-02 08:00:00' }
+
+  # ---- Application: the teammate's notebook -------------------------------------------
+  - id: app-and-fix
+    source: 'Application; real Spark 4.0.1 run (harness), m2x.app.and_fix'
+    fn: realMatch
+    in: { key: m2x.app.and_fix }
+    expect: { same: true }
+  - id: app-typo-final
+    source: 'Application; real Spark 4.0.1 run (harness), m2x.app.typo_show (exception line, suggests tip_amount)'
+    fn: realMatch
+    in: { key: m2x.app.typo_show }
+    expect: { same: true }
+  - id: app-best-zones
+    source: 'Application, fixed notebook; real Spark 4.0.1 run (harness), m2x.fixed.best'
+    fn: realMatch
+    in: { key: m2x.fixed.best }
+    expect: { same: true }
+    note: 'Zone 33 averages (4.47 + 6.35) / 2 = 5.41 in tips.'
+  - id: app-fare5-counts
+    source: 'Application, fixed notebook; real Spark 4.0.1 run (harness), m2x.fixed2.fare5_counts'
+    fn: realMatch
+    in: { key: m2x.fixed2.fare5_counts }
+    expect: { same: true }
+    note: 'The trips behind each average: one each, two for zone 33.'
+  - id: app-best-fare0
+    source: 'Application, fare cut-off 0; real Spark 4.0.1 run (harness), m2x.fixed2.fare0'
+    fn: realMatch
+    in: { key: m2x.fixed2.fare0 }
+    expect: { same: true }
+    note: 'Trip 4 (zone 7, fare 4.0, tip 0.96) joins: zone 7 averages (6.0 + 0.96) / 2 = 3.48 and zone 33 leads.'
+  - id: app-best-fare10
+    source: 'Application, fare cut-off 10; real Spark 4.0.1 run (harness), m2x.fixed2.fare10'
+    fn: realMatch
+    in: { key: m2x.fixed2.fare10 }
+    expect: { same: true }
+  - id: app-best-fare20
+    source: 'Application, fare cut-off 20; real Spark 4.0.1 run (harness), m2x.fixed2.fare20'
+    fn: realMatch
+    in: { key: m2x.fixed2.fare20 }
+    expect: { same: true }
+  - id: app-two-filters
+    source: 'Application decision and-trap; real Spark 4.0.1 run (harness), m2x.app2.two_filters'
+    fn: realMatch
+    in: { key: m2x.app2.two_filters }
+    expect: { same: true }
+  - id: app-or-count
+    source: 'Application decision and-trap; real Spark 4.0.1 run (harness), m2x.app2.or_count'
+    fn: realMatch
+    in: { key: m2x.app2.or_count }
+    expect: { same: true }
+  - id: app-and-parens
+    source: 'Application decision and-trap; real Spark 4.0.1 run (harness), m2x.app2.and_parens (exception line)'
+    fn: realMatch
+    in: { key: m2x.app2.and_parens }
+    expect: { same: true }
+  - id: app-amp-no-parens
+    source: 'Application decision and-trap; real Spark 4.0.1 run (harness), m2x.app2.amp_no_parens (exception line)'
+    fn: realMatch
+    in: { key: m2x.app2.amp_no_parens }
+    expect: { same: true }
+  - id: best-zones-5
+    source: 'Application cell fixed-notebook at the real cut-off; m2x.fixed.best, m2x.fixed2.fare5_counts'
+    fn: bestZones
+    in: { minFare: 5 }
+    expect: { tipped: 6, zones: 5, ranking: '7, 33, 41, 97, 74', top: 7, second: 33, mostTrips: 2, trips: ['1', '2', '3', '5', '6', '12'], topMath: '6.0, from one trip', secondMath: '(4.47 + 6.35) / 2 = 5.41' }
+    note: 'The decision model quotes topMath and secondMath; 5.41 is the avg_tip that m2x.fixed.best prints for zone 33.'
+  - id: best-zones-0
+    source: 'Application cell fixed-notebook, cut-off 0; m2x.fixed2.fare0'
+    fn: bestZones
+    in: { minFare: 0 }
+    expect: { tipped: 7, zones: 5, ranking: '33, 7, 41, 97, 74', top: 33, secondMath: '(6.0 + 0.96) / 2 = 3.48' }
+    note: 'Trip 4 (zone 7, fare 4.0, tip 0.96) joins at cut-off 0; 3.48 is the avg_tip that m2x.fixed2.fare0 prints for zone 7.'

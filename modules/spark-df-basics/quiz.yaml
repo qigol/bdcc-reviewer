@@ -1,0 +1,873 @@
+templates:
+  # ------------------------------------------------------------------ Session 1: notebooks, Spark, reading, looking
+  - id: kitchen-roles-mcq
+    type: mcq
+    skills: [spark-session]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: kitchen }
+    prompt: 'In the kitchen picture of Spark, who splits a job such as `trips.count()` into small tasks and hands them out?'
+    options:
+      - The driver (the head chef)
+      - The executors (the line cooks)
+      - 'The SparkSession, `spark` (the waiter)'
+      - Your notebook (it places the order)
+    answer: 0
+    optionFeedback:
+      '1': The executors run the tasks on their own slices of data. They do not plan the job.
+      '2': The session carries your command to Spark and brings the result back. The driver plans the work.
+    hints:
+      - Which part sees the whole job, rather than one slice of it?
+    explanation: |
+      The [[driver|driver]] plans the job and splits it into tasks. The [[executor|executors]] each count their own slice of the
+      trips at the same time. One of them adds up the partial counts, and the driver hands back the total.
+
+  - id: count-flow-order
+    type: order
+    skills: [spark-session]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: kitchen }
+    prompt: 'Put the steps in order. What happens when your notebook asks Spark how many trips there are?'
+    items:
+      - 'Your notebook sends the question through the SparkSession, `spark`'
+      - The driver plans the job and splits it into tasks
+      - Each executor counts the trips in its own slice of the data
+      - The partial counts are combined into one total
+      - The total comes back to your notebook as one whole number
+    hints:
+      - The command starts in your notebook, and the answer ends there.
+    explanation: |
+      The waiter ([[sparksession]]) carries the order, and the head chef ([[driver|driver]]) plans. The line cooks
+      ([[executor|executors]]) work at the same time. One cook combines their partial counts, the chef hands back the total,
+      and the waiter brings back one number. On the full data that number is 2,705,926.
+
+  - id: kitchen-match
+    type: match
+    skills: [spark-session]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: kitchen }
+    prompt: Match each part of the restaurant kitchen to its part of Spark.
+    pairs:
+      - ['Head chef who plans and splits the work', 'The driver']
+      - ['Line cooks who each work on one slice', 'The executors']
+      - ['Waiter who carries orders and results', 'The SparkSession, `spark`']
+      - ['A kitchen that is already staffed and open', 'Databricks serverless compute']
+      - ['A kitchen in another building, reached over the network', 'Spark Connect']
+    hints:
+      - Who plans? Who does the work? Who carries the messages?
+    explanation: |
+      Your notebook only places orders. Databricks keeps the kitchen running, and `spark` carries each order to the
+      [[driver|driver]], which shares the work among the [[executor|executors]].
+
+  - id: getorcreate-mcq
+    type: mcq
+    skills: [spark-session]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: get-session }
+    prompt: 'On Databricks, what does `spark = SparkSession.builder.getOrCreate()` do?'
+    options:
+      - 'Hands back the session Databricks already created, and stores it in `spark`'
+      - Starts a new Spark cluster on your laptop that uses all of its processor cores
+      - 'Reads the course data from the volume into `spark`'
+      - Creates a second session, so you now have two waiters
+    answer: 0
+    optionFeedback:
+      '1': 'That is what `.master("local[*]")` asks for, in code written for a laptop. Databricks chooses and runs the machines, so the course notebook leaves `.master` out.'
+    hints:
+      - Read the command's name in two parts. Get it, or create it.
+    explanation: |
+      `getOrCreate()` means "give me the session that exists, or make one if there is none". Databricks has already
+      created `spark`, so you get that same [[sparksession]] back.
+
+  - id: code-getorcreate
+    type: code-fill
+    skills: [spark-session]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: get-session }
+    prompt: 'Complete the cell that hands you the session Databricks already started.'
+    code: |
+      from pyspark.sql import __BLANK_1__
+
+      spark = SparkSession.builder.__BLANK_2__()
+    blanks:
+      '1': { accept: ['SparkSession'], hint: the class you borrow }
+      '2': { accept: ['getOrCreate'], hint: a command name }
+    hints:
+      - Line 1 must import the class that line 3 builds from. Line 3 asks for an existing session, or a new one if there is none.
+    explanation: |
+      Line 1 borrows the `SparkSession` class from PySpark, Spark's library for Python. The last line asks for the session that already exists with
+      `getOrCreate()` and stores it in the [[variable|variable]] `spark`.
+
+  - id: nameerror-mcq
+    type: mcq
+    skills: [run-order]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: run-order }
+    prompt: 'You open the notebook after lunch. Databricks restarted Python, and you run only the cell `trips.count()`. What happens?'
+    options:
+      - 'A `NameError`: Python has forgotten `trips`, so first run the cells that set `BASE` and create `trips`'
+      - It prints 2,705,926, because the notebook remembers its last result
+      - It prints 0, because restarted Python has no data yet
+      - Spark reads the CSV files again on its own, then prints the count
+    answer: 0
+    optionFeedback:
+      '1': The output printed under a cell is only a record of an earlier run. Variables live in the running Python, and a restart clears them.
+    hints:
+      - After a restart, which variables does Python still know?
+    explanation: |
+      A restart of Python clears every [[variable|variable]], and Databricks hands you `spark` again. The cell that created `trips`
+      has not run since, so Python raises `NameError: name 'trips' is not defined`. Run the cells that set `BASE` and
+      create `trips` first.
+
+  - id: fresh-session-order
+    type: order
+    skills: [run-order]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: run-order }
+    prompt: 'Put these cells in an order that works in a fresh session, where only `spark` exists.'
+    items:
+      - '`BASE = "/Volumes/workspace/default/bdcc"`'
+      - '`trips = spark.read.csv(f"{BASE}/lessons/taxi12.csv", header=True)`'
+      - '`n = trips.count()`'
+      - '`print(n)`'
+    hints:
+      - Start with the cell that needs nothing except `spark`.
+    explanation: |
+      Each cell uses a name that the cell before it creates: `BASE`, then `trips`, then `n`. In any other [[run-order|run order]],
+      the first cell that meets an unknown name raises a [[name-error]].
+
+  - id: run-order-numeric
+    type: numeric
+    skills: [run-order]
+    difficulty: 2
+    tags: [intuition]
+    generator: runOrderQ
+    lessonRef: { tab: intuition, id: run-order }
+    prompt: |
+      A teammate's notebook has these cells, in this order on the page:
+
+      {=cellsMd}
+
+      After a restart, `spark` exists but no other [[variable|variable]] does. What is the **smallest number of cells** you must
+      run, including cell {=target}, so that cell {=target} (`{=targetCode}`) works? You do not need to know what each
+      command does yet. Look only at the names each cell uses and the name it creates.
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Which names does cell {=target} use? Find the cell above it that creates each one.
+      - Repeat for those cells until you reach a cell that needs only `spark`.
+    explanation: |
+      Follow each name back to the cell that creates it. Cell {=target} needs the cells {=needed}: **{=answer}** cells.
+      Running every cell from the top ({=upTo} cells) also works, but it does more than needed. What counts is the
+      [[run-order|run order]], not the order on the page.
+
+  - id: header-count-numeric
+    type: numeric
+    skills: [read-csv]
+    difficulty: 1
+    tags: [code]
+    generator: headerCountQ
+    lessonRef: { tab: math-code, id: read-csv }
+    prompt: |
+      The file at `path` holds exactly these lines:
+
+      {=block}
+
+      You run:
+
+      {=codeBlock}
+
+      What does `trips.count()` return?
+    answer: { var: answer, tol: 0 }
+    hints:
+      - Count the lines. Then decide whether the first line is a row of data or the column names.
+      - '`header=True` means that the first line holds the names.'
+    explanation: |
+      The file has {=lines} lines: one line of names and {=k} trips. With `header=True` the first line becomes the
+      [[column|column]] names, so `count()` gives {=k}. Without it, Spark names the columns `_c0`, `_c1` and so on, and counts
+      the names line as a row too: {=lines}. Here the answer is **{=answer}**.
+
+  - id: header-false-mcq
+    type: mcq
+    skills: [read-csv]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: first-read }
+    prompt: 'You read the lesson file with `spark.read.csv(f"{BASE}/lessons/taxi12.csv")` and forget `header=True`. What does `trips.columns` give?'
+    options:
+      - "`['_c0', '_c1', '_c2', '_c3', '_c4', '_c5', '_c6', '_c7', '_c8', '_c9']`"
+      - "The real names, starting `['VendorID', 'lpep_pickup_datetime', ...`"
+      - An error, because Spark cannot read a CSV file without a header
+      - "`['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']`"
+    answer: 0
+    optionFeedback:
+      '1': Without `header=True` Spark does not know that the first line holds names. It reads that line as data.
+    hints:
+      - When no names are given, Spark makes up its own. What do they start with?
+    explanation: |
+      Without `header=True`, Spark names the [[column|columns]] `_c0` to `_c9` (real output) and reads the names line as
+      a row of data. So `count()` gives 13 instead of 12.
+
+  - id: code-read-csv
+    type: code-fill
+    skills: [read-csv]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: read-csv }
+    prompt: Complete the cell that reads the lesson file and takes the column names from its first line.
+    code: |
+      trips = spark.read.__BLANK_1__(
+          f"{BASE}/lessons/taxi12.csv",
+          __BLANK_2__=True,
+      )
+    blanks:
+      '1': { accept: ['csv'], hint: the file format }
+      '2': { accept: ['header'], hint: the first line holds the names }
+    hints:
+      - The read command is named after the file format.
+    explanation: |
+      `spark.read.csv(path, header=True)` returns a [[dataframe]]. `header=True` tells Spark that the first line of the
+      [[csv]] holds the [[column|column]] names.
+
+  - id: show-rows-numeric
+    type: numeric
+    skills: [show-inspect]
+    difficulty: 1
+    tags: [code]
+    generator: showRowsQ
+    lessonRef: { tab: intuition, id: show-and-count }
+    prompt: 'The DataFrame `trips` holds the {=k} rows below. How many trip rows does `trips.show({=n})` print?'
+    show:
+      - { id: rows, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - '`show(n)` prints at most n rows.'
+      - Compare {=n} with the number of rows that exist.
+    explanation: |
+      `show({=n})` prints up to {=n} rows, and the table has {=k}. So it prints **{=answer}** rows. {=footerText}
+
+  - id: action-multi
+    type: multi
+    skills: [show-inspect]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: show-and-count }
+    prompt: 'Which of these make Spark read the trips and do the work? (Select all that apply.)'
+    options:
+      - '`trips.show()`'
+      - '`trips.count()`'
+      - '`trips = spark.read.csv(f"{BASE}/lessons/taxi12.csv", header=True)`'
+      - '`trips.columns`'
+      - '`trips.show(3, truncate=False, vertical=True)`'
+    answer: [0, 1, 4]
+    hints:
+      - An action returns a result that needs the trips themselves, not only their names.
+    explanation: |
+      `show()` and `count()` are [[action|actions]]: Spark reads the data and does the work. The read cell itself reads
+      nothing yet, and `trips.columns` only asks Spark for the names, which needs only the file's names line.
+
+  - id: code-show-vertical
+    type: code-fill
+    skills: [show-inspect]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: show-count }
+    prompt: 'Complete the second `show` cell under "Displaying a DataFrame with show" in the notebook. It prints three rows as lists, one column per line, without cutting long values.'
+    code: |
+      trips.show(3, truncate=__BLANK_1__, __BLANK_2__=True)
+    blanks:
+      '1': { accept: ['False', '0'], hint: do not cut values }
+      '2': { accept: ['vertical'], hint: one column per line }
+    hints:
+      - Python writes "no" as a capitalized word.
+    explanation: |
+      `truncate=False` prints values in full instead of cutting them at 20 characters. `vertical=True` prints each row as
+      a list. Both appear in `help(trips.show)`.
+
+  - id: column-object-mcq
+    type: mcq
+    skills: [column-objects]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: column-not-data }
+    prompt: 'What does `trips["VendorID"]` give you?'
+    options:
+      - "A Column object, printed as `Column<'VendorID'>`: a description of the column, with no values"
+      - The vendor ID of every trip, one per row
+      - A one-column table that you can print with show()
+      - An error, because you cannot ask a Spark DataFrame for a column with square brackets
+    answer: 0
+    optionFeedback:
+      '1': Asking a Spark DataFrame for a column by name does not fetch any data. To see values you need an action such as show().
+    hints:
+      - Does asking a DataFrame for a column by name make Spark read anything?
+    explanation: |
+      It is a [[column-object|Column object]], like a dish's name on an order slip. It holds no data. The real output is
+      `Column<'VendorID'>`. To see values, run an [[action|action]] such as `show()` on a table.
+
+  - id: type-of-mcq
+    type: mcq
+    skills: [column-objects]
+    difficulty: 2
+    tags: [code]
+    generator: typeOfQ
+    lessonRef: { tab: math-code, id: show-count }
+    prompt: 'In the lesson notebook, what does `print(type({=expr}))` print?'
+    hints:
+      - Is it the table, one column's description, a list of names, a whole number, or the session?
+    explanation: |
+      `{=expr}` is a {=word}. `type()` names the kind of object. In our [[spark-connect]] run, the Spark classes
+      (SparkSession, DataFrame, Column) live in `pyspark.sql.connect`; `list` and `int` are plain Python types.
+
+  # ------------------------------------------------------------------ Session 2: schemas, types, silent nulls, describe
+  - id: two-ways-multi
+    type: multi
+    skills: [schema-types, ddl-schema]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: all-strings }
+    prompt: 'After a plain `spark.read.csv(path, header=True)`, every column is a `string`. Which of these give you number types instead? (Select all that apply.)'
+    options:
+      - 'Add `inferSchema=True` to the read'
+      - 'Pass a schema string that declares every column''s type, in the file''s column order'
+      - 'Call `trips.printSchema()`'
+      - 'Run `trips.show()` first, so that Spark sees the numbers'
+      - 'Add `sep=","` to the read'
+    answer: [0, 1]
+    hints:
+      - Which options change the schema itself, instead of only looking at the data?
+    explanation: |
+      [[infer-schema|inferSchema]] makes Spark scan the data once more and guess each type. A [[ddl-schema-string]]
+      states the types yourself and skips that scan. `printSchema()` and `show()` only look, and `sep` only names the
+      character between values.
+
+  - id: infer-cost-mcq
+    type: mcq
+    skills: [schema-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: print-schema }
+    prompt: 'The three monthly files hold 2,705,926 trips. Why might you write the schema yourself instead of using `inferSchema=True`?'
+    options:
+      - inferSchema reads all of the data one extra time to guess the types, which takes time on big files
+      - inferSchema looks only at the first 20 rows, so its guesses are often wrong
+      - inferSchema makes every column a string
+      - inferSchema works only on small files
+    answer: 0
+    optionFeedback:
+      '1': It scans every value. That is why it is slow on big files, and also why its guess fits every value.
+    hints:
+      - How can Spark be sure that one type fits every value?
+    explanation: |
+      inferSchema means one extra read over all of the data. A schema that you write yourself avoids that pass. On the
+      12-trip lesson file the cost is tiny; on 2.7 million trips it is not.
+
+  - id: code-infer-schema
+    type: code-fill
+    skills: [schema-types]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: print-schema }
+    prompt: 'Complete the cells under "Letting Spark guess the types" in the notebook. Spark should guess each column''s type, then print the schema.'
+    code: |
+      trips = spark.read.csv(
+          f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+          sep=",",
+          header=True,
+          __BLANK_1__=True,
+      )
+      trips.__BLANK_2__()
+    blanks:
+      '1': { accept: ['inferSchema'], hint: guess the types }
+      '2': { accept: ['printSchema'], hint: print the schema tree }
+    hints:
+      - One option makes Spark guess the types. One command prints the column types.
+    explanation: |
+      `inferSchema=True` asks Spark to guess each [[data-type|data type]]. `printSchema()` prints the [[schema|schema]]: one line per
+      column with its type.
+
+  - id: infer-type-match
+    type: match
+    skills: [schema-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: all-strings }
+    prompt: 'With `inferSchema=True`, which type does Spark pick for a column whose values in the file look like this?'
+    pairs:
+      - ['`2`, `2`, `1`, `2`', 'integer']
+      - ['`11.5`, `22`, `34.5`, `4`', 'double']
+      - ['`2017-10-02 08:00:03`, `2017-10-02 08:00:06`', 'timestamp']
+      - ['`N`, `N`, `Y`', 'string']
+    hints:
+      - One value that does not fit a narrower type decides the type of the whole column.
+    explanation: |
+      Spark picks the narrowest type that fits **every** value. One decimal value such as `11.5` makes the whole column
+      `double`, and letters make it `string`. Real output: `fare_amount: double`, `store_and_fwd_flag: string`.
+
+  - id: string-max-numeric
+    type: numeric
+    skills: [schema-types, pandas-describe]
+    difficulty: 2
+    tags: [intuition]
+    generator: stringMaxQ
+    lessonRef: { tab: intuition, id: describe-and-pandas }
+    prompt: |
+      Spark read this column with `header=True` only, so `{=col}` is a **string** column. What does
+      `describe("{=col}")` print as its **{=which}**? Type the value.
+    show:
+      - { id: vals, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0.0001 }
+    hints:
+      - For text, `describe()` compares values character by character, like words in a dictionary.
+      - Compare first characters first. "8" comes after "3", and "1" comes before "2".
+    explanation: |
+      As text, the values {=valuesText} are compared character by character, so the {=which} is **{=answer}**. The
+      numeric {=which} would be {=numeric}. This is why the [[data-type|data type]] of a column matters.
+
+  - id: silent-null-mcq
+    type: mcq
+    skills: [silent-nulls]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: ddl-schema }
+    prompt: 'A schema declares `store_and_fwd_flag INT`, but the file holds `N` and `Y`. What does `show()` print in that column, and why is that a problem?'
+    options:
+      - NULL in every row, with no error, so later counts and averages are quietly wrong
+      - An error that stops the read at the first N
+      - The letters N and Y, because Spark ignores the schema for text
+      - 0 for every N and 1 for every Y
+    answer: 0
+    optionFeedback:
+      '1': 'No: by default Spark writes NULL and raises nothing.'
+    hints:
+      - What does Spark do, by default, with a value that does not fit its box?
+    explanation: |
+      Spark cannot [[cast|cast]] `N` or `Y` to a whole number, so it writes NULL. That happens in all 12 rows of the lesson file,
+      and in all 2,705,926 rows of the full data. Nothing warns you: a [[silent-null|silent null]]. `describe()`, which summarizes a
+      column, then counts 0 flags.
+
+  - id: null-count-numeric
+    type: numeric
+    skills: [ddl-schema, silent-nulls]
+    difficulty: 2
+    tags: [code]
+    generator: nullCountQ
+    lessonRef: { tab: math-code, id: ddl-schema }
+    prompt: |
+      A teammate's schema declares `{=ddl}`, and every other column is declared correctly. Below are the `{=col}` values
+      exactly as the file holds them. How many NULLs will `show()` print in `{=col}`?
+    show:
+      - { id: vals, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0 }
+    hints:
+      - INT holds whole numbers only. Which values have a decimal point?
+      - Each value that does not fit becomes NULL, with no error.
+    explanation: |
+      Spark tries to [[cast|cast]] each text value to INT. Whole numbers fit. The values with a decimal point ({=nullList})
+      do not, so they become [[null-value|NULL]]: **{=answer}** of {=k}. No error appears; these are [[silent-null|silent nulls]].
+
+  - id: cast-error-mcq
+    type: mcq
+    skills: [silent-nulls, ddl-schema]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: math-code, id: ddl-schema }
+    prompt: |
+      With the INT schema still in place, a cell counts the `Y` trips and fails. Real output, trimmed:
+
+      ```text
+      Traceback (most recent call last):
+        File "<cell 4>", line 1, in <module>
+          trips.filter(trips.store_and_fwd_flag == "Y").count()
+        ...
+      pyspark.errors.exceptions.connect.NumberFormatException: [CAST_INVALID_INPUT] The value 'Y' of the type "STRING" cannot be cast to "BIGINT" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018
+      ```
+
+      Where is the real mistake, and what is the best fix?
+    options:
+      - In the schema cell, which declared the flag INT. Change it to STRING and read the file again
+      - In this cell. Write Y without quotes so that Spark compares numbers
+      - In this cell. Use try_cast, as the message suggests, and keep the INT schema
+      - In the data. Edit the CSV files and replace N and Y with 0 and 1
+    answer: 0
+    optionFeedback:
+      '2': "try_cast would turn 'Y' into NULL, so nothing matches and the count is quietly 0. The column really holds text."
+    hints:
+      - An error shows where Spark noticed the problem, not always where the mistake was made.
+    explanation: |
+      The error is raised here, but the mistake is in the [[ddl-schema-string]]: `store_and_fwd_flag INT`. Spark had
+      already turned every flag into NULL, then tried to [[cast|cast]] the text `'Y'` to a number (BIGINT, a big whole number)
+      to compare. Spark 4 runs in a strict mode, ANSI mode, by default, and so did our run, so the failed conversion stopped
+      the command; with it off, the count would quietly be 0. Declare the flag `STRING`: the count is then 1 on the lesson
+      file and 3,650 on the full data.
+
+  - id: failfast-mcq
+    type: mcq
+    skills: [ddl-schema, silent-nulls]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: fail-loudly }
+    prompt: '`help(spark.read.csv)` lists a `mode` parameter and sends you to the online "Data Source Option" page. Which `mode` value makes Spark stop with an error at the first row that does not fit the schema?'
+    options:
+      - '`mode="FAILFAST"`'
+      - '`mode="PERMISSIVE"`'
+      - '`mode="DROPMALFORMED"`'
+      - '`mode="STRICT"`'
+    answer: 0
+    optionFeedback:
+      '1': PERMISSIVE is the default. Values that do not fit become NULL, silently.
+      '2': DROPMALFORMED quietly drops the rows that do not fit. That is still silent.
+      '3': There is no STRICT mode for reading CSV files. Check the Data Source Option page.
+    hints:
+      - 'Open the "Data Source Option" page and read the row for `mode`.'
+    explanation: |
+      `FAILFAST` turns a [[silent-null|silent null]] into a loud error. The read line itself succeeds; the first [[action|action]],
+      `show()`, fails with `[FAILED_READ_FILE.NO_HINT]`. The reason, `For input string: "N"`, appears in the
+      `Caused by:` lines further down the full error.
+
+  - id: code-ddl-fix
+    type: code-fill
+    skills: [ddl-schema]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: ddl-schema }
+    prompt: 'Fix the schema (the notebook''s schema cell, cut to the lesson file''s 10 columns) so the flag letters survive, then read with it.'
+    code: |
+      schema = """
+      VendorID INT,
+      lpep_pickup_datetime TIMESTAMP,
+      store_and_fwd_flag __BLANK_1__,
+      PULocationID INT,
+      DOLocationID INT,
+      passenger_count INT,
+      trip_distance FLOAT,
+      fare_amount FLOAT,
+      tip_amount FLOAT,
+      total_amount FLOAT
+      """
+      trips = spark.read.csv(f"{BASE}/lessons/taxi12.csv", header=True, __BLANK_2__=schema)
+    blanks:
+      '1': { accept: ['STRING', 'string'], regex: '^[Ss][Tt][Rr][Ii][Nn][Gg]$', hint: a type for text }
+      '2': { accept: ['schema'], hint: the parameter that takes the types }
+    hints:
+      - The flag holds the letters N and Y. Which type holds letters?
+    explanation: |
+      `store_and_fwd_flag` holds the letters `N` and `Y`, so it needs `STRING`. `schema=schema` hands the
+      [[ddl-schema-string]] to the reader. With this fix the lesson file shows `N` and `Y` again, and the `Y` count is 1.
+
+  - id: silent-null-debug-order
+    type: order
+    skills: [silent-nulls, ddl-schema]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: application, id: hunt-silent-nulls }
+    prompt: A column shows NULL in every row. Put these debugging steps in a sensible order.
+    items:
+      - 'Notice the NULLs in `show()`, or a count of 0 in `describe()`'
+      - 'Run `printSchema()` to see the type Spark used for that column'
+      - Compare that type with the raw values in the file
+      - Change the type in the DDL schema string to one that fits the values
+      - 'Read the file again and check the column with `show()`'
+    hints:
+      - You cannot fix what you have not noticed, and you cannot trust a fix you have not checked.
+    explanation: |
+      A [[silent-null|silent null]] never raises an error, so you find it by looking. Check the [[schema|schema]] against the real values,
+      fix the [[ddl-schema-string]], then read the file again and confirm.
+
+  - id: flag-share-hand
+    type: hand-calc
+    skills: [silent-nulls]
+    difficulty: 3
+    tags: [application]
+    generator: flagShareQ
+    lessonRef: { tab: application, id: hunt-silent-nulls }
+    prompt: |
+      With the flag declared `STRING`, counting the full data's trips per vendor and flag gave this real table:
+
+      {=block}
+
+      What percent of {=whose} have the flag `Y`?
+    steps:
+      - prompt: How many trips are in the group the question asks about?
+        answer: { var: base, tol: 0 }
+        hint: 'For all trips, add every count. For vendor 1, add its two rows.'
+      - prompt: 'How many of them have the flag `Y`?'
+        answer: { var: y, tol: 0 }
+      - prompt: 'Percent with `Y`: type the number without the % sign, rounded to 2 decimals'
+        answer: { var: pct, tol: 0.005 }
+        misconceptions:
+          - { var: fraction, feedback: 'That is the fraction. Multiply by 100 to get a percent.' }
+          - { var: wrongBase, feedback: 'Check the denominator. Divide by the trips of the group the question asks about.' }
+    hints:
+      - Percent = part ÷ whole × 100.
+      - The whole is the number of trips in the group the question names.
+    explanation: |
+      {=y} ÷ {=base} × 100 = **{=pct|2}%**. Only vendor 1 ever sends `Y`. With the wrong INT schema every flag would be
+      NULL: this same count would show (1, NULL, {=vendor1|comma}) and (2, NULL, {=vendor2|comma}), and a count by flag
+      alone one NULL group of {=total|comma} trips.
+
+  - id: mean-numeric
+    type: numeric
+    skills: [pandas-describe]
+    difficulty: 1
+    tags: [math]
+    generator: meanQ
+    lessonRef: { tab: math-code, id: describe-stats }
+    prompt: 'Spark read these {=k} trips with `inferSchema=True`. What `mean` does `describe("{=col}")` print? Give 2 decimals.'
+    show:
+      - { id: vals, widget: Text, props: { body: '{=table}' } }
+    answer: { var: answer, tol: 0.01 }
+    hints:
+      - The mean is the average. Add the values, then divide.
+      - Divide by how many values there are, {=k}.
+    explanation: |
+      Sum = {=sum|4}. Mean = {=sum|4} ÷ {=k} = **{=answer|4}**.
+
+  - id: describe-null-hand
+    type: hand-calc
+    skills: [pandas-describe, silent-nulls]
+    difficulty: 3
+    tags: [math]
+    generator: describeNullQ
+    lessonRef: { tab: intuition, id: describe-and-pandas }
+    prompt: |
+      A schema declared `{=col} INT`, so the values with a decimal point became NULL. Here is what the file holds for
+      {=k} trips. Work out what `describe("{=col}")` prints.
+    show:
+      - { id: vals, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: '`count`: how many values survive (are not NULL)?'
+        answer: { var: count, tol: 0 }
+        misconceptions:
+          - { var: k, feedback: '`count` skips NULLs. The values with a decimal point became NULL.' }
+        hint: Cross out every value that has a decimal point.
+      - prompt: The sum of the surviving values
+        answer: { var: sum, tol: 0 }
+        hint: Add only the whole numbers.
+      - prompt: '`mean` (2 decimals)'
+        answer: { var: mean, tol: 0.01 }
+        misconceptions:
+          - { var: wrongMean, feedback: 'You divided by all {=k} rows. NULLs are left out, not counted as zero.' }
+    hints:
+      - '`count` and `mean` both skip NULLs.'
+    explanation: |
+      {=nulls} values became [[null-value|NULL]]. count = {=count}, sum = {=sum}, mean = {=sum} ÷ {=count} = **{=mean|2}**.
+      Dividing by all {=k} rows would give {=wrongMean|2}, a quietly wrong answer.
+
+  - id: wrong-schema-hand
+    type: hand-calc
+    skills: [ddl-schema, silent-nulls, read-csv]
+    difficulty: 3
+    tags: [code]
+    generator: wrongSchemaQ
+    lessonRef: { tab: intuition, id: ddl-schema }
+    prompt: |
+      A file holds exactly these lines:
+
+      {=block}
+
+      A teammate reads it like this:
+
+      {=codeBlock}
+
+      Work out what Spark reports, one step at a time.
+    steps:
+      - prompt: 'What does `trips.count()` return?'
+        answer: { var: rows, tol: 0 }
+        misconceptions:
+          - { var: lines, feedback: 'With `header=True` the first line holds the column names, so it is not a row.' }
+          - { var: fareKept, feedback: '`count()` counts rows, whether or not they hold NULLs. Only `describe()` skips NULLs.' }
+        hint: Count the lines, then decide what the first line is.
+      - prompt: 'How many NULLs does `trips.show()` print in `store_and_fwd_flag`?'
+        answer: { var: flagNulls, tol: 0 }
+        misconceptions:
+          - { value: 0, feedback: 'Spark raises no error here, but no letter fits INT, so each one becomes NULL.' }
+        hint: Which letters fit a whole-number type?
+      - prompt: 'What `count` does `trips.describe("fare_amount").show()` print?'
+        answer: { var: fareKept, tol: 0 }
+        misconceptions:
+          - { var: rows, feedback: '`describe()` counts only the values that are not NULL. The fares with a decimal point became NULL.' }
+        hint: Which fares fit INT?
+      - prompt: 'What `mean` does it print? Give 2 decimals.'
+        answer: { var: fareMean, tol: 0.01 }
+        misconceptions:
+          - { var: wrongMean, feedback: 'You divided by every row. The NULL fares are left out, not counted as zero.' }
+          - { var: allMean, feedback: 'That is the mean of every fare in the file. With INT, the fares with a decimal point became NULL first.' }
+        hint: Add only the fares that survived, then divide by how many there are.
+    hints:
+      - Two of the three declared types do not fit some values. Find them first.
+      - '`count()` counts rows; `describe()` counts the values that are not NULL.'
+    explanation: |
+      The file has {=lines} lines: the names and {=rows} trips, so `count()` gives **{=rows}**. No flag letter fits
+      INT, so all **{=flagNulls}** flags become [[null-value|NULL]]. The fares with a decimal point ({=nullList}) become
+      NULL too: `describe` counts **{=fareKept}** fares, and their mean is {=fareSum} ÷ {=fareKept} = **{=fareMean|2}**.
+      No step raised an error: these are [[silent-null|silent nulls]].
+
+  - id: stddev-hand
+    type: hand-calc
+    skills: [pandas-describe]
+    difficulty: 3
+    tags: [math]
+    generator: stddevQ
+    lessonRef: { tab: math-code, id: describe-stats }
+    prompt: 'Compute the `stddev` that `describe("fare_amount")` prints for these {=k} fares, step by step.'
+    show:
+      - { id: vals, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: The mean (4 decimals)
+        answer: { var: mean, tol: 0.001 }
+        hint: Add the fares and divide by how many there are.
+      - prompt: The sum of the squared differences from the mean (2 decimals)
+        answer: { var: ss, tol: 0.01 }
+        hint: For each fare, subtract the mean and square the result. Then add them up.
+      - prompt: Divide by n − 1 (this is the variance; 2 decimals)
+        answer: { var: variance, tol: 0.01 }
+        misconceptions:
+          - { var: popVar, feedback: 'You divided by n. Spark''s stddev divides by n − 1 = {=nMinus1}.' }
+      - prompt: Take the square root (this is the stddev; 2 decimals)
+        answer: { var: stddev, tol: 0.01 }
+        misconceptions:
+          - { var: popSd, feedback: 'That divides by n. Spark divides by n − 1.' }
+          - { var: variance, feedback: 'That is the variance. Take its square root.' }
+    hints:
+      - Mean first, then the squared differences, then divide by n − 1, then the square root.
+    explanation: |
+      mean = {=mean|4}. The squares add to {=ss|4}. Variance = {=ss|4} ÷ {=nMinus1} = {=variance|4}.
+      stddev = √{=variance|4} = **{=stddev|4}**.
+
+  - id: describe-string-multi
+    type: multi
+    skills: [pandas-describe, schema-types]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: describe-and-pandas }
+    prompt: |
+      This is real output of `trips.describe("fare_amount").show()` on the lesson file, read with `header=True` only:
+
+      ```text
+      +-------+------------------+
+      |summary|       fare_amount|
+      +-------+------------------+
+      |  count|                12|
+      |   mean|15.416666666666666|
+      | stddev|10.714971118048151|
+      |    min|              10.5|
+      |    max|               8.5|
+      +-------+------------------+
+      ```
+
+      Which statements are true? (Select all that apply.)
+    options:
+      - 'max is 8.5 because the column is text, and "8.5" sorts after "34.5" character by character'
+      - mean and stddev are still the real numbers, because Spark converts the text for those two
+      - The fares really range from 8.5 to 10.5
+      - count counts the values that are not null
+      - 'With `inferSchema=True`, min and max become 4.0 and 34.5'
+    answer: [0, 1, 3, 4]
+    hints:
+      - Compare the first characters of "8.5", "34.5" and "10.5".
+    explanation: |
+      With text, `min` and `max` compare character by character, so "10.5" comes first and "8.5" last. `mean` and
+      `stddev` match the numeric read exactly. With `inferSchema=True`, `describe()` prints min 4.0 and max 34.5
+      (real output). The [[summary-statistics|summary statistics]] are only as good as the column types.
+
+  - id: describe-text-hand
+    type: hand-calc
+    skills: [pandas-describe, schema-types]
+    difficulty: 3
+    tags: [math]
+    generator: describeTextQ
+    lessonRef: { tab: intuition, id: describe-and-pandas }
+    prompt: |
+      Spark read these {=k} trips with `header=True` only, so `{=col}` is a **string** column. Work out what
+      `describe("{=col}")` prints, line by line.
+    show:
+      - { id: vals, widget: Text, props: { body: '{=table}' } }
+    steps:
+      - prompt: '`count`: how many values are not NULL?'
+        answer: { var: count, tol: 0 }
+        hint: No value in this column is empty.
+      - prompt: '`mean` (2 decimals)'
+        answer: { var: mean, tol: 0.01 }
+        misconceptions:
+          - { var: sum, feedback: 'That is the sum. The mean divides it by the count.' }
+        hint: For the mean, Spark converts the text to numbers. Add the values, then divide.
+      - prompt: '`min`: type the value it prints'
+        answer: { var: min, tol: 0.0001 }
+        misconceptions:
+          - { var: numMin, feedback: 'That is the smallest number. The column is text, so `min` compares characters, first characters first.' }
+          - { var: numMax, feedback: 'That is the largest number. `min` compares the values as text, character by character.' }
+      - prompt: '`max`: type the value it prints'
+        answer: { var: max, tol: 0.0001 }
+        misconceptions:
+          - { var: numMax, feedback: 'That is the largest number. As text, the value whose first character comes last in the order wins.' }
+          - { var: numMin, feedback: 'That is the smallest number. `max` compares the values as text, character by character.' }
+    hints:
+      - '`count` and `mean` treat the text as numbers; `min` and `max` compare the text.'
+      - 'Compare first characters first, like words in a dictionary: "8.5" comes after "34.5" because "8" comes after "3".'
+    explanation: |
+      count = {=count}. The values add up to {=sum|4}, so mean = {=sum|4} ÷ {=count} = **{=mean|2}**. As text, the
+      values {=valuesText} sort with "{=minText}" first and "{=maxText}" last, so `min` is **{=minText}** and `max` is
+      **{=maxText}**. With `inferSchema=True` they would be {=numMin} and {=numMax}.
+
+  - id: stats-match
+    type: match
+    skills: [pandas-describe]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: math-code, id: describe-stats }
+    prompt: 'Match each line of `describe()` to what it reports.'
+    pairs:
+      - ['count', 'How many values are not null']
+      - ['mean', 'The average of the values']
+      - ['stddev', 'How spread out the values are around the mean']
+      - ['min', 'The smallest value, in text order for a string column']
+      - ['max', 'The largest value, in text order for a string column']
+    hints:
+      - Only two of the lines change meaning for a text column.
+    explanation: |
+      These are the [[summary-statistics|summary statistics]] of `describe()`. `summary()` prints the same lines plus 25%, 50% and 75%:
+      the values below which a quarter, half and three quarters of the column fall.
+
+  - id: topandas-mcq
+    type: mcq
+    skills: [pandas-describe]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: limit-topandas }
+    prompt: 'Why write `trips.limit(10).toPandas()` instead of `trips.toPandas()`?'
+    options:
+      - 'toPandas() copies every row into your notebook''s own memory, and 2.7 million rows can fill it and crash it'
+      - toPandas() works only on tables with 10 rows or fewer
+      - limit(10) sorts the rows before they reach pandas
+      - limit(10) picks 10 random rows, which is a fairer sample
+    answer: 0
+    optionFeedback:
+      '3': limit(10) keeps the first 10 rows Spark comes across. They are not a random sample.
+    hints:
+      - Where does a pandas table live?
+    explanation: |
+      [[pandas]] keeps the whole table in one computer's memory. `toPandas()` copies every row out of Spark into your
+      notebook's Python; with [[spark-connect]] that is not the [[driver|driver]]. `limit(10)` keeps 10 rows before they travel.
+
+  - id: code-limit-topandas
+    type: code-fill
+    skills: [pandas-describe]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: limit-topandas }
+    prompt: 'Complete the cell under "Spark DataFrames and pandas" in the notebook, so that only 10 rows travel to pandas.'
+    code: |
+      trips.__BLANK_1__(10).__BLANK_2__()
+    blanks:
+      '1': { accept: ['limit'], hint: keep a few rows }
+      '2': { accept: ['toPandas'], hint: copy to pandas }
+    hints:
+      - The second command's name has a capital P.
+    explanation: |
+      `limit(10)` keeps 10 rows in Spark. `toPandas()` then copies only those 10 into your notebook as a [[pandas]] table.

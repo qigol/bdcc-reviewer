@@ -1,0 +1,1025 @@
+scenes:
+  # ================================================================== Session 1: Meet Spark and your first DataFrame
+  - id: kitchen
+    title: Who does the work
+    goal: Who actually does the work when your notebook asks about 2.7 million taxi trips?
+    skills: [spark-session]
+    data: [q4facts]
+    derive:
+      - { fn: typeOf, in: { expr: spark }, out: ts }
+    stage:
+      - id: kitchen
+        widget: Tree
+        props:
+          collapsed: true
+          root:
+            id: order
+            label: 'Your notebook: "How many trips?"'
+            children:
+              - id: cluster
+                label: '**The cluster**: the kitchen'
+                note: a group of computers that share the work
+                children:
+                  - id: driver
+                    label: '**Driver**: the head chef'
+                    note: plans the job and splits it into tasks
+                    children:
+                      - { id: ex1, label: '**Executor 1**: a line cook', note: counts the trips in its own slice }
+                      - { id: ex2, label: '**Executor 2**: a line cook', note: counts its own slice }
+                      - { id: ex3, label: '**Executor 3**: a line cook', note: counts its own slice }
+      - id: total
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'Green-taxi trips, Oct to Dec 2017', value: '{=q4facts.rows|comma}', tone: accent }
+      - id: session
+        widget: Code
+        hidden: true
+        props:
+          title: 'Session 1, "The SparkSession: your waiter"'
+          source: |
+            from pyspark.sql import SparkSession
+
+            spark = SparkSession.builder.getOrCreate()
+      - id: connect
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **Same notebook section** (real output)
+
+            ```python
+            type(spark)
+            ```
+            ```text
+            {=ts.type}
+            ```
+      - id: roles
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: plan, label: Plans the job and splits it into tasks }
+            - { id: slice, label: Counts the trips in its own slice }
+            - { id: carry, label: Carries your command to Spark and brings the answer back }
+            - { id: sum, label: 'Hands the one total back to the waiter' }
+            - { id: same, label: Works at the same time as the others }
+            - { id: name, label: 'Is called `spark` in your notebook' }
+          bins:
+            - { id: driver, label: 'Driver (head chef)' }
+            - { id: executor, label: 'Executors (line cooks)' }
+            - { id: session, label: 'SparkSession (waiter)' }
+          solution: { plan: driver, slice: executor, carry: session, sum: driver, same: executor, name: session }
+    beats:
+      - say: |
+          Session 1 starts here. Databricks is a website that runs Spark for you, and a notebook is a page on it
+          where you type Python and run it. First run [the setup notebook](/api/modules/spark-df-basics/files/assets/00-setup-data.ipynb)
+          once: it copies the course data into your workspace. Then open
+          [the course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb).
+      - say: |
+          Your notebook asks one question: how many trips did New York's green taxis make in three months? That is
+          millions of trips. Spark shares work like this across a **cluster**: a group of computers working together,
+          like a restaurant kitchen. The same code keeps working when the data outgrows one computer.
+        define: [cluster]
+        do:
+          - { target: kitchen, cmd: highlight, args: { sel: 'node:cluster', tone: accent } }
+      - say: |
+          One part of Spark, the **driver**, is the head chef. It reads your order, plans the work and splits it into
+          small tasks.
+        define: [driver]
+        do:
+          - { target: kitchen, cmd: expand, args: { id: cluster } }
+          - { target: kitchen, cmd: highlight, args: { sel: 'node:driver', tone: accent } }
+      - say: |
+          The workers on the cluster's computers are the line cooks: the **executors**. Each one counts the trips in
+          its own slice of the data, all at the same time.
+        define: [executor]
+        do:
+          - { target: kitchen, cmd: expand, args: { id: driver } }
+          - { target: kitchen, cmd: highlight, args: { sel: ['node:ex1', 'node:ex2', 'node:ex3'], tone: good } }
+        gate:
+          type: predict
+          question: Each cook has counted its slice. How does one total come back to you?
+          options: ['Every cook sends its own count to your notebook', 'Your notebook adds up the counts itself', "One cook adds up the slices' counts, and the driver hands the total back", 'Nobody adds them: you get one count per slice']
+          answer: 2
+          explain: The cooks pass their partial counts to one cook, who adds them into one total. The head chef, the driver, hands that total back. You get one number.
+      - say: |
+          Your notebook never talks to the cooks. A waiter carries each order and brings back the result. In Spark
+          the waiter is the **SparkSession**. Line 1 of this code borrows its recipe from Spark's Python library.
+          Line 3 asks for it and stores it under the name `spark`.
+        define: [sparksession]
+        show: [session]
+      - say: |
+          On Databricks the kitchen is already staffed and open, so `getOrCreate()` hands back the session Databricks
+          started. Databricks calls this always-ready kitchen *serverless* compute. The kitchen sits in another
+          building, reached over the network: this is **Spark Connect**. `type(spark)` names the kind of object, and
+          it says `connect`.
+        define: [spark-connect]
+        show: [connect]
+      - say: Sort the jobs. Who does what?
+        show: [roles]
+        gate:
+          type: event
+          prompt: Put every job under the right part of the kitchen.
+          target: roles
+          event: solved
+      - say: Now put the whole journey of one command in order, from your notebook and back.
+        gate:
+          type: practice
+          template: count-flow-order
+    takeaway: 'The driver plans, the executors work on their own slices at the same time, and `spark` carries your commands to them.'
+
+  - id: run-order
+    title: Cells run in the order you run them
+    goal: Does a notebook still remember, after lunch, what you ran in the morning?
+    skills: [run-order]
+    state: { order: [base, read, show] }
+    derive:
+      - { fn: runCells, in: { order: '@order' }, out: r }
+    stage:
+      - id: ran
+        widget: Code
+        props: { title: 'What you ran, in order', source: '@r.code' }
+      - id: out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **{=r.outputTitle}**
+
+            {=r.output}
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Run order
+          options:
+            - { value: [show], label: 'show only' }
+            - { value: [base, show, read], label: 'BASE → show → read' }
+            - { value: [read, base, show], label: 'read → BASE → show' }
+            - { value: [base, read, show], label: 'BASE → read → show' }
+        bind: { value: order }
+      - id: fails
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: cells that failed, value: '@r.failCount', tone: warn }
+    beats:
+      - say: |
+          A Databricks notebook is a page of boxes called **cells**. A code cell holds Python. You run it with
+          Shift+Enter, and its output appears under it. Here are three cells from the lessons.
+        define: [cell]
+      - say: |
+          The first cell stores a folder path in a **variable**, `BASE`: a name that points to a value. The second
+          fills `BASE` into the file's path and makes another variable, `trips`. The third prints `trips`. Python
+          learns a name only when the cell that sets it runs.
+        define: [variable]
+        do:
+          - { target: ran, cmd: highlight, args: { sel: ['line:2', 'line:4'], tone: accent } }
+      - say: |
+          You come back after lunch. Meanwhile Databricks restarted Python and handed you a fresh `spark`. The page
+          still shows this morning's cells and their output. You run only the last cell, `trips.show()`.
+        set: { order: [show] }
+        gate:
+          type: predict
+          question: What happens?
+          options: ['It prints the 12 trips again', 'An error: Python has never heard of `trips`', 'It prints an empty table', 'Spark reads the file again by itself']
+          answer: 1
+          explain: A restart wipes every variable. Variables live in the running Python, not on the page, and the cell that makes `trips` has not run since the restart.
+      - say: |
+          Python stops and prints a **traceback**: an error report. Read its last line first. A **NameError** means
+          Python has never been given that name since the restart. The `File` line above it points at your cell and
+          the line that failed.
+        define: [traceback, name-error]
+        show: [out]
+      - say: |
+          The order on the page does not matter. What matters is the **run order**: the order in which you actually ran
+          the cells. Try the orders on the right and find one that works.
+        define: [run-order]
+        show: [pick, fails]
+        gate:
+          type: when
+          prompt: Pick a run order with no errors.
+          when: 'r.ok'
+          hint: Each cell needs the names made by the cells before it.
+      - say: |
+          Only `BASE`, then the read, then `show` works. Running the read first fails twice: the read cannot find
+          `BASE`, so `trips` is never made, and `show()` fails too. After any restart, run the cells again from the top.
+      - say: Your turn. How many cells must run before a given cell works?
+        gate:
+          type: practice
+          template: run-order-numeric
+    takeaway: Python knows only the variables made by cells you ran in this session. After a restart, run the cells again from the top.
+
+  - id: first-read
+    title: From text file to table
+    goal: How does a plain text file of trips become a table Spark can work with?
+    skills: [read-csv]
+    state: { mode: string }
+    derive:
+      - { fn: rawCsv, in: { n: 3 }, out: raw }
+      - { fn: readTaxi, in: { mode: '@mode', n: 3 }, out: t }
+    stage:
+      - id: file
+        widget: Text
+        props:
+          body: |
+            **The lesson file**, the first 4 of its {=raw.nLines} lines
+
+            {=raw.block}
+      - id: code
+        widget: Code
+        hidden: true
+        props: { title: The read, source: '@t.readCode' }
+      - id: out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`trips.show(3)`**
+
+            {=t.show}
+      - id: hdr
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Header option
+          options:
+            - { value: string, label: 'header=True' }
+            - { value: noheader, label: left out }
+        bind: { value: mode }
+      - id: facts
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: columns, value: '@t.nCols' }
+            - { label: 'rows, `trips.count()`', value: '@t.count', tone: accent }
+      - id: cols
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **What the columns hold**
+
+            - `VendorID`: which of two companies sent the trip record (1 or 2)
+            - `lpep_pickup_datetime`: when the trip started
+            - `store_and_fwd_flag`: `Y` if the meter stored the trip and sent it later because it had lost its signal, else `N`
+            - `PULocationID`, `DOLocationID`: the pickup and drop-off zone numbers
+            - `passenger_count`: how many passengers rode
+            - `trip_distance`: miles driven
+            - `fare_amount`, `tip_amount`, `total_amount`: dollars
+    beats:
+      - say: |
+          The trips arrive as a **CSV file**, short for comma-separated values. It is plain text: one trip per line,
+          with commas between the values. These are the first lines of a 12-trip lesson file, cut from the real
+          October 2017 data. The setup notebook saved this file in your workspace too.
+        define: [csv]
+      - say: |
+          On Databricks, files live in a **volume**: a storage folder inside your workspace. The course volume is
+          `/Volumes/workspace/default/bdcc`, the path stored in `BASE`. The `f` before the quotes makes Python put the
+          value of `BASE` where `{BASE}` stands. This code reads the lesson file.
+        define: [volume]
+        show: [code]
+      - say: |
+          The read turns the text into a **DataFrame**: a table of rows with named columns. Each **row** is one trip.
+          Spark can spread the rows over the cluster's computers. `show(3)` prints the first three rows.
+        define: [dataframe, row]
+        show: [out]
+      - say: |
+          Each **column** is one named field, such as `fare_amount`, with one value per trip. The names come from the
+          file's first line, because the read says `header=True`. The panel says what each column holds. In the
+          notebook, the read under "Reading CSV files" reads all three months the same way.
+        define: [column]
+        show: [cols]
+      - say: By default Spark assumes the file has no names line. Without `header=True`, it treats every line as data.
+        gate:
+          type: predict
+          question: 'Without `header=True`, what will Spark call the first column?'
+          options: ['`VendorID`', '`column1`', '`0`', '`_c0`']
+          answer: 3
+          explain: Without a header Spark has no names, so it makes up `_c0`, `_c1` and so on. It reads the names line as an ordinary row.
+      - say: |
+          Check it. Leave the header option out and watch the table and its row count. `trips.count()` counts the rows
+          of the table; the next scene says more about it.
+        show: [hdr, facts]
+        gate:
+          type: when
+          prompt: Leave the header option out.
+          when: "mode == 'noheader'"
+      - say: |
+          The columns are now `_c0` to `_c9`, and the names line became row 1, so `trips.count()` gives 13 instead of
+          12. Now switch back to `header=True`.
+        gate:
+          type: when
+          prompt: 'Switch back to `header=True`.'
+          when: "mode == 'string'"
+      - say: Your turn. Predict a count with and without the header.
+        gate:
+          type: practice
+          template: header-count-numeric
+    takeaway: '`spark.read.csv(path, header=True)` turns each line of a CSV file into a row, and its first line into column names.'
+
+  - id: show-and-count
+    title: Peeking with show and count
+    goal: How do you look at a big table without printing all of it?
+    skills: [show-inspect]
+    data: [q4facts]
+    state: { n: 20, look: { vertical: false, truncate: true } }
+    derive:
+      - { fn: readTaxi, in: { mode: string, n: '@n', vertical: '@look.vertical', truncate: '@look.truncate' }, out: t }
+    stage:
+      - id: out
+        widget: Text
+        props:
+          body: |
+            **`{=t.call}`** on the lesson file
+
+            {=t.show}
+      - id: ns
+        widget: Slider
+        region: side
+        props: { label: 'n, the rows to show', min: 1, max: 20, step: 1 }
+        bind: { value: n }
+      - id: facts
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: trip rows printed, value: '@t.rowsShown', tone: accent }
+      - id: full
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'count(), all three months', value: '{=q4facts.rows|comma}', tone: good }
+            - { label: original course data, value: '{=q4facts.originalRows|comma}' }
+      - id: look
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Layout
+          options:
+            - { value: { vertical: false, truncate: true }, label: table }
+            - { value: { vertical: true, truncate: false }, label: 'vertical, full values' }
+        bind: { value: look }
+    beats:
+      - say: |
+          `trips.show()` prints rows as a text table. It is an **action**: a command that makes Spark read the data,
+          do the work and send back a result. The read before it did not do the work. `show()` does.
+        define: [action]
+      - say: |
+          By default `show()` prints at most 20 rows, so every lesson trip fits on the screen. Ask for fewer rows.
+        gate:
+          type: when
+          prompt: 'Make `show(n)` print fewer rows than the table has.'
+          when: 't.footer'
+          hint: Drag n to the left until a last line saying "only showing" appears.
+      - say: |
+          Now the table ends with `only showing top {=n} rows`. You met `trips.count()` in the last scene. It is an
+          action too: it reads every row and returns how many there are.
+        gate:
+          type: predict
+          question: 'What does `trips.count()` return for the lesson file?'
+          answer: { value: 12 }
+          explain: 'Twelve trips. `count()` counts every row, not only the {=n} that `show()` printed. The first line of the file holds the column names, so it is not a row.'
+      - say: |
+          In the notebook, `count()` on all three months returns {=q4facts.rows|comma} trips (real output). The original
+          course printed {=q4facts.originalRows|comma}: the taxi commission has since republished its files. Rows also
+          have no fixed order. `show()` prints whichever rows come first; Module 2 shows how to sort them.
+        show: [full]
+      - say: |
+          Wide rows are hard to read. `show(3, truncate=False, vertical=True)` prints each row as a list, one column
+          per line, with long values in full. Switch the layout.
+        set: { n: 3 }
+        show: [look]
+        gate:
+          type: when
+          prompt: Switch to the vertical layout.
+          when: 'look.vertical'
+      - say: Your turn. How many rows will `show(n)` print?
+        gate:
+          type: practice
+          template: show-rows-numeric
+    takeaway: '`show(n)` prints at most n rows, and `count()` counts them all. Both are actions: they make Spark do the work.'
+
+  - id: column-not-data
+    title: Asking a table for one column
+    goal: What do you get back when you ask a table for one of its columns?
+    skills: [column-objects]
+    state: { expr: trips.columns }
+    derive:
+      - { fn: typeOf, in: { expr: '@expr' }, out: ty }
+      - { fn: helpExcerpt, in: { which: show }, out: hs }
+      - { fn: readTaxi, in: { mode: string, n: 3, truncate: 5 }, out: tr }
+    stage:
+      - id: out
+        widget: Text
+        props: { body: '{=ty.view}' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Expression
+          style: dropdown
+          options:
+            - { value: trips, label: trips }
+            - { value: trips.columns, label: trips.columns }
+            - { value: 'trips["VendorID"]', label: 'trips["VendorID"]' }
+            - { value: trips.count(), label: trips.count() }
+            - { value: 'trips.select("VendorID")', label: 'trips.select("VendorID")' }
+        bind: { value: expr }
+      - id: bins
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: df, label: '`trips`' }
+            - { id: names, label: '`trips.columns`' }
+            - { id: col, label: '`trips["VendorID"]`' }
+            - { id: num, label: '`trips.count()`' }
+            - { id: sel, label: '`trips.select("VendorID")`' }
+          bins:
+            - { id: dataframe, label: 'DataFrame (a table)' }
+            - { id: column, label: Column object }
+            - { id: list, label: 'list (of names)' }
+            - { id: int, label: 'int (a whole number)' }
+          solution: { df: dataframe, names: list, col: column, num: int, sel: dataframe }
+      - id: help
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`help(trips.show)`** (real output, trimmed; `...` marks skipped lines)
+
+            {=hs.block}
+      - id: trunc
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`{=tr.call}`** (real output)
+
+            {=tr.show}
+    beats:
+      - say: |
+          `trips.columns` gives the column names as a Python list: values in square brackets, in order. Spark needs
+          only the file's names line for it, so it reads no trips. A name after a dot with parentheses, like
+          `trips.count()`, runs a command. Without them, like `trips.columns`, it looks up a value.
+      - say: 'Now ask the table for one column by name: `trips["VendorID"]`.'
+        gate:
+          type: predict
+          question: 'What does `trips["VendorID"]` print?'
+          options: ['`Column<''VendorID''>`', 'The 12 vendor IDs, one per trip', 'A one-column table', 'An error']
+          answer: 0
+          explain: 'It prints `Column<''VendorID''>`. No trips are read, so no values come back.'
+      - say: |
+          It prints `Column<'VendorID'>`: a **Column object**. It describes the column so you can build commands with
+          it, like a dish's name on an order slip. The [[column|column]] itself, with its 12 values, stays in Spark.
+          `trips.VendorID` gives the same object.
+        define: [column-object]
+        set: { expr: 'trips["VendorID"]' }
+      - say: |
+          `type(x)` names the kind of object `x` is. Pick each expression to see what `type()` prints, then sort them.
+          `select` picks columns into a new table; Module 2 covers it.
+        show: [pick, bins]
+        gate:
+          type: event
+          prompt: Sort the five expressions by kind.
+          target: bins
+          event: solved
+      - say: |
+          Discovery task, in your notebook: run `help(trips.show)` to print the manual of `show`. A **parameter** is a
+          named setting inside the parentheses, like `header=True` in the read. `True` means yes and `False` means no.
+          Find out what the parameter `truncate` does when you give it a number.
+        define: [parameter]
+        gate:
+          type: reflect
+          prompt: What does `truncate` do when you give it a number? Write the call that shows three rows with long values cut to 5 characters.
+          model: |
+            The manual says that a number greater than one cuts long text to that many characters, and lines the
+            cells up on the right. The call is `trips.show(3, truncate=5)`. The pickup times then print as `20...`:
+            two characters plus `...` make five. Shorter values, such as the fares, stay whole.
+      - say: |
+          Here is the real manual, trimmed, and the real output of that call. The signature is the line under "Help
+          on method". In `vertical: bool = False`, `vertical` is the name, `bool` means it takes `True` or `False`,
+          and `= False` is its default. `help()` works on anything: try `help(trips.count)` next.
+        show: [help, trunc]
+      - say: Your turn. What does `type()` print?
+        gate:
+          type: practice
+          template: type-of-mcq
+    takeaway: '`trips.columns` is a list of names; `trips["VendorID"]` is a Column object that holds no values. `type()` tells them apart.'
+
+  # ================================================================== Session 2: schemas, types and inspection
+  - id: all-strings
+    title: What kind of value is a fare?
+    goal: What does Spark think a fare of 34.5 is, and can you change its mind?
+    skills: [schema-types]
+    state: { mode: string, inferUpTo: 0 }
+    derive:
+      - { fn: readTaxi, in: { mode: '@mode', n: 3 }, out: t }
+      - { fn: inferSheet, in: { upTo: '@inferUpTo' }, out: is }
+    stage:
+      - id: schema
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`trips.printSchema()`** on the lesson file
+
+            {=t.schema}
+      - id: out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`trips.show(3)`**
+
+            {=t.show}
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: How the file was read
+          options:
+            - { value: string, label: 'header=True' }
+            - { value: infer, label: 'header=True, inferSchema=True' }
+        bind: { value: mode }
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@is.rows', cols: '@is.cols', values: '@is.values', emptyLabel: '?', title: 'inferSchema, one column at a time', rowHeader: column }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: inferWalk, in: {}, roles: { sheet: sheet }, speed: 1 }
+    beats:
+      - say: |
+          Session 2 starts here ([download the notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb);
+          keep [the cheat sheet](/api/modules/spark-df-basics/files/assets/spark-cheatsheet.md) at hand).
+          Picture a printed form. Each box says what may go in it, such as "number only". A **schema** is that form
+          for a table: every column's name and the kind of value it holds. `printSchema()` prints it.
+        define: [schema]
+      - say: |
+          `printSchema()` prints one `|--` line per column: its name, its **data type**, and `nullable = true`, which
+          means values may be missing. Common types are `string` (text), `integer` (a whole number), `double` (a
+          decimal number) and `timestamp` (a date and time).
+        define: [data-type]
+      - say: This file was read with `header=True` and nothing else.
+        gate:
+          type: predict
+          question: 'What type does `fare_amount` have?'
+          options: ['`double`', '`integer`', '`string`', '`float`']
+          answer: 2
+          explain: Every column of a plain CSV read is a `string`. Spark has not looked at the values, so 34.5 is text to it.
+      - say: Here is the output. Every `|--` line says `string`, even for the fares and the IDs.
+        show: [schema]
+      - say: |
+          **inferSchema** asks Spark to guess the types. Spark reads all the data one extra time. For each column it
+          tries the strictest type first: whole number, then decimal number, then date and time. If none fits every
+          value, the column stays text. Switch it on.
+        define: [infer-schema]
+        show: [pick, out]
+        gate:
+          type: when
+          prompt: 'Read the file with `inferSchema=True`.'
+          when: "mode == 'infer'"
+      - say: |
+          Spark checks every row in one pass. Here you see its decision one column at a time. A single value that
+          does not fit decides for the whole column.
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play every column.
+          target: player
+          event: done
+      - say: |
+          Now `fare_amount` is `double`, and `show()` prints `22.0` where it printed `22`. The flag stays `string`,
+          because `N` and `Y` are not numbers. On 2.7 million trips the extra pass takes time. Next, you fill in the
+          form yourself.
+      - say: Your turn. Match each column's values to the type Spark picks.
+        gate:
+          type: practice
+          template: infer-type-match
+    takeaway: A plain CSV read makes every column a string. inferSchema reads the data again and picks the narrowest type that fits.
+
+  - id: ddl-schema
+    title: The wrong box on the form
+    goal: What happens if you tell Spark the wrong kind of value for a column?
+    skills: [ddl-schema, silent-nulls]
+    data: [q4facts]
+    state: { flagType: INT, castUpTo: 0, fareUpTo: 0 }
+    derive:
+      - { fn: flagCheck, in: { flagType: '@flagType' }, out: fc }
+      - { fn: flagCheck, in: { flagType: INT }, out: bad }
+      - { fn: castSheet, in: { col: store_and_fwd_flag, type: INT, upTo: '@castUpTo' }, out: cs }
+      - { fn: castSheet, in: { col: fare_amount, type: INT, upTo: '@fareUpTo' }, out: cf }
+    stage:
+      - id: cell
+        widget: Code
+        props: { title: "The notebook's schema cell, cut to the 10 lesson columns", source: '@fc.code' }
+      - id: out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`trips.show()`**, 4 of the 10 columns
+
+            {=fc.show}
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@cs.rows', cols: '@cs.cols', values: '@cs.values', emptyLabel: '?', title: 'Casting each flag to INT', rowHeader: trip }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: castWalk, in: { col: store_and_fwd_flag, type: INT }, roles: { sheet: sheet }, speed: 1 }
+      - id: facts
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: NULL flags, value: '@fc.nulls', tone: bad }
+            - { label: flags kept, value: '@fc.kept' }
+      - id: countcell
+        widget: Code
+        hidden: true
+        props: { title: The next cell, source: 'trips.filter(trips.store_and_fwd_flag == "Y").count()' }
+      - id: err
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **Output** (real, trimmed)
+
+            {=bad.yErrorBlock}
+      - id: fix
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: 'Type of `store_and_fwd_flag`'
+          options:
+            - { value: INT, label: INT }
+            - { value: STRING, label: STRING }
+        bind: { value: flagType }
+      - id: full
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'Y trips, lesson file', value: '{=fc.yText}' }
+            - { label: 'Y trips, all three months', value: '{=q4facts.flagY|comma}', tone: good }
+      - id: faresheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@cf.rows', cols: '@cf.cols', values: '@cf.values', emptyLabel: '?', title: 'Casting each fare to INT', rowHeader: trip }
+      - id: fareplayer
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: castWalk, in: { col: fare_amount, type: INT, key: fareUpTo }, roles: { sheet: faresheet }, speed: 1 }
+    beats:
+      - say: |
+          Now you fill in the form. A **DDL schema string** lists each column's name and type, one per line. DDL
+          means Data Definition Language: how databases write down column types. `INT` is a whole number (`integer`),
+          `FLOAT` a decimal number with fewer digits than `double`, `TIMESTAMP` a date and time, `STRING` text. One
+          type here is wrong.
+        define: [ddl-schema-string]
+        gate:
+          type: predict
+          question: Which line is wrong?
+          options: ['`VendorID INT`', '`fare_amount FLOAT`', '`lpep_pickup_datetime TIMESTAMP`', '`store_and_fwd_flag INT`']
+          answer: 3
+          explain: That column holds the letters `N` and `Y`. `INT` allows whole numbers only.
+      - say: Spark reads the file with this schema and says nothing. The next cell runs `trips.show()`.
+        do:
+          - { target: cell, cmd: highlight, args: { sel: 'anchor:flag', tone: bad } }
+        gate:
+          type: predict
+          question: 'What will `show()` print in the `store_and_fwd_flag` column?'
+          options: ['NULL in every row', '`N` and `Y`, as in the file', '`0` for each N and `1` for each Y', 'An error: Spark stops at the first N']
+          answer: 0
+          explain: No letter is a whole number, so Spark cannot store `N` or `Y` in an `INT` box. It stores nothing there, and raises no error.
+      - say: |
+          Real output: NULL in every row. A **null** is a missing value: nothing is stored there. `show()` prints it
+          as `NULL`.
+        define: [null-value]
+        show: [out]
+      - say: |
+          Why? To store a flag as `INT`, Spark must **cast** it: convert the text into a whole number. The text `2`
+          converts to the number 2. The letter `N` does not. Watch Spark cast each flag, one trip at a time.
+        define: [cast]
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play all 12 trips.
+          target: player
+          event: done
+      - say: |
+          Twelve NULLs, and no error or warning. This is a **silent null**: Spark quietly stores NULL when a value does
+          not fit its declared type. On the form, the clerk leaves the box blank and says nothing.
+        define: [silent-null]
+        show: [facts]
+      - say: |
+          The next cell counts the trips whose flag is `Y`. `filter` keeps the rows where a condition is true; Module 2
+          covers it. `==` asks "is equal to?". It has two equals signs, because one `=` stores a value.
+        show: [countcell]
+        gate:
+          type: predict
+          question: With the INT schema, what does this cell do?
+          options: ['It prints 0', 'It stops with an error', 'It prints 1', 'It prints 12']
+          answer: 1
+          explain: "Spark tries to cast the text `'Y'` to a number so it can compare. Spark 4 runs in a strict mode by default, called ANSI mode after the American National Standards Institute, and so did our run. There the failed cast stops the command."
+      - say: |
+          Real output, trimmed. `[CAST_INVALID_INPUT]` says the text `'Y'` cannot be cast to a number; BIGINT is
+          Spark's name for a big whole number. With strict mode off, the count would quietly be 0. The error points at
+          this cell, but the mistake is the schema's `INT`. Fix it: declare the flag as text.
+        show: [err, fix, full]
+        gate:
+          type: when
+          prompt: 'Change the type of the flag to `STRING`.'
+          when: "flagType == 'STRING'"
+      - say: |
+          With `STRING` the letters survive. One of the 12 lesson trips has `Y`. On all three months,
+          {=q4facts.flagY|comma} trips do (real output). Before the fix, all {=q4facts.intSchemaNulls|comma} flags were NULL.
+        gate:
+          type: reflect
+          prompt: Why is a silent null worse than an error?
+          model: |
+            An error stops you and points at a line, so you fix it at once. A silent null lets every later step run:
+            `show()` prints NULL, and counts and averages come out quietly wrong. Nobody is told. You catch it only by
+            looking at the data and comparing it with what you expect.
+      - say: |
+          A wrong type hurts numbers too. Say a schema declares `fare_amount INT`. Fares such as 22 are whole numbers
+          and fit. Watch what happens to 11.5: NULL, not 11.
+        hide: [sheet, player]
+        show: [faresheet, fareplayer]
+        gate:
+          type: event
+          prompt: Play all 12 fares.
+          target: fareplayer
+          event: done
+      - say: Your turn. Count the NULLs that a wrong type creates.
+        gate:
+          type: practice
+          template: null-count-numeric
+    takeaway: Spark trusts a DDL schema string. A value that does not fit its declared type becomes NULL silently, so check types against the data.
+
+  - id: fail-loudly
+    title: Make Spark complain
+    goal: Can you make Spark stop at a bad value instead of quietly hiding it?
+    skills: [silent-nulls, ddl-schema]
+    state: { mode: PERMISSIVE }
+    derive:
+      - { fn: failfastCheck, in: { mode: '@mode' }, out: ff }
+      - { fn: failfastCheck, in: { mode: FAILFAST }, out: ffx }
+      - { fn: helpExcerpt, in: { which: csv }, out: hc }
+    stage:
+      - id: help
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`help(spark.read.csv)`** (real output, trimmed; `...` marks skipped lines)
+
+            {=hc.block}
+      - id: cell
+        widget: Code
+        hidden: true
+        props: { title: 'The INT schema again, with a read mode', source: '@ff.code' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: mode
+          options:
+            - { value: PERMISSIVE, label: 'PERMISSIVE (the default)' }
+            - { value: FAILFAST, label: FAILFAST }
+        bind: { value: mode }
+      - id: facts
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'trips.count()', value: '@ff.count' }
+      - id: out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **{=ff.outputTitle}**
+
+            {=ff.output}
+      - id: causes
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **Further down the full error** (real output)
+
+            {=ffx.causesBlock}
+    beats:
+      - say: |
+          A silent null is worse than an error. Can you make Spark fail loudly instead? Discovery task, in your
+          notebook (Session 2): run `help(spark.read.csv)`. Look for a parameter about rows that do not fit the schema.
+        gate:
+          type: reflect
+          prompt: Which parameter did you find? Where does the manual send you to learn its values?
+          model: |
+            The parameter is `mode`. The signature lists it among 34 parameters as `mode: Optional[str] = None`: it
+            takes text, and by default it is not set. The manual never explains its values. Under "Other Parameters"
+            it sends you to the online "Data Source Option" page. That page lists three modes: `PERMISSIVE` (the
+            default, NULLs), `DROPMALFORMED` (drops bad rows) and `FAILFAST` (stops with an error).
+      - say: |
+          Here is that manual, trimmed; the signature is cut, so read it in your notebook. Find the link under "Extra
+          options": the built-in help points you to the web documentation. Reading it is part of the job. There you
+          find `mode="FAILFAST"`.
+        show: [help]
+      - say: Here is the INT schema read again, with an explicit mode, in three cells. Cell 2 counts the rows, and cell 3 prints the table.
+        show: [cell]
+        gate:
+          type: predict
+          question: 'Suppose cell 1 said `mode="FAILFAST"` instead. Which line fails first?'
+          options: ['The read in cell 1', '`trips.count()` in cell 2', '`trips.show()` in cell 3', 'None: FAILFAST only warns']
+          answer: 2
+          explain: 'The read cell reads nothing yet, and `count()` does not convert the values: it returns 12. `show()` must convert every value, so it fails first.'
+      - say: Switch the mode and compare the two outputs.
+        show: [pick, facts, out]
+        gate:
+          type: when
+          prompt: 'Switch to `FAILFAST`.'
+          when: "mode == 'FAILFAST'"
+      - say: |
+          Real output, trimmed. The last line only says Spark could not read the file. The reason sits further down
+          the full error, in the `Caused by:` lines: `For input string: "N"`. An `N` stood where a number should be.
+        show: [causes]
+      - say: |
+          Loud is better than silent: the error stops you at the first bad value. The fix is the same as before:
+          declare the flag `STRING`.
+        gate:
+          type: practice
+          template: failfast-mcq
+    takeaway: '`mode="FAILFAST"` turns a silent null into an error at the first action. `help()` points to the docs that list the modes.'
+
+  - id: describe-and-pandas
+    title: Five numbers for a column
+    goal: How can a few numbers sum up a whole column, and when do they mislead?
+    skills: [pandas-describe]
+    data: [q4facts]
+    state: { descUpTo: 12, mode: infer }
+    derive:
+      - { fn: describeSheet, in: { col: fare_amount, mode: infer, upTo: '@descUpTo' }, out: ds }
+      - { fn: describeTaxi, in: { mode: '@mode', cols: [fare_amount] }, out: dt }
+      - { fn: pandasTaxi, in: { mode: infer, n: 5 }, out: pd }
+      - { fn: pickupRange, in: { min: '@q4facts.pickupMin', max: '@q4facts.pickupMax' }, out: pr }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { rows: '@ds.rows', cols: '@ds.cols', values: '@ds.values', format: 4, title: 'The 12 lesson fares, step by step', rowHeader: trip }
+      - id: f
+        widget: Formula
+        region: side
+        props:
+          size: sm
+          step: 0
+          steps:
+            - '\text{count} = n = {=ds.n}'
+            - '\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i = \frac{ {=ds.sum} }{ {=ds.n} } = {=ds.mean|4}'
+            - 's = \sqrt{\frac{\sum_i (x_i - \bar{x})^2}{n - 1}} = \sqrt{\frac{ {=ds.ss|2} }{ {=ds.n} - 1} } = {=ds.stddev|4}'
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: describeWalk, in: { col: fare_amount, mode: '@mode' }, roles: { sheet: sheet }, speed: 2 }
+      - id: desc
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`trips.describe("fare_amount").show()`**
+
+            {=dt.block}
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: How the file was read
+          options:
+            - { value: infer, label: 'inferSchema=True' }
+            - { value: string, label: 'header=True only (text)' }
+        bind: { value: mode }
+      - id: dates
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **Earliest and latest pickup, all three months** (real output)
+
+            {=pr.block}
+      - id: pandas
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            **`trips.limit(5).toPandas()`**, as plain Python prints it
+
+            {=pd.block}
+    beats:
+      - say: |
+          How do you check 2.7 million fares without reading them? You sum them up in a few numbers: **summary
+          statistics**. `describe()` prints five of them: `count`, `mean`, `stddev`, `min` and `max`. Let's compute
+          them by hand for the 12 lesson fares.
+        define: [summary-statistics]
+      - say: |
+          `count` is the number of values that are not null: here 12. This is not `trips.count()`, which counts rows,
+          NULL or not. The `mean` is the average: add the fares and divide by the count. Its symbol is $\bar{x}$ ("x
+          bar"), and $x_i$ is the fare of trip $i$, in column x.
+        gate:
+          type: predict
+          question: What is the mean of the 12 fares? Give 2 decimals.
+          answer: { value: 15.42, tol: 0.01 }
+          explain: 'The fares add up to {=ds.sum}, and {=ds.sum} ÷ {=ds.n} = {=ds.mean|4}.'
+      - say: |
+          In the mean's formula, $\sum$ ("sigma") means add up every $x_i$, and $n$ is the count. The **standard
+          deviation**, `stddev`, measures how far the fares spread around the mean. Square each fare's distance from
+          the mean, add the squares, divide by $n - 1 = 11$ and take the square root. Play every step.
+        define: [standard-deviation]
+        show: [player]
+        do:
+          - { target: f, cmd: step, args: { n: 1 } }
+        gate:
+          type: event
+          prompt: Play all the steps.
+          target: player
+          event: done
+      - say: |
+          The last formula line is the walk you played: $s$ is the standard deviation, and $\sqrt{\ }$ takes the
+          square root. Spark agrees with your hand count. Its real `describe()` prints the mean
+          {=dt.stats.fare_amount.mean}, the stddev {=dt.stats.fare_amount.stddev}, the min {=dt.stats.fare_amount.min}
+          and the max {=dt.stats.fare_amount.max}.
+        show: [desc]
+        do:
+          - { target: f, cmd: step, args: { n: 2 } }
+      - say: Now read the same file with `header=True` only, so every fare is text.
+        gate:
+          type: predict
+          question: 'What will `describe()` print as the `max` fare?'
+          options: ['34.5', '31.0', 'An error: text has no maximum', '8.5']
+          answer: 3
+          explain: Text compares character by character, like words in a dictionary. "8" comes after "3", so "8.5" beats "34.5".
+      - say: |
+          Switch to the text read. `mean` and `stddev` stay the same, because Spark converts the text for those two.
+          `min` and `max` compare text, so the "smallest" fare is 10.5 and the "largest" is 8.5. The player's last two
+          steps now show why.
+        show: [pick]
+        gate:
+          type: when
+          prompt: Switch to the text read.
+          when: "mode == 'string'"
+      - say: |
+          Text order is right for one kind of value: dates written like `2017-10-02 08:00:03` sort in time order. On
+          all three months the earliest pickup is {=q4facts.pickupMin} and the latest {=q4facts.pickupMax} (real
+          output). Neither fits October to December 2017: bad taxi-meter clocks. Always check your data.
+        show: [dates]
+      - say: |
+          **pandas** is a Python library for tables that fit on one computer. `toPandas()` copies a Spark table into
+          it, inside your notebook's own Python. With Spark Connect that is not the driver. `limit(5)` keeps 5 rows
+          first, so only 5 travel.
+        define: [pandas]
+        show: [pandas]
+      - say: One more check before you move on.
+        gate:
+          type: reflect
+          prompt: 'What could happen if you ran `trips.toPandas()` on all 2,705,926 trips? What would you do instead?'
+          model: |
+            `toPandas()` copies every row into your notebook, the customer's small table in the kitchen picture. 2.7
+            million rows can fill its memory and crash it, or take a very long time. Keep a few rows with `limit(10)` first, or summarize the
+            data in Spark with `describe()`.
+      - say: Your turn. Compute a `stddev` by hand.
+        gate:
+          type: practice
+          template: stddev-hand
+    takeaway: describe() sums up a column in five numbers, but on a text column min and max compare text. Keep a few rows before toPandas().

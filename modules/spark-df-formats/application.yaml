@@ -1,0 +1,564 @@
+intro: |
+  Real notebooks break in the ways this course showed one at a time. Here they come together in a teammate's
+  notebook about all 2,705,926 green-taxi trips of October to December 2017. It hides four planted bugs. You run
+  it, read each real error and find the cell that holds the mistake. Then you decide whether the team should keep
+  reading CSV files or switch to the Parquet folder, and work out how much less the switch would read.
+case:
+  id: capstone
+  title: Debug a teammate's notebook
+  story: |
+    Your teammate's notebook, [spark-capstone.ipynb](/api/modules/spark-df-formats/files/assets/spark-capstone.ipynb),
+    asks three questions about the trips. Which pickup zones are the busiest? Which zones get the highest average tip
+    on long trips (over 10 miles)? How many trips carry the store-and-forward flag `Y`? (`Y` means the taxi's
+    meter had no connection, so it stored the trip and sent it later.)
+
+    Open it in Databricks Free Edition after [the setup notebook](/api/modules/spark-df-basics/files/assets/00-setup-data.ipynb)
+    has run once. Click **Run all**, and fill in the notebook's findings table yourself before you open the cells
+    below. They walk through the same four bugs with the real outputs of this notebook, run with Spark 4.0.1 on the
+    course data. The course notebook itself is
+    [spark-dataframes-free-edition.ipynb](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb).
+  state: { flagType: INT }
+  derive:
+    - { fn: capFlag, in: { flag: '@flagType' }, out: cf }
+  cells:
+    - id: teammate-notebook
+      title: The notebook and the plan
+      say: |
+        The notebook has ten code cells. Each starts with a comment such as `# Cell 4`, and Cell 1 is the setup.
+        **Run all** runs them from the top and stops at the first cell that raises an error. Fix that bug, then run
+        all again. Keep two facts at hand: the data has 2,705,926 trips, and a few thousand of them carry the flag `Y`.
+      stage:
+        - id: setup-cell
+          widget: Code
+          props:
+            title: 'Cell 1 of spark-capstone.ipynb'
+            source: |
+              # Cell 1: setup
+              BASE = "/Volumes/workspace/default/bdcc"
+              from pyspark.sql import functions as F
+        - id: error-note
+          widget: Callout
+          props:
+            kind: note
+            title: Reading the errors below
+            body: |
+              Each error is trimmed to the lines that matter: the line that names your cell (`File "<cell 2>"…`),
+              `...` for the skipped inner lines, and the last line with the error's name and message. On Databricks
+              that first line should read `File <command-…>`, and the error's name should read `AnalysisException:`
+              without the long module path. The message itself should be the same.
+      decision:
+        prompt: 'Run all stops at the first error. When can you be sure the notebook is right?'
+        type: mcq
+        options:
+          - 'As soon as Run all reaches the last cell without an error'
+          - 'When the setup cell runs, because it imports `F`'
+          - 'When every cell runs and the answers agree with the facts you know about the data'
+          - 'When Cell 4 prints five rows of trips'
+        answer: 2
+        model: |
+          A notebook can run to the end and still be wrong. One of the four bugs here prints no error at all. So the
+          last check is always the answers: compare them with facts you already know.
+    - id: bug-run-order
+      title: 'Run 1 stops at Cell 2'
+      say: |
+        The first run stops at Cell 2 with a [[name-error]]: Python has never heard of `trips` in this session. In our
+        run, carets `^^^^^` point at the name; Databricks may mark the line with an arrow instead. Find the cell in the
+        notebook that creates `trips`.
+      stage:
+        - id: run-order-code
+          widget: Code
+          props:
+            title: 'Cell 2'
+            source: |
+              # Cell 2: check the columns and their types
+              trips.printSchema()
+        - id: run-order-error
+          widget: Text
+          props:
+            body: |
+              Real output of Cell 2:
+
+              ```text
+              Traceback (most recent call last):
+                File "<cell 2>", line 2, in <module>
+                  trips.printSchema()
+                  ^^^^^
+              NameError: name 'trips' is not defined
+              ```
+      decision:
+        prompt: What kind of bug is this, and what is the fix?
+        type: mcq
+        options:
+          - 'Run order: move `trips.printSchema()` below Cell 3'
+          - 'A missing import: add an import line for `trips` to Cell 1'
+          - 'A misspelled name: write `Trips` instead of `trips`'
+          - 'A lost variable: run Cell 2 a second time'
+        answer: 0
+        model: |
+          Cell 2 uses `trips`, but Cell 3, one cell further down, is the one that reads the files into it. On a fresh
+          start, Cell 2 runs before Cell 3 has ever run. It may have worked for your teammate if they ran Cell 3 by hand
+          first. After a [[restart]], or in anyone else's fresh session, Run all goes strictly from top to bottom.
+          Moving the check below the read fixes it for everyone.
+    - id: bug-imports
+      title: 'Run 2 stops at Cell 5'
+      say: |
+        With the first bug fixed, the next run reads the files, shows five rows and stops at Cell 5. It is another NameError,
+        this time for `desc`, the function that sorts from largest to smallest. The second sort key,
+        `"PULocationID"`, is a [[tie-break]] for zones with equal counts. Compare Cell 5 with Cell 1, the setup cell.
+      stage:
+        - id: imports-code
+          widget: Code
+          props:
+            title: Cell 5
+            source: |
+              # Cell 5: question 1, the busiest pickup zones
+              busiest = trips.groupBy("PULocationID").count().orderBy(desc("count"), "PULocationID")
+              busiest.show(5)
+        - id: imports-error
+          widget: Text
+          props:
+            body: |
+              Real output of Cell 5:
+
+              ```text
+              Traceback (most recent call last):
+                File "<cell 5>", line 2, in <module>
+                  busiest = trips.groupBy("PULocationID").count().orderBy(desc("count"), "PULocationID")
+                                                                          ^^^^
+              NameError: name 'desc' is not defined
+              ```
+      decision:
+        prompt: Which fix works with Cell 1 as it is?
+        type: mcq
+        options:
+          - 'Run Cell 5 a second time'
+          - 'Put the name in quotes: `orderBy("desc", "PULocationID")`'
+          - 'Restart Python, then run Cell 5 again'
+          - 'Write `F.desc("count")`'
+        answer: 3
+        model: |
+          Cell 1 borrowed only `functions as F`; no [[import]] line borrowed `desc` itself. Cell 1 runs
+          `from pyspark.sql import functions as F`, so `F.desc` exists. Adding `from pyspark.sql.functions import desc`
+          to Cell 1 also works. Running the cell again or restarting cannot help, because neither one borrows the name.
+    - id: bug-typo-at-action
+      title: 'Run 3 stops at Cell 9'
+      say: |
+        Run 3 gets further and stops at Cell 9, at `show()`. The error is an **AnalysisException**: Spark cannot find a
+        column called `tip_amont`, and it suggests `tip_amount` first. Cells 6 to 9 are below. Look for the cell that
+        holds the misspelled name.
+      stage:
+        - id: typo-code
+          widget: Code
+          props:
+            title: Cells 6 to 9
+            badges: { shows: 'the error appears here' }
+            source: |
+              # Cell 6: keep the long trips (over 10 miles)
+              long_trips = trips.filter(F.col("trip_distance") > 10)
+
+              # Cell 7: average tip per pickup zone, for long trips
+              zone_tips = long_trips.groupBy("PULocationID").agg(F.mean("tip_amont").alias("mean_tip"))
+
+              # Cell 8: sort the zones, highest average tip first
+              top_tips = zone_tips.orderBy(F.desc("mean_tip"), "PULocationID")
+
+              # Cell 9: question 2, the zones with the highest average tip on long trips
+              top_tips.show(5)  # @a:shows
+        - id: typo-error
+          widget: Text
+          props:
+            body: |
+              Real output of Cell 9 (the first two plan lines kept):
+
+              ```text
+              Traceback (most recent call last):
+                File "<cell 9>", line 2, in <module>
+                  top_tips.show(5)
+                ...
+              pyspark.errors.exceptions.connect.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `tip_amont` cannot be resolved. Did you mean one of the following? [`tip_amount`, `fare_amount`, `tolls_amount`, `total_amount`, `trip_type`]. SQLSTATE: 42703;
+              'Sort ['mean_tip DESC NULLS LAST, 'PULocationID ASC NULLS FIRST], true
+              +- 'Aggregate [PULocationID#105], [PULocationID#105, 'avg('tip_amont) AS mean_tip#120]
+              ```
+      decision:
+        prompt: Which cell do you change?
+        type: mcq
+        options:
+          - 'Cell 9, where the error appears'
+          - 'Cell 7, where `tip_amont` is written'
+          - 'Cell 3, to add a column called `tip_amont` to the schema'
+          - 'Cell 8, the sort right before it'
+        answer: 1
+        model: |
+          Cell 9 never names that column. Cells 6 to 8 only add steps to Spark's plan, so Cells 7 and 8 ran without an
+          error. Spark checks most column names when an [[action]] such as `show()` runs the plan. The misspelled name in
+          `F.mean("tip_amont")` was checked then, two cells later; the plan line `'Aggregate` points at the step with
+          `agg`. Read the message for the bad
+          name, then search your cells for it. The first suggestion, `tip_amount`, is the right spelling. (A few
+          commands, such as `groupBy("typo")`, check names on their own line; `agg` and `orderBy` wait.)
+    - id: bug-silent-flag
+      title: 'Run 4 finishes, but Cell 10 is wrong'
+      say: |
+        Every cell runs now. Cell 10 should split the trips into `N` and `Y`. Instead it shows one NULL group (no
+        value) holding all 2,705,926 trips, and nothing raised an error: a **silent null**. Read Cell 3's [[schema]]
+        next to it. Then try the flag's type for the 12 lesson trips and watch Cell 10 change.
+      stage:
+        - id: flag-output
+          widget: Text
+          props:
+            body: |
+              Real output of Cell 10 on all the trips:
+
+              ```text
+              +------------------+-------+
+              |store_and_fwd_flag|  count|
+              +------------------+-------+
+              |              NULL|2705926|
+              +------------------+-------+
+              ```
+        - id: schema-code
+          widget: Code
+          props:
+            title: 'Cell 3'
+            source: |
+              # Cell 3: read the trips with a schema (faster than letting Spark guess the types)
+              schema = """
+              VendorID INT,
+              lpep_pickup_datetime TIMESTAMP,
+              lpep_dropoff_datetime TIMESTAMP,
+              store_and_fwd_flag INT,
+              RatecodeID INT,
+              PULocationID INT,
+              DOLocationID INT,
+              passenger_count INT,
+              trip_distance FLOAT,
+              fare_amount FLOAT,
+              extra FLOAT,
+              mta_tax FLOAT,
+              tip_amount FLOAT,
+              tolls_amount FLOAT,
+              ehail_fee FLOAT,
+              improvement_surcharge FLOAT,
+              total_amount FLOAT,
+              payment_type INT,
+              trip_type INT
+              """
+              trips = spark.read.csv(
+                  f"{BASE}/nyctaxi/green_tripdata_2017-1*.csv",
+                  sep=",",
+                  header=True,
+                  schema=schema,
+              )
+        - id: flag-pick
+          widget: Choice
+          region: side
+          props:
+            label: 'Type of `store_and_fwd_flag` in the schema'
+            options:
+              - { value: INT, label: 'INT (as in Cell 3)' }
+              - { value: STRING, label: STRING }
+          bind: { value: flagType }
+        - id: flag-small
+          widget: Text
+          region: side
+          props:
+            body: |
+              Cell 10 on the 12 lesson trips, read with the same kind of schema and the flag declared {=cf.flag}
+              (computed on this page):
+
+              {=cf.show}
+      decision:
+        prompt: 'Your teammate suggests a quicker fix: keep Cell 3 as it is, and group Cell 10 by `F.col("store_and_fwd_flag").cast("string")`. What would Cell 10 print then?'
+        type: mcq
+        options:
+          - 'Two groups: `N` with 2,702,276 trips and `Y` with 3,650'
+          - 'An error, because NULL cannot be turned into text'
+          - 'Still one NULL group of 2,705,926 trips'
+          - 'Two groups: NULL and the text `"NULL"`'
+        answer: 2
+        model: |
+          Still one NULL group. Cell 3's schema declares `store_and_fwd_flag INT`, but the files hold the letters `N`
+          and `Y`. A letter cannot become a whole number, so Spark quietly stored NULL while Cell 3 read the files.
+          The letters are gone before Cell 10 runs, and casting NULL to text gives NULL again. The fix belongs in
+          Cell 3: declare the flag `STRING`, as the Choice above shows. What caught this bug was a known fact: a few
+          thousand trips carry `Y`. (In our Spark 4 run, with Spark's strict ANSI mode on, counting them with
+          `filter(... == "Y")` was not silent: it raised `[CAST_INVALID_INPUT]`.)
+    - id: fixed-answers
+      title: The answers, and a second look
+      say: |
+        With all four fixes, Run all prints three answers. Zone 74 is the busiest, with 167,207 trips. Zone 251 has
+        the highest average tip on long trips, about 14.57 dollars. And 3,650 trips carry `Y`, against 2,702,276 `N`.
+        Before you report the second answer, count the long trips behind each average. The last table adds
+        `F.count("*")` to the same `agg`.
+      stage:
+        - id: answers-output
+          widget: Text
+          props:
+            body: |
+              Real outputs of the fixed Cells 5, 9 and 10:
+
+              ```text
+              +------------+------+
+              |PULocationID| count|
+              +------------+------+
+              |          74|167207|
+              |          41|150186|
+              |          75|149227|
+              |           7|137966|
+              |          82|127071|
+              +------------+------+
+              only showing top 5 rows
+
+              +------------+------------------+
+              |PULocationID|          mean_tip|
+              +------------+------------------+
+              |         251|14.574999809265137|
+              |         115|13.585454507307572|
+              |         118|12.859999656677246|
+              |           6|12.304000091552734|
+              |         156|   8.5649995803833|
+              +------------+------------------+
+              only showing top 5 rows
+
+              +------------------+-------+
+              |store_and_fwd_flag|  count|
+              +------------------+-------+
+              |                 N|2702276|
+              |                 Y|   3650|
+              +------------------+-------+
+              ```
+        - id: count-code
+          widget: Code
+          props:
+            title: 'A second look: how many long trips stand behind each average?'
+            source: |
+              zone_tips = long_trips.groupBy("PULocationID").agg(
+                  F.mean("tip_amount").alias("mean_tip"),
+                  F.count("*").alias("trips"),
+              )
+              zone_tips.orderBy(F.desc("mean_tip"), "PULocationID").show(5)
+              zone_tips.filter(F.col("trips") >= 100).orderBy(F.desc("mean_tip"), "PULocationID").show(5)
+        - id: count-output
+          widget: Text
+          props:
+            body: |
+              Real output (the fixed notebook, 76,787 long trips in all):
+
+              ```text
+              +------------+------------------+-----+
+              |PULocationID|          mean_tip|trips|
+              +------------+------------------+-----+
+              |         251|14.574999809265137|    4|
+              |         115|13.585454507307572|   11|
+              |         118|12.859999656677246|    1|
+              |           6|12.304000091552734|    5|
+              |         156|   8.5649995803833|    4|
+              +------------+------------------+-----+
+              only showing top 5 rows
+
+              +------------+------------------+-----+
+              |PULocationID|          mean_tip|trips|
+              +------------+------------------+-----+
+              |         166| 7.777539724059902| 2077|
+              |          24| 7.239047632280256|  147|
+              |         236| 7.077916673074166|  120|
+              |          66|6.4692342933681815| 1528|
+              |          52|  6.14624059743675|  665|
+              +------------+------------------+-----+
+              only showing top 5 rows
+              ```
+        - id: count-beyond
+          widget: Callout
+          props:
+            kind: beyond
+            title: Not in the notebook's questions
+            body: |
+              The capstone asks only for the zone with the highest average tip. Counting the trips behind each
+              average, and setting a minimum such as 100, is the extra check a careful analyst adds.
+      decision:
+        prompt: 'Zone 251''s average rests on 4 long trips, and zone 118''s on 1. What do you report for question 2?'
+        type: mcq
+        options:
+          - 'Zone 251, because the code is fixed now'
+          - 'Zone 118, because one trip is the cleanest sample'
+          - 'Nothing yet: the long decimals in `14.574999809265137` make the answer wrong'
+          - 'Each average with its trip count, or only zones with at least 100 long trips (zone 166 leads those)'
+        answer: 3
+        model: |
+          The code is right now, but the answer is fragile. An average of 4 trips can swing on one generous rider.
+          Zone 166 averages about 7.78 dollars over 2,077 long trips, a much steadier figure. The long decimals come
+          from the `FLOAT` type in Cell 3, which keeps fewer digits. They change the answer by less than a cent.
+    - id: switch-to-parquet
+      title: Would Parquet have helped?
+      say: |
+        Your teammate asks whether Cell 3 should read the [[parquet]] folder `green_2017` instead of the three
+        [[csv]] files. Run on the folder, the same cells give the same busiest zones and the same 3,650 `Y` trips. The top tip now
+        prints as `14.575`, because Parquet keeps the tips as `double`, a type with more digits.
+      stage:
+        - id: parquet-code
+          widget: Code
+          props:
+            title: Cell 3 rewritten for the Parquet folder
+            source: |
+              trips = spark.read.parquet(f"{BASE}/nyctaxi/green_2017")
+              trips.select("store_and_fwd_flag", "trip_distance", "tip_amount").printSchema()
+        - id: parquet-output
+          widget: Text
+          props:
+            body: |
+              Real outputs: the schema line above, then Cells 9 and 10 run on the Parquet folder:
+
+              ```text
+              root
+               |-- store_and_fwd_flag: string (nullable = true)
+               |-- trip_distance: double (nullable = true)
+               |-- tip_amount: double (nullable = true)
+
+              +------------+------------------+
+              |PULocationID|          mean_tip|
+              +------------+------------------+
+              |         251|            14.575|
+              |         115|13.585454545454542|
+              |         118|             12.86|
+              |           6|12.303999999999998|
+              |         156|             8.565|
+              +------------+------------------+
+              only showing top 5 rows
+
+              +------------------+-------+
+              |store_and_fwd_flag|  count|
+              +------------------+-------+
+              |                 N|2702276|
+              |                 Y|   3650|
+              +------------------+-------+
+              ```
+      decision:
+        prompt: Which of the four bugs could not have happened with the Parquet read?
+        type: mcq
+        options:
+          - 'None: the file type never changes a result'
+          - 'Only bug 4, the silent null: the flag arrives as `string`'
+          - 'All four: Parquet checks the whole notebook'
+          - 'Bugs 3 and 4: Parquet also corrects misspelled column names'
+        answer: 1
+        model: |
+          Bugs 1 to 3 are mistakes in the code: a misplaced cell, a missing import, a misspelled column. They happen
+          with any file. Bug 4 came from a hand-typed schema. Parquet stores each column's name and type with the data,
+          so nobody types a schema by hand. Parquet also reads only the columns a question needs. In Problem 1, questions
+          about one or two columns ran 2.7 to 7.4 times faster on it (local laptop, Spark 4.0.1).
+    - id: parquet-columns
+      title: How much would Cells 6 to 9 read?
+      say: |
+        On the Parquet folder, Spark opens only the columns a question needs: the [[columnar-layout|filing cabinet]]
+        of Session 5. Cells 6 to 9 keep the trips over 10 miles, then average the tip per pickup zone. Count values
+        the way Session 5 did: one value per trip for every column that is read. Cell 3's schema above lists all 19
+        columns, which is what a CSV read goes through.
+      decision:
+        prompt: 'On the Parquet folder, how many values must Spark read to answer Cells 6 to 9 for all 2,705,926 trips?'
+        type: mcq
+        options:
+          - '8,117,778 values'
+          - '5,411,852 values'
+          - '51,412,594 values'
+          - '230,361 values'
+        answer: 0
+        model: |
+          Three columns: `trip_distance` for the filter in Cell 6, then `PULocationID` and `tip_amount` for the groups
+          and averages in Cell 7. The filter must check every trip, and Parquet reads whole columns, so that is
+          3 × 2,705,926 = 8,117,778 values. Forgetting the filter column gives 2 × 2,705,926 = 5,411,852. Counting only
+          the 76,787 long trips (230,361) skips the check that finds them. A CSV goes through all 19 columns:
+          19 × 2,705,926 = 51,412,594 values, over six times as many. (This counts values, as in Session 5; real
+          Parquet also compresses each column.)
+    - id: findings-table
+      title: The findings table
+      say: |
+        Fill in one row per bug in the notebook's findings table. Note where it showed up, which cell held the
+        mistake, the error or symptom, the kind of bug and your fix. Then look for the pattern: did each bug show up
+        in the cell that held the mistake?
+      decision:
+        prompt: Write your four rows, then compare them with the model answer.
+        type: open
+        model: |
+          | Bug | Showed up in | Mistake in | Error or symptom | Kind | Fix |
+          |---|---|---|---|---|---|
+          | 1 | Cell 2 | Cell 2, placed before Cell 3 | `NameError: name 'trips' is not defined` | run order | Move `trips.printSchema()` below the read |
+          | 2 | Cell 5 | Cell 5 | `NameError: name 'desc' is not defined` | imports | Write `F.desc("count")` |
+          | 3 | Cell 9, at `show()` | Cell 7, `"tip_amont"` | `AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION]` | a column error that surfaces at an action | Spell it `"tip_amount"` |
+          | 4 | Cell 10, no error | Cell 3, `store_and_fwd_flag INT` | one NULL group of 2,705,926 trips, no `Y` row | schema type error (silent null) | Declare the flag `STRING` |
+
+          The pattern: bugs 1 and 2 showed up in the cell that held the mistake. Bug 3 showed up two cells later, at
+          an action. Bug 4 never showed up as an error; only a known fact exposed it.
+atScale:
+  title: All the data, on Databricks Free Edition
+  body: |
+    **The capstone already runs at full scale.** Its three CSV files hold 2,705,926 trips in about 239 MB of text
+    (81,903,758 + 77,272,601 + 80,039,208 bytes). The `green_2017` Parquet folder held the same trips in about 58 MB
+    in our local run. Databricks' part files may differ a little. It is smaller because each column is stored together
+    and compressed. Spark splits the reading into small jobs that
+    run side by side. So the code is the same for 12 trips or 2.7 million.
+
+    **Parquet at scale.** A question about two columns reads only those two columns. Writing with `partitionBy` adds
+    folders such as `PULocationID=74/`, and a filter on that column lets Spark skip the other folders. A `describe()` of
+    every column gains little. In Problem 1 it took 10.9 s on CSV and 18.5 s on Parquet in one run. Another run took
+    about 27 s against 19 s (local laptop, Spark 4.0.1). Databricks times will differ; the pattern is what carries over.
+
+    **JSON at scale.** The three GH Archive hours hold 35,061 events of 14 types, read straight from the `.json.gz`
+    files. Problem 5 ranks the 3,586 stars (WatchEvents). Places 9 to 11 tie at 11 stars, so the `repo_name` tie-break
+    decides the top ten. `explode` turns the pushes into 31,701 commit rows. `_metadata.file_path` splits the events
+    11,351 / 11,749 / 11,961 across the three files.
+  code:
+    - lang: python
+      title: The capstone questions on the Parquet folder (numbers from the real run)
+      source: |
+        BASE = "/Volumes/workspace/default/bdcc"
+        from pyspark.sql import functions as F
+        trips = spark.read.parquet(f"{BASE}/nyctaxi/green_2017")   # 2,705,926 trips, types included
+
+        busiest = trips.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID")
+        busiest.show(5)                                  # zone 74 first, with 167,207 trips
+
+        long_trips = trips.filter(F.col("trip_distance") > 10)          # 76,787 long trips
+        zone_tips = long_trips.groupBy("PULocationID").agg(
+            F.mean("tip_amount").alias("mean_tip"),
+            F.count("*").alias("trips"),
+        )
+        zone_tips.filter(F.col("trips") >= 100).orderBy(F.desc("mean_tip"), "PULocationID").show(5)   # zone 166 first
+        trips.groupBy("store_and_fwd_flag").count().orderBy("store_and_fwd_flag").show()   # N 2,702,276; Y 3,650
+    - lang: python
+      title: Session 6 code on all three GH Archive hours (numbers from the real run)
+      source: |
+        events = spark.read.json(f"{BASE}/gharchive/*.json.gz")
+        events.count()                                   # 35061
+        events.filter(F.col("type") == "WatchEvent").count()   # 3586
+        events.groupBy("type").count().orderBy(F.desc("count"), "type").show()   # 14 types, PushEvent first (18,291)
+        events.select(F.explode("payload.commits")).count()    # 31701
+        events.groupBy("_metadata.file_path").count().orderBy("file_path").show(truncate=False)
+tradeoffs:
+  title: CSV vs Parquet vs JSON Lines, as used in this course
+  columns: [Question, CSV, Parquet, JSON Lines]
+  rows:
+    - ['How the file is laid out', 'Text, one trip per line, values separated by commas (row by row)', 'Column by column, compressed, saved as a folder of part files', 'Text, one event per line, written as `{"name": value}`']
+    - ['Column types', 'None stored: everything is text unless you infer the types (an extra pass) or type a schema by hand', 'Stored with the data: `store_and_fwd_flag` arrives as `string`', 'Spark works them out by reading the records']
+    - ['Values inside values (structs, lists)', 'No', 'Yes', 'Yes: `actor.login`, `payload.commits`']
+    - ['Size in this course', 'About 239 MB for 2,705,926 trips', 'About 58 MB for the same trips in our local run (Databricks'' part files may differ a little)', 'Three hours of events, compressed with gzip (`.json.gz`)']
+    - ['A question about one or two columns (Problem 1, local laptop)', 'The baseline', '2.7 to 7.4 times faster', 'Not timed in this course']
+    - ['`describe()` of every number and text column (Problem 1)', '10.9 s in one run, about 27 s in another', '18.5 s in one run, about 19 s in another: little gain', 'Not timed in this course']
+    - ['Trap met in this course', 'A hand-typed schema that turns letters into NULL (capstone bug 4)', 'Split-by columns move to the end when read back', 'A dot path to a field that is not there: `actor.logn` gives `[FIELD_NOT_FOUND]`']
+    - ['Open it without Spark', 'Any text editor or spreadsheet', 'Needs a tool such as Spark or pandas', 'Any text editor, after unzipping']
+connections:
+  - module: spark-df-basics
+    note: 'Bugs 1 and 4 use ideas from its Sessions 1 and 2: the order in which cells run, and DDL schemas (column types typed out as text) with their silent nulls. The course notebook and the setup notebook are served there.'
+  - module: spark-df-debugging
+    note: 'Bugs 2 and 3 use ideas from its Sessions 3 and 4: imports, and lazy evaluation (Spark waits for an action before it checks and runs the steps). That module also teaches how to read a long error report.'
+explainBack:
+  prompt: |
+    Explain to your teammate how you found and fixed the four bugs. Say why the last one never raised an error. Then
+    say whether the team should read the Parquet folder instead of the CSV files, how much less it would read, and
+    what that switch would not fix.
+  rubric:
+    - 'Reads each error from its cell frame and its last line, skipping the long middle part'
+    - 'Explains why bug 1 appears on a fresh Run all, and fixes it for everyone, not only for this session'
+    - 'Gives a fix for bug 2 that works with Cell 1 as it is, and says why running the cell again cannot help'
+    - 'Explains why bug 3''s error appeared in a later cell than the mistake, and fixes the cell that holds it'
+    - 'Explains why bug 4 raised no error, why a fix in Cell 10 comes too late, and which known fact exposed it'
+    - 'Says which bugs the Parquet folder would prevent, and why the others remain'
+    - 'Compares, value by value, how much Parquet and the CSV files read for Cells 6 to 9'

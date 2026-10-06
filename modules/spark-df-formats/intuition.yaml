@@ -1,0 +1,1261 @@
+scenes:
+  # =================================================================== Session 5: Parquet, files and the first graded problems
+  - id: novel-vs-cabinet
+    title: The novel and the filing cabinet
+    goal: To find the average taxi fare in a big file, how much of the file do you have to read?
+    skills: [columnar-parquet]
+    data: [taxi12]
+    state: { layout: row, k: 1 }
+    derive:
+      - { fn: taxiView, in: {}, out: tv }
+      - { fn: layoutRead, in: { layout: '@layout', k: '@k' }, out: lr }
+    stage:
+      - id: trips
+        widget: Matrix
+        props:
+          rows: '@tv.matrix.rows'
+          cols: '@tv.matrix.cols'
+          values: '@tv.matrix.values'
+          emptyLabel: 'NULL'
+          rowHeader: trip
+          title: 'The 12 lesson trips: real New York green-taxi rides, 2 October 2017 (10 of the 19 columns)'
+      - id: layout-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: How the file stores the table
+          options:
+            - { value: row, label: 'Row by row (CSV)' }
+            - { value: column, label: 'Column by column (Parquet)' }
+        bind: { value: layout }
+      - id: k-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'Columns the question needs', min: 1, max: 10, step: 1 }
+        bind: { value: k }
+      - id: read
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'Values read', value: '@lr.valuesRead', format: int, tone: accent }
+            - { label: 'Values in the table', value: '@lr.rowValues', format: int }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: layoutWalk, in: { layout: '@layout' }, roles: { table: trips }, speed: 2 }
+    beats:
+      - say: |
+          Session 5 starts here. Open [the course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb)
+          at Session 5, after [the setup notebook](/api/modules/spark-df-basics/files/assets/00-setup-data.ipynb) has run once.
+          It is the original lab notebook, ported (copied and adapted) to Databricks, the website where it runs. It is a
+          list of **cells**: boxes that hold code or text and run one at a time.
+        define: [cell]
+      - say: |
+          These are 12 real taxi trips, one per row. Each **column** is one named field, such as `fare_amount`.
+          `PULocationID` and `DOLocationID` number the pick-up (PU) and drop-off (DO) zones, areas of New York.
+          `VendorID` names the company whose meter recorded the trip. Spark, a tool for big tables spread over many
+          computers, holds a table like this as a **DataFrame**.
+        define: [dataframe, column]
+      - say: |
+          Saved as a **CSV file**, the table becomes plain text: one trip per line, commas between the values.
+          That is a **row layout**: each trip's values sit side by side. It reads like a novel. To learn every
+          character's age, you read every page.
+        define: [csv, row-layout]
+        do:
+          - { target: trips, cmd: highlight, args: { sel: 'row:1', tone: accent } }
+      - say: |
+          The question: what is the average `fare_amount` of the 12 trips? In the CSV text, each fare sits in the
+          middle of its line, between the other nine values.
+        gate:
+          type: predict
+          question: How many values must Spark read from the CSV to reach all 12 fares?
+          answer: { value: 120 }
+          explain: 'Each line holds all 10 values of a trip, with the fare in the middle. Reaching all 12 fares means reading 12 whole lines: $12 \times 10 = 120$ values.'
+      - say: Play the read, line by line. The counter climbs by 10 for every fare it reaches.
+        show: [player, read]
+        gate:
+          type: event
+          prompt: Play all 12 rows.
+          target: player
+          event: done
+      - say: |
+          A filing cabinet works differently: one drawer per column. To average the fares, open only the fare drawer.
+          That is a **columnar layout**. **Parquet** is a file format built this way. It also packs each column
+          smaller and remembers each column's type.
+        define: [columnar-layout, parquet]
+        gate:
+          type: predict
+          question: With one drawer per column, how many values does the average fare need?
+          answer: { value: 12 }
+          explain: Only the `fare_amount` drawer, one value per trip. The other 108 values stay unread.
+      - say: Now the player reads the Parquet way. Play it, then flip the switch and compare the two counters.
+        set: { layout: column }
+        show: [layout-pick]
+        gate:
+          type: event
+          prompt: Play the column-by-column read.
+          target: player
+          event: done
+      - say: |
+          Real questions often need more than one column. The average tip per vendor needs two: `VendorID` and
+          `tip_amount`. The slider sets how many columns a question needs.
+        show: [k-slider]
+        gate:
+          type: when
+          prompt: Keep the column layout and make the question need 3 columns. How many values are read now?
+          when: "layout == 'column' and k == 3"
+          hint: Each column the question needs adds one drawer of 12 values.
+      - say: |
+          Three columns cost $12 \times 3 = 36$ values in Parquet. The CSV still reads all 120. The fewer columns a
+          question needs, the bigger Parquet's lead. Your turn.
+        set: { layout: column, k: 3 }
+        gate:
+          type: practice
+          template: values-read-numeric
+    takeaway: A row layout (CSV) reads every value of every row. A column layout (Parquet) reads only the columns a question needs.
+
+  - id: folder-of-files
+    title: A table is a folder
+    goal: What does a saved table look like on disk, and what changes when you split it while saving?
+    skills: [read-write-parquet]
+    data: [volume, taxi12]
+    state: { pcols: [VendorID] }
+    derive:
+      - { fn: taxiView, in: { cols: [VendorID, PULocationID, DOLocationID, store_and_fwd_flag] }, out: tv }
+      - { fn: partitionWrite, in: { cols: '@pcols', counts: false }, out: pw }
+    stage:
+      - id: vol
+        widget: Tree
+        props: { root: '@volume' }
+      - id: listing
+        widget: Text
+        region: side
+        props:
+          body: |
+            `for info in dbutils.fs.ls(f"{BASE}/nyctaxi/green_2017"): print(info.name, info.size)`
+
+            Real output of a local run. Your file names and sizes will differ, and Databricks may also list
+            `_committed_…` and `_started_…` files.
+            ```text
+            _SUCCESS 0
+            part-00000-bf49cc6a-0cad-45be-b566-0efb928315c8-c000.snappy.parquet 2014
+            part-00001-bf49cc6a-0cad-45be-b566-0efb928315c8-c000.snappy.parquet 19906164
+            part-00005-bf49cc6a-0cad-45be-b566-0efb928315c8-c000.snappy.parquet 18820086
+            part-00009-bf49cc6a-0cad-45be-b566-0efb928315c8-c000.snappy.parquet 19360796
+            ```
+      - id: trips
+        widget: Matrix
+        hidden: true
+        props:
+          rows: '@tv.matrix.rows'
+          cols: '@tv.matrix.cols'
+          values: '@tv.matrix.values'
+          rowHeader: trip
+          title: The 12 lesson trips (4 of their columns)
+      - id: wcode
+        widget: Code
+        region: side
+        hidden: true
+        props: { source: '@pw.code', title: 'Saving the 12 lesson trips, held in `trips12`' }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: 'partitionBy='
+          style: dropdown
+          options:
+            - { value: [VendorID], label: '["VendorID"]' }
+            - { value: [PULocationID], label: '["PULocationID"]' }
+            - { value: [store_and_fwd_flag], label: '["store_and_fwd_flag"]' }
+            - { value: [VendorID, store_and_fwd_flag], label: '["VendorID", "store_and_fwd_flag"]' }
+        bind: { value: pcols }
+      - id: out
+        widget: Tree
+        hidden: true
+        props: { root: '@pw.tree' }
+      - id: wplayer
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: partitionWalk, in: { cols: '@pcols' }, roles: { trips: trips, tree: out }, speed: 2 }
+      - id: back
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            `spark.read.parquet(f"{BASE}/output/sample_write").printSchema()`
+
+            {=pw.readbackSchema}
+    beats:
+      - say: |
+          This is the course folder on Databricks, called a volume. Every path in the notebook starts with `BASE`,
+          which points here. Inside `nyctaxi/`, the three monthly CSV files sit next to `green_2017/`: the same
+          trips, saved as Parquet.
+        gate:
+          type: event
+          prompt: Click `green_2017/` or a file inside it.
+          target: vol
+          event: nodeClick
+      - say: |
+          The cell at the side lists that folder. `dbutils` is Databricks' toolbox for files, and `dbutils.fs.ls(path)`
+          returns one entry per file. The `for` line repeats `print` for each entry, showing its `name` and its `size`
+          in bytes. The `f` before the quotes makes Python fill in the value of `BASE`.
+      - say: |
+          `green_2017/` is a folder, not one file. `trips = spark.read.parquet(f"{BASE}/nyctaxi/green_2017")` reads the
+          whole folder as one table, named `trips`. It needs no types and no `header` option, which tells Spark that
+          the first line holds the column names. `_SUCCESS` is an empty marker file; the `part-…` files hold the data.
+      - say: |
+          `trips.count()` counts the rows. It is an **action**: a command that makes Spark do the work and hand back
+          a result.
+        define: [action]
+        gate:
+          type: predict
+          question: How many rows does `trips.count()` return for the `green_2017/` folder?
+          options:
+            - '4, one per data file'
+            - '5, counting `_SUCCESS`'
+            - '2,705,926, every trip in the three CSV files'
+            - '12'
+          answer: 2
+          explain: 'Real output: 2705926. Spark reads all the part files as one table: the same trips as the October to December 2017 CSV files.'
+      - say: |
+          Spark can also save a table split by a column. The cell at the side saves the 12 trips with
+          `partitionBy=["VendorID"]`; `mode="overwrite"` replaces an old folder of that name. Each value gets its own
+          sub-folder, named like `VendorID=1/`: a **partition folder**, holding only the rows with that value.
+        hide: [vol, listing]
+        show: [trips, wcode]
+        define: [partition-folder]
+        gate:
+          type: predict
+          question: 'The 12 trips are saved with `partitionBy=["VendorID"]`. How many partition folders appear?'
+          answer: { value: 2 }
+          explain: 'Two vendors, 1 and 2, so two folders: `VendorID=1/` and `VendorID=2/` (real listing).'
+      - say: Play the save. Each trip drops into the folder of its `VendorID`, and each folder counts its trips.
+        show: [out, wplayer]
+        gate:
+          type: event
+          prompt: Play all 12 trips.
+          target: wplayer
+          event: done
+      - say: |
+          Split by another column and the folders change. In our local run the listing sorted the names as text,
+          character by character, like words in a dictionary. "3" comes before "7", so `PULocationID=33/` comes
+          before `PULocationID=7/`.
+        show: [pick]
+        gate:
+          type: when
+          prompt: Pick a split that makes 6 folders.
+          when: 'pw.folders == 6'
+          hint: Which column has six different values among the 12 trips? Look at the table.
+      - say: |
+          Back to `VendorID`. Spark can read the whole folder back as one table. But the `VendorID` values now live
+          only in the folder names.
+        set: { pcols: [VendorID] }
+        gate:
+          type: predict
+          question: Where does `VendorID` appear when the folder is read back?
+          options:
+            - 'First, where it was'
+            - 'Nowhere: it was lost'
+            - 'Twice'
+            - 'Last, after every other column'
+          answer: 3
+          explain: Spark rebuilds the column from the folder names and puts it at the end.
+      - say: |
+          The **schema**, the list of column names and their types, shows it: `VendorID` comes last. A query that
+          keeps only one vendor can now skip the other folder. Your turn.
+        show: [back]
+        define: [schema]
+        gate:
+          type: practice
+          template: partition-folders-numeric
+    takeaway: Spark saves a table as a folder. partitionBy adds one column=value folder per value, and that column comes back last.
+
+  - id: same-question-two-files
+    title: Same question, two files
+    goal: The same trips sit in two kinds of file. Do the answers match, and which one is faster?
+    skills: [csv-vs-parquet, columnar-parquet]
+    data: [p1timing]
+    state: { op: 2 }
+    derive:
+      - { fn: timingTable, in: { timing: '@p1timing' }, out: tt }
+      - { fn: timingPick, in: { timing: '@p1timing', op: '@op' }, out: tp }
+    stage:
+      - id: task
+        widget: Callout
+        props:
+          kind: note
+          title: 'Problem 1 (discussion), as the notebook states it'
+          body: |
+            Compare the results and run times of the cells in this section with the same cells of Sessions 2 and 3,
+            which read CSV. Which give the same or different results? Which are faster or slower? Which kinds of
+            operations benefit from Parquet?
+      - id: desc
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            `describe("PULocationID").show()` on all 2,705,926 trips (real output).
+
+            CSV read with no types (Session 2):
+            ```text
+            +-------+------------------+
+            |summary|      PULocationID|
+            +-------+------------------+
+            |  count|           2705926|
+            |   mean|111.29994870517524|
+            | stddev|  75.1865725633441|
+            |    min|                 1|
+            |    max|                99|
+            +-------+------------------+
+            ```
+            Parquet folder:
+            ```text
+            +-------+------------------+
+            |summary|      PULocationID|
+            +-------+------------------+
+            |  count|           2705926|
+            |   mean|111.29994870517524|
+            | stddev| 75.18657256334396|
+            |    min|                 1|
+            |    max|               265|
+            +-------+------------------+
+            ```
+      - id: types
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            `dtypes` lists each column's type. The two reads (real output):
+
+            | column | CSV, no types | Parquet |
+            | --- | --- | --- |
+            | VendorID | string | int |
+            | lpep_pickup_datetime | string | timestamp |
+            | lpep_dropoff_datetime | string | timestamp |
+            | store_and_fwd_flag | string | string |
+            | RatecodeID | string | int |
+            | PULocationID | string | int |
+            | DOLocationID | string | int |
+            | passenger_count | string | int |
+            | trip_distance | string | double |
+            | fare_amount | string | double |
+            | extra | string | double |
+            | mta_tax | string | double |
+            | tip_amount | string | double |
+            | tolls_amount | string | double |
+            | ehail_fee | string | double |
+            | improvement_surcharge | string | double |
+            | total_amount | string | double |
+            | payment_type | string | int |
+            | trip_type | string | int |
+      - id: chart
+        widget: Chart
+        hidden: true
+        props:
+          kind: bar
+          series: '@tt.series'
+          xLabel: operation (see the table)
+          yLabel: seconds
+          title: 'Run time in seconds: local laptop, Spark 4.0.1, the middle value (median) of 3 runs (Databricks times will differ)'
+      - id: legend
+        widget: Text
+        hidden: true
+        props: { body: '{=tt.md}' }
+      - id: op-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Operation
+          style: dropdown
+          options:
+            - { value: 1, label: 'op 1: describe().toPandas(), a summary of 17 columns' }
+            - { value: 2, label: 'op 2: describe("PULocationID").show(), one column' }
+            - { value: 3, label: 'op 3: freqItems + explode, the most frequent zones' }
+            - { value: 4, label: 'op 4: groupby, count, orderBy desc: trips per zone' }
+            - { value: 5, label: 'op 5: cast, groupby, sum, describe: total paid per vendor' }
+            - { value: 6, label: 'op 6: filter 264->193, limit(10): ten trips on one route' }
+        bind: { value: op }
+      - id: ratio
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'CSV (s)', value: '@tp.csv', format: 3 }
+            - { label: 'Parquet (s)', value: '@tp.parquet', format: 3 }
+            - { label: 'CSV ÷ Parquet', value: '@tp.ratio', format: 1, tone: accent }
+    beats:
+      - say: |
+          Problem 1 runs the Session 2 and 3 cells again, now on the Parquet folder. Same trips, two files. First
+          check: do the answers match? `describe("PULocationID")` summarizes the pick-up zone column: count, mean,
+          spread, smallest and largest value.
+        gate:
+          type: predict
+          question: 'In Session 2 the CSV was read with no types, so every value was text. What `max` does that read print for `PULocationID`?'
+          options: ['265', '99', '264', 'NULL']
+          answer: 1
+          explain: 'Text is compared character by character, like words in a dictionary. "99" beats "265" because 9 is bigger than 2. The Parquet folder stores integers and prints 265. (NULL means "no value".)'
+      - say: |
+          The real outputs. Count, mean and min agree; `stddev` (the standard deviation, which measures spread)
+          differs only in its last digits. `max` does not agree. The cause is in the [[schema]]. The plain CSV read
+          stores every column as `string` (text). Parquet kept `int` (whole numbers), `double` (decimal numbers) and
+          `timestamp` (date and time).
+        show: [desc, types]
+      - say: |
+          Now the clock. Session 3 read the CSV with `inferSchema=True`, which asks Spark to guess each column's type,
+          so both copies hold numbers. A laptop timed six of the section's cells on each copy, three times each.
+        hide: [desc, types]
+        gate:
+          type: predict
+          question: Which cell should gain the most from the filing-cabinet layout?
+          options:
+            - '`describe("PULocationID").show()`: a summary of one column'
+            - '`describe().toPandas()`: a summary of every number and text column'
+            - 'Both gain the same'
+            - 'Neither: the data are the same'
+          answer: 0
+          explain: 'One column means one drawer. Real times: 2.577 s on CSV, 0.35 s on Parquet, about 7.4 times faster.'
+      - say: |
+          The real run times. Pick an operation to see its ratio: CSV time ÷ Parquet time. Above 1, Parquet was
+          faster.
+        show: [chart, legend, op-pick, ratio]
+        gate:
+          type: when
+          prompt: Find the operation where Parquet was *slower* in this run (ratio below 1).
+          when: 'tp.ratio < 1'
+          hint: Look for the pair of bars where the second bar, Parquet, is the taller one.
+      - say: |
+          Surprise: in this run the full `describe()` took 10.9 s on CSV but 18.5 s on Parquet. A second run gave about
+          27 s against 19 s. So this cell gains little, and its time swings from run to run. It computes five numbers
+          for every number and text column, and that arithmetic takes most of the time.
+        gate:
+          type: reflect
+          prompt: Few-column work ran 2.7 to 7.4 times faster on Parquet. Why did the full `describe()` gain so little?
+          model: |
+            Parquet saves time by reading only the columns a question needs. `describe()` needs every number and text
+            column, so there is little to skip. Most of its time goes into computing five statistics for each one,
+            mostly for the text column. In our run the Parquet folder also
+            had fewer data files, so Spark split the work into fewer pieces. Parquet helps most when a query touches a
+            few columns.
+      - say: Read a speed-up from a pair of real timings.
+        gate:
+          type: practice
+          template: speedup-numeric
+    takeaway: Same data, same answers once the types match. Parquet speeds up few-column questions, not summaries of every column.
+
+  - id: restart-and-run
+    title: Run the section on its own
+    goal: Why can a cell that worked yesterday fail today, without any change?
+    skills: [restart-run-order]
+    data: [pucounts]
+    state: { cell: desc, fix: none }
+    derive:
+      - { fn: restartRun, in: { cell: '@cell', fix: '@fix', pucounts: '@pucounts' }, out: rr }
+    stage:
+      - id: setup
+        widget: Code
+        props:
+          title: 'The first two code cells of Session 5'
+          source: |
+            # Restart Python: every variable and import from earlier sessions is forgotten.
+            dbutils.library.restartPython()
+
+            # ---- next cell ----
+            BASE = "/Volumes/workspace/default/bdcc"
+            from pyspark.sql import functions as F
+
+            trips = spark.read.parquet(f"{BASE}/nyctaxi/green_2017")
+      - id: cell
+        widget: Code
+        hidden: true
+        props: { source: '@rr.code', title: '@rr.title' }
+      - id: out
+        widget: Text
+        hidden: true
+        props: { body: '{=rr.output}' }
+      - id: fix-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Fix
+          options:
+            - { value: none, label: No change }
+            - { value: import, label: Add the import line }
+            - { value: F, label: 'Use `F.`' }
+        bind: { value: fix }
+    beats:
+      - say: |
+          Session 5's notebook begins with a **restart** on purpose, as if you came back tomorrow. Python forgets
+          every variable and borrowed name from earlier cells. The next cell loads `BASE`, `F` and `trips` again. On
+          Databricks, look for Restart Python or Clear state in the notebook menus.
+        define: [restart]
+      - say: |
+          `F` is the short name the setup cell gives Spark's toolbox of column tools. So `F.desc` means "`desc` from
+          that toolbox", and `F.mean` means its `mean`. A restart erases `F` too, which is why the setup cell borrows
+          it again.
+      - say: |
+          This cell comes from the original notebook's Problem 1 section. It counts the trips of each pickup zone,
+          busiest first, using `desc`. In the original notebook it ran fine.
+        show: [cell]
+        gate:
+          type: predict
+          question: You run it right after the restart and the setup cell. What happens?
+          options:
+            - 'It prints the 20 busiest zones'
+            - '`NameError: name ''desc'' is not defined`'
+            - '`AnalysisException`: a column cannot be found'
+            - 'Nothing at all'
+          answer: 1
+          explain: '`desc` came from a line in Session 3. The restart erased it, and no cell of this section brings it back.'
+      - say: |
+          The real error, trimmed to the lines that matter. `desc` was borrowed by an **import** line in Session 3.
+          A **NameError** means Python has never heard of that name in this session. In our run, carets `^^^^` point
+          at it; Databricks may mark the line with an arrow instead.
+        show: [out]
+        define: [import, name-error]
+      - say: |
+          Make the cell run on its own. Borrow `desc` again at the top of the section. Or write `F.desc`, which needs
+          only the `F` import of the setup cell.
+        show: [fix-pick]
+        gate:
+          type: when
+          prompt: Choose a fix that makes the cell run.
+          when: 'rr.ok'
+          hint: Both fixes in the list work. Which one brings the name `desc` back?
+      - say: |
+          The cell right above it hides the same trap. `freqItems` finds the pickup zones seen in at least 1% of
+          trips, as one list; its answer is an estimate. **explode** then gives each item of that list its own row.
+          Both names were imported in Session 3. Same error, same two fixes.
+        set: { cell: explode, fix: none }
+        define: [explode]
+        gate:
+          type: when
+          prompt: Fix this cell too.
+          when: "cell == 'explode' and rr.ok"
+          hint: '`from pyspark.sql.functions import explode, desc` borrows both names at once.'
+      - say: |
+          The rule: a section sets up everything it uses in its own first cells. In the course notebook, the fix
+          cell under "Session 5 › Problem 1 › Broken on purpose: running a section on its own" adds
+          `from pyspark.sql.functions import explode, desc`. Your turn.
+        gate:
+          type: practice
+          template: restart-fix-code
+    takeaway: After a restart, only the cells you run again exist. Import what a section uses at its top, or use the F. prefix.
+
+  - id: spec-and-test
+    title: Spec, stub and test
+    goal: How can you tell that your answer to a graded problem is right before anyone grades it?
+    skills: [graded-workflow]
+    data: [testerrors]
+    stage:
+      - id: spec
+        widget: Callout
+        props:
+          kind: note
+          title: 'Problem 3 (graded), as the notebook states it'
+          body: |
+            Create a function `ave_amount` that accepts `trips` and returns a Spark DataFrame with columns
+            `PULocationID` and `mean fare amount`, which contains the average fare amount per `PULocationID`.
+            Sort by `PULocationID`.
+      - id: graded
+        widget: Callout
+        region: side
+        props:
+          kind: note
+          title: Graded and optional problems
+          body: |
+            Graded: Problems 2 and 3 (Session 5) and Problem 5 (Session 6). You may use several statements and helper
+            variables. Optional stretch: Problems 4 and 6 to 9, at the end of the notebook.
+      - id: stub
+        widget: Code
+        props:
+          title: 'The stub cell and the start of the test cell'
+          source: |
+            def ave_amount(df_trips):
+                # YOUR CODE HERE
+                raise NotImplementedError()
+
+            mean_fare = ave_amount(trips).toPandas()
+
+            assert_equal(len(mean_fare), 251)
+            assert_equal(mean_fare.columns.tolist(), ["PULocationID", "mean fare amount"])
+      - id: err
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            The original test, run on today's data (real output, trimmed):
+            ```text
+            {=testerrors.len.text}
+            ```
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: frame, label: '`File "<cell 23>", line 11, in <module>`' }
+            - { id: line, label: '`assert_equal(len(mean_fare), 255)`' }
+            - { id: actual, label: '`ACTUAL: 251`' }
+            - { id: desired, label: '`DESIRED: 255`' }
+            - { id: kind, label: '`AssertionError:` `Items are not equal:`' }
+          bins:
+            - { id: where, label: Where it failed }
+            - { id: yours, label: Your result }
+            - { id: expected, label: What the test expected }
+            - { id: what, label: What kind of failure }
+          solution: { frame: where, line: where, actual: yours, desired: expected, kind: what }
+      - id: pickup
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Problem 4's spec, in the notebook's optional stretch tasks, asks for columns `pickup_hour` and
+            `pickup_location`. A function that follows the spec meets its test (real output, trimmed):
+            ```text
+            {=testerrors.pickup.text}
+            ```
+    beats:
+      - say: |
+          Each graded problem asks you to write a **function**: a named block of code. `def name(input):` starts it,
+          and `return` hands back its result. The **spec** is a text cell. It says exactly what your function must
+          return: its columns, their names and their order.
+        define: [function, spec]
+      - say: |
+          The stub cell holds the function's first line and `raise NotImplementedError()`. That line is a placeholder:
+          it stops with an error until you replace it with your code. `df_trips` is the name the function gives to whatever
+          table you pass in. The test cell calls your function and checks the result.
+      - say: |
+          The tests use `assert_equal` from the `numpy` library. When the values match, it prints nothing. The
+          original Problem 3 test expected 255 pickup zones, but today's data has 251.
+        gate:
+          type: predict
+          question: Your correct function returns 251 rows, and the test still expects 255. Which number does the error call ACTUAL?
+          options:
+            - '255, the expected value'
+            - '4, the difference'
+            - 'No number, only "failed"'
+            - '251, your result'
+          answer: 3
+          explain: ACTUAL is what your code produced. DESIRED is what the test wanted.
+      - say: |
+          The real failing test, trimmed. An **AssertionError** stops the cell and prints both values: ACTUAL 251 is
+          yours, DESIRED 255 is the test's. Here the data changed, not your code, so the ported test now expects 251.
+        show: [err]
+        define: [assertion-error]
+      - say: Read the error like a checklist. Sort its lines.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Put each line of the error in its bin.
+          target: bins
+          event: solved
+      - say: |
+          Optional (stretch) Problem 4 keeps a deliberate mismatch from the original notebook. One column name in its
+          spec disagrees with its test. Read the real error. `item=1` points at the second name, because Python counts
+          positions from 0.
+        hide: [bins]
+        show: [pickup]
+        gate:
+          type: predict
+          question: Which name should your function use?
+          options:
+            - 'Either: the test ignores names'
+            - '`pickup_location`, the one the spec says'
+            - '`pickup_locations`, the one the test checks'
+            - 'Both columns'
+          answer: 2
+          explain: The test is what grades you. Use its DESIRED name, `pickup_locations`, and report the mismatch.
+      - say: Why should the test win?
+        gate:
+          type: reflect
+          prompt: When the spec and the test disagree, why follow the test?
+          model: |
+            The test is the part that actually runs and decides pass or fail. A spec is written by a person and can
+            contain a typo, while the test checks exact values and names. Following the test makes the function pass,
+            and its ACTUAL and DESIRED lines show exactly which name or number differs. Report the mismatch so the
+            spec can be fixed.
+      - say: Put the whole workflow in order.
+        gate:
+          type: practice
+          template: graded-steps-order
+    takeaway: 'Spec, stub, test. A failing test shows ACTUAL (yours) and DESIRED (expected); when the spec disagrees, the test decides.'
+
+  - id: top-pair
+    title: Counting pairs and averaging groups
+    goal: Which pickup and drop-off pair is the most common, and what is each zone's average fare?
+    skills: [aggregations]
+    data: [taxi12]
+    state: { pairUpTo: 0, meanUpTo: 0 }
+    derive:
+      - { fn: taxiView, in: { cols: [PULocationID, DOLocationID, fare_amount] }, out: tv }
+      - { fn: pairSheet, in: { upTo: '@pairUpTo' }, out: ps }
+      - { fn: meanSheet, in: { upTo: '@meanUpTo' }, out: ms }
+      - { fn: pairCount, in: {}, out: pc }
+      - { fn: groupMean, in: {}, out: gm }
+    stage:
+      - id: trips
+        widget: Matrix
+        props:
+          rows: '@tv.matrix.rows'
+          cols: '@tv.matrix.cols'
+          values: '@tv.matrix.values'
+          rowHeader: trip
+          title: The 12 lesson trips
+      - id: tally
+        widget: Matrix
+        hidden: true
+        props: { rows: '@ps.rows', cols: '@ps.cols', values: '@ps.values', format: int, rowHeader: pair, title: 'Trips per (pickup, drop-off) pair' }
+      - id: pplayer
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: pairCountWalk, in: {}, roles: { trips: trips, tally: tally }, speed: 1 }
+      - id: pshow
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            `trips12` holds the 12 lesson trips. Real output of
+            `trips12.groupBy("PULocationID", "DOLocationID").count().orderBy(F.desc("count"), "PULocationID", "DOLocationID").show()`:
+
+            {=pc.show}
+
+            With `orderBy(F.desc("count"))` alone, `first()` returns `{=pc.firstRepr}` and `tuple(row)` gives `{=pc.tupleRepr}`.
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@ms.rows', cols: '@ms.cols', values: '@ms.values', rowHeader: zone, title: 'Average fare per pickup zone' }
+      - id: mplayer
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: groupMeanWalk, in: {}, roles: { trips: trips, sheet: sheet }, speed: 1 }
+      - id: mshow
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output on the 12 lesson trips:
+            ```python
+            (
+                trips12.groupBy("PULocationID")
+                .agg(F.mean("fare_amount").alias("mean fare amount"))
+                .orderBy("PULocationID")
+                .show()
+            )
+            ```
+            {=gm.show}
+    beats:
+      - say: |
+          Problem 2 asks which (pickup zone, drop-off zone) pair occurs most often. `groupBy("PULocationID",
+          "DOLocationID")` puts the trips with the same pair into one group: that is **groupBy**. Then `count()`
+          counts the trips of each group. The original notebook often writes `groupby`, all lowercase: it is another
+          name for the same command.
+        define: [group-by]
+        gate:
+          type: predict
+          question: How many different pairs, and so groups, do the 12 trips have?
+          answer: { value: 11 }
+          explain: 'Only (41, 238) appears twice, in trips 1 and 7. The other 10 trips each have their own pair: $1 + 10 = 11$ groups.'
+      - say: Count along, one trip at a time. Each pair has a row in the tally; every trip adds 1 to its pair's count.
+        show: [tally, pplayer]
+        gate:
+          type: event
+          prompt: Play all 12 trips.
+          target: pplayer
+          event: done
+      - say: |
+          `orderBy(F.desc("count"))` puts the biggest count first. `first()` is an [[action]] that returns that top
+          row as a **Row**. A Row is a small record you read by name or by position. A **tuple** is a fixed list of values in
+          round brackets: `tuple(Row(VendorID=2, count=9))` gives `(2, 9)`.
+        define: [row-object, tuple]
+        gate:
+          type: predict
+          question: Problem 2 wants a triple, a tuple of three values. What does `tuple(row)` give for the 12 trips?
+          options:
+            - '`Row(PULocationID=41, DOLocationID=238, count=2)`'
+            - '`(41, 238, 2)`'
+            - '`(2, 41, 238)`'
+            - '`41`'
+          answer: 1
+          explain: 'A tuple keeps the Row''s values in column order: pickup, drop-off, count. On the full data the answer is (7, 7, 38832).'
+      - say: The real output on the 12 trips. Now count the groups of a fresh handful of trips.
+        hide: [pplayer]
+        show: [pshow]
+        set: { pairUpTo: 12 }
+        gate:
+          type: practice
+          template: pair-groups-numeric
+      - say: |
+          Problem 3 wants each pickup zone's average fare. `agg(F.mean("fare_amount"))` computes one summary value
+          per group: an **aggregation**. `.alias("mean fare amount")` gives the result column that exact name: an
+          **alias**.
+        hide: [tally, pshow]
+        show: [sheet]
+        define: [aggregation, alias]
+        gate:
+          type: predict
+          question: Zone 7 has four trips, with fares 34.5, 4.0, 8.0 and 10.5. What is its average fare?
+          answer: { value: 14.25, tol: 0.01 }
+          explain: '$(34.5 + 4.0 + 8.0 + 10.5) / 4 = 57 / 4 = 14.25$.'
+      - say: Now every zone in turn. Add its fares, then divide by its number of trips.
+        show: [mplayer]
+        gate:
+          type: event
+          prompt: Play all six zones.
+          target: mplayer
+          event: done
+      - say: |
+          The real output. Now a discovery task in your notebook. `type(x)` tells what kind of thing `x` is. A method
+          is a command attached to it, like `.count()`, and `dir(x)` lists them. `a is b` asks whether two names point
+          to the very same thing.
+        hide: [mplayer]
+        show: [mshow]
+        set: { meanUpTo: 6 }
+      - say: |
+          Run `type(trips.groupby("PULocationID"))` and list its methods with `dir(...)`. Then run
+          `F.mean is F.avg, F.mean("fare_amount"), F.avg("fare_amount")`: the commas make it print three answers at
+          once.
+        gate:
+          type: reflect
+          prompt: '`F.mean is F.avg` prints `False`, yet both build `avg(fare_amount)`. Why do they still give the same average?'
+          model: |
+            `type(...)` prints `<class 'pyspark.sql.connect.group.GroupedData'>`: a set of groups, not a table yet. Its
+            methods include `agg`, `avg`, `count`, `mean` and `sum`. `F.mean is F.avg` is `False` because they are two
+            separate Python names. But each only builds an instruction for Spark, and both build the same one,
+            `Column<'avg(fare_amount)'>`. Spark runs that instruction, so the average is the same.
+      - say: Work out one zone's average by hand, step by step.
+        gate:
+          type: practice
+          template: group-mean-hand
+    takeaway: groupBy makes the groups; count() or agg() gives one value per group; alias names it; first() returns the top Row.
+
+  # =================================================================== Session 6: nested JSON and the capstone
+  - id: nested-folders
+    title: Folders inside folders
+    goal: How do you reach a value that sits inside another value?
+    skills: [json-nested, nested-select]
+    data: [gh8]
+    state: { path: actor.login }
+    derive:
+      - { fn: ghView, in: {}, out: gv }
+      - { fn: ghRaw, in: { n: 3 }, out: raw }
+      - { fn: ghPath, in: { path: '@path' }, out: gs }
+    stage:
+      - id: raw
+        widget: Text
+        props:
+          body: |
+            The first 3 of the 8 lesson events, as stored in the file (real GitHub events, most fields removed):
+
+            {=raw.text}
+      - id: tree
+        widget: Tree
+        hidden: true
+        props: { root: '@gv.tree', orientation: right }
+      - id: cell
+        widget: Code
+        hidden: true
+        props: { source: '@gs.code', title: 'The cell, run on the 8 lesson events' }
+      - id: out
+        widget: Text
+        hidden: true
+        props: { body: '{=gs.out}' }
+      - id: path-pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: 'select("…")'
+          options:
+            - { value: login, label: '"login"' }
+            - { value: actor.logn, label: '"actor.logn"' }
+            - { value: actor.login, label: '"actor.login"' }
+        bind: { value: path }
+    beats:
+      - say: |
+          Session 6 starts here; open Session 6 of [the course notebook](/api/modules/spark-df-basics/files/assets/spark-dataframes-free-edition.ipynb).
+          GH Archive records public activity on GitHub, a website where people share code. Each event is one thing a
+          user did, such as starring a project (marking it as a favourite). The file is **JSON Lines**: one record per
+          line, written `{"name": value, ...}`.
+        define: [json-lines]
+      - say: |
+          A value can hold more named values, like a folder holding files and more folders. This folder is only a
+          picture: it lives inside each row, not on disk like Session 5's Parquet folders. `printSchema()` draws the
+          nesting as a tree. `actor` is a **struct**: a column whose values hold named fields. Find the user name.
+        show: [tree]
+        define: [struct]
+        gate:
+          type: event
+          prompt: Click the field inside `actor`.
+          target: tree
+          event: nodeClick
+          hint: 'It sits one level below `actor: struct`.'
+      - say: |
+          To reach it, write the path from the outer column to the field, joined by a dot: `"actor.login"`. That is
+          a **dot path**, like `Documents/School/notes` on your computer. `select` keeps only the columns you name.
+        define: [dot-path]
+        gate:
+          type: predict
+          question: 'What are the column names of `events.select("actor.login", "repo.name")`?'
+          options:
+            - "`['actor.login', 'repo.name']`"
+            - "`['actor', 'repo']`"
+            - "`['actor_login', 'repo_name']`"
+            - "`['login', 'name']`"
+          answer: 3
+          explain: "Real output: `['login', 'name']`. Each result column takes the last part of its path."
+      - say: 'Here is `select("actor.login")` on the 8 lesson events, with its output: one column, named `login`.'
+        show: [cell, out]
+      - say: Broken on purpose. This cell asks for `login` without saying which folder holds it.
+        hide: [out, raw, tree]
+        set: { path: login }
+        gate:
+          type: predict
+          question: What happens when it runs?
+          options:
+            - 'An error: Spark cannot find a column `login`'
+            - 'The 8 user names'
+            - 'A column of 8 NULLs'
+            - 'An empty table'
+          answer: 0
+          explain: Spark looks for `login` among the top-level columns only, and there is no such column.
+      - say: |
+          The real error on the 8 lesson events, trimmed. Spark searched the top level only. Its "Did you mean" list
+          offers top-level columns, and one of them holds `login`.
+        show: [out]
+        gate:
+          type: predict
+          question: Which suggestion is the folder that holds `login`?
+          options: ['`id`', '`repo`', '`type`', '`actor`', '`payload`']
+          answer: 3
+          explain: '`actor` holds `login`, as the tree showed. Write `"actor.login"`. On the full data Spark also suggests `org`, which holds a `login` too: the organization''s. Pick by meaning: `actor` is who did it.'
+      - say: Fix the cell. One choice has a typo after the dot; try it too, to see Spark's other complaint.
+        show: [tree, path-pick]
+        gate:
+          type: when
+          prompt: Make the cell print the user names.
+          when: "path == 'actor.login'"
+          hint: The folder first, then a dot, then the field.
+      - say: |
+          A typo after the dot, `"actor.logn"`, gives a different real error, `[FIELD_NOT_FOUND]`: Spark found the
+          folder but not the field. Your turn.
+        gate:
+          type: practice
+          template: dot-path-code
+    takeaway: A struct holds named fields. Reach one with a dot path such as "actor.login"; the result column takes the last name.
+
+  - id: stars-ranking
+    title: Ranking with ties
+    goal: Which projects got the most stars, and who wins when two of them are tied?
+    skills: [rank-ties, nested-select]
+    data: [gh8, p5top]
+    state: { starUpTo: 0, tiebreak: true }
+    derive:
+      - { fn: ghView, in: {}, out: gv }
+      - { fn: starsSheet, in: { upTo: '@starUpTo' }, out: ss }
+      - { fn: starsChain, in: { upTo: 4, tiebreak: '@tiebreak', alias: false }, out: sc }
+      - { fn: p5Board, in: { board: '@p5top' }, out: pb }
+    stage:
+      - id: events
+        widget: Matrix
+        props:
+          rows: '@gv.matrix.rows'
+          cols: '@gv.matrix.cols'
+          values: '@gv.matrix.values'
+          rowHeader: event
+          title: 'The 8 lesson events: type, actor.login, repo.name'
+      - id: tally
+        widget: Matrix
+        props: { rows: '@ss.rows', cols: '@ss.cols', values: '@ss.values', format: int, rowHeader: repository, title: Stars per repository }
+      - id: splayer
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: starsWalk, in: {}, roles: { events: events, tally: tally }, speed: 1 }
+      - id: tb
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Ties
+          options:
+            - { value: true, label: 'Then by name' }
+            - { value: false, label: 'No tie-break' }
+        bind: { value: tiebreak }
+      - id: chain
+        widget: Code
+        hidden: true
+        props: { source: '@sc.cell', title: The chain on the 8 lesson events }
+      - id: final
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=sc.final}
+      - id: board
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Problem 5's chain on all 35,061 events, places 1 to 14 (real output of `ranked.show(14, truncate=False)`):
+            {=pb.board}
+    beats:
+      - say: |
+          On GitHub, starring a repository (a project's shared code) marks it as a favourite and creates a
+          `WatchEvent`. Problem 5 asks for the ten repositories with the most stars. On the 8 lesson events, first keep
+          only the stars.
+        gate:
+          type: predict
+          question: How many of the 8 events are stars (`WatchEvent`)?
+          answer: { value: 4 }
+          explain: 'Events 3, 4, 7 and 8. Real: `events.filter(F.col("type") == "WatchEvent").count()` returns 4. `F.col("type")` names the column `type`, `==` means "equals", and `filter` keeps the rows where the test is true.'
+      - say: Count along. Skip every other kind of event, and add one star to the repository of each `WatchEvent`.
+        show: [splayer]
+        gate:
+          type: event
+          prompt: Play all 8 events.
+          target: splayer
+          event: done
+      - say: |
+          `vinta/awesome-python` leads with 2. The other two have 1 star each: a tie. A **tie-break** is a second
+          sort key, used only when the first one is equal. Problem 5 sorts tied repositories by name.
+        define: [tie-break]
+        gate:
+          type: predict
+          question: With ties sorted by name, which 1-star repository comes first?
+          options:
+            - '`phpsysinfo/phpsysinfo`'
+            - '`visionmedia/debug`'
+            - 'Either: Spark picks at random'
+            - 'Neither: tied rows are dropped'
+          answer: 0
+          explain: '"p" comes before "v", so `phpsysinfo/phpsysinfo` is second and `visionmedia/debug` third (real output).'
+      - say: The real chain and its output, with `"name"` as the second key of `orderBy`. Now switch the tie-break off.
+        show: [chain, final, tb]
+        gate:
+          type: when
+          prompt: Remove the tie-break and compare the order.
+          when: 'tiebreak == false'
+      - say: |
+          Without the tie-break, this real run happened to put `visionmedia/debug` first. Nothing guarantees that
+          order: equal counts may come out either way on another run or another computer.
+      - say: |
+          Now the full data: all 35,061 events of three hours. Places 9 to 11 tie at 11 stars: `Netflix/ice`,
+          `STRML/react-grid-layout` and `MostafaGazar/soas`, listed here in no order. Only ten repositories make
+          the cut.
+        set: { tiebreak: true }
+        gate:
+          type: predict
+          question: With ties sorted by name, which one is left out of the top ten?
+          options:
+            - '`MostafaGazar/soas`'
+            - '`Netflix/ice`'
+            - '`STRML/react-grid-layout`'
+            - 'None: the top ten then has 11 rows'
+          answer: 2
+          explain: 'Names compare character by character, by character code: M before N before S. So `STRML/react-grid-layout` is 11th and drops out. `limit(10)` keeps the first 10 rows, never more.'
+      - say: |
+          The real ranking, places 1 to 14. Without the name as tie-break, the top ten could hold any two of the
+          three tied repositories. A test that checks exact rows could then fail at random.
+        show: [board]
+        gate:
+          type: reflect
+          prompt: Why must a top-ten spec name a tie-break?
+          model: |
+            When several rows share the value at the cut-off, sorting by stars alone does not fix their order.
+            Different runs may then keep different rows. A second sort key, such as the name, fixes one order.
+            Then the top ten is the same every time, and a test that checks exact rows passes reliably.
+      - say: Count the stars of one repository in a fresh set of events.
+        gate:
+          type: practice
+          template: stars-numeric
+    takeaway: Sort by the count, then by a second key. The tie-break decides who makes the top ten, so the answer never changes.
+
+  - id: one-row-per-commit
+    title: One row per commit
+    goal: A single upload of code (a push) can carry several saved changes. How do you count the changes instead of the pushes?
+    skills: [explode-arrays]
+    data: [gh8]
+    state: { explodeUpTo: 0 }
+    derive:
+      - { fn: ghView, in: {}, out: gv }
+      - { fn: explodeCommits, in: {}, out: ec }
+      - { fn: explodeSheet, in: { upTo: '@explodeUpTo' }, out: es }
+    stage:
+      - id: events
+        widget: Matrix
+        props:
+          rows: '@gv.matrix.rows'
+          cols: '@gv.matrix.cols'
+          values: '@gv.matrix.values'
+          rowHeader: event
+          title: The 8 lesson events
+      - id: payload
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            `events.select("type", "payload.commits").show(truncate=False)` (real output):
+            {=ec.payloadShow}
+      - id: help
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            `help(F.explode)`, its first lines (real output):
+            ```text
+            Help on function explode in module pyspark.sql.functions.builtin:
+
+            explode(col: 'ColumnOrName') -> pyspark.sql.column.Column
+                Returns a new row for each element in the given array or map.
+            ```
+      - id: rows
+        widget: Matrix
+        hidden: true
+        props: { rows: '@es.rows', cols: '@es.cols', values: '@es.values', rowHeader: row, title: 'Rows after explode' }
+      - id: eplayer
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: explodeWalk, in: {}, roles: { events: events, rows: rows }, speed: 1 }
+      - id: res
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            ```python
+            (
+                events.select("actor.login", F.explode("payload.commits").alias("commit"))
+                .select("login", "commit.author.name", "commit.message")
+                .show(truncate=False)
+            )
+            ```
+            {=ec.show}
+    beats:
+      - say: |
+          A `PushEvent` sends one or more commits: saved changes to code. Two of the 8 lesson events are pushes. Your
+          task: find where their commits live, and a tool that turns them into rows.
+      - say: |
+          Discovery, in your notebook: scan the long `events.printSchema()` for `commits`. Then run
+          `[name for name in dir(F) if "explode" in name]`. It lists the `F` names that contain "explode"; `dir(F)` alone
+          lists them all. Run `help(...)` on what you find.
+        gate:
+          type: reflect
+          prompt: Where do the commits live, and which `F` function turns a list into rows? Say how you found each answer.
+          model: |
+            Searching the schema for `commits` shows it under `payload`, so the path is `payload.commits`. It is a
+            list whose elements hold `author` (with `name`) and `message`. Filtering `dir(F)` on "explode" gives
+            names such as `explode` and `explode_outer`. `help(F.explode)` says it returns a new row for each element.
+            So `F.explode("payload.commits")` turns each commit into its own row.
+      - say: |
+          They live in `payload.commits`. There, each push holds a list of commits: an **array**. The other events
+          show NULL, which means no value at all.
+        show: [payload]
+        define: [array]
+      - say: |
+          The manual says it: one new row for each element. That is [[explode]], met in Session 5's broken cell.
+          Each commit becomes its own row, and the other columns, such as the login, are copied into it.
+        show: [help]
+        gate:
+          type: predict
+          question: How many rows does exploding `payload.commits` give for the 8 lesson events?
+          answer: { value: 3 }
+          explain: '$0 + 1 + 0 + 0 + 0 + 2 + 0 + 0 = 3$: one row per commit. Events whose list is NULL give no row.'
+      - say: Count along, event by event.
+        hide: [help]
+        show: [rows, eplayer]
+        gate:
+          type: event
+          prompt: Play all 8 events.
+          target: eplayer
+          event: done
+      - say: |
+          The real result: 3 rows, one per commit, each with the pusher's `login`. On all three hours, the same code
+          gives 31,701 commit rows from 18,291 pushes.
+        show: [res]
+        gate:
+          type: reflect
+          prompt: Why does the exploded table have fewer rows than there are events here, and when would it have more?
+          model: |
+            Exploding makes one row per commit, not per event. Here six of the 8 events have no commits (NULL), so
+            they give no row. The two pushes give 1 + 2 = 3 rows. When most events are pushes with several commits
+            each, the table grows instead. On all three hours, 18,291 pushes give 31,701 rows.
+      - say: Your turn. Count the rows for a fresh set of events.
+        gate:
+          type: practice
+          template: explode-rows-numeric
+    takeaway: explode gives each list element its own row and copies the other columns. Rows whose list is NULL or empty disappear.
+
+  - id: where-did-it-come-from
+    title: Which file did a row come from?
+    goal: Three files went into one table. Which file did each row come from?
+    skills: [file-metadata]
+    data: [ghfiles]
+    derive:
+      - { fn: filePath, in: { files: '@ghfiles' }, out: fp }
+    stage:
+      - id: code
+        widget: Code
+        props:
+          title: 'Events per hour file (from the notebook)'
+          source: |
+            (
+                events.groupBy(F.col("_metadata.file_path").alias("file"))
+                .count()
+                .orderBy("file")
+                .show(truncate=False)
+            )
+      - id: full
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            The same count, written `events.groupBy("_metadata.file_path").count().orderBy("file_path").show(truncate=False)`.
+            Real counts; each path is shown as Databricks is expected to print it, because our local run printed a
+            laptop path. The notebook's cell names the column `file` instead.
+
+            {=fp.full}
+      - id: chart
+        widget: Chart
+        hidden: true
+        props: { kind: bar, series: '@fp.series', xLabel: hour file, yLabel: events, title: 'Events per GH Archive hour file' }
+    beats:
+      - say: |
+          `spark.read.json(f"{BASE}/gharchive/*.json.gz")` reads three hour files into one table; `*` matches any
+          name. Every table read from files also has a hidden column, `_metadata`. Its field
+          **`_metadata.file_path`** holds the path of the file each row came from.
+        define: [file-path-metadata]
+      - say: This cell groups the events by that path, a [[dot-path]] into the hidden column, and counts each group.
+        gate:
+          type: predict
+          question: How many rows will its result have?
+          answer: { value: 3 }
+          explain: 'One group per file: the hours 15, 16 and 17.'
+      - say: The real counts per file. Each event came from exactly one file, so the counts must add up to the whole table.
+        show: [full, chart]
+        gate:
+          type: predict
+          question: Add the three counts. What total must `events.count()` return?
+          answer: { value: 35061 }
+          explain: '$11351 + 11749 + 11961 = 35061$, the real `events.count()`.'
+      - say: |
+          That is Session 6's last new idea. Next comes the capstone: a teammate's notebook with four planted bugs.
+          After it, the optional stretch Problems 4 and 6 to 9 wait at the end of the notebook. Problem 6 builds on
+          [[explode]]. First, practise the per-file count.
+        gate:
+          type: practice
+          template: file-path-code
+    takeaway: The hidden column _metadata.file_path names each row's source file. Counts per file add up to the whole table.

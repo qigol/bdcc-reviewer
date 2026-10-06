@@ -1,0 +1,569 @@
+sections:
+  # =====================================================================================
+  # Session 3
+  # =====================================================================================
+  - id: import-styles
+    title: Three ways to import
+    skills: [imports, builtin-clash]
+    summary: |
+      Python's [[built-in-function|built-in functions]] need no [[import]]. `functions as F` borrows Spark's whole
+      toolbox under one label. A [[wildcard-import]] copies every tool under its bare name and covers Python's
+      `round`, `max` and `sum`. Step through the notebook's cells and watch what each name means.
+    keyFormula: '\texttt{from pyspark.sql import functions as F}'
+    derive:
+      - { fn: importCode, in: {}, out: ic }
+    live:
+      - id: names
+        widget: Matrix
+        props: { rows: '@ic.start.rows', cols: '@ic.start.cols', values: '@ic.start.values', emptyLabel: '@ic.start.emptyLabel', rowHeader: name, title: What each name means in the notebook }
+    steps:
+      - tex: |
+          \anchor{builtin}{\texttt{round(4.567, 1)}} \;\to\; {=ic.results.round} \qquad \text{(Python's built-in function: no import)}
+        say: |
+          The notebook's "Session 3 › Imports: borrowing tools" section. `round`, `max` and `sum` come with Python.
+          They print {=ic.results.round}, {=ic.results.max} and {=ic.results.sum} in a fresh notebook.
+      - tex: |
+          \anchor{import-f}{\texttt{from pyspark.sql import functions as F}} \;\Rightarrow\; \anchor{fdesc}{\texttt{F.desc("count")}} \;\to\; \text{Spark's desc}
+        say: |
+          Same section. `as F` creates one new name, `F`, for the whole [[module]]; `type(F)` prints
+          `{=ic.results.typeF}`. Spark's tools are reached through it, and nothing else changes.
+      - tex: |
+          \anchor{star}{\texttt{from pyspark.sql.functions import *}} \;\Rightarrow\; \texttt{round},\ \texttt{max},\ \texttt{sum} = \text{Spark's versions}
+        say: |
+          The notebook's "Session 3 › Broken on purpose: the wildcard import" section. The star copies every tool
+          under its bare name, and 12 of Python's
+          [[built-in-function|built-ins]] are covered, `round`, `max` and `sum` among them.
+      - tex: |
+          \anchor{clash}{\texttt{round(4.567, 1)}} \;\to\; \texttt{ {=ic.clash} } \qquad \anchor{fix}{\texttt{from builtins import round, max, sum}} \;\to\; \texttt{ {=ic.fixed} }
+        say: |
+          Spark's `round` expects a column, so the call fails with a bare `{=ic.clash}`. The same section's fix (the
+          extra tab) takes Python's versions back from the `builtins` module. Better: never use the star.
+    code:
+      lang: python
+      source: |
+        """Three ways to borrow tools (Session 3: "Imports: borrowing tools", then the wildcard import)."""
+        # Python's own tools need no import
+        print(round(4.567, 1))    # one decimal place    # @a:builtin
+        print(max(3, 7))          # the larger number    # @a:builtin
+        print(sum([1, 2, 3]))     # adds up a list       # @a:builtin
+
+        # The recommended import
+        # @a import-f
+        from pyspark.sql import functions as F
+        type(F)
+        # @end
+        # next cell: a tool reached through F
+        F.desc("count")           # @a:fdesc
+
+        # Broken on purpose (AssertionError)
+        from pyspark.sql.functions import *    # @a:star
+        round(4.567, 1)                        # @a:clash
+    extraCode:
+      - lang: python
+        title: 'The fix: Python''s own versions back'
+        source: |
+          """Take Python's own versions back from the builtins module."""
+          # @a fix
+          from builtins import abs, ascii, bin, filter, hash, hex, max, min, pow, round, slice, sum
+          print(round(4.567, 1), max(3, 7), sum([1, 2, 3]))
+          # @end
+    links:
+      - { anchor: builtin, label: 'Built-in functions', say: 'No import line: Python has `round`, `max` and `sum` from the start.' }
+      - { anchor: import-f, label: 'The F import', say: 'Loads the module `pyspark.sql.functions` under the short name `F`.' }
+      - { anchor: fdesc, label: 'F.desc', say: 'A Spark tool, reached through the label `F`.' }
+      - { anchor: star, label: 'Wildcard import', say: 'Every tool under its bare name; same-named tools are silently replaced.' }
+      - { anchor: clash, label: 'The clash', say: 'The name `round` now points at Spark''s version, which wants a column.' }
+      - { anchor: fix, label: 'The fix', say: 'The `builtins` module is where Python keeps its own versions.' }
+    trace: { fn: importCode, in: {} }
+    examples: [import-f-scope, import-star-scope, wildcard-round-error, wildcard-max-error, desc-without-import, import-code-trace]
+    pitfalls:
+      - 'Writing `from pyspark.sql.functions import *` to save typing: it silently replaces 12 of Python''s built-ins, including `round`, `max` and `sum`.'
+      - 'Reading a bare `AssertionError` after `round(...)` as a maths problem. It means the name `round` points at the wrong tool.'
+      - '`F.desc(...)` without the `as F` line raises `NameError: name ''F'' is not defined`.'
+    examTip: 'Import once, at the top of the session, with `from pyspark.sql import functions as F`; then write `F.col`, `F.desc` and `F.sum`.'
+    tryIt: [clash-why-mcq, code-import-f, import-match]
+
+  - id: group-count-order
+    title: Group, count and sort
+    skills: [group-order]
+    summary: |
+      `groupBy` sorts the trips into one group per zone, and `count()` counts each group. `orderBy(F.desc("count"),
+      "PULocationID")` puts the biggest count first, with the zone number as [[tie-break]]. Step through to count
+      along on the twelve trips.
+    keyFormula: '\texttt{df.groupBy("k").count().orderBy(F.desc("count"), "k")}'
+    data: [q4facts]
+    state: { zone: 7 }
+    derive:
+      - { fn: groupCountCode, in: { n: 5 }, out: gc }
+      - { fn: zoneCount, in: { zone: '@zone' }, out: zc }
+      - { fn: tripsView, in: { cols: [PULocationID] }, out: tz }
+    live:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tz.rows', cols: '@tz.cols', values: '@tz.values', rowHeader: trip, title: Pickup zone of each trip }
+      - id: tally
+        widget: Matrix
+        props: { rows: '@gc.empty.rows', cols: '@gc.empty.cols', values: '@gc.empty.values', emptyLabel: '@gc.empty.emptyLabel', format: int, rowHeader: zone, title: 'count per zone, filled as the trips are read' }
+      - id: out
+        widget: Text
+        props: { body: '@gc.out' }
+    steps:
+      - tex: |
+          \anchor{group}{\texttt{groupBy("PULocationID")}} \;\Rightarrow\; \text{one group per zone } z
+        say: |
+          Station 1 sorts the trips into groups that share a pickup zone. On its own it returns
+          [[grouped-data]], not a table. The first chain in the notebook's "Session 3 › Grouping, counting and
+          sorting" section writes `trips.groupby(trips["PULocationID"])`:
+          `groupby` is another spelling of `groupBy`, and `trips["PULocationID"]` (or `trips.PULocationID`) is
+          another way to name the column.
+      - tex: |
+          \anchor{count}{\text{count}(z) = \sum_{i=1}^{12} [\,\texttt{PULocationID}_i = z\,]}
+        say: |
+          $\sum$ ("sum") adds one term per trip $i$ from 1 to 12. The bracket is 1 when trip $i$ starts in zone $z$
+          and 0 otherwise, so the sum counts that zone's trips.
+      - tex: |
+          \text{count}({=zone}) = {=zc.terms} = {=zc.count}
+        say: 'Zone {=zone} on the twelve trips: trips {=zc.trips}. Type another zone number to count it instead.'
+      - tex: |
+          \anchor{order}{\texttt{orderBy(F.desc("count"), "PULocationID")}} \;\Rightarrow\; \text{count high to low, ties by zone, low to high}
+        say: |
+          The second key is the [[tie-break]]. Without it, zones with equal counts can come out in any order.
+      - tex: |
+          \anchor{show}{\texttt{show(5)}} \;\Rightarrow\; \text{the first } {=gc.shown} \text{ rows}
+        say: |
+          The [[action]]: Spark runs the chain and prints. On the full quarter the same chain puts zone
+          {=q4facts.topZones.0.zone} first, with {=q4facts.topZones.0.trips|comma} trips.
+      - tex: |
+          \anchor{cast}{\texttt{withColumn("total\_amount", trips.total\_amount.cast("float"))}} \;\Rightarrow\; \text{the column replaced by a less precise copy}
+        say: |
+          From the same notebook section, in the extra tab. `withColumn(name, value)` adds a column, or replaces the one with that
+          name. `.cast("float")` converts a column to another type: `float` keeps about 7 digits, `double` about 16.
+          The sums then show tiny rounding errors (see the errata).
+    code:
+      lang: python
+      source: |
+        """Trips per pickup zone, busiest first (Session 3: "Grouping, counting and sorting")."""
+        from pyspark.sql import functions as F
+
+        # The notebook's first version (no tie-break)
+        from pyspark.sql.functions import explode, desc
+        (trips.groupby(trips["PULocationID"]).count().orderBy(desc("count")).show())
+
+        # The F style, with a tie-break
+        (
+            trips.groupBy("PULocationID")                # @a:group
+            .count()                                     # @a:count
+            .orderBy(F.desc("count"), "PULocationID")    # @a:order
+            .show(5)                                     # @a:show
+        )
+    extraCode:
+      - lang: python
+        title: 'Cast, then sum (same notebook section)'
+        source: |
+          """The total per vendor (the company whose meter recorded the trip), after a cast."""
+          (
+              trips.withColumn("total_amount", trips.total_amount.cast("float"))    # @a:cast
+              .groupby("VendorID")
+              .sum("total_amount")
+              .describe()
+              .show()
+          )
+    links:
+      - { anchor: group, label: groupBy, say: 'Returns GroupedData: the groups, waiting for a summary.' }
+      - { anchor: count, label: 'count(z)', say: 'Adds a column `count`: the number of trips in each group.' }
+      - { anchor: order, label: orderBy with a tie-break, say: '`F.desc` sorts high to low; the second key decides ties.' }
+      - { anchor: show, label: 'show(5)', say: 'The action: prints the first 5 rows.' }
+      - { anchor: cast, label: 'withColumn and cast', say: 'Replaces `total_amount` with a copy converted to `float`, a type with fewer digits.' }
+    trace: { fn: groupCountCode, in: { n: 5 } }
+    examples: [t12-groupby-count, t12-groupby-desc, t12-groupby-tiebreak, group-count-code, tally-walk, zone-count-7, t12-cast-float-sum, t12-sum-double]
+    errata:
+      - 'The first chain in the notebook''s "Session 3 › Grouping, counting and sorting" section sorts with `orderBy(desc("count"))` and no tie-break. On the twelve trips zones 33, 41 and 74 tie at 2, and a real run printed them as 41, 33, 74: an order nothing guarantees. Add `"PULocationID"` as a second key.'
+      - 'The cast example in the same section turns `total_amount`, already a double, into a `float`. The sums then show float artifacts: on the twelve trips `86.25000095367432` instead of `86.25` (real runs). Leave the column as it is.'
+    pitfalls:
+      - 'Calling `.show()` right after `groupBy`: GroupedData has no `show()`. Add a summary such as `count()` first.'
+      - 'Sorting with `F.desc("count")` alone and trusting the order of tied zones.'
+      - 'Reading the `count` column as the number of groups. It counts trips **in** each group; the number of rows is the number of groups.'
+    examTip: 'When a spec says "then by name" or "then by zone", that is the tie-break: make it the second argument of `orderBy`.'
+    tryIt: [top-zone-numeric, code-tiebreak, group-hand]
+
+  - id: filter-rows
+    title: Filtering rows
+    skills: [select-filter]
+    summary: |
+      `filter` keeps the rows where a [[condition]] is true; `where` is its twin. Join conditions with `&` (and), `|`
+      (or) and `~` (not), each in its own parentheses; Python's `and` fails on Spark columns. Step through both tests
+      on each of the twelve trips.
+    keyFormula: '\texttt{df.filter((F.col("a") > x) \& (F.col("b") > y))}'
+    state: { x: 10, y: 0 }
+    derive:
+      - { fn: filterCode, in: { x: '@x', y: '@y' }, out: fc }
+      - { fn: tripsView, in: { cols: [PULocationID, fare_amount, tip_amount] }, out: tf }
+    live:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tf.rows', cols: '@tf.cols', values: '@tf.values', rowHeader: trip, title: The twelve trips }
+      - id: kept
+        widget: Text
+        props: { body: '**Kept:** {=fc.count} of 12 trips (fare above {=x} and tip above {=y}).' }
+    steps:
+      - tex: |
+          \text{kept} = \#\{\, i : \text{cond}(i) \text{ is true} \,\}
+        say: |
+          Read it as: the number of trips $i$ for which cond($i$) is true. `filter` keeps trip $i$ when its condition
+          is true, and `count()` counts what is left.
+      - tex: |
+          \text{cond}(i) = (\anchor{fare}{\texttt{fare\_amount}_i > x}) \;\texttt{\&}\; (\anchor{tip}{\texttt{tip\_amount}_i > y})
+        say: |
+          `&` keeps a row only when both tests are true. `|` needs one of them, and `~` flips true and false. Each
+          test sits in its own parentheses.
+      - tex: |
+          \anchor{count}{\text{kept}} = {=fc.count} \qquad (x = {=x},\ y = {=y})
+        say: 'The fix in the notebook''s "Session 3 › Broken on purpose: `and` between conditions" section uses $x = 10$ and $y = 0$. Change $x$ or $y$ above and step through again.'
+    code:
+      lang: python
+      source: |
+        """Keep the rows where a condition holds (Session 3: "Filtering rows", then the `and` fix)."""
+        # One condition
+        trips.filter(trips.total_amount > 1000).count()
+
+        # Either condition, with |
+        trips.filter((F.col("PULocationID") == 7) | (F.col("PULocationID") == 33)).count()
+
+        # Both conditions, with &, one per line
+        trips.filter(
+            (F.col("fare_amount") > 10)    # @a:fare
+            & (F.col("tip_amount") > 0)    # @a:tip
+        ).count()                          # @a:count
+    extraCode:
+      - lang: python
+        title: 'Broken on purpose: and between conditions'
+        source: |
+          """Broken on purpose: Python's and between two Spark conditions (PySparkValueError)."""
+          trips.filter((F.col("fare_amount") > 10) and (F.col("tip_amount") > 0)).count()
+    links:
+      - { anchor: fare, label: 'Test 1: fare > x', say: '`F.col("fare_amount")` points to the column by name.' }
+      - { anchor: tip, label: 'Test 2: tip > y', say: '`&` joins it to test 1: both must be true.' }
+      - { anchor: count, label: 'count()', say: 'The action: how many trips passed.' }
+    trace: { fn: filterCode, in: { x: '@x', y: '@y' } }
+    examples: [t12-filter-gt10-count, t12-filter-and, t12-filter-or-count, filter-code-trace, filter-walk-fare, filter-walk-fare-tip, filter-python-and]
+    pitfalls:
+      - 'Writing `and`, `or` or `not` between Spark conditions: Python raises `PySparkValueError: [CANNOT_CONVERT_COLUMN_INTO_BOOL]`. Use `&`, `|` and `~`.'
+      - 'Leaving out the parentheses around each condition: Python then groups the `&` first, and the condition breaks.'
+      - 'Counting the rows that fail the test: `filter` keeps the rows where the condition is **true**.'
+      - '`>` is strict: a fare of exactly 10 does not pass `> 10`.'
+    examTip: 'One condition per pair of parentheses, joined by `&` or `|`; check the result with `.count()` before building on it.'
+    tryIt: [filter-count-numeric, filter-or-numeric, code-and-fix]
+
+  - id: chain-steps
+    title: Reading a chain station by station
+    skills: [method-chain]
+    summary: |
+      A [[method-chain]] is read one station at a time: each call returns a new table for the next. The chain in
+      the notebook's "Session 3 › Frequent items" section makes a one-row [[list]] of frequent zones, `explode`s it
+      into rows, then `drop`s the list.
+      Only `show()` is an [[action]]. Step through it on the twelve trips.
+    keyFormula: '\text{support}(z) = \frac{\text{count}(z)}{n}, \quad \texttt{explode(list)} \to \text{one row per item}'
+    derive:
+      - { fn: freqChainCode, in: { support: 0.3 }, out: fq }
+      - { fn: zoneCount, in: { zone: 7 }, out: z7 }
+      - { fn: tripsView, in: { cols: [PULocationID] }, out: tz }
+    live:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tz.rows', cols: '@tz.cols', values: '@tz.values', rowHeader: trip, title: Pickup zone of each trip }
+      - id: freq
+        widget: Matrix
+        props: { rows: '@fq.empty.rows', cols: '@fq.empty.cols', values: '@fq.empty.values', emptyLabel: '@fq.empty.emptyLabel', rowHeader: row, title: 'The table after explode, filled as the chain runs' }
+    steps:
+      - tex: |
+          \anchor{freq}{\text{support}(z) = \frac{\text{count}(z)}{n} \ge 0.3}
+        say: |
+          `freqItems(["PULocationID"], 0.3)` looks for zones found in at least 30% of the $n$ rows. Its support is
+          that share. The method is approximate: the list may include zones below the line.
+      - tex: |
+          \text{support}(7) = \frac{ {=z7.count} }{12} \ge 0.3 \qquad \text{listed: } {=fq.items}
+        say: 'Zone 7 truly reaches 30%. Zones {=fq.extra} appear in only 2 of 12 trips: approximate extras.'
+      - tex: |
+          \anchor{explode}{\texttt{explode("PULocationID\_freqItems")}} \;\Rightarrow\; \text{one row per list item}
+        say: '`withColumn` adds a new column, `freq_items`. `explode` fills it: each zone in the list gets its own row. The old list column repeats on every row until `drop` removes it.'
+      - tex: |
+          \anchor{drop}{\texttt{drop("PULocationID\_freqItems")}} \;\Rightarrow\; \texttt{freq\_items} \text{ only}, \qquad \anchor{show}{\texttt{show()}} \;\Rightarrow\; \text{run}
+        say: |
+          `drop` removes the list column. `show()` is the chain's only action: before it, nothing ran. To check a
+          station, cut the chain there and add `.show()`.
+    code:
+      lang: python
+      source: |
+        """The explode chain from Session 3, "Frequent items", on the twelve trips."""
+        from pyspark.sql.functions import explode    # as the notebook has it
+
+        # The notebook uses 0.01 on the full quarter; 0.3 suits twelve rows
+        (
+            trips.freqItems(["PULocationID"], 0.3)                          # @a:freq
+            .withColumn("freq_items", explode("PULocationID_freqItems"))    # @a:explode
+            .drop("PULocationID_freqItems")                                 # @a:drop
+            .show()                                                         # @a:show
+        )
+    extraCode:
+      - lang: python
+        title: Cut after station 2
+        source: |
+          """The same chain cut after station 2, to check it."""
+          (
+              trips.freqItems(["PULocationID"], 0.3)
+              .withColumn("freq_items", explode("PULocationID_freqItems"))
+              .show(5)
+          )
+      - lang: python
+        title: 'Another way: replace, then rename'
+        source: |
+          """The section's second version: replace the list column, then rename it."""
+          (
+              trips.freqItems(["PULocationID"], 0.3)
+              .withColumn("PULocationID_freqItems", explode("PULocationID_freqItems"))
+              .withColumnRenamed("PULocationID_freqItems", "freq_items")
+              .show()
+          )
+    links:
+      - { anchor: freq, label: 'freqItems', say: 'One row holding one list: the zones above the support line (approximately).' }
+      - { anchor: explode, label: explode, say: 'Turns each item of a list into its own row.' }
+      - { anchor: drop, label: drop, say: 'Removes a column; the rows stay.' }
+      - { anchor: show, label: 'show()', say: 'The action that runs every station.' }
+    trace: { fn: freqChainCode, in: { support: 0.3 } }
+    examples: [t12-freqitems, t12-freqitems-explode, t12-cell63, freq-chain-code, t12-chain-step2, t12-chain-step3-error, t12-chain-step4, t12-chain-step5, chain-prefix-rows]
+    errata:
+      - 'The chains in the notebook''s "Frequent items" and "Grouping, counting and sorting" sections each import `explode` again, and `desc` arrives only with the grouping chain, so any later cell that uses `desc` silently depends on that one having run. Import once at the top, preferably `from pyspark.sql import functions as F`, and write `F.explode` and `F.desc`.'
+    pitfalls:
+      - 'Cutting a chain right after `groupBy` and adding `.show()`: GroupedData has no `show()` (a real [[attribute-error|AttributeError]]). Cut after `count()` instead.'
+      - 'Trusting `freqItems` as exact: at support 0.3 it lists zones 33 and 74, which appear in only 2 of the 12 trips.'
+      - 'Leaving out the outer parentheses: without them, a chain cannot continue on the next line.'
+    examTip: 'To debug a chain, cut it after any station and add `.show()`; the first table that looks wrong points to the station to fix.'
+    tryIt: [chain-rows-numeric, chain-order, chain-hand]
+
+  - id: function-wrap
+    title: Wrapping a chain in a function
+    skills: [functions-def]
+    summary: |
+      `def name(df):` stores a [[method-chain]] as a reusable [[function]], and `return` hands its result back.
+      Without `return` the function hands back [[none|None]], and the next `.show()` fails. Step through the call on
+      the twelve trips.
+    keyFormula: '\texttt{def f(df): return df.groupBy("k").count()}'
+    derive:
+      - { fn: functionCode, in: { n: 5 }, out: fn }
+      - { fn: tripsView, in: { cols: [PULocationID] }, out: tz }
+    live:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tz.rows', cols: '@tz.cols', values: '@tz.values', rowHeader: trip, title: 'df = trips: what goes in' }
+      - id: result
+        widget: Matrix
+        props: { rows: '@fn.result.rows', cols: '@fn.result.cols', values: '@fn.result.values', format: int, rowHeader: row, title: What comes back }
+    steps:
+      - tex: |
+          \anchor{def}{\texttt{def top\_pickups(df):}} \;\Rightarrow\; \text{store the function; nothing runs yet}
+        say: |
+          `def` names the function. `df` is its parameter, a placeholder for the table you pass in. The indented
+          lines are the body; the first one is a docstring that says what the function does.
+      - tex: |
+          \anchor{call}{\texttt{top\_pickups(trips)}} \;\Rightarrow\; \texttt{df} = \texttt{trips} \;\Rightarrow\; \texttt{.show(5)}
+        say: 'The call runs the body with `df` standing for `trips`, then `.show(5)` prints what came back.'
+      - tex: |
+          \anchor{ret}{\texttt{return}} \;\Rightarrow\; \text{a DataFrame with } {=fn.rows} \text{ rows}; \qquad \text{no return} \;\Rightarrow\; \texttt{None}
+        say: |
+          Only the value after `return` leaves the function. Without it the caller gets None, and
+          `None.show()` raises an [[attribute-error|AttributeError]].
+    code:
+      lang: python
+      source: |
+        """A chain wrapped in a function (Session 3: "Wrapping a chain in a function")."""
+        from pyspark.sql import functions as F
+
+
+        def top_pickups(df):    # @a:def
+            """Return the pickup zones with their trip counts, busiest first."""
+            return df.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID")    # @a:ret
+
+
+        top_pickups(trips).show(5)    # @a:call
+    extraCode:
+      - lang: python
+        title: 'Broken on purpose: the missing return'
+        source: |
+          """Broken on purpose: the function forgot its return (AttributeError)."""
+          def top_pickups(df):
+              """Return the pickup zones with their trip counts (but it never does)."""
+              df.groupBy("PULocationID").count().orderBy(F.desc("count"), "PULocationID")
+
+
+          top_pickups(trips).show(5)
+    links:
+      - { anchor: def, label: 'def', say: 'Stores the chain under a name; `df` is the parameter.' }
+      - { anchor: call, label: 'The call', say: 'Runs the body with `df` = `trips`; `.show(5)` prints the result.' }
+      - { anchor: ret, label: 'return', say: 'Hands the chain''s DataFrame back to the caller.' }
+    trace: { fn: functionCode, in: { n: 5 } }
+    examples: [t12-def-return, t12-def-no-return, t12-top-pickups-show5, function-code]
+    pitfalls:
+      - 'Forgetting `return`: the function hands back None, and `.show()` raises an [[attribute-error|AttributeError]], `''NoneType'' object has no attribute ''show''`.'
+      - 'Using `trips` inside the function instead of the parameter `df`: the function then ignores the table you pass in.'
+      - 'Ending the function with `.show()` instead of `return`: `show()` prints and hands back None, so the caller gets nothing to test.'
+    examTip: 'Graded problems test what your function **returns**: end it with `return <chain>`, never with `.show()`.'
+    tryIt: [function-rows-numeric, code-return, none-mcq]
+
+  # =====================================================================================
+  # Session 4
+  # =====================================================================================
+  - id: lazy-plan
+    title: The plan and the action
+    skills: [lazy-eval]
+    summary: |
+      [[transformation|Transformations]] only add steps to a [[plan]]; an [[action]] runs it, and `explain()` prints
+      it. On [[spark-connect|Spark Connect]] most column names are checked only at the action, so a typo in `select`
+      fails later, at `show()`. Step through and watch each [[variable]] hold a plan, not data.
+    keyFormula: '\text{transformations build the plan; an action runs it and checks the names}'
+    derive:
+      - { fn: lazyCode, in: { typo: true }, out: lc }
+      - { fn: realCell, in: { key: m2x.lazy.explain_cell98 }, out: ex }
+    live:
+      - id: vars
+        widget: Matrix
+        props: { rows: '@lc.empty.rows', cols: '@lc.empty.cols', values: '@lc.empty.values', emptyLabel: '@lc.empty.emptyLabel', rowHeader: variable, title: 'Each variable holds a plan, not data' }
+      - id: plan-text
+        widget: Text
+        props: { body: '@ex.out' }
+    steps:
+      - tex: |
+          \text{transformation: } \texttt{select, filter, orderBy, withColumn} \;\Rightarrow\; \text{one more step on the plan}
+        say: A transformation returns at once. Spark only writes the step down.
+      - tex: |
+          \text{action: } \texttt{show, count, toPandas, first} \;\Rightarrow\; \text{run the plan and check every name}
+        say: 'An action asks for a result. Only then does Spark read the data and check the column names. `toPandas()` copies the result into an ordinary Python table (pandas); `first()` returns the first row.'
+      - tex: |
+          \anchor{read}{\text{read}} \to \anchor{plan}{\text{group} \to \text{count} \to \text{sort}} \qquad \anchor{explain}{\texttt{explain()}} \;\Rightarrow\; \text{print the plan, run nothing}
+        say: |
+          From the notebook's "Session 4 › Transformations, actions and the plan" section. The printed plan, shown
+          above, reads from the bottom up: scan the CSV file, count per zone, sort.
+      - tex: |
+          \anchor{select}{\texttt{select("PULocatonID")}} \to \text{no error}, \quad \anchor{type}{\texttt{type(pu)}} \to \texttt{DataFrame}, \quad \anchor{action}{\texttt{pu.show()}} \to \texttt{AnalysisException}
+        say: |
+          From "Session 4 › Broken on purpose: a typo that waits". The misspelled name goes on the plan quietly. The
+          [[action]] checks it and fails,
+          two cells after the typo. Its "Did you mean" list starts with `{=lc.suggestion}`.
+    code:
+      lang: python
+      source: |
+        """The plan, then a typo that waits (Session 4), on the twelve trips."""
+        # @a read
+        BASE = "/Volumes/workspace/default/bdcc"
+        trips = spark.read.csv(f"{BASE}/lessons/taxi12.csv", header=True, inferSchema=True)
+        from pyspark.sql import functions as F
+        # @end
+
+        # Print the plan, run nothing
+        trips2 = trips.groupby(trips["PULocationID"]).count().orderBy(F.desc("count"))    # @a:plan
+        trips2.explain()                                                                     # @a:explain
+
+        # A typo that waits for an action
+        pu = trips.select("PULocatonID")    # @a:select
+        type(pu)                            # @a:type
+        pu.show()                           # @a:action
+    extraCode:
+      - lang: python
+        title: The fix, and a spelling that also works
+        source: |
+          """The corrected name, and a spelling that also works."""
+          pu = trips.select("PULocationID")
+          pu.show(5)
+
+          trips.select("PULocationId").show(3)    # capital letters do not matter
+    links:
+      - { anchor: read, label: Read the file, say: '`BASE` holds the folder path; `f"{BASE}/lessons/taxi12.csv"` is an f-string that pastes it into the text. `header=True` says the first line holds names, and `inferSchema=True` asks Spark to guess each type. `trips` holds a plan that starts by reading the file.' }
+      - { anchor: plan, label: 'trips2: a longer plan', say: 'Three transformations: group, count, sort. Nothing is counted yet.' }
+      - { anchor: explain, label: 'explain()', say: 'Prints the plan; runs nothing.' }
+      - { anchor: select, label: The typo, say: 'A transformation: the misspelled step goes on the plan with no error.' }
+      - { anchor: type, label: 'type(pu)', say: 'Still a DataFrame: a plan, not data.' }
+      - { anchor: action, label: The action, say: 'Runs the plan, checks the names and raises the error.' }
+    trace: { fn: lazyCode, in: { typo: true } }
+    examples: [lazy-code-typo, lazy-walk, t12-typo-at-action, t12-typo-multiline, t12-filter-typo, t12-orderby-typo, t12-groupby-typo-eager, t12-getitem-typo-eager, fail-line-lazy, fail-line-eager, eager-bins, t12-case-insensitive]
+    errata:
+      - 'The original lab notebook calls the `explain()` output "the directed acyclic graph (DAG) corresponding to an RDD or data frame". RDDs (resilient distributed datasets, Spark''s older interface) are not part of this course, and "DAG" is never needed: read the output as the plan Spark will run.'
+      - 'The original lab notebook''s plan cell uses a `desc` imported much earlier; run on its own it raises `NameError`. The course notebook writes `F.desc`.'
+    pitfalls:
+      - 'Looking for the bug only in the cell that raised. With a lazy error the error report names the action''s line; the typo can sit in an earlier cell.'
+      - 'Assuming every command waits: `groupBy("name")`, `df["name"]` and `df.name` check the name on their own line.'
+      - 'Thinking capital letters matter: `"PULocationId"` works. A missing letter, as in `"PULocatonID"`, does not.'
+    examTip: 'The misspelled name sits in the line that raised or in a line above it, so read upward from there; `groupBy("...")`, `df["..."]` and `df.name` raise on the typo''s own line.'
+    tryIt: [lazy-mcq, eager-mcq, code-typo-fix]
+
+  - id: debug-recipe
+    title: Four debugging steps
+    skills: [tracebacks, error-types, find-help]
+    summary: |
+      For any error: read the [[traceback]]'s last line, find your cell's frame, inspect the data, then fix. Here a
+      [[type-error]] from `filter("total_amount" > 1000)`; `help(trips.filter)` then shows two more correct forms.
+      Step through the four steps on the twelve trips.
+    keyFormula: '\text{last line} \to \text{your frame} \to \text{inspect} \to \text{fix}'
+    derive:
+      - { fn: debugCode, in: {}, out: dc }
+      - { fn: dtypesView, in: {}, out: dv }
+      - { fn: tripsView, in: { cols: [total_amount] }, out: tt }
+    live:
+      - id: types
+        widget: Matrix
+        props: { rows: '@dv.rows', cols: '@dv.cols', values: '@dv.values', rowHeader: column, title: 'trips.dtypes: each column and its type' }
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tt.rows', cols: '@tt.cols', values: '@tt.values', rowHeader: trip, title: The total of each trip }
+    steps:
+      - tex: |
+          \anchor{broken}{\texttt{"total\_amount" > 1000}} \;\Rightarrow\; \texttt{TypeError}: \text{text compared with a number}
+        say: |
+          The notebook's "Session 4 › Broken on purpose: a `TypeError`". The last line says `>` cannot compare text
+          (`str`) with a whole number
+          (`int`). No `...` line appears, because the error happened right in your cell.
+      - tex: |
+          \anchor{inspect}{\texttt{type("total\_amount")}} = \texttt{str}, \qquad \texttt{trips.dtypes}: \texttt{total\_amount} \text{ holds decimal numbers (double)}
+        say: 'Inspect before changing code. The quoted name is plain text; the column itself holds numbers.'
+      - tex: |
+          \anchor{fix}{\texttt{trips.total\_amount > 1000}} \;\Rightarrow\; {=dc.fixed} \text{ of 12 trips}, \quad {=dc.full} \text{ on the full quarter}
+        say: The notebook's fix compares the column with the number. None of the twelve lesson trips cost that much.
+      - tex: |
+          \anchor{sql}{\texttt{filter("total\_amount > 1000")} = \texttt{where("total\_amount > 1000")}} \;\Rightarrow\; {=dc.sqlCount}
+        say: |
+          `help(trips.filter)`, from the notebook's "Session 4 › Discovery: other ways to filter" section, shows two
+          more forms: a SQL (Structured Query Language) string, and the twin method `where`.
+    code:
+      lang: python
+      source: |
+        """A TypeError read, inspected and fixed (Session 4)."""
+        # Broken on purpose
+        trips.filter("total_amount" > 1000).count()        # @a:broken
+
+        # Inspect the suspect before changing any code
+        # @a inspect
+        type("total_amount")
+        # next cell
+        trips.dtypes
+        # @end
+
+        # Compare the column with the number
+        trips.filter(trips.total_amount > 1000).count()     # @a:fix
+
+        # What help(trips.filter) shows
+        # @a sql
+        help(trips.filter)
+        trips.filter("total_amount > 1000").count()
+        trips.where("total_amount > 1000").count()
+        # @end
+    links:
+      - { anchor: broken, label: The broken comparison, say: 'Python compares the text "total_amount" with 1000 before Spark sees anything.' }
+      - { anchor: inspect, label: Inspect, say: '`type(...)` of the suspect, and the column types with `dtypes`.' }
+      - { anchor: fix, label: The fix, say: '`trips.total_amount` is the column; `F.col("total_amount")` works too.' }
+      - { anchor: sql, label: SQL string and where, say: 'The manual: `filter` also takes a SQL string, and `where` is its twin.' }
+    trace: { fn: debugCode, in: {} }
+    examples: [str-gt-typeerror, debug-recipe-counts, t12-sql-gt-1000, t12-dtypes, t12-print-schema, t12-columns, receipt-parts, chain-step3-frame, ddl-int-show, ddl-int-groupby, t12-date-trunc, date-trunc-first]
+    pitfalls:
+      - 'Putting the column name in quotes inside a comparison: `"total_amount" > 1000` compares text with a number. Compare `trips.total_amount` or `F.col("total_amount")`.'
+      - 'Changing code before reading the last line of the traceback.'
+      - 'Stopping at "no error". A silent null shows no traceback at all; check `printSchema()` and `show(5)`.'
+    examTip: 'In a written answer, name the error, quote the line that raised it, and give the corrected line.'
+    tryIt: [traceback-part-multi, code-typeerror-fix, debug-order]
