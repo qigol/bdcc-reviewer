@@ -1,0 +1,144 @@
+intro: |
+  Cost concepts are not vocabulary for its own sake. Each one changes a number a manager acts on: what a job costs,
+  what profit is reported this month, and whether a request is ethical. This case follows one small print shop through
+  a month in which all of them matter at once.
+case:
+  id: bulacan-month
+  title: A month at Bulacan Prints & Fab
+  story: |
+    Bulacan Prints & Fab finished a custom event-tarpaulin job this month and has sold 40% of the units. The owner is
+    deciding what to show the bank, a supplier is offering a quality-training package, and the production manager has
+    just asked the controller to treat some selling costs differently. All figures are from the lecture or are
+    synthetic.
+  data: [tarpaulin]
+  derive:
+    - { fn: mfgCost, in: { materials: '@tarpaulin.materials', labor: '@tarpaulin.labor', overhead: '@tarpaulin.overhead' }, out: mc }
+    - { fn: costFlow, in: { dm: 75500, dl: 10400, oh: 6500, soldPct: 0.4 }, out: cf }
+    - { fn: qualityRule, in: { defects: 30 }, out: qr }
+  cells:
+    - id: build
+      title: What the job cost
+      say: |
+        Materials ₱75,500, labor ₱10,400 and applied overhead ₱6,500 make a total manufacturing cost of
+        {=mc.total|money}. Prime cost is {=mc.prime|money} and conversion cost is {=mc.conversion|money}.
+      stage:
+        - { id: build-sheet, widget: Schedule, props: { title: Cost build-up, rows: '@mc.rows' } }
+      decision:
+        prompt: The owner adds prime cost and conversion cost to get "the real total." What should the controller say?
+        type: mcq
+        options:
+          - It double-counts direct labor; the total is DM + DL + OH, ₱92,400
+          - That is correct, since both are part of the total
+          - Conversion cost already includes the materials
+          - Only prime cost should ever be reported
+        answer: 0
+        model: Direct labor sits in both groupings, so adding them counts ₱10,400 twice. The total is ₱92,400.
+    - id: flow
+      title: What shows on the statements
+      say: |
+        With 40% of the units sold, {=cf.cogs|money} has left inventory as cost of goods sold, and {=cf.fg|money} is still
+        an asset in finished goods.
+      stage:
+        - { id: flow-sheet, widget: Schedule, props: { title: Where the cost sits, rows: '@cf.rows' } }
+        - { id: flow-journal, widget: Journal, props: { title: The entries, entries: '@cf.entries' } }
+      decision:
+        prompt: The owner wants to show the bank higher profit by treating the ₱92,400 as an asset until the whole job is sold. Is that what is already happening?
+        type: mcq
+        options:
+          - Yes for the unsold 60%; the unsold units' cost stays in finished goods, and only the sold 40% is expensed
+          - No; all ₱92,400 must be expensed when the job is finished
+          - No; the whole job is already expensed
+          - Yes, and the owner can also keep the sold units' cost as an asset
+        answer: 0
+        model: Product costs are inventoried until the units are sold. ₱36,960 is already cost of goods sold. The other ₱55,440 is an asset, and keeping sold units' costs as an asset would be misstating profit.
+    - id: roles
+      title: Who does what in the finance office
+      say: |
+        The owner is hiring two people. One will set up the cost system and the month-end reports. The other will deal
+        with the bank, manage cash and chase customers.
+      stage:
+        - id: roles-note
+          widget: Callout
+          props:
+            kind: note
+            title: Information and money
+            body: The Controller's side is information, such as cost systems, budgets and variance reports. The Treasurer's side is money, such as cash, credit, banks and collections.
+      decision:
+        prompt: Which job descriptions belong to the Controller side and which to the Treasurer side?
+        type: mcq
+        options:
+          - Cost system and reports to the Controller side; bank loans, cash and collections to the Treasurer side
+          - Everything to the Controller, because accounting is one function
+          - Bank loans to the Controller side; cost system to the Treasurer side
+          - Both jobs to a line manager in production
+        answer: 0
+        model: The Controller designs and runs the accounting information system and reports. The Treasurer handles banks, cash and credit. Both are staff roles that advise the line.
+    - id: ethics
+      title: A request from the production manager
+      say: |
+        The production manager asks the controller to record ₱40,000 of sales commissions as part of the job's overhead
+        "so it sits in inventory this quarter and the profit looks better." The commissions are real and already paid.
+      stage:
+        - id: ethics-note
+          widget: Callout
+          props:
+            kind: warn
+            title: Product or period?
+            body: 'Sales commissions are a selling expense: a period cost, expensed when incurred. They are not incurred inside the factory to make the product.'
+      decision:
+        prompt: Which standards are most directly implicated, and what should the controller do?
+        type: mcq
+        options:
+          - Integrity and credibility; decline, document and escalate if pressed
+          - Competence only; take a course on inventory costing
+          - Confidentiality; keep the request secret
+          - None; it is a legitimate accounting choice
+        answer: 0
+        model: Capitalizing a period cost to flatter profit knowingly misstates timing, which fails integrity, and it gives users a misleading picture, which fails credibility. The controller should decline, record the conversation and escalate through the ethics channel if the pressure continues.
+    - id: quality
+      title: Is the training package worth it?
+      say: |
+        Thirty defects a quarter reach customers. A supplier offers a training and inspection package that would catch
+        them at design instead. At ₱1 per defect at design and ₱100 at the customer, the gap per quarter is
+        {=qr.customer|money} against {=qr.design|money}.
+      stage:
+        - { id: quality-sheet, widget: Schedule, props: { title: What 30 defects cost by stage, rows: '@qr.rows' } }
+      decision:
+        prompt: What is the best way to use the 1:10:100 figures in the decision?
+        type: open
+        model: |
+          Treat them as an illustration of order of magnitude, not a measured law. The failure cost of ₱3,000 a quarter is
+          small here, so compare the package's real price with the full cost of failures: warranty claims, rework, lost
+          trust and lost sales. Ask for the shop's own defect-cost data before deciding.
+atScale:
+  title: Cost classification in practice
+  body: |
+    **Chart of accounts.** An ERP or accounting package encodes these classifications in its chart of accounts: separate
+    account groups for direct materials, direct labor and factory overhead, and for selling and administrative expense.
+    A posting to the wrong group changes both inventory and profit.
+
+    **Cost centers and objects.** Each transaction carries a cost center and often a job or product code, which is how
+    a cost becomes direct to one object and indirect to another.
+
+    **Controls.** The distinction between product and period cost is among the first things external auditors test,
+    because misclassification is a common route to earnings manipulation. The controller documents the policy and
+    approves exceptions in writing.
+tradeoffs:
+  title: Two ways to classify a cost
+  columns: [Question, By traceability, By timing]
+  rows:
+    - ['What does it ask?', 'Can the cost be traced to a chosen cost object economically?', 'Is it a cost of making the product, or of selling and running the business?']
+    - ['What are the labels?', 'Direct or indirect', 'Product or period']
+    - ['What does it change?', 'How the cost is assigned: traced or allocated', 'When the cost reaches the income statement']
+    - ['Does it depend on the cost object?', 'Yes: direct to one object, indirect to another', 'No: the same for every product']
+connections:
+  - { module: cost-behavior, note: 'Session 2 adds a third classification, by how a cost behaves when activity changes: variable, fixed, mixed or step.' }
+  - { module: job-order, note: 'Job-order costing is where direct materials, direct labor and applied overhead are accumulated for each job.' }
+  - { module: abc, note: 'Activity-based costing picks better cost drivers for indirect costs.' }
+explainBack:
+  prompt: Explain to a new bookkeeper how a ₱92,400 job can be mostly an asset on one date and mostly an expense a month later, and why that is not a loophole.
+  rubric:
+    - Product costs (DM, DL, OH) are inventoried as an asset until the units are sold
+    - On sale the cost leaves inventory and becomes cost of goods sold
+    - Period costs, such as selling and administrative, are expensed when incurred and cannot be pushed into inventory
+    - Misclassifying costs distorts both inventory and profit, and is an ethics issue because reports are not audited

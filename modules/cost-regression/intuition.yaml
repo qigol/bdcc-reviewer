@@ -1,0 +1,574 @@
+scenes:
+  - id: why-regression
+    title: 'Be the analyst: find the best line yourself'
+    goal: When twelve months of cost are scattered around, what makes one line better than another?
+    skills: [least-squares]
+    data: [fmck]
+    state: { a: 6, b: 0.83 }
+    derive:
+      - { fn: lineFit, in: { points: '@fmck.points', a: '@a', b: '@b', xMax: 25 }, out: fit }
+    stage:
+      - id: chart
+        widget: Chart
+        props:
+          kind: scatter
+          xLabel: Direct labor hours (thousands)
+          yLabel: Overhead (₱ thousands)
+          series:
+            - { name: Months, x: '@fit.dotsX', y: '@fit.dotsY' }
+            - { name: Your line, x: '@fit.lineX', y: '@fit.lineY' }
+      - id: sa
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'Where the line starts, a (₱ thousand)', min: 0, max: 20, step: 0.25, format: 2 }
+        bind: { value: a }
+      - id: sb
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'How steeply it rises, b (₱ per hour)', min: 0, max: 1.5, step: 0.01, format: 2 }
+        bind: { value: b }
+      - id: score
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Total of the squared errors (lower is better), value: '{=fit.sse|2f}', tone: accent }
+            - { label: 'Total of the plain errors', value: '{=fit.sumErr|2f}', tone: good }
+      - id: errs
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: How far each month is from your line, columns: [Actual, Predicted, Error u, 'u²'], rows: '@fit.rows' }
+    beats:
+      - say: |
+          Flexible Manufacturing Company has twelve months of data. Each month is one **observation**: a pair of
+          numbers, direct labor hours and overhead. Plot each as a dot and you have a **scatterplot**.
+        define: [observation, scatterplot]
+      - say: |
+          Overhead is the cost we want to explain: the **dependent variable**, y. Direct labor hours is the activity we
+          use to explain it: the **independent variable**, x. The cost depends on the activity, not the reverse.
+        define: [dependent-variable, independent-variable]
+        gate:
+          type: predict
+          question: In "overhead explained by direct labor hours", which one is x?
+          options: [Overhead, Direct labor hours]
+          answer: 1
+          explain: Hours is the driver we use to explain cost, so hours is x and overhead is y.
+      - say: |
+          **Regression analysis** is the method that finds the line that best fits all the observations. First, you try.
+          Move the two sliders to bring the line close to the dots.
+        define: [regression-analysis]
+        show: [sa, sb, score]
+        gate:
+          type: when
+          prompt: Get the total of the squared errors below 60.
+          when: 'fit.sse < 60'
+          hint: Try a starting height near 10 and a rise near 0.56.
+      - say: |
+          Every dot misses your line by some amount. The gap between the actual cost and the cost the line predicts is
+          the **residual**, also called the error: u = y − y′.
+        define: [residual]
+        show: [errs]
+        gate:
+          type: predict
+          question: A month's actual overhead is 25 and the line predicts 23.8. What is the residual?
+          answer: { value: 1.2, tol: 0.005 }
+          explain: '$25 - 23.8 = 1.2$. The line under-predicted that month.'
+      - say: |
+          The raw errors are not a fair score: add a miss of +5 to a miss of −5 and the total is zero, though both are
+          big misses. So we square each one first. The rule that picks the line with the smallest total of squared
+          errors is **least squares**.
+        define: [least-squares]
+        gate:
+          type: predict
+          question: Two misses of +5 and −5. What is the sum of their squares?
+          answer: { value: 50, tol: 0.5 }
+          explain: '$5^2 + (-5)^2 = 25 + 25 = 50$, where the plain sum is 0.'
+      - say: Now find the line with the smallest possible total.
+        gate:
+          type: when
+          prompt: Get the total of the squared errors below 56.
+          when: 'fit.sse < 56'
+          hint: The best line starts near 10.6 and rises about 0.56 per hour.
+      - say: Why is a line drawn by eye not good enough?
+        gate:
+          type: reflect
+          prompt: Two analysts draw different lines through the same twelve months. Why does least squares settle the argument?
+          model: |
+            Least squares gives one rule for "best": the smallest total of squared errors. Every analyst using the same
+            data gets the same line, so the answer does not depend on who drew it.
+      - say: Score a line yourself.
+        gate:
+          type: practice
+          template: sse-numeric
+    takeaway: A residual is actual minus predicted. Least squares picks the one line that makes the squared residuals add up to the smallest possible total.
+
+  - id: build-the-line
+    title: Building the line, one column at a time
+    goal: How do you get the exact best line from a table, with nothing but a calculator?
+    skills: [regression-line]
+    data: [fmck]
+    state: { lsUpTo: 0 }
+    derive:
+      - { fn: regressionSheet, in: { points: '@fmck.points', upTo: '@lsUpTo' }, out: ws }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: The regression table, columns: [DLH x, Overhead y, xy, 'x²'], rows: '@ws.rows' }
+      - id: calc
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: The calculation, rows: '@ws.calcRows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: regressionWalk
+          in: { points: '@fmck.points' }
+          roles: { sheet: sheet, calc: calc }
+    beats:
+      - say: |
+          One driver gives a **simple regression**: a line y′ = a + bx. We find a and b from a table with two extra
+          columns, xy and x².
+        define: [simple-regression]
+        gate:
+          type: predict
+          question: For January, x = 9 and y = 15. What is xy?
+          answer: { value: 135, tol: 0.5 }
+          explain: '$9 \times 15 = 135$.'
+      - say: Each month gets the same two columns, then every column is added up.
+        gate:
+          type: predict
+          question: For August, x = 22. What is x²?
+          answer: { value: 484, tol: 0.5 }
+          explain: '$22 \times 22 = 484$.'
+      - say: |
+          The totals are n = 12, Σx = 174, Σy = 225, Σxy = 3,414 and Σx² = 2,792. The **mean** of a column is its total
+          divided by n.
+        define: [mean]
+        gate:
+          type: predict
+          question: What is the mean of x, in thousands of hours?
+          answer: { value: 14.5, tol: 0.005 }
+          explain: '$174 \div 12 = 14.5$.'
+      - say: Watch the whole table and every calculation fill in.
+        show: [calc, player]
+        gate:
+          type: event
+          prompt: Play the worksheet to the end.
+          target: player
+          event: done
+      - say: The slope comes from the numerator 1,818 and the denominator 3,228.
+        gate:
+          type: predict
+          question: What is b = 1,818 ÷ 3,228, to four decimals?
+          answer: { value: 0.5632, tol: 0.0005 }
+          explain: Each extra thousand hours goes with about ₱563 more overhead, so ₱0.5632 per hour.
+      - say: The intercept uses the two means and the slope. The line always passes through the point of means.
+        gate:
+          type: predict
+          question: What is a = 18.75 − 0.5632 × 14.5?
+          answer: { value: 10.5836, tol: 0.001 }
+          explain: '$18.75 - 8.1664 = 10.5836$, or ₱10,583.60 of fixed cost.'
+      - say: Use the finished line to estimate a month at 15,000 hours (x = 15).
+        gate:
+          type: predict
+          question: What overhead does y′ = 10.5836 + 0.5632x predict, in ₱ thousands?
+          answer: { value: 19.0316, tol: 0.001 }
+          explain: '$10.5836 + 0.5632 \times 15 = 19.0316$, which is ₱19,031.60.'
+      - say: Do it on a fresh table.
+        gate:
+          type: practice
+          template: regline-handcalc
+      - say: One ordering matters.
+        gate:
+          type: reflect
+          prompt: Why do you have to compute b before a?
+          model: |
+            The intercept is a = ȳ − b x̄. It uses the slope, so the slope has to be known first. The slope needs only the
+            column totals.
+    takeaway: Build x, y, xy and x² columns, total them, compute b from the totals, then a from the means and b.
+
+  - id: how-good
+    title: How much of the cost does the line explain?
+    goal: Once you have a line, how can you tell whether it is any good?
+    skills: [r-squared]
+    data: [fmck]
+    state: { r2UpTo: 0 }
+    derive:
+      - { fn: r2Sheet, in: { points: '@fmck.points', upTo: '@r2UpTo' }, out: rs }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: From the totals to R², rows: '@rs.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: r2Walk
+          in: { points: '@fmck.points' }
+          roles: { sheet: sheet }
+    beats:
+      - say: |
+          High-low and scattergraph gave a line. They could not say how good it is. The number that does is
+          **R²** (R-squared): the share of the ups and downs in cost that the line explains, from 0 to 1.
+        define: [r-squared]
+        gate:
+          type: predict
+          question: R² = 0.70. What percentage of the variation in cost does the driver explain?
+          answer: { value: 70, tol: 0.5 }
+          explain: R² = 0.70 means 70% explained, and the other 30% comes from something else.
+      - say: |
+          It uses the numerator you already have, squared, and two denominators, one for x and one for y.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the R² worksheet to the end.
+          target: player
+          event: done
+      - say: The numerator is 1,818. Squared, it is 3,305,124.
+        gate:
+          type: predict
+          question: The denominators multiply to 5,432,724. What is R² as a percentage, to one decimal?
+          answer: { value: 60.8, tol: 0.1 }
+          explain: '$3{,}305{,}124 \div 5{,}432{,}724 = 0.6084$, about 61%.'
+      - say: |
+          The square root of R², with the sign of the slope, is the **correlation coefficient**, r: how strongly and in
+          which direction the two move together.
+        define: [correlation-coefficient]
+        gate:
+          type: predict
+          question: R² = 0.6084. About what is r?
+          options: ['0.37', '0.78', '0.99']
+          answer: 1
+          explain: The square root of 0.6084 is 0.78. R² is always smaller than r, because it is a square.
+      - say: A manager asks if 61% is good.
+        gate:
+          type: reflect
+          prompt: How would you describe R² = 0.61 to a manager, and what would you suggest doing next?
+          model: |
+            About 61% of the month-to-month swings in overhead are explained by direct labor hours. That is a usable but
+            imperfect fit. I would check for unusual months and consider a second driver, such as machine hours.
+      - say: Compute one yourself.
+        gate:
+          type: practice
+          template: r2-numeric
+    takeaway: R² is the share of cost variation the line explains. In simple regression it is r squared.
+
+  - id: how-much-to-trust
+    title: How big a miss, and is the slope real?
+    goal: How far off can a prediction be, and could the slope just be luck?
+    skills: [standard-error, t-statistic]
+    data: [fmck]
+    state: { seUpTo: 0 }
+    derive:
+      - { fn: seSheet, in: { points: '@fmck.points', upTo: '@seUpTo' }, out: ss }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: Standard error and t, rows: '@ss.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: seWalk
+          in: { points: '@fmck.points' }
+          roles: { sheet: sheet }
+    beats:
+      - say: |
+          R² is a share, not a size. The **standard error of the estimate**, sₑ, is how far real costs typically sit
+          from the line, in the cost's own units.
+        define: [standard-error-of-estimate]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the worksheet to the end.
+          target: player
+          event: done
+      - say: Flexible Manufacturing's sₑ is 2.3436, in thousands of pesos.
+        gate:
+          type: predict
+          question: About 95% of months fall within two standard errors of the line. How many pesos is two standard errors?
+          answer: { value: 4687, tol: 5 }
+          explain: '$2 \times 2{,}343.60 = ₱4{,}687$. A prediction is best read as a range.'
+      - say: |
+          The same worksheet shows one more number. The **t-statistic** divides the slope by its own standard error: how
+          many standard errors from zero it is. Above about 2, the slope is probably not just noise.
+        define: [t-statistic]
+        gate:
+          type: predict
+          question: Flexible Manufacturing's t is about 3.9. Is the slope statistically significant by the rule of thumb?
+          options:
+            - Yes, it is above 2
+            - No, it is below 2
+          answer: 0
+          explain: A t of 3.9 is well above 2, so the slope is very unlikely to be noise.
+      - say: |
+          A software package reports, for machine hours as the driver, R² = 0.42 and a slope t-statistic of 0.85.
+        gate:
+          type: predict
+          question: Should management trust this formula?
+          options:
+            - Yes, the intercept t is large
+            - No, R² is modest and the slope t is far below 2
+          answer: 1
+          explain: Both signals are weak. Machine hours may not be a reliable driver for this cost.
+      - say: Compute a t yourself.
+        gate:
+          type: practice
+          template: t-numeric
+      - say: R² is moderate for the FMC line but t is high.
+        gate:
+          type: reflect
+          prompt: Flexible Manufacturing has R² = 0.61 but a clearly significant slope. Is that a contradiction?
+          model: |
+            No. They answer different questions. R² is about how much of the cost the line explains overall; t is about
+            whether the slope is distinguishable from zero. The driver can really matter (high t) and still leave a lot
+            unexplained (modest R²).
+    takeaway: The standard error shows the typical miss; t shows whether the slope is real. R² shows the overall fit.
+
+  - id: two-drivers
+    title: When one driver is not enough
+    goal: How can a cost formula use more than one driver at a time?
+    skills: [multiple-regression]
+    data: [baguio]
+    state: { kilos: 5000, orders: 40 }
+    derive:
+      - { fn: predictTwo, in: { intercept: '@baguio.intercept', b1: 3.2, b2: 180, x1: '@kilos', x2: '@orders', names: '@baguio.names' }, out: pm }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: 'Baguio Strawberry Farm: packing cost', rows: '@pm.rows' }
+      - id: sk
+        widget: Slider
+        region: side
+        props: { label: Kilos packed, min: 1000, max: 10000, step: 500, format: comma }
+        bind: { value: kilos }
+      - id: so
+        widget: Slider
+        region: side
+        props: { label: Number of orders, min: 10, max: 100, step: 5 }
+        bind: { value: orders }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Predicted packing cost, value: '{=pm.y|money}', tone: accent }
+    beats:
+      - say: |
+          Baguio Strawberry Farm Cooperative's packing cost depends on both kilos packed and the number of orders. A
+          **multiple regression** has more than one independent variable: y′ = a + b₁x₁ + b₂x₂.
+        define: [multiple-regression]
+        gate:
+          type: predict
+          question: The equation is y′ = 12,000 + 3.20x₁ + 180x₂. What is the cost for 5,000 kg across 40 orders?
+          answer: { value: 35200, tol: 0.5 }
+          explain: '$12{,}000 + 3.20 \times 5{,}000 + 180 \times 40 = 12{,}000 + 16{,}000 + 7{,}200 = ₱35{,}200$.'
+      - say: Now hold the kilos and change only the number of orders.
+        gate:
+          type: when
+          prompt: Keep the kilos at 5,000 and set the orders to 80.
+          when: 'orders == 80 and kilos == 5000'
+          hint: Drag the orders slider to 80 and leave the kilos alone.
+      - say: |
+          Each coefficient is read holding the others fixed: 40 more orders at the same weight add 40 × ₱180.
+        gate:
+          type: predict
+          question: How much did the predicted cost rise when orders went from 40 to 80?
+          answer: { value: 7200, tol: 0.5 }
+          explain: '$40 \times 180 = ₱7{,}200$. The kilos did not change, so only the orders term moved.'
+      - say: |
+          A kilos-only model assumes cost depends on weight alone. A month with many small orders can cost far more to
+          pack than one with the same weight in a few large ones.
+        gate:
+          type: reflect
+          prompt: In your own words, why can adding a second driver make a cost model better?
+          model: |
+            Different parts of the cost respond to different things. Some depends on how much is handled and some on how
+            many separate jobs there are. A model with both can separate those effects and predict much better than a
+            single driver.
+      - say: Predict with a fresh equation.
+        gate:
+          type: practice
+          template: multi-predict-numeric
+    takeaway: A multiple regression adds one term per driver. Each coefficient is the effect of that driver holding the others fixed.
+
+  - id: moving-together
+    title: When two drivers are really one
+    goal: What goes wrong in a multiple regression when two drivers rise and fall together?
+    skills: [multicollinearity]
+    data: [twovar10]
+    state: { keep: both }
+    derive:
+      - { fn: multipleRegression, in: { xs: '@twovar10.xs', y: '@twovar10.y', names: '@twovar10.names' }, out: both }
+      - { fn: subsetModel, in: { xs: '@twovar10.xs', y: '@twovar10.y', names: '@twovar10.names', keep: '@keep' }, out: sm }
+    stage:
+      - id: pick
+        widget: Choice
+        region: top
+        props:
+          label: Drivers in the model
+          options:
+            - { value: both, label: Both X1 and X2 }
+            - { value: x1, label: X1 only }
+            - { value: x2, label: X2 only }
+        bind: { value: keep }
+      - id: coefs
+        widget: Schedule
+        props: { title: The fitted coefficients, columns: [Coefficient, Std. error, t-statistic], rows: '@sm.rows' }
+      - id: fit
+        widget: Schedule
+        region: side
+        props: { title: Fit, rows: '@sm.fitRows' }
+      - id: corr
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: Correlation between the drivers, columns: [X1, X2], rows: '@both.corrRows' }
+      - id: note
+        widget: Callout
+        region: side
+        props:
+          kind: beyond
+          title: From the workbook
+          body: The workbook's data are an illustration, not from the lecture slides. They show in numbers what slides 53–56 describe in words.
+    beats:
+      - say: |
+          Here are two drivers, X1 and X2, with ten observations. With both in the model, R² is very high, but look at
+          the t-statistic for X1.
+        gate:
+          type: predict
+          question: With both drivers in, is the t-statistic of X1 above 2?
+          options: [Yes, No]
+          answer: 1
+          explain: The t for X1 is about 1.36, below 2, though R² is about 0.996.
+      - say: |
+          The reason is in the second table. X1 and X2 move almost exactly together, so the model cannot tell their
+          separate effects apart. That is **multicollinearity**.
+        define: [multicollinearity]
+        show: [corr]
+        gate:
+          type: predict
+          question: How correlated are X1 and X2, roughly?
+          options: [Near 0, About 0.5, Near 1]
+          answer: 2
+          explain: The correlation is about 0.99. The two are nearly the same driver.
+      - say: Take X1 out of the model and watch what changes.
+        gate:
+          type: when
+          prompt: Choose "X2 only".
+          when: "keep == 'x2'"
+          hint: Use the selector at the top.
+      - say: R² barely moved, and the remaining driver's t grew.
+        gate:
+          type: predict
+          question: With X2 alone, what is R² to three decimals?
+          answer: { value: 0.995, tol: 0.001 }
+          explain: About 0.9947, against 0.9958 with both. The second driver added almost nothing.
+      - say: Why did dropping a driver cost so little?
+        gate:
+          type: reflect
+          prompt: Why did removing X1 barely change R² and still make the model easier to trust?
+          model: |
+            X1 carried almost no information that X2 did not already carry, because they move together. With only X2 left
+            the model has a single, clearly estimated effect instead of two blurred ones.
+      - say: A last check.
+        gate:
+          type: practice
+          template: mc-mcq
+    takeaway: Drivers that move together blur each other's coefficients while R² stays high. Check their correlation and drop one of the pair.
+
+  - id: use-and-communicate
+    title: Choosing the method, and telling the manager
+    goal: When is regression worth it, how far can a model be trusted, and how should the answer be presented?
+    skills: [method-choice]
+    data: [outputs]
+    state: { hours: 12000 }
+    derive:
+      - { fn: rangeCheck, in: { volume: '@hours', low: 8000, high: 15000 }, out: rc }
+    stage:
+      - id: hrs
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Machine hours to budget, min: 5000, max: 26000, step: 1000, format: comma }
+        bind: { value: hours }
+      - id: status
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'Model built on 8,000 to 15,000 hours', value: '{=rc.status}', tone: accent }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@outputs.chips', bins: '@outputs.bins', solution: '@outputs.solution' }
+    beats:
+      - say: |
+          Regression is the most defensible of the three methods, but it needs more data and more care. Use it when the
+          decision is large and you must defend the number.
+        gate:
+          type: predict
+          question: A major outsourcing decision rides on a cost estimate and there are 12 months of data. Which method?
+          options: [High-low, Scattergraph, Regression]
+          answer: 2
+          explain: It uses all the data, is objective, and reports how well it fits, so it can be defended.
+      - say: |
+          North Cotabato Canning's utilities model has R² = 0.91 and a slope t of 6.8. It was built on months from 8,000
+          to 15,000 machine hours. That span is its **relevant range**. Management wants to budget a 22,000-hour month
+          with it.
+        define: [relevant-range]
+        show: [hrs, status]
+        gate:
+          type: when
+          prompt: Set the hours to 22,000.
+          when: 'hours == 22000'
+          hint: Drag the slider to the right.
+      - say: The statistics are strong, but none of them applies outside the data.
+        gate:
+          type: predict
+          question: Is it safe to budget 22,000 hours with this model?
+          options:
+            - Yes, the statistics are strong
+            - No, 22,000 hours is far outside the data it was built from
+          answer: 1
+          explain: Beyond the relevant range the cost may behave differently, so the figure is an extrapolation.
+      - say: |
+          Two candidate drivers for a chemicals plant: direct labor hours with R² = 0.55 and t = 2.3, and machine hours
+          with R² = 0.81 and t = 5.6.
+        gate:
+          type: predict
+          question: Which driver should be used?
+          options: [Direct labor hours, Machine hours]
+          answer: 1
+          explain: Machine hours is stronger on both R² and t, so it explains more and is more reliable.
+      - say: Last, the conversation with the manager.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Sort what to do and what not to do when presenting regression results.
+          target: bins
+          event: solved
+          hint: Plain language and the data's range help the manager; jargon and a single number do not.
+      - say: Put it all in your own words.
+        gate:
+          type: reflect
+          prompt: Explain to a non-technical manager what R² = 0.81 tells them about a cost model.
+          model: |
+            About 81% of the ups and downs in this cost can be explained by the activity we measured. That is a strong
+            relationship, but it only holds in the range of volumes the model was built on, and it shows association, not
+            proof of cause.
+      - say: Read one more printout.
+        gate:
+          type: practice
+          template: judge-mcq
+    takeaway: Use regression when stakes are high. Check R², t and the range, choose drivers on evidence, and explain results in plain words.

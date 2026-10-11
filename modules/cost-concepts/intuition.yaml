@@ -1,0 +1,569 @@
+scenes:
+  - id: two-kinds
+    title: Two reports, both true
+    goal: Why can two reports about the same company both be right and still look different?
+    skills: [accounting-types]
+    data: [accounting]
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@accounting.chips', bins: '@accounting.bins', solution: '@accounting.solution' }
+      - id: table
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: Managerial against financial, columns: [Managerial, Financial], rows: '@accounting.rows' }
+    beats:
+      - say: |
+          Every business report starts from **costs**: the money value of the resources given up, used or set aside to
+          make something or do something. What the report does with those numbers depends on who reads it.
+        define: [cost]
+      - say: |
+          A plant manager planning next week wants figures fast, even if rough. That is **managerial accounting**: it
+          serves people inside the organization. A bank deciding on a loan wants rule-bound, audited statements. That
+          is **financial accounting**.
+        define: [managerial-accounting, financial-accounting]
+        gate:
+          type: predict
+          question: The audited statement of financial position is a product of which branch?
+          options: [Managerial accounting, Financial accounting]
+          answer: 1
+          explain: Audited, rule-bound statements for outsiders are financial accounting.
+      - say: Sort eight situations into the branch they belong to.
+        gate:
+          type: event
+          prompt: Drop each item into managerial or financial accounting.
+          target: bins
+          event: solved
+          hint: Ask who reads it and whether a rule book or an auditor is involved.
+      - say: |
+          Both branches draw on the same underlying transaction data. They reshape it for different readers.
+        show: [table]
+        gate:
+          type: predict
+          question: Which branch favors timeliness over precision?
+          options: [Managerial accounting, Financial accounting]
+          answer: 0
+          explain: Managerial reports are judged by whether they improve a decision, and nobody audits them, so speed wins.
+      - say: Why do both exist?
+        gate:
+          type: reflect
+          prompt: Two reports about the same company disagree on the numbers shown. Why can both be correct?
+          model: |
+            They are built from the same data for different readers and purposes. One is shaped by accounting rules and
+            audited for outsiders; the other is shaped to help a manager decide something specific. Neither is wrong; each
+            is right for its reader.
+      - say: One check.
+        gate:
+          type: practice
+          template: acct-mcq
+    takeaway: Same data, different readers. Managerial accounting is internal, flexible and fast; financial accounting is external, rule-bound and audited.
+
+  - id: three-functions
+    title: One manager, one morning, three functions
+    goal: What are managers actually doing when they use accounting information?
+    skills: [mgmt-functions]
+    data: [functions]
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@functions.chips', bins: '@functions.bins', solution: '@functions.solution' }
+      - id: loop
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: The controlling loop, columns: [What happens], rows: '@functions.loop' }
+    beats:
+      - say: |
+          A plant manager approves next month's production budget at 9:15. Choosing goals and the means of reaching them,
+          and expressing them as a **budget**, is **planning**.
+        define: [planning, budget]
+        gate:
+          type: predict
+          question: Finalizing next month's production schedule is which function?
+          options: [Planning, Controlling, Decision making]
+          answer: 0
+          explain: It sets what will be done next month, which is planning.
+      - say: |
+          At 8:00 the manager reviews last week's report. **Controlling** compares what happened with the plan. The gap
+          is a **variance**, and it shows where to look.
+        define: [controlling, variance]
+        show: [loop]
+        gate:
+          type: predict
+          question: A job was budgeted at 500 labor hours and took 560. What is the variance in hours?
+          answer: { value: 60, tol: 0.5 }
+          explain: '$560 - 500 = 60$ hours over budget. The size and sign point to where to investigate.'
+      - say: |
+          At 8:30 the manager decides whether to investigate it. Choosing among alternatives is **decision making**, and
+          it is not a separate step: every planning choice and every controlling response is a decision.
+        define: [decision-making]
+      - say: Sort the manager's tasks.
+        gate:
+          type: event
+          prompt: Drop each task into the function it mainly serves.
+          target: bins
+          event: solved
+          hint: Is the manager setting a course, checking how it went, or choosing between options?
+      - say: Why not make decisions a fourth step?
+        gate:
+          type: reflect
+          prompt: Why is decision making described as running through planning and controlling, not as a step on its own?
+          model: |
+            Every planning choice, such as which assumption to use, is a decision, and every controlling response, such as
+            whether to investigate a variance, is one too. Decisions happen everywhere, so the most valuable skill is
+            picking out the information that is relevant to them.
+      - say: One check.
+        gate:
+          type: practice
+          template: func-mcq
+    takeaway: Planning sets the course, controlling compares actual with plan and acts on the variance, and decision making runs through both.
+
+  - id: who-does-what
+    title: Who does the accounting, and with what authority
+    goal: Where do accountants sit in the organization, and what do the finance roles do?
+    skills: [org-roles]
+    data: [orgchart]
+    stage:
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@orgchart.chips', bins: '@orgchart.bins', solution: '@orgchart.solution' }
+    beats:
+      - say: |
+          A shift supervisor can order the people in the chain below them. That is **line authority**: direct
+          responsibility for the organization's main objectives and the right to give orders.
+        define: [line-authority]
+        gate:
+          type: predict
+          question: Is a plant manager a line or a staff role?
+          options: [Line, Staff]
+          answer: 0
+          explain: The plant manager is directly responsible for production and commands the chain below.
+      - say: |
+          Accounting does not command production. It advises with information and analysis. That is
+          **staff authority**.
+        define: [staff-authority]
+      - say: |
+          Two finance executives both hold staff roles. The **Controller** runs information: the accounting system,
+          budgets and reports. The **Treasurer** runs money: cash, banks, credit and financing.
+        define: [controller, treasurer]
+        gate:
+          type: predict
+          question: Who negotiates bank loans and lines of credit?
+          options: [Controller, Treasurer]
+          answer: 1
+          explain: Banks, cash and financing are the Treasurer's side.
+      - say: Sort J. Company's eight finance roles by whether they work with information or with money.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Drop each role on the side it serves.
+          target: bins
+          event: solved
+          hint: Payroll disburses cash; budgets and cost systems are information.
+      - say: One subtlety.
+        gate:
+          type: predict
+          question: Inside the accounting department, can the Controller give direct orders to the Cost Systems Analyst?
+          options:
+            - Yes, within the department
+            - No, never
+          answer: 0
+          explain: Staff authority describes accounting's relationship to the rest of the organization. Inside the department the Controller commands.
+      - say: Put it in your own words.
+        gate:
+          type: reflect
+          prompt: The Controller has line authority over analysts, yet accounting is a staff function. How can both be true?
+          model: |
+            Line and staff describe a function's relationship to the main work of the organization. To production and
+            sales, accounting only advises. Inside the accounting department, the Controller still manages and directs
+            the people who report to them.
+      - say: One check.
+        gate:
+          type: practice
+          template: line-staff-mcq
+    takeaway: Accounting is a staff function. The Controller manages information and the Treasurer manages money, and both report to the CFO.
+
+  - id: value-chain-quality
+    title: From idea to after-sale, and the price of quality
+    goal: How does managerial accounting follow cost across the whole business, and why is preventing defects cheaper?
+    skills: [value-chain]
+    data: [chain]
+    state: { defects: 10 }
+    derive:
+      - { fn: qualityRule, in: { defects: '@defects' }, out: qr }
+    stage:
+      - id: chain
+        widget: DropBins
+        props: { chips: '@chain.chips', bins: '@chain.bins', solution: '@chain.solution' }
+      - id: quality
+        widget: DropBins
+        hidden: true
+        props: { chips: '@chain.quality.chips', bins: '@chain.quality.bins', solution: '@chain.quality.solution' }
+      - id: sheet
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: What the same defects cost, rows: '@qr.rows' }
+      - id: slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Defects found, min: 1, max: 100, step: 1 }
+        bind: { value: defects }
+    beats:
+      - say: |
+          A product passes through six linked functions before a customer is satisfied. Together they are the
+          **value chain**, and together they create **customer value**: what the customer receives minus what they give
+          up.
+        define: [value-chain, customer-value]
+        gate:
+          type: event
+          prompt: Match each description to its link in the chain.
+          target: chain
+          event: solved
+          hint: Follow the product from idea to after-sale support.
+      - say: |
+          **Lean thinking** is a philosophy of removing waste: any activity that uses resources without adding value for
+          the customer.
+        define: [lean-thinking]
+        gate:
+          type: predict
+          question: Making more than is currently needed is which kind of waste?
+          options: [Waiting, Overproduction, Excess inventory, Defects]
+          answer: 1
+          explain: Overproduction means making more than the next step needs.
+      - say: |
+          **Total quality management** makes every employee responsible for quality. Its belief: preventing a defect
+          costs far less than fixing one.
+        define: [total-quality-management]
+      - say: |
+          The **cost of quality** has four categories. Sort the examples.
+        define: [cost-of-quality]
+        show: [quality]
+        gate:
+          type: event
+          prompt: Drop each cost into its category.
+          target: quality
+          event: solved
+          hint: Prevention stops defects, appraisal finds them, failures are the ones that got through.
+      - say: A defect that costs ₱1 to fix at the design stage costs about ₱10 in production and ₱100 once a customer finds it.
+        show: [sheet, slider]
+        gate:
+          type: predict
+          question: A defect costs ₱1 to fix at design. What does it cost to fix when the customer finds it?
+          answer: { value: 100, tol: 0.5 }
+          explain: The rule of thumb is 1:10:100, so ₱100.
+      - say: Drive the numbers.
+        gate:
+          type: when
+          prompt: Set the defects found to 20.
+          when: 'defects == 20'
+          hint: Drag the slider to 20.
+      - say: Why spend on prevention?
+        gate:
+          type: reflect
+          prompt: A manager wants to cut the training and supplier-partnership budget to save money this quarter. What would you say?
+          model: |
+            Prevention is the cheapest place to spend on quality. A defect found by the customer costs about 100 times as
+            much as one prevented at design, and also costs trust and future sales. Cutting prevention moves costs to the
+            expensive stages.
+      - say: Compute one yourself.
+        gate:
+          type: practice
+          template: defect-numeric
+    takeaway: The value chain links six functions into customer value. Quality failures cost far more the later they are found.
+
+  - id: ethics-standards
+    title: When nobody is checking
+    goal: What keeps a management accountant honest when the reports are not audited?
+    skills: [ethics]
+    data: [ethics]
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@ethics.chips', bins: '@ethics.bins', solution: '@ethics.solution' }
+      - id: table
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: The four standards, columns: [What it asks, Violated in], rows: '@ethics.rows' }
+    beats:
+      - say: |
+          Managerial reports are not independently audited, so the preparer's own integrity is often the only safeguard.
+          The IMA gives four **IMA standards** for conduct.
+        define: [ima-standards]
+        show: [table]
+      - say: |
+          **Competence** means keeping your expertise up and following the laws and technical standards that apply.
+          **Confidentiality** means keeping information private and never using it for personal advantage.
+        define: [competence, confidentiality]
+      - say: |
+          **Integrity** means avoiding conflicts of interest and conduct that would discredit the profession, and
+          refusing to bend numbers. **Credibility** means communicating fairly, objectively and completely.
+        define: [integrity, credibility]
+      - say: Sort four workplace situations by the standard they most directly test.
+        gate:
+          type: event
+          prompt: Drop each situation on the standard it is mainly about.
+          target: bins
+          event: solved
+          hint: Is it about skill, secrets, or honest reporting?
+      - say: |
+          A colleague inflates sales figures on the internal weekly dashboard only, not the audited statements, and says
+          "it's not the real books."
+        gate:
+          type: predict
+          question: Does the fact that the dashboard is unaudited make the violation smaller?
+          options:
+            - Yes, it is internal
+            - No, the lack of an audit is why ethics matters most
+          answer: 1
+          explain: Real decisions, such as staffing, are being made on false data, and the absence of an external check puts everything on personal integrity.
+      - say: Back to the controller asked to delay a real expense.
+        gate:
+          type: reflect
+          prompt: A plant manager asks the controller to delay recording an incurred expense to hit a bonus, calling it a timing difference. What should the controller do, and why?
+          model: |
+            Decline, document the conversation and escalate through the ethics channel if the pressure continues. Delaying
+            a real, incurred expense to reach a bonus fails integrity and credibility. Calling it "just timing" is a
+            common rationalization.
+      - say: One check.
+        gate:
+          type: practice
+          template: ethics-mcq
+    takeaway: With no audit, the four IMA standards are the safeguard. "Unaudited" is never a defense.
+
+  - id: cost-of-what
+    title: "Cost of what?"
+    goal: Why is the same cost direct in one question and indirect in another?
+    skills: [cost-objects]
+    data: [furniture]
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@furniture.chips', bins: '@furniture.bins', solution: '@furniture.solution' }
+      - id: table
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: Two cost objects, columns: [A batch of dining tables, A set of dining chairs], rows: '@furniture.rows' }
+    beats:
+      - say: |
+          Every costing question begins with "cost of what?" The answer is the **cost object**: anything for which
+          management wants a separate measure of cost, such as a product, a service, a department or a customer.
+        define: [cost-object]
+        gate:
+          type: predict
+          question: Cordillera Craft Furniture wants to know what a batch of dining tables costs. What is the cost object?
+          options: [The factory, The batch of dining tables, The whole year]
+          answer: 1
+          explain: The batch of tables is the thing whose separate cost is wanted.
+      - say: |
+          Wood used in this table order can be traced to it cheaply: a **direct cost**. A factory supervisor's salary
+          serves every product and cannot be traced to one batch: an **indirect cost**.
+        define: [direct-cost, indirect-cost]
+        gate:
+          type: event
+          prompt: Classify the four costs for the cost object "a batch of dining tables."
+          target: bins
+          event: solved
+          hint: Could you trace it to this batch alone, at reasonable cost?
+      - say: |
+          Now change the cost object to a set of dining chairs. The fabric is now direct and the wood is not. The cost did
+          not change; its relationship to the object did.
+        show: [table]
+        gate:
+          type: predict
+          question: Fabric ordered for a set of dining chairs is, to that set of chairs...
+          options: [Direct, Indirect]
+          answer: 0
+          explain: It is traced to the chairs, so it is direct to them and indirect to the tables.
+      - say: |
+          Indirect costs are first collected in a **cost pool** and then shared out using a **cost driver**: a factor
+          that moves the cost, such as machine hours or the number of setups.
+        define: [cost-pool, cost-driver]
+        gate:
+          type: predict
+          question: Setup overhead rises with the number of changeovers, not with running hours. Which is the better driver?
+          options: [Number of setups, Machine hours]
+          answer: 0
+          explain: The driver should be the thing that actually moves the cost.
+      - say: Put it in your own words.
+        gate:
+          type: reflect
+          prompt: A colleague says "the supervisor's salary is an indirect cost." What question would you ask first?
+          model: |
+            Indirect to what? A cost is direct or indirect only relative to a chosen cost object. The salary is indirect
+            to one product but may be direct to the department the supervisor runs.
+      - say: One check.
+        gate:
+          type: practice
+          template: cost-object-mcq
+    takeaway: A cost is direct or indirect only relative to a cost object. Indirect costs are pooled and shared out by a cost driver.
+
+  - id: product-or-period
+    title: When does a cost become an expense?
+    goal: Why is a cost sometimes an asset and sometimes an expense?
+    skills: [product-period]
+    data: [furniture]
+    state: { soldPct: 0 }
+    derive:
+      - { fn: costFlow, in: { dm: 75500, dl: 10400, oh: 6500, soldPct: '@soldPct' }, out: cf }
+    stage:
+      - id: bins
+        widget: DropBins
+        props: { chips: '@furniture.period.chips', bins: '@furniture.period.bins', solution: '@furniture.period.solution' }
+      - id: sold
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Share of the units sold, min: 0, max: 1, step: 0.1, format: pct }
+        bind: { value: soldPct }
+      - id: sheet
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: 'Where the ₱92,400 sits', rows: '@cf.rows' }
+      - id: entries
+        widget: Journal
+        hidden: true
+        props: { title: The entries, entries: '@cf.entries' }
+    beats:
+      - say: |
+          A **product cost** is a cost of making the product. It is kept in inventory as an asset until the unit is sold.
+          A **period cost** is expensed in the period it is incurred, whether or not anything was sold.
+        define: [product-cost, period-cost]
+        gate:
+          type: event
+          prompt: Classify Iloilo Appliance's five costs.
+          target: bins
+          event: solved
+          hint: Ask "is it incurred inside the factory to make the product?"
+      - say: |
+          **Inventory** is goods made and not yet sold: an asset on the balance sheet. When a unit is sold its product
+          cost becomes **cost of goods sold**: an expense on the income statement.
+        define: [inventory, cost-of-goods-sold]
+        show: [sheet, sold]
+        gate:
+          type: predict
+          question: The ₱92,400 tarpaulin job is finished, in the warehouse and not yet sold. Where is its cost?
+          options:
+            - An expense on the income statement
+            - Finished goods inventory, an asset
+          answer: 1
+          explain: A product cost stays in inventory until the unit is sold.
+      - say: Sell some of the units and watch the cost move.
+        gate:
+          type: when
+          prompt: Set the share sold to 40%.
+          when: 'abs(soldPct - 0.4) < 0.001'
+          hint: Drag the slider to 40%.
+      - say: Forty percent of ₱92,400 left inventory.
+        gate:
+          type: predict
+          question: What is Cost of Goods Sold at 40% sold?
+          answer: { value: 36960, tol: 0.5 }
+          explain: '$0.40 \times 92{,}400 = ₱36{,}960$. The other ₱55,440 is still an asset.'
+      - say: Now follow the entries.
+        show: [entries]
+        gate:
+          type: when
+          prompt: Set the share sold to 100%.
+          when: 'soldPct > 0.99'
+          hint: Drag the slider all the way right.
+      - say: Why does the line matter?
+        gate:
+          type: reflect
+          prompt: What happens to profit and to inventory if a period cost is wrongly treated as a product cost?
+          model: |
+            It sits in inventory as an asset instead of being expensed, so inventory is overstated and profit for the period
+            is overstated. External auditors test this classification because it is a common route to earnings
+            manipulation.
+      - say: Compute one yourself.
+        gate:
+          type: practice
+          template: cogs-numeric
+    takeaway: A product cost is an asset until the unit is sold, then becomes cost of goods sold. A period cost is expensed at once.
+
+  - id: build-the-cost
+    title: Building a job's manufacturing cost
+    goal: How do the materials, labor and overhead of one job add up, and why are there two extra groupings?
+    skills: [mfg-cost]
+    data: [tarpaulin]
+    state: { mfgUpTo: 0 }
+    derive:
+      - { fn: mfgSheet, in: { materials: '@tarpaulin.materials', labor: '@tarpaulin.labor', overhead: '@tarpaulin.overhead', upTo: '@mfgUpTo' }, out: ms }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: 'Bulacan Prints & Fab: event-tarpaulin job', rows: '@ms.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: mfgWalk
+          in: { materials: '@tarpaulin.materials', labor: '@tarpaulin.labor', overhead: '@tarpaulin.overhead' }
+          roles: { sheet: sheet }
+    beats:
+      - say: |
+          Bulacan Prints & Fab made an event tarpaulin. Tarpaulin material cost ₱47,500 and welding rod and steel
+          ₱28,000. Raw materials that become a traceable part of the product are **direct materials**.
+        define: [direct-materials]
+        gate:
+          type: predict
+          question: What are the job's direct materials?
+          answer: { value: 75500, tol: 0.5 }
+          explain: '$47{,}500 + 28{,}000 = ₱75{,}500$.'
+      - say: |
+          The printing operator earned ₱3,800 and the welder ₱6,600 on this job. Wages of the people who convert materials
+          into product and whose time can be traced are **direct labor**.
+        define: [direct-labor]
+        gate:
+          type: predict
+          question: What is the job's direct labor?
+          answer: { value: 10400, tol: 0.5 }
+          explain: '$3{,}800 + 6{,}600 = ₱10{,}400$.'
+      - say: |
+          Everything else needed to run the factory is **factory overhead**, including indirect materials such as glue
+          and indirect labor such as supervisors. ₱6,500 is applied to this job.
+        define: [factory-overhead]
+      - say: |
+          Two groupings overlap. **Prime cost** is direct materials plus direct labor. **Conversion cost** is direct labor
+          plus overhead.
+        define: [prime-cost, conversion-cost]
+        gate:
+          type: predict
+          question: What is the job's prime cost?
+          answer: { value: 85900, tol: 0.5 }
+          explain: '$75{,}500 + 10{,}400 = ₱85{,}900$.'
+      - say: Now the conversion cost.
+        gate:
+          type: predict
+          question: What is the job's conversion cost?
+          answer: { value: 16900, tol: 0.5 }
+          explain: '$10{,}400 + 6{,}500 = ₱16{,}900$.'
+      - say: |
+          **Total manufacturing cost** is direct materials plus direct labor plus factory overhead. Watch the whole sheet
+          build up.
+        define: [total-manufacturing-cost]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the cost build-up to the end.
+          target: player
+          event: done
+      - say: Someone adds prime and conversion cost to get the total.
+        gate:
+          type: reflect
+          prompt: Why is adding prime cost and conversion cost (₱85,900 + ₱16,900) not the total manufacturing cost?
+          model: |
+            Direct labor is in both prime cost and conversion cost, so adding them counts it twice. Total manufacturing
+            cost is direct materials, direct labor and overhead, each once: ₱92,400, not ₱102,800.
+      - say: Now do one on a fresh job.
+        gate:
+          type: practice
+          template: mfg-handcalc
+    takeaway: Total manufacturing cost is DM + DL + OH. Prime cost and conversion cost overlap on direct labor, so they are never added together.

@@ -1,0 +1,711 @@
+scenes:
+  - id: total-vs-unit
+    title: Same bill, different cost for each unit
+    goal: Why does the cost of each unit change even when the bill does not?
+    skills: [behavior-patterns, unit-behavior]
+    data: [heaven]
+    state: { volume: 5000, kind: fixed }
+    derive:
+      - { fn: behaviorAt, in: { kind: '@kind', fixed: '@heaven.total', rate: 5.4, volume: '@volume' }, out: ba }
+    stage:
+      - id: pick
+        widget: Choice
+        region: top
+        hidden: true
+        props:
+          label: The cost is
+          options:
+            - { value: fixed, label: 'Fixed (₱27,000 a month)' }
+            - { value: variable, label: 'Variable (₱5.40 per unit)' }
+        bind: { value: kind }
+      - id: units
+        widget: Slider
+        region: side
+        props: { label: Units produced this month, min: 1000, max: 20000, step: 500, format: comma }
+        bind: { value: volume }
+      - id: sheet
+        widget: Schedule
+        props: { title: 'One cost at the volume you choose', rows: '@ba.rows' }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Total cost, value: '{=ba.total|money}', tone: accent }
+            - { label: Cost per unit, value: '{=ba.perUnit|money2}', tone: good }
+    beats:
+      - say: |
+          Heaven Consumer Products pays ₱27,000 every month for the depreciation of its factory, however busy the
+          factory is. How many **units** it makes is its **activity measure**: the number we compare the cost with.
+        define: [activity-measure]
+      - say: |
+          Watching how a cost's total responds when activity changes is the study of **cost behavior**.
+        define: [cost-behavior]
+        gate:
+          type: predict
+          question: Depreciation is ₱27,000 at 5,000 units. What is the total depreciation if the plant makes 10,000 units?
+          answer: { value: 27000, tol: 0.5 }
+          explain: The factory does not wear out twice as fast. The bill is the same ₱27,000.
+      - say: |
+          A cost whose total stays the same as activity changes is a **fixed cost**. What does move is the
+          **cost per unit**: the total divided by the units.
+        define: [fixed-cost, cost-per-unit]
+        gate:
+          type: predict
+          question: What is the depreciation cost per unit at 10,000 units?
+          answer: { value: 2.7, tol: 0.005 }
+          explain: '$27{,}000 \div 10{,}000 = ₱2.70$, half of the ₱5.40 at 5,000 units.'
+      - say: Move the slider and watch the cost per unit.
+        gate:
+          type: when
+          prompt: Set the volume so the cost per unit falls to ₱2.70.
+          when: 'abs(ba.perUnit - 2.7) < 0.001'
+          hint: ₱27,000 divided by what number gives ₱2.70?
+      - say: |
+          Now a different kind of cost. Suppose the same ₱27,000 at 5,000 units were instead a
+          **variable cost** of ₱5.40 for every unit made. Its total rises and falls in direct proportion to
+          activity.
+        define: [variable-cost]
+        set: { kind: variable }
+        show: [pick]
+        gate:
+          type: predict
+          question: What is the total of the variable cost at 10,000 units?
+          answer: { value: 54000, tol: 0.5 }
+          explain: '$10{,}000 \times 5.40 = ₱54{,}000$. Double the units, double the total.'
+      - say: Switch between the two and compare what the slider does to the total and to the cost per unit.
+        gate:
+          type: when
+          prompt: With the variable cost selected, push the volume to 15,000 units.
+          when: "kind == 'variable' and volume == 15000"
+          hint: Choose Variable, then drag the slider to 15,000.
+      - say: Why does one cost per unit change and the other stay still?
+        gate:
+          type: reflect
+          prompt: In your own words, why does fixed cost per unit fall as volume rises while variable cost per unit stays the same?
+          model: |
+            A fixed cost is one bill shared by more and more units, so each unit carries a smaller piece. A variable cost
+            grows with every extra unit, so each unit always carries the same amount.
+      - say: Try one on your own.
+        gate:
+          type: practice
+          template: unit-fixed-numeric
+    takeaway: A fixed cost keeps its total while its per-unit cost falls; a variable cost keeps its per-unit cost while its total grows.
+
+  - id: four-patterns
+    title: Four shapes a cost can draw
+    goal: What does a cost look like on a graph when it is not simply fixed or simply variable?
+    skills: [behavior-patterns]
+    data: [patterns, marikina]
+    derive:
+      - { fn: patternCurves, in: { variableRate: '@patterns.variableRate', fixedTotal: '@patterns.fixedTotal', mixedFixed: '@patterns.mixedFixed', mixedRate: '@patterns.mixedRate', stepWidth: '@patterns.stepWidth', stepAmount: '@patterns.stepAmount', maxVolume: '@patterns.maxVolume' }, out: pc }
+    stage:
+      - id: chart
+        widget: Chart
+        props:
+          kind: line
+          xLabel: Units produced (illustrative)
+          yLabel: Total cost (₱)
+          series:
+            - { name: Variable, x: '@pc.x', y: '@pc.variable' }
+            - { name: Fixed, x: '@pc.x', y: '@pc.fixed' }
+            - { name: Mixed, x: '@pc.x', y: '@pc.mixed' }
+            - { name: Step, x: '@pc.x', y: '@pc.step' }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@marikina.chips', bins: '@marikina.bins', solution: '@marikina.solution' }
+      - id: note
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: beyond
+          title: Illustrative numbers
+          body: The deck describes these four shapes in words only. The rates drawn here are invented to make the picture.
+    beats:
+      - say: |
+          Put total cost against units and the two patterns you know are easy to spot: the straight line from the origin
+          is variable, the flat line is fixed. Two more shapes are also common.
+        show: [note]
+      - say: |
+          A **mixed cost** has a fixed part and a variable part. It rises with activity but is never zero. Electric
+          power is the classic case: a base charge plus a charge per kWh.
+        define: [mixed-cost]
+        gate:
+          type: predict
+          question: Which line on the chart starts above zero and rises steadily?
+          options: [Variable, Fixed, Mixed, Step]
+          answer: 2
+          explain: A mixed cost starts at its fixed part and then climbs with the variable part.
+      - say: |
+          A **step cost** stays flat over a range of activity and then jumps to a new level once a limit is passed:
+          one more supervisor for every 15 workers, one more truck for every 2,000 deliveries.
+        define: [step-cost]
+        gate:
+          type: predict
+          question: Over a small range of units the step line is flat. What happens when the limit is crossed?
+          options: [It starts to fall, It jumps to a higher flat level, It becomes a straight ramp]
+          answer: 1
+          explain: Hiring one more supervisor adds a whole salary at once, so the line jumps and goes flat again.
+      - say: Now classify Marikina Shoe Manufacturing's four costs.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Drop each cost into its pattern.
+          target: bins
+          event: solved
+          hint: Power has a base charge and a rate; supervisors come in jumps.
+      - say: |
+          Electric power at Marikina costs ₱8,000 as a base charge plus ₱0.15 for every kWh used.
+        gate:
+          type: predict
+          question: What is the power bill for 40,000 kWh?
+          answer: { value: 14000, tol: 0.5 }
+          explain: '$8{,}000 + 0.15 \times 40{,}000 = 8{,}000 + 6{,}000 = ₱14{,}000$.'
+      - say: Classify one on your own.
+        gate:
+          type: practice
+          template: classify-mcq
+    takeaway: Every cost is variable, fixed, mixed or step. A mixed cost has a fixed floor under a rising line; a step cost climbs a staircase.
+
+  - id: range-and-commitment
+    title: How far can a fixed cost be trusted, and how far can it be cut?
+    goal: When is a fixed cost really fixed, and which fixed costs can a manager change quickly?
+    skills: [relevant-range, fixed-types]
+    data: [cavite]
+    state: { hours: 15000 }
+    derive:
+      - { fn: rangeCheck, in: { volume: '@hours', low: 7000, high: 23000 }, out: rc }
+    stage:
+      - id: hrs
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Direct labor hours this month, min: 5000, max: 35000, step: 1000, format: comma }
+        bind: { value: hours }
+      - id: status
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Hours, value: '{=hours|comma}', tone: accent }
+            - { label: 'Formula built from 7,000 to 23,000', value: '{=rc.status}', tone: good }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props: { chips: '@cavite.chips', bins: '@cavite.bins', solution: '@cavite.solution' }
+    beats:
+      - say: |
+          Flexible Manufacturing Co.'s cost data covers months from 7,000 to 23,000 direct labor hours. Costs are
+          called fixed or variable only for that span, the **relevant range**: the activity over which a cost's
+          pattern is expected to hold.
+        define: [relevant-range]
+        show: [hrs, status]
+      - say: Push the plant far past anything it has ever done.
+        gate:
+          type: when
+          prompt: Set the hours above 23,000.
+          when: 'hours > 23000'
+          hint: Drag the slider to the right.
+      - say: Above that, a second shift or new equipment may be needed, and a formula built from lower months knows nothing about it.
+        gate:
+          type: predict
+          question: A formula built from 7,000–23,000 hours is used to budget a 30,000-hour month. Is the estimate safe?
+          options:
+            - Yes, the formula covers every volume
+            - No, 30,000 hours is outside the range it was built from
+          answer: 1
+          explain: Beyond the relevant range new fixed-cost steps appear, so the estimate may be badly wrong.
+      - say: |
+          Pressure on money brings a second question. Revenue disappoints, so Cavite Precision Parts must trim next
+          year's **budget**, its plan of expected activity and costs.
+        define: [budget]
+        show: [bins]
+      - say: |
+          Fixed costs come in two kinds. A **committed fixed cost** comes from past long-term choices, such as a lease or
+          equipment. A **discretionary fixed cost** is set by management each year, such as training or advertising.
+        define: [committed-fixed-cost, discretionary-fixed-cost]
+        gate:
+          type: event
+          prompt: Sort Cavite's four fixed costs.
+          target: bins
+          event: solved
+          hint: Which ones did the company already promise for years?
+      - say: Two of the four can be trimmed this year without breaking a contract.
+        gate:
+          type: predict
+          question: Which pair is the realistic short-term cut?
+          options: [The lease and the depreciation, The training budget and the trade-fair sponsorship]
+          answer: 1
+          explain: Committed costs are locked in. Discretionary ones are the usual first target.
+      - say: But there is a catch.
+        gate:
+          type: reflect
+          prompt: Why might cutting the training budget to hit this year's profit target hurt the company later?
+          model: |
+            Training and similar discretionary costs build skills and competitiveness that pay off in later years. Cutting
+            them lifts this year's profit but can weaken the business, so boards look closely at such cuts.
+      - say: One more sorting question.
+        gate:
+          type: practice
+          template: commit-mcq
+    takeaway: A cost is fixed only within a relevant range. Committed fixed costs are hard to cut; discretionary ones go first, at a price.
+
+  - id: cost-formula
+    title: One short formula for a bill with two parts
+    goal: How can a bill with a base charge and a usage charge be written so it can predict any month?
+    skills: [cost-formula]
+    state: { kwh: 40000 }
+    derive:
+      - { fn: costFormula, in: { a: 8000, b: 0.15, x: '@kwh' }, out: cf }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: Marikina Shoe's power bill, rows: '@cf.rows' }
+      - id: use
+        widget: Slider
+        region: side
+        props: { label: kWh used this month, min: 0, max: 80000, step: 5000, format: comma }
+        bind: { value: kwh }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Estimated bill, value: '{=cf.y|money}', tone: accent }
+            - { label: Cost per kWh, value: '{=cf.perUnit|money2}', tone: good }
+    beats:
+      - say: |
+          Marikina Shoe's power bill is ₱8,000 as a base charge plus ₱0.15 for every kWh used. Any month's bill can be
+          written with one short rule.
+        gate:
+          type: predict
+          question: What is the bill for 40,000 kWh?
+          answer: { value: 14000, tol: 0.5 }
+          explain: '$8{,}000 + 0.15 \times 40{,}000 = ₱14{,}000$.'
+      - say: |
+          Write it as **y′ = a + bx**. Here y′ ("y prime") is the estimated bill and x is the activity, kWh. This short
+          rule is the **cost formula**.
+        define: [cost-formula]
+      - say: |
+          The base ₱8,000 is the same in every month. It is the **fixed cost component**, written a.
+        define: [fixed-cost-component]
+      - say: |
+          The ₱0.15 is what each extra kWh adds. It is the **variable rate**, written b.
+        define: [variable-rate]
+        gate:
+          type: when
+          prompt: Slide the usage until the estimated bill is ₱11,000.
+          when: 'abs(cf.y - 11000) < 1'
+          hint: ₱11,000 minus the ₱8,000 base is what the usage must cost. Divide it by ₱0.15.
+      - say: Take usage all the way down.
+        gate:
+          type: predict
+          question: What is the bill in a month with no power used at all (0 kWh)?
+          answer: { value: 8000, tol: 0.5 }
+          explain: The base charge is still due, so the bill never falls below a, the fixed part.
+      - say: Compute an estimate yourself.
+        gate:
+          type: practice
+          template: formula-numeric
+      - say: Why does the average cost per kWh fall as usage rises?
+        gate:
+          type: reflect
+          prompt: Look at the cost per kWh in the readout as you slide the usage. Why does it fall as usage grows?
+          model: |
+            The ₱8,000 base is spread over more kWh each time, so each kWh carries a smaller share of it. The ₱0.15 rate
+            stays the same. The average gets closer to ₱0.15 but never reaches it.
+    takeaway: y′ = a + bx. The fixed cost component a is paid at any activity; the variable rate b is added for every unit.
+
+  - id: high-low-walk
+    title: Finding a and b from the busiest and quietest months
+    goal: How can twelve months of overhead be turned into one formula that predicts next month?
+    skills: [high-low, cost-formula]
+    data: [fmc]
+    state: { hlUpTo: 0 }
+    derive:
+      - { fn: pointsMatrix, in: { points: '@fmc.points', xName: DLH, yName: Overhead }, out: mx }
+      - { fn: highLowSheet, in: { points: '@fmc.points', upTo: '@hlUpTo' }, out: ws }
+    stage:
+      - id: data
+        widget: Matrix
+        props: { data: '@mx.data', format: int, rowHeader: Month, title: 'Flexible Manufacturing Co.: hours and overhead' }
+      - id: sheet
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: The high-low worksheet, rows: '@ws.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: highLowWalk
+          in: { points: '@fmc.points' }
+          roles: { sheet: sheet, data: data }
+    beats:
+      - say: |
+          Flexible Manufacturing Company is a factory. Its **factory overhead**, the costs of running the plant other
+          than materials and the pay of the people who make the product, differs from month to month.
+        define: [factory-overhead]
+      - say: |
+          It measures how busy the plant is in **direct labor hours**: hours worked by the people who make the product.
+          More hours usually go with more overhead.
+        define: [direct-labor-hour]
+        gate:
+          type: predict
+          question: Looking at the table, which month had the highest number of direct labor hours?
+          options: [January, February, May, August]
+          answer: 2
+          explain: May ran 23,000 hours, more than any other month. August was close at 22,000.
+      - say: |
+          The **high-low method** uses only two months: the busiest and the quietest, picked by **activity**, not
+          by cost.
+        define: [high-low-method]
+        gate:
+          type: predict
+          question: Which month had the fewest direct labor hours?
+          options: [January, March, September, July]
+          answer: 2
+          explain: September ran only 7,000 hours.
+      - say: |
+          Between September and May, hours rose from 7,000 to 23,000 and overhead rose from ₱14,000 to ₱25,000. Cost
+          moved ₱11,000 while activity moved 16,000 hours.
+        gate:
+          type: predict
+          question: How much overhead does each extra hour add, in pesos?
+          answer: { value: 0.6875, tol: 0.0005 }
+          explain: '$11{,}000 \div 16{,}000 = ₱0.6875$ per direct labor hour.'
+      - say: Now watch the whole worksheet fill in, one number at a time.
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play the worksheet to the end.
+          target: player
+          event: done
+      - say: |
+          The formula is **y′ = ₱9,187.50 + ₱0.6875x**. Both points gave the same fixed cost, as they must for a line
+          through two points.
+        gate:
+          type: predict
+          question: What overhead does the formula estimate at 15,000 direct labor hours?
+          answer: { value: 19500, tol: 0.5 }
+          explain: '$9{,}187.50 + 0.6875 \times 15{,}000 = 9{,}187.50 + 10{,}312.50 = ₱19{,}500$.'
+      - say: Do one yourself on a fresh table.
+        gate:
+          type: practice
+          template: highlow-handcalc
+      - say: One choice in the method matters a great deal.
+        gate:
+          type: reflect
+          prompt: Why does the high-low method pick the highest and lowest activity rather than the highest and lowest cost?
+          model: |
+            The formula describes how cost responds to activity. The two points must show the widest spread in activity so
+            that the change in cost can be attributed to it. A month with a high cost at middling activity may be
+            unusual, and it would give a misleading rate.
+    takeaway: Pick the highest and lowest activity. Cost change ÷ activity change gives b; total cost minus b × activity gives a.
+
+  - id: scattergraph
+    title: Using all twelve months with a line drawn by eye
+    goal: What do we gain by looking at every month instead of just two, and what do we give up?
+    skills: [scattergraph]
+    data: [fmc]
+    state: { intercept: 3000 }
+    derive:
+      - { fn: scatterPlot, in: { points: '@fmc.points', intercept: '@intercept', px: '@fmc.scatter.px', py: '@fmc.scatter.py', xMax: 25000 }, out: sp }
+      - { fn: scatterFormula, in: { a: '@intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 }, out: sf }
+    stage:
+      - id: chart
+        widget: Chart
+        props:
+          kind: scatter
+          xLabel: Direct labor hours
+          yLabel: Overhead (₱)
+          series:
+            - { name: Months, x: '@sp.dotsX', y: '@sp.dotsY' }
+            - { name: Your line, x: '@sp.lineX', y: '@sp.lineY' }
+      - id: cross
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Where your line crosses the cost axis (₱), min: 0, max: 14000, step: 500, format: comma }
+        bind: { value: intercept }
+      - id: rate
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Fixed cost you read, value: '{=intercept|money}', tone: accent }
+            - { label: Variable rate (₱ per hour), value: '{=sf.b|2f}', tone: good }
+      - id: sheet
+        widget: Schedule
+        region: side
+        hidden: true
+        props: { title: From the line to the rate, rows: '@sf.rows' }
+    beats:
+      - say: |
+          High-low ignores ten of the twelve months. The **scattergraph method** puts every month on a graph, hours
+          across and overhead up, and draws one line through the cloud by eye.
+        define: [scattergraph-method]
+      - say: |
+          You are in charge of the line. It pivots on May, and you choose where it crosses the cost axis: that height is
+          the fixed cost.
+        show: [cross, rate]
+        gate:
+          type: when
+          prompt: Set the line's crossing point to ₱6,000.
+          when: 'intercept == 6000'
+          hint: Drag the slider until it reads 6,000.
+      - say: May is at 23,000 hours and ₱25,000. With a fixed cost of ₱6,000, what is left of May's cost is variable.
+        show: [sheet]
+        gate:
+          type: predict
+          question: How many pesos of May's ₱25,000 are variable cost?
+          answer: { value: 19000, tol: 0.5 }
+          explain: '$25{,}000 - 6{,}000 = ₱19{,}000$.'
+      - say: Spread over May's 23,000 hours, that gives the variable rate.
+        gate:
+          type: predict
+          question: What is the variable rate per hour? Give four decimals.
+          answer: { value: 0.8261, tol: 0.0005 }
+          explain: '$19{,}000 \div 23{,}000 = 0.8261$. The lecture''s formula is y′ = ₱6,000 + ₱0.8261x.'
+      - say: Another analyst draws a lower line. Try it.
+        gate:
+          type: when
+          prompt: Move the crossing point to ₱3,000 and read the new rate.
+          when: 'intercept == 3000'
+          hint: Drag the slider left.
+      - say: |
+          Same twelve months, a different rate, because the line is a judgment. A month that sat far from the cloud, an
+          **outlier**, would be easy to spot on this picture before any arithmetic.
+        define: [outlier]
+        gate:
+          type: reflect
+          prompt: What is the main weakness of fitting the line by eye?
+          model: |
+            It is subjective. Two analysts can draw different lines through the same points and get different fixed costs
+            and rates, and nothing tells us which line fits best or how well. The result is hard to repeat or defend.
+      - say: Read a line yourself.
+        gate:
+          type: practice
+          template: scatter-numeric
+    takeaway: The scattergraph uses every month and shows odd months at a glance, but the line is a judgment, so the formula is not reproducible.
+
+  - id: head-to-head
+    title: Two formulas from the same twelve months
+    goal: When two methods give different formulas, how much does it matter, and where?
+    skills: [compare-methods]
+    data: [fmc]
+    state: { cmpUpTo: 0 }
+    derive:
+      - { fn: highLow, in: { points: '@fmc.points' }, out: h }
+      - { fn: scatterFormula, in: { a: '@fmc.scatter.intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 }, out: sf }
+      - { fn: compareSheet, in: { hlA: '@h.a', hlB: '@h.b', sgA: '@fmc.scatter.intercept', sgB: '@sf.b', levels: '@fmc.levels', upTo: '@cmpUpTo' }, out: cs }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: Predicted overhead, columns: [High-low, Scattergraph, Gap], rows: '@cs.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: compareWalk
+          in: { hlA: '@h.a', hlB: '@h.b', sgA: '@fmc.scatter.intercept', sgB: '@sf.b', levels: '@fmc.levels' }
+          roles: { sheet: sheet }
+      - id: err
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: errata
+          title: A slip on slides 50 and 64
+          body: 'The slides print ₱15,875 for the high-low estimate at 10,000 hours. 9,187.50 + 0.6875 × 10,000 is ₱16,062.50, which is what you see here.'
+    beats:
+      - say: |
+          High-low gave y′ = ₱9,187.50 + ₱0.6875x. The scattergraph gave y′ = ₱6,000 + ₱0.8261x. Each is a fair
+          answer to "what will overhead be?" Let's see how far apart they are.
+        gate:
+          type: predict
+          question: At 20,000 hours, which formula gives the higher estimate?
+          options: [High-low, Scattergraph]
+          answer: 0
+          explain: 9,187.50 + 0.6875 × 20,000 = 22,937.50, and 6,000 + 0.8261 × 20,000 = 22,522.
+      - say: Watch each estimate, and the gap between them, appear at four activity levels.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the comparison to the end.
+          target: player
+          event: done
+      - say: The gap is not the same everywhere.
+        show: [err]
+        gate:
+          type: predict
+          question: At which activity level are the two formulas furthest apart?
+          options: ['10,000 hours', '15,000 hours', '20,000 hours', '25,000 hours']
+          answer: 0
+          explain: The gap is about ₱1,800 at 10,000 hours and shrinks to zero near 23,000, where both lines pass through May.
+      - say: |
+          Neither is wrong. They use different amounts of information, and the gap is information too: a large gap
+          says the data are noisy and deserve a closer look.
+        gate:
+          type: reflect
+          prompt: The two methods disagree by about ₱1,800 at 10,000 hours. What would you do before using either one for a budget?
+          model: |
+            I would plot the data and look for unusual months, check whether direct labor hours really drive the cost,
+            and use a method that uses all the data with a fixed rule, such as regression, next session. For a quick
+            budget I would use the more cautious figure and say how far apart the methods are.
+      - say: Put a formula to work, as Flexible Manufacturing does when it budgets.
+        gate:
+          type: predict
+          question: Next month's forecast is 18,000 hours. Using the high-low formula, what overhead goes into the budget?
+          answer: { value: 21562.5, tol: 0.5 }
+          explain: '$9{,}187.50 + 0.6875 \times 18{,}000 = 9{,}187.50 + 12{,}375 = ₱21{,}562.50$.'
+      - say: One more.
+        gate:
+          type: practice
+          template: budget-numeric
+    takeaway: Different methods give different formulas, most of all at the range's edges. A big gap is a cue to recheck the data.
+
+  - id: outlier-trap
+    title: The month that fools high-low
+    goal: What happens when the busiest month is also an unusual one?
+    skills: [outliers]
+    data: [zamboanga]
+    state: { include: 'yes' }
+    derive:
+      - { fn: outlierView, in: { points: '@zamboanga.points', outlier: May, include: '@include', xMax: 22000 }, out: ov }
+      - { fn: outlierScreen, in: { points: '@zamboanga.points', outlier: May, at: 12000 }, out: os }
+    stage:
+      - id: chart
+        widget: Chart
+        props:
+          kind: scatter
+          xLabel: Kilos processed
+          yLabel: Refrigeration cost (₱)
+          series:
+            - { name: Months, x: '@ov.dotsX', y: '@ov.dotsY' }
+            - { name: High-low line, x: '@ov.lineX', y: '@ov.lineY' }
+      - id: pick
+        widget: Choice
+        region: top
+        hidden: true
+        props:
+          label: May, the typhoon month
+          options:
+            - { value: 'yes', label: Include it }
+            - { value: 'no', label: Exclude it }
+        bind: { value: include }
+      - id: out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Variable rate (₱ per kg), value: '{=ov.b|2f}', tone: accent }
+            - { label: Fixed cost, value: '{=ov.a|money}', tone: good }
+      - id: note
+        widget: Callout
+        region: side
+        props:
+          kind: beyond
+          title: Illustrative months
+          body: The deck gives only May (₱95,000 at 20,000 kg) and says the other seven form a tight line. The seven here are invented to follow ₱20,000 + ₱3 per kg.
+    beats:
+      - say: |
+          Zamboanga Seafood Processing plots eight months of refrigeration cost against kilos processed. Seven months
+          line up. May, a typhoon month with overtime and spoilage, sits far above them, and it is also the busiest.
+        gate:
+          type: predict
+          question: May has the highest kilos, and March has the lowest. Which two months will the high-low method use?
+          options: [May and March, June and March, May and June, January and March]
+          answer: 0
+          explain: High-low picks by activity, so the abnormal May is chosen automatically, with no warning.
+      - say: See what the high-low line does with May in the data.
+        show: [pick, out]
+        gate:
+          type: when
+          prompt: Exclude May and watch the line.
+          when: "include == 'no'"
+          hint: Choose Exclude it.
+      - say: Without May the other seven months form a clean line with a variable rate of ₱3 per kg.
+        gate:
+          type: predict
+          question: With May included, the high-low rate is ₱4.25 per kg. By how much does one abnormal month overstate the rate?
+          answer: { value: 1.25, tol: 0.005 }
+          explain: 4.25 − 3.00 = ₱1.25 per kg, about 42% too high.
+      - say: |
+          The plot made this visible before any arithmetic. That is the best use of a scattergraph: look at the data
+          first, then compute.
+        gate:
+          type: reflect
+          prompt: Should May be excluded when building the formula? What would you want to know first?
+          model: |
+            Probably yes, because a typhoon with overtime and spoilage is a one-time event, not normal behavior. But I
+            would check that the cause is real and documented, and say clearly in the report that the month was left out
+            and why.
+      - say: Find the clean rate on fresh data.
+        gate:
+          type: practice
+          template: outlier-numeric
+    takeaway: High-low picks the busiest month even when it is abnormal. Plot the data first, and exclude a month only with a documented one-time cause.
+
+  - id: incremental-order
+    title: What does one more order really cost?
+    goal: When a manager must price one extra order, which part of the cost formula matters?
+    skills: [incremental]
+    data: [cordillera]
+    state: { hours: 40 }
+    derive:
+      - { fn: incremental, in: { a: '@cordillera.a', b: '@cordillera.b', hours: '@hours', deptHours: '@cordillera.deptHours' }, out: inc }
+    stage:
+      - id: sheet
+        widget: Schedule
+        props: { title: 'Cordillera Craft Furniture: finishing department', rows: '@inc.rows' }
+      - id: hrs
+        widget: Slider
+        region: side
+        props: { label: Machine hours the order needs, min: 10, max: 200, step: 10, format: comma }
+        bind: { value: hours }
+      - id: out
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Overhead the order adds, value: '{=inc.incremental|money}', tone: good }
+            - { label: Fixed overhead, value: '{=cordillera.a|money}', tone: accent }
+    beats:
+      - say: |
+          Cordillera Craft Furniture's finishing overhead is estimated as ₱12,000 a month plus ₱8 per machine hour. A
+          custom order needs 40 machine hours.
+        gate:
+          type: predict
+          question: How much extra overhead does accepting the order add?
+          options: ['₱12,320', '₱320', '₱12,000', '₱8']
+          answer: 1
+          explain: The ₱12,000 is there with or without the order. Only 40 hours × ₱8 = ₱320 changes.
+      - say: |
+          The extra cost caused by one decision is its **incremental cost**. A cost that is the same whether you accept
+          or refuse is not incremental, even though it is a real cost of running the department.
+        define: [incremental-cost]
+        gate:
+          type: when
+          prompt: Make the order need 100 machine hours.
+          when: 'hours == 100'
+          hint: Drag the slider to 100.
+      - say: The fixed overhead stays at ₱12,000 whatever the order size. Only the variable part grows.
+        gate:
+          type: reflect
+          prompt: Is the ₱12,000 of fixed overhead ignored because it is not a real cost? Explain.
+          model: |
+            It is a real cost, and the business must cover it from all its work together. But for the decision on this one
+            order it is paid either way, so it does not change with the decision and is left out of the incremental cost.
+      - say: Cost an order yourself.
+        gate:
+          type: practice
+          template: incremental-numeric
+    takeaway: Incremental cost is the part of the cost that changes with the decision. For one order, that is the variable rate times its activity.

@@ -1,0 +1,165 @@
+intro: |
+  A cost formula is only as good as the evidence behind it. Regression turns a short table of months into a formula,
+  tells the analyst how far to trust it, and shows where it stops being valid. This case takes one small furniture
+  maker from five months of indirect labor to a defensible number for a quote.
+case:
+  id: cordillera-indirect-labor
+  title: Cordillera Craft Furniture's indirect labor cost
+  story: |
+    Cordillera Craft Furniture tracked indirect labor cost against machine hours for five months: 100 hours at ₱8,200
+    up to 300 hours at ₱17,200. A customer wants a quote that depends on a 220-hour job, and the owner is thinking of a
+    400-hour run next quarter. The figures are from the lecture; the case is synthetic.
+  data: [cordillera5]
+  derive:
+    - { fn: regression, in: { points: '@cordillera5.points' }, out: rg }
+    - { fn: standardError, in: { points: '@cordillera5.points' }, out: sd }
+    - { fn: predictLine, in: { a: '@rg.a', b: '@rg.b', x: '@cordillera5.predictAt' }, out: pr }
+    - { fn: predictLine, in: { a: 3700, b: 45, x: '@cordillera5.predictAt' }, out: ph }
+    - { fn: predictRange, in: { a: '@rg.a', b: '@rg.b', x: '@cordillera5.predictAt', se: '@sd.se' }, out: rr }
+    - { fn: judgeModel, in: { r2: '@rg.r2', t: '@sd.t' }, out: jm }
+    - { fn: rangeCheck, in: { volume: 400, low: 100, high: 300 }, out: rc }
+  cells:
+    - id: table
+      title: The data in one table
+      say: |
+        Five months, machine hours against indirect labor. Total the columns before anything else: ΣX = 1,000,
+        ΣY = 63,000, ΣXY = 13,720,000 and ΣX² = 225,000.
+      stage:
+        - { id: tbl, widget: Schedule, props: { title: The regression table, columns: [Machine hours, Indirect labor, XY, 'X²'], rows: '@rg.tableRows' } }
+    - id: line
+      title: The least-squares line
+      say: |
+        With n = 5, b = 5,600,000 ÷ 125,000 = {=rg.b|2f} and a = {=rg.a|2f}. Each extra machine hour goes with about ₱45
+        more indirect labor, on top of about ₱3,640 that is there at any level.
+      stage:
+        - { id: calc, widget: Schedule, props: { title: The calculation, rows: '@rg.calcRows' } }
+    - id: quote
+      title: What goes in the quote?
+      say: |
+        The 220-hour job gives a point estimate of {=pr.y|money}. The standard error of the estimate is
+        {=sd.se|money2}, so a rough 95% range is {=rr.low|money} to {=rr.high|money}.
+      stage:
+        - id: quote-out
+          widget: Readout
+          props:
+            items:
+              - { label: Predicted indirect labor at 220 hours, value: '{=pr.y|money}', tone: accent }
+              - { label: 'Rough 95% range', value: '{=rr.low|money} to {=rr.high|money}', tone: good }
+      decision:
+        prompt: How should the estimator present the 220-hour figure?
+        type: mcq
+        options:
+          - As about ₱13,500 with a range, stating that the model was built on 100 to 300 hours
+          - As exactly ₱13,496, because regression is exact
+          - As ₱13,496 plus the standard error, to be safe
+          - As the average of the five months
+        answer: 0
+        model: A regression prediction is an estimate with a typical error. Presenting it as a rounded figure and a range, with the data range stated, is honest and useful to the person pricing the job.
+    - id: versus
+      title: Against the quick high-low answer
+      say: |
+        High-low on the first and last months gives ₱3,700 + ₱45x, which predicts {=ph.y|money} at 220 hours. The two are
+        only ₱104 apart here, because the five points are nearly on a line.
+      stage:
+        - id: versus-out
+          widget: Readout
+          props:
+            items:
+              - { label: Regression estimate, value: '{=pr.y|money}', tone: accent }
+              - { label: High-low estimate, value: '{=ph.y|money}', tone: warn }
+      decision:
+        prompt: The two answers are close. Why still prefer the regression for a quote the customer may challenge?
+        type: mcq
+        options:
+          - It uses all five months and comes with a statistic showing how well it fits
+          - It always gives the lower price
+          - High-low cannot be computed from five months
+          - Regression needs no data
+        answer: 0
+        model: Closeness here is luck of the data. Regression uses every observation by an objective rule and reports R² and the standard error, so you can defend it. High-low gives you a number and no evidence for it.
+    - id: judge
+      title: Can this model be trusted?
+      say: |
+        R² is {=rg.r2|4} and the slope's t-statistic is {=sd.t|1}. Both are very strong. But the model rests on only five
+        observations.
+      stage:
+        - id: judge-sheet
+          widget: Schedule
+          props: { title: Reading the output, rows: '@jm.rows' }
+      decision:
+        prompt: What is the main caution about this otherwise excellent fit?
+        type: mcq
+        options:
+          - Five months is a very small sample, and the model is only valid between 100 and 300 hours
+          - R² of 0.99 is always suspicious
+          - A positive slope is unusual for a cost
+          - The intercept must be zero
+        answer: 0
+        model: Regression works best with at least 10 to 12 periods. With five points even a clean line can be luck, and nothing here says what happens outside 100 to 300 hours. Collect more months before relying on it widely.
+    - id: range
+      title: A 400-hour run next quarter
+      say: |
+        The owner wants to use the same formula at 400 machine hours. The data stop at 300. {=rc.text}
+      stage:
+        - id: range-out
+          widget: Readout
+          props:
+            items:
+              - { label: Hours requested, value: '400', tone: accent }
+              - { label: Status, value: '{=rc.status}', tone: warn }
+      decision:
+        prompt: What should the estimator do about the 400-hour run?
+        type: open
+        model: |
+          Treat the formula's answer as a rough guide only and say it is an extrapolation. At that volume Cordillera may need
+          overtime, a second shift or extra equipment, which would change the fixed and variable parts. Ask operations what
+          changes at that volume, and record a few high-volume months so the model can be re-estimated.
+atScale:
+  title: Regression in practice
+  body: |
+    **Spreadsheets.** The built-in functions `SLOPE`, `INTERCEPT`, `RSQ` and `STEYX` give b, a, R² and sₑ from two ranges.
+    `LINEST` returns the coefficients and statistics for several drivers at once, and the Data Analysis ToolPak adds the
+    t-statistics. The workbooks in this session use the same calculations laid out step by step.
+
+    **Analytics platforms.** In Python, a library such as `statsmodels` fits the same model and prints the whole table of
+    coefficients, standard errors, t-statistics and R². Controllers use this when there are many drivers or thousands of
+    observations, and when they want to test multicollinearity.
+
+    **Good practice.** Keep the data window and any excluded months in the file, refresh the model when processes change,
+    and track R² and forecast error over time on a dashboard so that a drifting model is noticed.
+  code:
+    - lang: python
+      title: The same regression with statsmodels (beyond the slides)
+      source: |
+        import pandas as pd
+        import statsmodels.api as sm
+
+        data = pd.DataFrame({
+            "machine_hours": [100, 150, 200, 250, 300],
+            "indirect_labor": [8200, 10300, 12600, 14700, 17200],
+        })
+        X = sm.add_constant(data["machine_hours"])
+        model = sm.OLS(data["indirect_labor"], X).fit()
+        print(model.params)       # const 3640.0, machine_hours 44.8
+        print(model.rsquared)     # R-squared
+        print(model.bse)          # standard errors of the coefficients
+tradeoffs:
+  title: Regression compared with simpler methods
+  columns: [Question, High-low, Scattergraph, Regression]
+  rows:
+    - ['How many months does it use?', 'Two', 'All', 'All']
+    - ['Is the answer reproducible?', 'Yes, but sensitive to the extremes', 'No, the line is drawn by eye', 'Yes, one rule for everyone']
+    - ['Does it measure fit?', 'No', 'No', 'Yes: R², sₑ and t']
+    - ['Can it use two drivers?', 'No', 'No', 'Yes, multiple regression']
+    - ['What does it cost?', 'Minutes', 'Minutes and a graph', 'More data, and some statistical literacy']
+connections:
+  - { module: cost-behavior, note: 'Session 2 introduced the formula y = a + bx and two quick ways to estimate it; regression is the third, objective, way.' }
+  - { module: job-order, note: 'The predetermined overhead rate depends on a driver and a budget, which are often estimated with a cost formula like this one.' }
+  - { module: abc, note: 'Choosing a driver by R² and t is the same discipline as choosing an activity driver for each pool.' }
+explainBack:
+  prompt: Explain to the owner how a five-month table became a quote of about ₱13,500 with a range, and what you would still want before trusting the formula at 400 hours.
+  rubric:
+    - Least squares picks the line that minimizes the squared errors, using all the months
+    - b and a come from the column totals and the means, and the line predicts cost at a given activity
+    - R², the standard error and t say how much to trust the model, and the standard error gives a range
+    - The model holds only within the range of the data, and five months is a small sample

@@ -1,0 +1,527 @@
+templates:
+  # ------------------------------------------------------------------ least squares
+  - id: error-numeric
+    type: numeric
+    skills: [least-squares]
+    difficulty: 1
+    tags: [math]
+    generator: errorQ
+    lessonRef: { tab: math-code, id: least-squares-fit }
+    prompt: |
+      A fitted line is $y' = {=a} + {=b|2f}x$. In a month with x = {=x} the actual cost was {=y}. What is the error
+      (residual) u for that month?
+    answer: { var: u, tol: 0.01 }
+    hints:
+      - First predict the cost with the line.
+      - The error is actual minus predicted.
+    explanation: 'Predicted $y\prime = {=a} + {=b|2f} \times {=x} = {=pred}$. Error $u = y - y\prime = {=y} - {=pred} = {=u}$.'
+
+  - id: sse-numeric
+    type: numeric
+    skills: [least-squares]
+    difficulty: 2
+    tags: [math]
+    generator: sseQ
+    lessonRef: { tab: math-code, id: least-squares-fit }
+    prompt: |
+      The line $y' = {=a} + {=b}x$ is fitted to the data below. What is the sum of the squared errors $\sum (y - y')^2$?
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    answer: { var: sse, tol: 0.01 }
+    hints:
+      - Predict y′ for each month, then find y − y′.
+      - Square each error before adding.
+    explanation: 'Square each error and add them: the total is {=sse}. Adding the raw errors would give {=sumErr}, because the positives and negatives partly cancel.'
+
+  - id: ls-mcq
+    type: mcq
+    skills: [least-squares]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-regression }
+    prompt: Why does the least-squares method square the errors before adding them?
+    options:
+      - So positive and negative errors cannot cancel, and large errors count for more
+      - So the line always passes through the origin
+      - So the answer is expressed in percentages
+      - So that outliers are ignored
+    answer: 0
+    hints:
+      - Think about what happens if you add +5 and −5.
+    explanation: Raw errors above and below the line cancel, so a poor line can still add to zero. Squaring makes every error positive and weights big misses more heavily.
+
+  - id: ls-match
+    type: match
+    skills: [least-squares]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: why-regression }
+    prompt: Match each term to what it means.
+    pairs:
+      - ['Residual', 'Actual cost minus the cost the line predicts']
+      - ['Least squares', 'The line with the smallest total of squared errors']
+      - ['Independent variable', 'The driver x used to explain cost']
+      - ['Dependent variable', 'The cost y being explained']
+    explanation: The driver x is independent; the cost y depends on it. The residual is what the line misses, and least squares makes the total of squared misses as small as possible.
+
+  # ------------------------------------------------------------------ the line by hand
+  - id: regline-b-numeric
+    type: numeric
+    skills: [regression-line]
+    difficulty: 1
+    tags: [math]
+    generator: regSumsQ
+    lessonRef: { tab: math-code, id: regression-line }
+    prompt: |
+      A regression table has n = {=n}, Σx = {=sx}, Σy = {=sy}, Σxy = {=sxy} and Σx² = {=sx2}. What is the slope b?
+    answer: { var: b, tol: 0.01 }
+    hints:
+      - The numerator is nΣxy − ΣxΣy.
+      - The denominator is nΣx² − (Σx)².
+    explanation: 'Numerator $= {=n}({=sxy}) - ({=sx})({=sy}) = {=num}$; denominator $= {=n}({=sx2}) - {=sx}^2 = {=den}$; $b = {=num} \div {=den} = {=b|3}$.'
+
+  - id: regline-handcalc
+    type: hand-calc
+    skills: [regression-line]
+    difficulty: 2
+    tags: [math]
+    generator: regSumsQ
+    lessonRef: { tab: math-code, id: regression-line }
+    prompt: |
+      Totals for the data below: n = {=n}, Σx = {=sx}, Σy = {=sy}, Σxy = {=sxy}, Σx² = {=sx2}. Find the regression
+      line and predict the cost at x = {=predictAt}.
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    steps:
+      - prompt: Slope b
+        answer: { var: b, tol: 0.01 }
+        misconceptions:
+          - { var: wrongB, feedback: 'That is Σxy ÷ Σx². Use (nΣxy − ΣxΣy) ÷ (nΣx² − (Σx)²).' }
+        hint: Compute the numerator and the denominator separately.
+      - prompt: Intercept a
+        answer: { var: a, tol: 0.05 }
+        misconceptions:
+          - { var: wrongA, feedback: 'That is just the mean of y. Subtract b × the mean of x.' }
+        hint: a = ȳ − b x̄. Find both means first.
+      - prompt: Predicted cost at the x above
+        answer: { var: predicted, tol: 0.1 }
+        misconceptions:
+          - { var: wrongNoA, feedback: 'You left out the intercept a.' }
+        hint: a + b × x.
+    hints:
+      - Compute b first, then a.
+    explanation: |
+      $b = ({=n}\times{=sxy} - {=sx}\times{=sy}) \div ({=n}\times{=sx2} - {=sx}^2) = {=num} \div {=den} = {=b|3}$;
+      $a = {=ybar|2f} - {=b|3}\times{=xbar|2f} = {=a|2f}$; $y' = {=a|2f} + {=b|3}\times{=predictAt} = {=predicted|2f}$.
+
+  - id: regline-fill
+    type: schedule-fill
+    skills: [regression-line]
+    difficulty: 2
+    tags: [journal]
+    generator: regSumsQ
+    lessonRef: { tab: math-code, id: regression-line }
+    prompt: |
+      Complete the calculation for the regression of y on x ({=n} observations).
+    rows:
+      - { label: 'Σx', amount: '@sx', format: number }
+      - { label: 'Σy', amount: '@sy', format: number }
+      - { label: 'Σxy', amount: '@sxy', format: number }
+      - { label: 'Σx²', amount: '@sx2', format: number }
+      - { label: 'Numerator: nΣxy − ΣxΣy', amount: '@num', format: number, blank: true }
+      - { label: 'Denominator: nΣx² − (Σx)²', amount: '@den', format: number, blank: true }
+      - { label: 'Slope b', amount: '@b', format: number, blank: true, tol: 0.01 }
+      - { label: 'Intercept a', amount: '@a', format: number, blank: true, style: total, tol: 0.05 }
+    hints:
+      - The numerator and denominator come straight from the four totals and n.
+      - a = ȳ − b x̄, with ȳ = Σy ÷ n and x̄ = Σx ÷ n.
+    explanation: 'Numerator {=num}, denominator {=den}, so $b = {=b|3}$; $a = {=ybar|2f} - {=b|3} \times {=xbar|2f} = {=a|2f}$.'
+
+  - id: regline-order
+    type: order
+    skills: [regression-line]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: build-the-line }
+    prompt: Put the by-hand regression steps in order.
+    items:
+      - Build a table of x, y, xy and x²
+      - Total every column
+      - Compute the means of x and y
+      - Compute b from the totals
+      - Compute a from the means and b
+    explanation: The slope needs only the totals. The intercept needs the slope and the means, so it comes last.
+
+  # ------------------------------------------------------------------ R²
+  - id: r2-handcalc
+    type: hand-calc
+    skills: [r-squared]
+    difficulty: 2
+    tags: [math]
+    generator: r2Q
+    lessonRef: { tab: math-code, id: r-squared }
+    prompt: |
+      For a regression with n = {=n}, Σx = {=sx}, Σy = {=sy}, Σxy = {=sxy}, Σx² = {=sx2} and Σy² = {=sy2}, compute R².
+    steps:
+      - prompt: Numerator, nΣxy − ΣxΣy
+        answer: { var: num, tol: 0.5 }
+        hint: n times Σxy, minus Σx times Σy.
+      - prompt: nΣx² − (Σx)²
+        answer: { var: den, tol: 0.5 }
+        hint: n times Σx², minus Σx squared.
+      - prompt: nΣy² − (Σy)²
+        answer: { var: denY, tol: 0.5 }
+        hint: The same pattern with y.
+      - prompt: R², as a decimal
+        answer: { var: r2, tol: 0.005 }
+        misconceptions:
+          - { var: wrongR, feedback: 'That is r, the correlation. R² is the numerator squared over the two denominators multiplied.' }
+        hint: Numerator squared ÷ (denominator x × denominator y).
+    hints:
+      - R² uses three of the four quantities you can build from the totals.
+    explanation: 'Numerator {=num}, so its square is {=numSq}. Denominators {=den} and {=denY} multiply to {=prod}. $R^2 = {=numSq} \div {=prod} = {=r2|4}$.'
+
+  - id: r2-numeric
+    type: numeric
+    skills: [r-squared]
+    difficulty: 2
+    tags: [math]
+    generator: r2Q
+    lessonRef: { tab: math-code, id: r-squared }
+    prompt: |
+      A regression gives nΣxy − ΣxΣy = {=num}, nΣx² − (Σx)² = {=den} and nΣy² − (Σy)² = {=denY}. What is R²?
+    answer: { var: r2, tol: 0.005 }
+    hints:
+      - Square the first quantity, then divide by the product of the other two.
+    explanation: '$R^2 = {=num}^2 \div ({=den} \times {=denY}) = {=numSq} \div {=prod} = {=r2|4}$. The line explains about {=r2|pct} of the variation in cost.'
+
+  - id: r2-fill
+    type: schedule-fill
+    skills: [r-squared]
+    difficulty: 2
+    tags: [journal]
+    generator: r2Q
+    lessonRef: { tab: math-code, id: r-squared }
+    prompt: |
+      Complete the R² worksheet for n = {=n}, Σx = {=sx}, Σy = {=sy}, Σxy = {=sxy}, Σx² = {=sx2} and Σy² = {=sy2}.
+    rows:
+      - { label: 'nΣxy − ΣxΣy', amount: '@num', format: number, blank: true }
+      - { label: 'nΣx² − (Σx)²', amount: '@den', format: number, blank: true }
+      - { label: 'nΣy² − (Σy)²', amount: '@denY', format: number, blank: true }
+      - { label: 'R²', amount: '@r2', format: number, style: total, blank: true, tol: 0.005 }
+    hints:
+      - Each of the first three lines uses n and two totals.
+      - R² = first line squared ÷ (second line × third line).
+    explanation: 'Numerator {=num}, denominators {=den} and {=denY}. $R^2 = {=num}^2 \div ({=den} \times {=denY}) = {=r2|4}$.'
+
+  - id: se-fill
+    type: schedule-fill
+    skills: [standard-error]
+    difficulty: 1
+    tags: [journal]
+    generator: seRangeQ
+    lessonRef: { tab: math-code, id: standard-errors }
+    prompt: |
+      A model predicts {=y|money} with a standard error of the estimate of {=se|money}. Complete the rough 95% range.
+    rows:
+      - { label: Predicted cost, amount: '@y' }
+      - { label: 'Two standard errors', amount: '@half', blank: true }
+      - { label: Lower end of the range, amount: '@low', blank: true }
+      - { label: Upper end of the range, amount: '@high', style: total, blank: true }
+    hints:
+      - About 95% uses two standard errors.
+    explanation: 'Two standard errors = {=half|money}; the range runs from {=y|comma} − {=half|comma} = {=low|money} to {=y|comma} + {=half|comma} = {=high|money}.'
+
+  - id: r2-mcq
+    type: mcq
+    skills: [r-squared]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: how-good }
+    prompt: A regression of overhead on direct labor hours gives R² = 0.70. What does that mean?
+    options:
+      - About 70% of the variation in overhead is explained by direct labor hours
+      - Overhead rises 70% when hours rise 1%
+      - Seventy percent of the data points lie on the line
+      - The line is 70% likely to be correct
+    answer: 0
+    hints:
+      - R² is a share of the variation in cost.
+    explanation: R² is the proportion of the ups and downs in cost explained by the driver. The other 30% comes from other factors or randomness.
+
+  - id: r2-multi
+    type: multi
+    skills: [r-squared]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: how-good }
+    prompt: Which statements about R² are true? Select all that apply.
+    options:
+      - In simple regression it is the square of the correlation coefficient
+      - It always lies between 0 and 1
+      - A high R² proves the driver causes the cost
+      - A higher R² means the points are closer to the line
+    answer: [0, 1, 3]
+    hints:
+      - R² describes how closely the points hug the line, not why.
+    explanation: R² runs from 0 to 1 and grows as the points move closer to the line. It is a measure of association, so a high value does not prove cause.
+
+  # ------------------------------------------------------------------ standard error and t
+  - id: serange-numeric
+    type: numeric
+    skills: [standard-error]
+    difficulty: 2
+    tags: [math]
+    generator: seRangeQ
+    lessonRef: { tab: math-code, id: standard-errors }
+    prompt: |
+      A regression predicts overhead of {=y|money} for next month, and its standard error of the estimate is
+      {=se|money}. Using about 95% confidence (two standard errors), what is the **lower** end of the range?
+    answer: { var: low, tol: 0.5 }
+    hints:
+      - About 95% uses two standard errors either side.
+    explanation: 'The range is $y\prime \pm 2 s_e = {=y|comma} \pm {=half|comma}$, so it runs from {=low|money} to {=high|money}.'
+
+  - id: se-mcq
+    type: mcq
+    skills: [standard-error]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: how-much-to-trust }
+    prompt: Two models have the same R². Model A has a standard error of ₱500 and model B has ₱5,000. What does this tell you?
+    options:
+      - Model A's predictions cluster much closer to its line, so it is more precise
+      - Model B is more accurate because its error is larger
+      - The standard errors are in percent, so they cannot be compared
+      - Both are equally precise because R² is the same
+    answer: 0
+    hints:
+      - The standard error is a typical size of the miss.
+    explanation: The standard error of the estimate is in the same units as the cost. A smaller one means actual costs sit closer to the fitted line.
+
+  - id: t-numeric
+    type: numeric
+    skills: [t-statistic]
+    difficulty: 1
+    tags: [math]
+    generator: tStatQ
+    lessonRef: { tab: math-code, id: standard-errors }
+    prompt: |
+      A regression slope is b = {=b|money2} with a standard error of {=sb|money2}. What is the t-statistic?
+    answer: { var: t, tol: 0.01 }
+    hints:
+      - t is the coefficient divided by its standard error.
+    explanation: '$t = b \div s_b = {=b|2f} \div {=sb|2f} = {=t|2f}$, so the slope {=significant} statistically significant (the rule of thumb is |t| above 2).'
+
+  - id: t-mcq
+    type: mcq
+    skills: [t-statistic, standard-error]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: how-much-to-trust }
+    prompt: Which statistic tells you whether a particular driver's coefficient is distinguishable from zero?
+    options:
+      - The t-statistic
+      - R²
+      - The standard error of the estimate
+      - The intercept
+    answer: 0
+    hints:
+      - Which statistic is about one coefficient, not the whole model?
+    explanation: R² describes the whole model and the standard error of the estimate the size of a typical miss. The t-statistic compares one coefficient with its own uncertainty.
+
+  # ------------------------------------------------------------------ multiple regression
+  - id: multi-predict-numeric
+    type: numeric
+    skills: [multiple-regression]
+    difficulty: 1
+    tags: [math]
+    generator: multiPredictQ
+    lessonRef: { tab: math-code, id: multiple-regression }
+    prompt: |
+      Packing cost is estimated as $y' = {=a|comma} + {=b1}x_1 + {=b2}x_2$, where x₁ is kilos packed and x₂ is the number
+      of orders. What is the predicted cost for {=x1|comma} kg across {=x2} orders?
+    answer: { var: y, tol: 0.01 }
+    hints:
+      - Replace each x with its value.
+      - Add the intercept once.
+    explanation: '$y\prime = {=a|comma} + {=b1} \times {=x1|comma} + {=b2} \times {=x2} = {=a|comma} + {=part1|comma} + {=part2|comma} = {=y|money}$.'
+
+  - id: multi-fill
+    type: schedule-fill
+    skills: [multiple-regression]
+    difficulty: 1
+    tags: [journal]
+    generator: multiPredictQ
+    lessonRef: { tab: math-code, id: multiple-regression }
+    prompt: |
+      Complete the prediction for {=x1|comma} kg across {=x2} orders. The equation is
+      $y' = {=a|comma} + {=b1}x_1 + {=b2}x_2$.
+    rows:
+      - { label: Intercept, amount: '@a' }
+      - { label: 'Kilos term: b₁ × x₁', amount: '@part1', indent: 1, blank: true }
+      - { label: 'Orders term: b₂ × x₂', amount: '@part2', indent: 1, blank: true }
+      - { label: Predicted cost, amount: '@y', style: total, blank: true }
+    hints:
+      - Multiply each coefficient by its driver's value.
+    explanation: 'Kilos term {=b1} × {=x1|comma} = {=part1|money}; orders term {=b2} × {=x2} = {=part2|money}; the total is {=y|money}.'
+
+  - id: multi-meaning-mcq
+    type: mcq
+    skills: [multiple-regression]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: two-drivers }
+    prompt: In a model with coefficients ₱3.20 per kg and ₱180 per order, what does the ₱180 mean?
+    options:
+      - Each extra order adds about ₱180 to packing cost, holding kilos packed constant
+      - Every order costs exactly ₱180, whatever the kilos
+      - Orders explain 180% of the cost
+      - The fixed cost is ₱180
+    answer: 0
+    hints:
+      - Each coefficient is read with the other drivers held constant.
+    explanation: A coefficient in a multiple regression is the change in cost for one more unit of that driver with the other drivers held fixed. It is an estimate, not an exact charge.
+
+  # ------------------------------------------------------------------ multicollinearity
+  - id: mc-mcq
+    type: mcq
+    skills: [multicollinearity]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: moving-together }
+    prompt: A regression of overhead on machine hours and direct labor hours (which are 96% correlated) has R² = 0.88, but the coefficient on labor hours is negative. What is the most likely explanation and the sensible action?
+    options:
+      - Multicollinearity; drop one of the two correlated drivers and re-estimate
+      - The model is excellent because R² is 0.88
+      - Labor hours really reduce overhead; keep both drivers
+      - R² is too low; add more correlated drivers
+    answer: 0
+    hints:
+      - Look at the correlation between the two drivers.
+    explanation: When two drivers move almost together, their separate effects cannot be isolated and a coefficient can take an implausible sign while R² still looks good. Keep the driver that is more closely tied to the cost.
+
+  - id: mc-multi
+    type: multi
+    skills: [multicollinearity]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: moving-together }
+    prompt: Which of these are warning signs of multicollinearity? Select all that apply.
+    options:
+      - Two drivers are strongly correlated with each other
+      - A coefficient has a sign that makes no economic sense
+      - Adding or removing one driver makes another coefficient swing wildly
+      - R² is close to zero
+    answer: [0, 1, 2]
+    hints:
+      - The problem is about drivers moving together, not about a poor overall fit.
+    explanation: The signs are strongly correlated drivers, implausible coefficient signs and unstable coefficients. A very low R² is a different problem.
+
+  - id: mc-match
+    type: match
+    skills: [multicollinearity]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: moving-together }
+    prompt: Match each remedy or check to what it does.
+    pairs:
+      - ['Drop one correlated driver', 'Re-estimate with the driver more closely tied to the cost']
+      - ['Combine into one measure', 'Replace two correlated drivers with one composite']
+      - ['Check correlations among drivers', 'Look for strong correlation before running the model']
+      - ['Collect more or better data', 'Help separate the individual effects']
+    explanation: Each option either removes the redundancy or gives the model what it needs to separate the effects. Checking correlations among the drivers should come first.
+
+  # ------------------------------------------------------------------ choosing and communicating
+  - id: judge-mcq
+    type: mcq
+    skills: [method-choice, t-statistic]
+    difficulty: 2
+    tags: [application]
+    generator: judgeQ
+    lessonRef: { tab: math-code, id: judge-output }
+    prompt: |
+      A regression of a cost on one driver reports R² = {=r2|2f} and a t-statistic of {=t|2f} on the slope. What is the
+      right reading?
+    hints:
+      - Check the slope's t first, then the size of R².
+    explanation: 'With R² = {=r2|2f} and t = {=t|2f}: {=verdict}'
+
+  - id: driver-mcq
+    type: mcq
+    skills: [method-choice]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: judge-output }
+    prompt: Simple regressions on two candidate drivers give R² = 0.55 and t = 2.3 for direct labor hours, and R² = 0.81 and t = 5.6 for machine hours. Which driver should the cost formula use?
+    options:
+      - Machine hours, since it is better on both R² and t
+      - Direct labor hours, since its t is above 2
+      - Neither; both are too weak
+      - Both, averaged
+    answer: 0
+    hints:
+      - Compare the two models on every statistic you have.
+    explanation: Both clear the |t| > 2 rule, but machine hours explains far more of the variation and has a much stronger t. It dominates on every available metric.
+
+  - id: method-mcq
+    type: mcq
+    skills: [method-choice]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: use-and-communicate }
+    prompt: A high-low formula is ₱25,000 + ₱183.33/ton and a regression on all six months is ₱26,800 + ₱179.20/ton with R² = 0.98. Which is the more defensible and why?
+    options:
+      - The regression, because it uses all six months and R² gives objective evidence of fit
+      - The high-low, because it is simpler
+      - They are equally defensible because the numbers are similar
+      - Neither, because six months is too few for any method
+    answer: 0
+    hints:
+      - Which method can say how well it fits?
+    explanation: Regression uses every observation and reports R². Even though the two formulas are close here, only the regression carries a statistical measure of reliability.
+
+  - id: range-mcq
+    type: mcq
+    skills: [method-choice]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: use-and-communicate }
+    prompt: A utilities model built on 8,000 to 15,000 machine hours has R² = 0.91 and t = 6.8. Management wants to budget a 22,000-hour month with it. What is the right call?
+    options:
+      - Use it within 8,000–15,000 hours; 22,000 is an extrapolation and needs new data
+      - Use it; the statistics are strong
+      - Add the standard error to be safe
+      - Reject the model entirely
+    answer: 0
+    hints:
+      - Which hours did the data come from?
+    explanation: The statistics are strong, but strong statistics apply only inside the range of the data. At 22,000 hours the cost behavior may differ, so gather data closer to that volume.
+
+  - id: communicate-match
+    type: match
+    skills: [method-choice]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: use-and-communicate }
+    prompt: Match each step of the analytics workflow to what it does.
+    pairs:
+      - ['Collect', 'Gather several periods of cost and activity data']
+      - ['Screen', 'Plot the data first and spot one-time outliers']
+      - ['Estimate', 'Run a simple or multiple regression on the cleaned data']
+      - ['Validate', 'Check R², the standard error and the t-statistics']
+    explanation: Collect, then screen with a scattergraph, then estimate, then validate before trusting the model.
+
+  - id: workflow-order
+    type: order
+    skills: [method-choice]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: use-and-communicate }
+    prompt: Put the analytics workflow in order.
+    items:
+      - Collect several periods of cost and activity data
+      - Screen with a scattergraph for one-time outliers
+      - Estimate a simple or multiple regression
+      - Validate with R², the standard error and t
+    explanation: Screening comes before estimating, because one unusual month can distort the result. Validation comes last, before the model is used.

@@ -1,0 +1,627 @@
+templates:
+  # ------------------------------------------------------------------ patterns of cost behavior
+  - id: classify-mcq
+    type: mcq
+    skills: [behavior-patterns]
+    difficulty: 1
+    tags: [term]
+    generator: behaviorClassQ
+    lessonRef: { tab: intuition, id: four-patterns }
+    prompt: |
+      How does this cost behave as production volume changes?
+
+      **{=item}**
+    hints:
+      - Ask what happens to the total when volume doubles, and whether it ever drops to zero.
+    explanation: 'The cost is a **{=kindName}** cost. Check two things: does the total move with activity, and is there a fixed part that is paid even at zero activity?'
+
+  - id: patterns-match
+    type: match
+    skills: [behavior-patterns]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: four-patterns }
+    prompt: Match each cost pattern to its picture in words.
+    pairs:
+      - ['Variable cost', 'A straight line from the origin']
+      - ['Fixed cost', 'A flat, horizontal line']
+      - ['Mixed cost', 'A rising line that starts above zero']
+      - ['Step cost', 'A staircase: flat, then a jump']
+    explanation: Variable cost starts at zero and climbs in proportion; fixed cost is flat; mixed cost climbs from a fixed starting amount; step cost is flat until a limit forces a jump.
+
+  - id: step-vs-mixed-mcq
+    type: mcq
+    skills: [behavior-patterns]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: four-patterns }
+    prompt: A plant hires one extra supervisor for every 15 workers it adds. Which pattern is this, and why?
+    options:
+      - Step cost, because the cost stays flat and then jumps each time a threshold is crossed
+      - Mixed cost, because it has a fixed part and a variable part
+      - Variable cost, because it rises as workers are added
+      - Fixed cost, because a supervisor's salary is a fixed amount
+    answer: 0
+    hints:
+      - Picture the total on a graph. Is it a smooth line or a staircase?
+    explanation: The supervisor cost is constant for a while and then jumps by one salary at a threshold. That is a staircase, which is a step cost. A mixed cost rises smoothly and a variable cost starts at zero.
+
+  - id: patterns-order
+    type: order
+    skills: [behavior-patterns, relevant-range]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: four-patterns }
+    prompt: Put these costs in order from the one that changes LEAST with volume to the one that changes MOST, for a factory making more units.
+    items:
+      - Straight-line depreciation on the building (fixed)
+      - A supervisor hired for every 15 extra workers (step)
+      - Electric power with a base charge and a per-kWh charge (mixed)
+      - Leather used per pair of shoes (variable)
+    explanation: Fixed cost does not move at all, a step cost moves in occasional jumps, a mixed cost moves smoothly from a fixed starting point, and a variable cost moves in full proportion.
+
+  # ------------------------------------------------------------------ total versus per unit
+  - id: unit-fixed-numeric
+    type: numeric
+    skills: [unit-behavior]
+    difficulty: 1
+    tags: [math]
+    generator: unitQ
+    lessonRef: { tab: math-code, id: unit-cost }
+    prompt: |
+      A factory pays {=total|money} a month in fixed depreciation. At {=v1|comma} units a month the cost per unit is
+      {=unit1|money2}. If output rises to {=v2|comma} units, what is the depreciation cost per unit?
+    answer: { var: unit2, tol: 0.01 }
+    hints:
+      - Depreciation is a fixed cost. What happens to its total when output rises?
+      - Divide the total by the new number of units.
+    explanation: 'The total stays {=total|money}. Per unit $= {=total|comma} \div {=v2|comma} = {=unit2|money2}$, lower than {=unit1|money2} because more units share the same cost.'
+
+  - id: unit-fixed-fill
+    type: schedule-fill
+    skills: [unit-behavior]
+    difficulty: 1
+    tags: [journal]
+    generator: unitQ
+    lessonRef: { tab: math-code, id: unit-cost }
+    prompt: |
+      Complete the schedule for a fixed cost of {=total|money} a month at two production levels.
+    columns: [Total cost, Cost per unit]
+    rows:
+      - { label: 'Low volume', amounts: ['@total', '@unit1'], blank: true }
+      - { label: 'High volume', amounts: ['@total', '@unit2'], blank: true }
+    hints:
+      - Total fixed cost is the same at both volumes.
+      - Cost per unit is the total divided by that volume's units.
+    explanation: 'Both totals are {=total|money}. Per unit: {=total|comma} ÷ {=v1|comma} = {=unit1|money2} and {=total|comma} ÷ {=v2|comma} = {=unit2|money2}.'
+
+  - id: variable-unit-numeric
+    type: numeric
+    skills: [unit-behavior, behavior-patterns]
+    difficulty: 2
+    tags: [math]
+    generator: variableQ
+    lessonRef: { tab: intuition, id: total-vs-unit }
+    prompt: |
+      A variable cost totals {=total1|money} when {=v1|comma} units are made. What does the cost per unit come to when
+      {=v2|comma} units are made?
+    answer: { var: rate, tol: 0.01 }
+    hints:
+      - Does the cost per unit of a variable cost change with volume?
+      - Divide the total by the volume it belongs to.
+    explanation: 'A variable cost has the same cost per unit at every volume: ${=total1|comma} \div {=v1|comma} = {=rate|money2}$. At {=v2|comma} units the total becomes {=total2|money}, but the unit cost stays {=rate|money2}.'
+
+  - id: total-vs-unit-multi
+    type: multi
+    skills: [unit-behavior]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: total-vs-unit }
+    prompt: Volume doubles within the relevant range. Which statements are true? Select all that apply.
+    options:
+      - Total variable cost doubles
+      - Variable cost per unit stays the same
+      - Total fixed cost doubles
+      - Fixed cost per unit is cut in half
+      - Fixed cost per unit stays the same
+    answer: [0, 1, 3]
+    hints:
+      - Treat total and per-unit separately for each kind of cost.
+    explanation: A variable cost moves with volume in total but is constant per unit. A fixed cost is constant in total, so its per-unit amount falls as more units share it.
+
+  # ------------------------------------------------------------------ relevant range
+  - id: range-mcq
+    type: mcq
+    skills: [relevant-range]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: range-and-commitment }
+    prompt: A cost formula was built from months where the plant ran 8,000 to 15,000 machine hours. Management wants to use it to budget a month at 22,000 hours. What is the best advice?
+    options:
+      - Do not rely on it; 22,000 hours is outside the relevant range the formula came from
+      - Use it; a high R² means any volume is safe
+      - Use it, but halve the variable rate to be conservative
+      - Use it; fixed costs never change
+    answer: 0
+    hints:
+      - What range of volumes did the data cover?
+    explanation: A cost formula holds only inside the range of activity it was estimated from. At 22,000 hours the plant may need a second shift or new equipment, which changes the fixed and variable parts.
+
+  - id: range-multi
+    type: multi
+    skills: [relevant-range]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: range-and-commitment }
+    prompt: Which statements about the relevant range are true? Select all that apply.
+    options:
+      - A fixed cost is fixed only within the relevant range
+      - Cost classifications are made for a particular relevant range
+      - A cost formula may be used at any volume if it fits the data well
+      - Beyond the range a new fixed-cost level, a step, is often needed
+    answer: [0, 1, 3]
+    hints:
+      - Think of what has to hold true for a cost to stay fixed.
+    explanation: Fixed and variable are always meant within a range of activity. Using a formula far outside the range it came from is one of the most common errors in cost estimation.
+
+  - id: long-run-mcq
+    type: mcq
+    skills: [relevant-range, behavior-patterns]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: range-and-commitment }
+    prompt: 'The quotation "strictly speaking, there is no such thing as a fixed cost; in the long run all costs are variable" makes which point?'
+    options:
+      - Fixed means fixed only for a time horizon and a range of volume, not forever
+      - Fixed costs should always be treated as variable in budgets
+      - Variable costs are really fixed costs in disguise
+      - Cost classification does not matter in the long run
+    answer: 0
+    hints:
+      - Think about what ends or changes, such as a lease, a salary or a depreciation schedule.
+    explanation: A lease ends, a supervisor can be hired or let go, and depreciation stops once the asset is used up. Fixed describes behavior over the horizon and range we are planning for.
+
+  # ------------------------------------------------------------------ committed and discretionary
+  - id: commit-mcq
+    type: mcq
+    skills: [fixed-types]
+    difficulty: 1
+    tags: [term]
+    generator: commitQ
+    lessonRef: { tab: intuition, id: range-and-commitment }
+    prompt: |
+      Is this fixed cost committed or discretionary?
+
+      **{=item}**
+    hints:
+      - Was it locked in by a past decision, or does management choose the amount each year?
+    explanation: 'It is a **{=kindName}**. Committed costs come from long-term commitments such as leases and equipment; discretionary costs are set by annual management decisions.'
+
+  - id: commit-match
+    type: match
+    skills: [fixed-types]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: range-and-commitment }
+    prompt: Match each cost to the kind of fixed cost it is.
+    pairs:
+      - ['Rent on a long-term factory lease', 'Committed']
+      - ['Depreciation on owned machinery', 'Committed']
+      - ['Annual advertising budget', 'Discretionary']
+      - ['Employee training program', 'Discretionary']
+    explanation: Leases and equipment are past commitments that are hard to undo. Advertising and training are chosen each year and can be changed quickly.
+
+  - id: cut-mcq
+    type: mcq
+    skills: [fixed-types]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: range-and-commitment }
+    prompt: Revenue disappoints and the budget must be cut quickly without breaking contracts. Which cost does management usually look at first, and what is the risk?
+    options:
+      - Discretionary costs such as training; cutting too much can hurt long-term competitiveness
+      - Committed costs such as the lease; cutting them is free and fast
+      - Variable costs only; fixed costs cannot be touched
+      - Depreciation; stopping it increases real cash
+    answer: 0
+    hints:
+      - Which fixed costs can be changed without a penalty?
+    explanation: Discretionary costs can be adjusted within a year. Committed costs usually mean breaking contracts or abandoning capacity. But gutting training or research for short-term profit can damage the business later.
+
+  # ------------------------------------------------------------------ the cost formula
+  - id: formula-numeric
+    type: numeric
+    skills: [cost-formula]
+    difficulty: 1
+    tags: [math]
+    generator: formulaQ
+    lessonRef: { tab: math-code, id: cost-formula }
+    prompt: |
+      A mixed cost has a fixed part of {=a|money} and a variable rate of {=b|money2} per unit of activity. What total
+      cost does the formula $y' = a + bx$ estimate at {=x|comma} units?
+    answer: { var: y, tol: 0.01 }
+    hints:
+      - The variable part is rate times activity.
+      - Add the fixed part once.
+    explanation: 'Variable part $= {=b|2f} \times {=x|comma} = {=varPart|money}$. Total $y\prime = {=a|comma} + {=varPart|comma} = {=y|money}$.'
+
+  - id: formula-fill
+    type: schedule-fill
+    skills: [cost-formula]
+    difficulty: 1
+    tags: [journal]
+    generator: formulaQ
+    lessonRef: { tab: math-code, id: cost-formula }
+    prompt: |
+      Complete the estimate. The fixed cost is {=a|money}, the variable rate is {=b|money2} per unit and activity is
+      {=x|comma} units.
+    rows:
+      - { label: Fixed cost component, amount: '@a' }
+      - { label: Variable cost, amount: '@varPart', blank: true }
+      - { label: Estimated total cost, amount: '@y', style: total, blank: true }
+    hints:
+      - Variable cost = rate × activity.
+    explanation: 'Variable cost $= {=b|2f} \times {=x|comma} = {=varPart|money}$ and the total is {=a|comma} + {=varPart|comma} = {=y|money}.'
+
+  - id: formula-perunit-numeric
+    type: numeric
+    skills: [cost-formula, unit-behavior]
+    difficulty: 2
+    tags: [math]
+    generator: formulaQ
+    lessonRef: { tab: math-code, id: cost-formula }
+    prompt: |
+      A mixed cost follows $y' = {=a|comma} + {=b|2f}x$. What is the estimated **average cost per unit** at {=x|comma}
+      units?
+    answer: { var: perUnit, tol: 0.01 }
+    hints:
+      - First find the estimated total cost.
+      - Then divide by the number of units.
+    explanation: 'Total $= {=a|comma} + {=b|2f} \times {=x|comma} = {=y|money}$; per unit $= {=y|comma} \div {=x|comma} = {=perUnit|money2}$. The fixed part is spread over the units, so the average is above the variable rate.'
+
+  - id: formula-meaning-mcq
+    type: mcq
+    skills: [cost-formula]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: cost-formula }
+    prompt: In the cost formula y = a + bx, what do a and b stand for?
+    options:
+      - a is the fixed cost component and b is the variable cost per unit of activity
+      - a is the variable cost per unit and b is the fixed cost
+      - a is the total cost and b is the activity level
+      - a is the activity level and b is the profit
+    answer: 0
+    hints:
+      - Which of the two is multiplied by activity x?
+    explanation: b multiplies the activity level, so it is the rate per unit. a is added once, at any level of activity, so it is the fixed part.
+
+  - id: budget-numeric
+    type: numeric
+    skills: [cost-formula]
+    difficulty: 2
+    tags: [application]
+    generator: formulaQ
+    lessonRef: { tab: math-code, id: cost-formula }
+    prompt: |
+      Last year's data gave the overhead formula $y' = {=a|comma} + {=b|2f}x$ where x is direct labor hours. Next month
+      the plant expects {=x|comma} hours. What overhead should go into the budget?
+    answer: { var: y, tol: 0.01 }
+    hints:
+      - Plug the forecast activity into the formula.
+    explanation: 'Budgeted overhead $= {=a|comma} + {=b|2f} \times {=x|comma} = {=y|money}$.'
+
+  # ------------------------------------------------------------------ high-low
+  - id: highlow-handcalc
+    type: hand-calc
+    skills: [high-low, cost-formula]
+    difficulty: 2
+    tags: [math]
+    generator: highLowQ
+    lessonRef: { tab: math-code, id: high-low }
+    prompt: |
+      The table shows a mixed cost and its activity for several months. Use the high-low method, then predict the cost
+      at {=predictAt|comma} units of activity.
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    steps:
+      - prompt: Variable rate b (cost per unit of activity)
+        answer: { var: b, tol: 0.01 }
+        misconceptions:
+          - { var: wrongB, feedback: 'That uses the highest and lowest **cost**. Choose the highest and lowest **activity**.' }
+        hint: Divide the change in cost by the change in activity between the highest-activity and lowest-activity months.
+      - prompt: Fixed cost a
+        answer: { var: a, tol: 0.5 }
+        misconceptions:
+          - { var: wrongFixedLow, feedback: 'That is the low point''s total cost. Take away b × activity first.' }
+        hint: Total cost at either point minus b × activity at that point.
+      - prompt: Predicted cost at the activity level above
+        answer: { var: predicted, tol: 0.5 }
+        misconceptions:
+          - { var: wrongNoA, feedback: 'You left out the fixed cost. y′ = a + bx.' }
+        hint: a + b × the new activity.
+    hints:
+      - Find the months with the highest and lowest activity first, not cost.
+    explanation: |
+      High = {=hiLabel} ({=hiX|comma} units, {=hiY|money}); low = {=loLabel} ({=loX|comma}, {=loY|money}).
+      $b = {=dy|comma} \div {=dx|comma} = {=b|2f}$; $a = {=hiY|comma} - {=b|2f} \times {=hiX|comma} = {=a|money}$;
+      $y' = {=a|comma} + {=b|2f} \times {=predictAt|comma} = {=predicted|money}$.
+
+  - id: highlow-fill
+    type: schedule-fill
+    skills: [high-low]
+    difficulty: 2
+    tags: [journal]
+    generator: highLowQ
+    lessonRef: { tab: math-code, id: high-low }
+    prompt: |
+      Complete the high-low worksheet for the table of months. The high point is {=hiLabel} and the low point is
+      {=loLabel}.
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    rows:
+      - { label: 'Activity at the high point', amount: '@hiX', format: number }
+      - { label: 'Activity at the low point', amount: '@loX', format: number }
+      - { label: 'Difference in activity', amount: '@dx', format: number, blank: true }
+      - { label: 'Difference in cost', amount: '@dy', blank: true }
+      - { label: 'Variable rate b', amount: '@b', format: number, blank: true }
+      - { label: 'Fixed cost a', amount: '@a', style: total, blank: true }
+    hints:
+      - The two differences come from the high and low rows of the table.
+      - b = difference in cost ÷ difference in activity.
+    explanation: 'Activity moved {=hiX|comma} − {=loX|comma} = {=dx|comma}; cost moved {=hiY|comma} − {=loY|comma} = {=dy|comma}; b = {=dy|comma} ÷ {=dx|comma} = {=b|2f}; a = {=hiY|comma} − {=b|2f} × {=hiX|comma} = {=a|money}.'
+
+  - id: highlow-pick-mcq
+    type: mcq
+    skills: [high-low]
+    difficulty: 2
+    tags: [intuition]
+    generator: highLowQ
+    lessonRef: { tab: intuition, id: high-low-walk }
+    prompt: Which two months does the high-low method use for this data?
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    hints:
+      - The method looks at activity, not at cost.
+    explanation: 'High-low uses the months with the highest and lowest **activity**: {=hiLabel} and {=loLabel}. A month can have a very high cost at only middling activity, and it is skipped.'
+
+  - id: highlow-order
+    type: order
+    skills: [high-low]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: high-low-walk }
+    prompt: Put the steps of the high-low method in order.
+    items:
+      - Pick the months with the highest and lowest activity
+      - Divide the change in cost by the change in activity to get b
+      - Subtract b × activity from total cost at either point to get a
+      - Write y′ = a + bx and use it to predict
+    explanation: The rate comes first because the fixed cost needs it. Once a and b are known, the formula can predict cost at any activity inside the relevant range.
+
+  - id: highlow-limits-mcq
+    type: mcq
+    skills: [high-low]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: high-low-walk }
+    prompt: What is the main weakness of the high-low method?
+    options:
+      - It uses only two of the data points, and those extremes may be the least typical months
+      - It needs a computer and statistical software
+      - It cannot produce a fixed cost
+      - It only works when cost is purely variable
+    answer: 0
+    hints:
+      - How many of the twelve months did the Flexible Manufacturing example use?
+    explanation: The two extremes are often unusual months, and if either is atypical the whole formula shifts. The other months are ignored, and there is no measure of how well the line fits.
+
+  # ------------------------------------------------------------------ scattergraph
+  - id: scatter-numeric
+    type: numeric
+    skills: [scattergraph]
+    difficulty: 2
+    tags: [math]
+    generator: scatterQ
+    lessonRef: { tab: math-code, id: scattergraph }
+    prompt: |
+      A line fitted by eye to a scattergraph crosses the cost axis at {=a|money} and passes through the point
+      ({=x|comma} units, {=y|money}). What is the variable rate per unit?
+    answer: { var: b, tol: 0.001 }
+    hints:
+      - The intercept is the fixed cost. Take it away from the cost at the point.
+      - Divide what is left by the activity at the point.
+    explanation: 'Variable cost at the point $= {=y|comma} - {=a|comma} = {=varPart|money}$. Rate $= {=varPart|comma} \div {=x|comma} = {=b|money2}$.'
+
+  - id: scatter-fill
+    type: schedule-fill
+    skills: [scattergraph]
+    difficulty: 1
+    tags: [journal]
+    generator: scatterQ
+    lessonRef: { tab: math-code, id: scattergraph }
+    prompt: |
+      Complete the schedule. The fitted line crosses the cost axis at {=a|money} and passes through
+      ({=x|comma} units, {=y|money}).
+    rows:
+      - { label: 'Total cost on the line', amount: '@y' }
+      - { label: 'Less: fixed cost (intercept)', amount: '@a', indent: 1 }
+      - { label: 'Variable cost at that point', amount: '@varPart', style: subtotal, blank: true }
+      - { label: 'Variable rate per unit', amount: '@b', format: number, style: total, blank: true }
+    hints:
+      - Variable cost = total cost on the line − intercept.
+    explanation: 'Variable cost = {=y|comma} − {=a|comma} = {=varPart|money}; rate = {=varPart|comma} ÷ {=x|comma} = {=b|money2}.'
+
+  - id: scatter-handcalc
+    type: hand-calc
+    skills: [scattergraph, cost-formula]
+    difficulty: 2
+    tags: [math]
+    generator: scatterQ
+    lessonRef: { tab: math-code, id: scattergraph }
+    prompt: |
+      A fitted line crosses the cost axis at {=a|money} and passes through ({=x|comma} units, {=y|money}). Estimate the
+      cost at {=x2|comma} units.
+    steps:
+      - prompt: Variable cost at the point on the line
+        answer: { var: varPart, tol: 0.5 }
+        hint: Total cost at the point minus the fixed cost.
+      - prompt: Variable rate per unit
+        answer: { var: b, tol: 0.001 }
+        misconceptions:
+          - { var: wrongNoSub, feedback: 'You divided total cost by activity. Remove the fixed cost first.' }
+        hint: Variable cost divided by activity at the point.
+      - prompt: Estimated cost at the new activity level
+        answer: { var: pred, tol: 0.5 }
+        hint: Fixed cost + rate × new activity.
+    hints:
+      - The intercept is the fixed cost; the slope is the variable rate.
+    explanation: 'Variable cost $= {=y|comma} - {=a|comma} = {=varPart|comma}$; $b = {=varPart|comma} \div {=x|comma} = {=b|2f}$; $y\prime = {=a|comma} + {=b|2f} \times {=x2|comma} = {=pred|money}$.'
+
+  - id: scatter-mcq
+    type: mcq
+    skills: [scattergraph]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: scattergraph }
+    prompt: What is the main advantage of the scattergraph over the high-low method, and its main weakness?
+    options:
+      - It uses all the points and shows outliers, but the line is drawn by eye and is subjective
+      - It is exact and objective, but it uses only two points
+      - It needs no data, but it cannot show outliers
+      - It gives R², but it can only be done by software
+    answer: 0
+    hints:
+      - Think about how many points are plotted, and who decides where the line goes.
+    explanation: Plotting every observation uses all the data and makes unusual months easy to see. But two analysts can draw two different lines from the same points, and there is no statistic that says how good the fit is.
+
+  - id: methods-match
+    type: match
+    skills: [scattergraph, high-low, compare-methods]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: head-to-head }
+    prompt: Match each method to the statement that fits it.
+    pairs:
+      - ['High-low method', 'Uses only the highest and lowest activity months']
+      - ['Scattergraph method', 'Plots every month and fits a line by eye']
+      - ['Least-squares regression (Session 3)', 'Uses every month and an objective rule, and reports R²']
+    explanation: High-low uses two points, the scattergraph uses all points but a subjective line, and regression, the next session, uses all points with a fixed rule.
+
+  - id: scatter-order
+    type: order
+    skills: [scattergraph]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: scattergraph }
+    prompt: Put the scattergraph method in order.
+    items:
+      - Plot every month's activity and cost as a point
+      - Draw a line through the cloud of points by eye
+      - Read where the line crosses the cost axis, which is the fixed cost
+      - Use a point on the line to work out the variable rate
+    explanation: You need the picture first, then the line, and then you read the intercept and compute the slope from a point on that line.
+
+  # ------------------------------------------------------------------ comparing methods, incremental cost, outliers
+  - id: compare-multi
+    type: multi
+    skills: [compare-methods]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: head-to-head }
+    prompt: Two estimation methods give different cost formulas from the same data. Which statements are reasonable? Select all that apply.
+    options:
+      - The disagreement is a signal that the data may be noisy and deserves a closer look
+      - One of the two methods must contain an arithmetic mistake
+      - High-low is anchored to two months, so one unusual month can shift it a lot
+      - The scattergraph is influenced by the pattern of all the months
+    answer: [0, 2, 3]
+    hints:
+      - Neither method is wrong; they use different amounts of information.
+    explanation: The methods are built on different amounts of data and different rigor. A large gap means the answer depends on the method, which is itself useful information.
+
+  - id: method-choice-mcq
+    type: mcq
+    skills: [compare-methods]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: head-to-head }
+    prompt: A manager needs a quick, rough overhead estimate in five minutes for an internal check. Which method is defensible?
+    options:
+      - The high-low method, because it is fast and transparent
+      - Regression, because it is always required
+      - None; any estimate without software is invalid
+      - The scattergraph, because it needs no data
+    answer: 0
+    hints:
+      - Match the effort to the stakes.
+    explanation: For a quick, low-stakes estimate, high-low is fast and easy to explain. For a decision with real stakes, use all the data, with a scattergraph and better still regression.
+
+  - id: incremental-numeric
+    type: numeric
+    skills: [incremental, cost-formula]
+    difficulty: 2
+    tags: [application]
+    generator: incrementalQ
+    lessonRef: { tab: math-code, id: incremental }
+    prompt: |
+      A department's overhead is estimated as $y' = {=a|comma} + {=b|money}x$ per month, where x is machine hours.
+      A special order needs {=hours|comma} machine hours. The department is budgeted for {=deptHours|comma} hours this
+      month. What is the **incremental** overhead caused by the order?
+    answer: { var: inc, tol: 0.01 }
+    hints:
+      - Which part of the formula is paid whether or not the order is accepted?
+      - Only the variable part changes with the order.
+    explanation: 'Fixed overhead of {=a|money} is incurred anyway. Only the variable part changes: ${=hours|comma} \times {=b|money} = {=inc|money}$.'
+
+  - id: incremental-mcq
+    type: mcq
+    skills: [incremental]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: incremental-order }
+    prompt: A company allocates its ₱12,000 of monthly fixed overhead across all jobs. When pricing one extra order, why can the allocated share be ignored for a short-run decision?
+    options:
+      - It is paid whether or not the order is accepted, so it is not incremental
+      - It is always zero in the short run
+      - Fixed costs are never real costs
+      - It is included in the variable rate already
+    answer: 0
+    hints:
+      - Ask what extra cost appears only if the order is accepted.
+    explanation: The fixed overhead is a real cost of running the department, but it does not change with this decision. Only costs that differ between accepting and rejecting the order are relevant to it.
+
+  - id: outlier-numeric
+    type: numeric
+    skills: [outliers, high-low]
+    difficulty: 3
+    tags: [application]
+    generator: outlierQ
+    lessonRef: { tab: math-code, id: outlier-screen }
+    prompt: |
+      One month, {=outLabel}, was hit by a typhoon and its cost is abnormal. After excluding that month, use the
+      high-low method on the remaining months. What is the variable rate?
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    answer: { var: bClean, tol: 0.01 }
+    hints:
+      - Remove the abnormal month, then find the highest and lowest activity among the rest.
+      - Divide the change in cost by the change in activity for those two months.
+    explanation: 'Without {=outLabel}, the high-low rate is {=bClean|2f}. With it the method would have used the abnormal month as the high point and given {=bDirty|2f}.'
+
+  - id: outlier-mcq
+    type: mcq
+    skills: [outliers, scattergraph]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: outlier-trap }
+    prompt: A typhoon month sits far above the line formed by the other months, and it also has the highest activity. What should you do before using the high-low method?
+    options:
+      - Exclude or investigate it, because high-low would use it as the high point without any warning
+      - Keep it, because the high point is always right
+      - Use its cost as the fixed cost
+      - Average it with the lowest month
+    answer: 0
+    hints:
+      - What does the high-low method do with the highest-activity month?
+    explanation: High-low picks the highest-activity month automatically, so an abnormal one-time month would distort the whole formula. Plotting the data first makes the problem visible before any arithmetic.

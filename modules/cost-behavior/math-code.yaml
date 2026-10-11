@@ -1,0 +1,333 @@
+sections:
+  - id: unit-cost
+    title: Total cost against cost per unit
+    skills: [unit-behavior, behavior-patterns]
+    summary: |
+      A [[fixed-cost|fixed cost]] keeps the same total at every volume, so its [[cost-per-unit|cost per unit]] shrinks as
+      more units share it. A [[variable-cost|variable cost]] does the opposite: its total grows with volume and its cost
+      per unit stays put.
+    keyFormula: '\text{Cost per unit} = \frac{\text{total cost}}{\text{units of activity}}'
+    data: [heaven]
+    state: { total: 27000, v1: 5000, v2: 10000 }
+    derive:
+      - { fn: fixedPerUnit, in: { total: '@total', v1: '@v1', v2: '@v2' }, out: fu }
+    live:
+      - id: v2-in
+        widget: Slider
+        props: { label: Higher volume (units), min: 6000, max: 20000, step: 1000, format: comma }
+        bind: { value: v2 }
+    steps:
+      - tex: |
+          \text{Cost per unit} = \frac{\text{total cost}}{\text{units}}
+        say: Divide a cost's total by the number of units it is spread over.
+      - tex: |
+          \anchor{unit}{\text{cost per unit}} = \frac{\anchor{total}{\text{total fixed cost}}}{\text{units}}
+        say: For a fixed cost the top line never moves, so only the units change the answer.
+      - tex: |
+          \anchor{unit}{ {=fu.unit1|2f} } = \frac{\anchor{total}{ {=total|comma} }}{ {=v1|comma} }
+          \quad\to\quad
+          \anchor{unit}{ {=fu.unit2|2f} } = \frac{\anchor{total}{ {=total|comma} }}{ {=v2|comma} }
+        say: 'Heaven Consumer Products: the same ₱27,000 of depreciation, spread over more units.'
+    journal:
+      title: Heaven Consumer Products, monthly depreciation
+      blocks:
+        - { kind: schedule, title: Fixed cost at two volumes, rows: '@fu.rows' }
+    links:
+      - { anchor: total, label: Total fixed cost, say: 'The same at both volumes, because it is fixed.' }
+      - { anchor: unit, label: Cost per unit, say: 'The total divided by that volume''s units.' }
+    trace: { fn: fixedPerUnit, in: { total: '@total', v1: '@v1', v2: '@v2' } }
+    examples: [heaven-unit]
+    tryIt: [unit-fixed-numeric, unit-fixed-fill, variable-unit-numeric]
+    pitfalls:
+      - Saying a fixed cost "falls" when volume rises. Its **total** does not change; only the cost **per unit** does.
+      - Using a fixed cost per unit to predict the total at another volume. Multiply by the new volume and you pretend it is variable.
+    examTip: State both parts. "Total fixed cost is constant; fixed cost per unit falls as volume rises."
+
+  - id: classification
+    title: Classifying costs by behavior
+    skills: [behavior-patterns, relevant-range, fixed-types]
+    summary: |
+      Ask what a cost's total does as activity changes. Does it rise in proportion ([[variable-cost|variable]]), stay
+      flat ([[fixed-cost|fixed]]), start high and rise ([[mixed-cost|mixed]]) or jump at limits
+      ([[step-cost|step]])? Then split fixed costs into [[committed-fixed-cost|committed]] and
+      [[discretionary-fixed-cost|discretionary]].
+    keyFormula: '\text{Fixed cost} = \text{committed} + \text{discretionary}'
+    steps:
+      - tex: |
+          \anchor{variable}{\text{Variable}}:\ \text{total moves with } x
+          \qquad
+          \anchor{fixed}{\text{Fixed}}:\ \text{total does not move}
+        say: The two simplest patterns. Everything else is built from them.
+      - tex: |
+          \anchor{mixed}{\text{Mixed}}:\ y = a + bx
+          \qquad
+          \anchor{step}{\text{Step}}:\ \text{flat, then a jump}
+        say: A mixed cost has both parts. A step cost climbs a staircase instead of a ramp.
+      - tex: |
+          \text{Fixed} = \anchor{committed}{\text{committed}} + \anchor{discretionary}{\text{discretionary}}
+        say: A lease is locked in. A training budget is chosen again each year.
+    journal:
+      title: Two classification exercises
+      blocks:
+        - { kind: schedule, title: 'Marikina Shoe Manufacturing: by behavior', columns: [Behavior], rows: '@marikina.rows' }
+        - { kind: schedule, title: 'Cavite Precision Parts: fixed costs', columns: [Kind of fixed cost], rows: '@cavite.rows' }
+    data: [marikina, cavite]
+    links:
+      - { anchor: variable, label: Variable, say: 'Leather: used in proportion to pairs made.' }
+      - { anchor: fixed, label: Fixed, say: 'Rent: a fixed annual lease.' }
+      - { anchor: mixed, label: Mixed, say: 'Electric power: a base charge plus a rate per kWh.' }
+      - { anchor: step, label: Step, say: One extra supervisor for every 15 workers. }
+      - { anchor: committed, label: Committed, say: The lease and depreciation come from past commitments. }
+      - { anchor: discretionary, label: Discretionary, say: Training and sponsorship can be changed this year. }
+    tryIt: [classify-mcq, patterns-match, commit-mcq]
+    pitfalls:
+      - Calling every overhead cost fixed. Factory overhead taken as a whole is a **mixed** cost, and parts of it are variable.
+      - Treating a step cost as variable when the steps are narrow, or as fixed when they are wide, without saying so.
+    examTip: 'Give the pattern and the reason: "Mixed: a base charge plus a charge per kWh."'
+
+  - id: cost-formula
+    title: The cost formula y = a + bx
+    skills: [cost-formula]
+    summary: |
+      Once you know the [[fixed-cost-component|fixed cost component]] a and the [[variable-rate|variable rate]] b, the
+      [[cost-formula|cost formula]] gives an estimate of the total cost at any activity level inside the
+      [[relevant-range|relevant range]]. It is how a [[budget|budget]] is built.
+    keyFormula: "y' = a + bx"
+    state: { a: 9187.5, b: 0.6875, x: 18000 }
+    derive:
+      - { fn: costFormula, in: { a: '@a', b: '@b', x: '@x' }, out: cf }
+    live:
+      - id: x-in
+        widget: Slider
+        props: { label: Direct labor hours, min: 7000, max: 23000, step: 500, format: comma }
+        bind: { value: x }
+    steps:
+      - tex: |
+          y' = a + bx
+        say: 'y′ ("y prime") is the estimated total cost. x is the activity level.'
+      - tex: |
+          \anchor{y}{y'} = \anchor{a}{a} + \anchor{bx}{b \times x}
+        say: The fixed part is added once. The variable part is the rate times the activity.
+      - tex: |
+          \anchor{y}{ {=cf.y|comma} } = \anchor{a}{ {=a|comma} } + \anchor{bx}{ {=b|4} \times {=x|comma} }
+        say: 'Flexible Manufacturing Co. next month: {=x|comma} direct labor hours.'
+    journal:
+      title: Flexible Manufacturing Co., budgeted overhead
+      blocks:
+        - { kind: schedule, title: Estimate with the high-low formula, rows: '@cf.rows' }
+    links:
+      - { anchor: a, label: Fixed cost component, say: Paid at every level of activity. }
+      - { anchor: bx, label: Variable cost, say: Rate per hour times the hours. }
+      - { anchor: y, label: Estimated total cost }
+    trace: { fn: costFormula, in: { a: '@a', b: '@b', x: '@x' } }
+    examples: [fmc-predict-15000, fmc-predict-20000, fmc-predict-10000, fmc-budget, bicol-predict]
+    tryIt: [formula-numeric, formula-fill, budget-numeric]
+    pitfalls:
+      - Forgetting the fixed part and multiplying only b × x.
+      - Applying the formula far outside the activity range it was estimated from.
+    examTip: Show a, then b × x, then the sum. It is also your answer layout.
+    errata:
+      - 'Slide 50 gives ₱15,875 for the high-low estimate at 10,000 DLH, but 9,187.50 + 0.6875 × 10,000 = ₱16,062.50. The module uses ₱16,062.50. The estimates at 15,000 and 20,000 DLH on the same slide are correct.'
+
+  - id: high-low
+    title: The high-low method
+    skills: [high-low, cost-formula]
+    summary: |
+      Pick the months with the highest and the lowest **activity**. The change in cost over the change in activity is
+      the [[variable-rate|variable rate]]. Subtract that rate times activity from total cost at either point to find the
+      [[fixed-cost-component|fixed cost]].
+    keyFormula: 'b = \frac{\text{cost}_{\text{high}} - \text{cost}_{\text{low}}}{\text{activity}_{\text{high}} - \text{activity}_{\text{low}}}, \quad a = \text{cost}_{\text{high}} - b \times \text{activity}_{\text{high}}'
+    data: [fmc]
+    derive:
+      - { fn: highLow, in: { points: '@fmc.points' }, out: h }
+    steps:
+      - tex: |
+          b = \frac{\anchor{dy}{\text{cost}_{\text{high}} - \text{cost}_{\text{low}}}}{\anchor{dx}{\text{activity}_{\text{high}} - \text{activity}_{\text{low}}}}
+        say: The variable rate is how much cost moved for each unit that activity moved.
+      - tex: |
+          a = \anchor{total}{\text{total cost}_{\text{high}}} - \anchor{varcost}{b \times \text{activity}_{\text{high}}}
+        say: Take the variable part out of the total and what is left is the fixed part.
+      - tex: |
+          \anchor{b}{b} = \frac{\anchor{dy}{ {=h.dy|comma} }}{\anchor{dx}{ {=h.dx|comma} }} = {=h.b|4}
+        say: '{=h.hiLabel} is the high month and {=h.loLabel} the low month.'
+      - tex: |
+          \anchor{a}{a} = \anchor{total}{ {=h.hiY|comma} } - \anchor{varcost}{ {=h.b|4} \times {=h.hiX|comma} } = {=h.a|2f}
+        say: 'The low point gives the same fixed cost: {=h.aLow|money}.'
+    journal:
+      title: Flexible Manufacturing Co., overhead on direct labor hours
+      blocks:
+        - { kind: schedule, title: High and low points, rows: '@h.rows' }
+        - { kind: schedule, title: Fixed cost from each point, columns: [High point, Low point], rows: '@h.fixedRows' }
+    links:
+      - { anchor: dy, label: Change in cost, say: Cost at the high point minus cost at the low point. }
+      - { anchor: dx, label: Change in activity, say: Activity at the high point minus activity at the low point. }
+      - { anchor: b, label: Variable rate }
+      - { anchor: total, label: Total cost at a point }
+      - { anchor: varcost, label: Variable cost at that point, say: The rate times the activity at that point. }
+      - { anchor: a, label: Fixed cost component }
+    trace: { fn: highLow, in: { points: '@fmc.points' } }
+    examples: [fmc-high-low, fmc-high-low-walk, bicol-high-low]
+    tryIt: [highlow-handcalc, highlow-fill, highlow-pick-mcq]
+    pitfalls:
+      - Choosing the highest and lowest **cost** instead of the highest and lowest **activity**.
+      - Reporting the total cost at the low point as the fixed cost. It still contains variable cost.
+      - Using only these two months without ever looking at the other ten.
+    examTip: Circle the highest and lowest activity first. Write both costs next to them and compute b before a.
+
+  - id: scattergraph
+    title: Reading a line fitted by eye
+    skills: [scattergraph]
+    summary: |
+      Plot every month, draw a line through the cloud by eye, and read it. Where it crosses the cost axis is the
+      [[fixed-cost-component|fixed cost]]. A point on the line gives the variable cost, and dividing by the activity gives
+      the [[variable-rate|variable rate]].
+    keyFormula: 'b = \frac{y - a}{x}'
+    data: [fmc]
+    state: { intercept: 6000 }
+    derive:
+      - { fn: scatterFormula, in: { a: '@intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 }, out: sf }
+    live:
+      - id: int-in
+        widget: Slider
+        props: { label: Where your line crosses the cost axis (₱), min: 0, max: 14000, step: 500, format: comma }
+        bind: { value: intercept }
+    steps:
+      - tex: |
+          b = \frac{\anchor{y}{y} - \anchor{a}{a}}{x}
+        say: 'a is the intercept. y and x are a point on the line you drew.'
+      - tex: |
+          \anchor{var}{y - a} = \anchor{y}{ {=fmc.scatter.py|comma} } - \anchor{a}{ {=intercept|comma} } = {=sf.varPart|comma}
+        say: What is left of the cost at that point after the fixed cost is taken out is variable.
+      - tex: |
+          \anchor{b}{b} = \frac{\anchor{var}{ {=sf.varPart|comma} }}{ {=fmc.scatter.px|comma} } = {=sf.b|4}
+        say: 'The lecture''s line crosses at ₱6,000 and passes through May: 23,000 hours, ₱25,000.'
+    journal:
+      title: Flexible Manufacturing Co., scattergraph reading
+      blocks:
+        - { kind: schedule, title: From the fitted line to the rate, rows: '@sf.rows' }
+    links:
+      - { anchor: a, label: Fixed cost, say: Where the fitted line meets the cost axis. }
+      - { anchor: y, label: Cost at a point on the line }
+      - { anchor: var, label: Variable cost at that point }
+      - { anchor: b, label: Variable rate, say: 'The lecture rounds it to ₱0.8261 per DLH.' }
+    trace: { fn: scatterFormula, in: { a: '@intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 } }
+    examples: [scatter-fmc, scatter-fmc-rounded]
+    tryIt: [scatter-numeric, scatter-fill, scatter-handcalc]
+    pitfalls:
+      - Dividing the point's total cost by activity. Take the fixed cost out first.
+      - Forgetting that two analysts can draw two lines. The result is a judgment, not a fact.
+    examTip: The intercept is the fixed cost; the slope is the variable rate. Say it before you compute.
+
+  - id: compare-methods
+    title: High-low against scattergraph, side by side
+    skills: [compare-methods]
+    summary: |
+      The same twelve months give two different formulas. Predict overhead with each at several activity levels and the
+      gap shows how much the answer depends on the method, most of all at the low end of the range.
+    keyFormula: '\text{Gap} = y''_{\text{HL}} - y''_{\text{SG}}'
+    data: [fmc]
+    derive:
+      - { fn: highLow, in: { points: '@fmc.points' }, out: h }
+      - { fn: scatterFormula, in: { a: '@fmc.scatter.intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 }, out: sf }
+      - { fn: compareMethods, in: { hlA: '@h.a', hlB: '@h.b', sgA: '@fmc.scatter.intercept', sgB: '@sf.b', levels: '@fmc.levels' }, out: cmp }
+    steps:
+      - tex: |
+          \anchor{hl}{y'_{\text{HL}} = {=h.a|2f} + {=h.b|4}x}
+        say: The high-low formula, built from May and September only.
+      - tex: |
+          \anchor{sg}{y'_{\text{SG}} = {=fmc.scatter.intercept|comma} + {=sf.b|4}x}
+        say: The scattergraph formula, read from the line drawn by eye.
+      - tex: |
+          \anchor{gap}{\text{Gap} = y'_{\text{HL}} - y'_{\text{SG}}}
+        say: The biggest gap is {=cmp.widest|money}, at the low end of the range.
+    journal:
+      title: Flexible Manufacturing Co., predicted overhead
+      blocks:
+        - { kind: schedule, title: Both formulas at four activity levels, columns: [High-low, Scattergraph, Gap], rows: '@cmp.rows' }
+    links:
+      - { anchor: hl, label: High-low formula }
+      - { anchor: sg, label: Scattergraph formula }
+      - { anchor: gap, label: Gap between them }
+    trace: { fn: compareMethods, in: { hlA: '@h.a', hlB: '@h.b', sgA: '@fmc.scatter.intercept', sgB: '@sf.b', levels: '@fmc.levels' } }
+    examples: [compare-table, compare-walk]
+    tryIt: [compare-multi, method-choice-mcq, methods-match]
+    pitfalls:
+      - Declaring one method "wrong". They use different amounts of information.
+      - Comparing predictions at a level far outside the data.
+    examTip: When two methods disagree, say which one uses more information and what the gap tells you about the data.
+    errata:
+      - 'Slide 64 repeats the ₱15,875 high-low figure at 10,000 DLH. The correct value is ₱16,062.50, so the gap to the scattergraph estimate is about ₱1,802, not ₱1,614. The other three rows reproduce.'
+
+  - id: incremental
+    title: The incremental cost of one order
+    skills: [incremental]
+    summary: |
+      A cost formula tells you the total. A decision needs only what **changes**. The fixed part is paid either way, so
+      the [[incremental-cost|incremental cost]] of one order is its activity times the variable rate.
+    keyFormula: '\text{Incremental cost} = b \times \text{extra activity}'
+    data: [cordillera]
+    derive:
+      - { fn: incremental, in: { a: '@cordillera.a', b: '@cordillera.b', hours: '@cordillera.orderHours', deptHours: '@cordillera.deptHours' }, out: inc }
+    steps:
+      - tex: |
+          \anchor{a}{a} \text{ is paid whether or not the order is accepted}
+        say: It does not change with the decision, so it is left out.
+      - tex: |
+          \anchor{inc}{\text{Incremental cost}} = b \times \text{order hours}
+        say: Only the variable part moves with the order.
+      - tex: |
+          \anchor{inc}{ {=inc.incremental|comma} } = {=cordillera.b|comma} \times {=cordillera.orderHours|comma}
+        say: 'Cordillera Craft Furniture: 40 machine hours at ₱8 an hour.'
+    journal:
+      title: Cordillera Craft Furniture, finishing department
+      blocks:
+        - { kind: schedule, title: What the order really adds, rows: '@inc.rows' }
+    links:
+      - { anchor: a, label: Fixed overhead, say: '₱12,000 a month, with or without the order.' }
+      - { anchor: inc, label: Incremental overhead }
+    trace: { fn: incremental, in: { a: '@cordillera.a', b: '@cordillera.b', hours: '@cordillera.orderHours', deptHours: '@cordillera.deptHours' } }
+    examples: [cordillera-incremental]
+    tryIt: [incremental-numeric, incremental-mcq]
+    pitfalls:
+      - Charging the order the whole formula, ₱12,320 instead of ₱320.
+      - Loading a share of the fixed cost onto the order. It is paid anyway.
+    examTip: Ask "what would be different if we accept?" and cost only that.
+
+  - id: outlier-screen
+    title: What one abnormal month does to high-low
+    skills: [outliers]
+    beyondSlides: true
+    summary: |
+      When an [[outlier|outlier]] month is also the highest-activity month, the high-low method uses it without
+      warning. Compare the formula with and without it. The numbers are illustrative; the deck describes this case only
+      in words.
+    keyFormula: 'b_{\text{with}} \ne b_{\text{without}}'
+    data: [zamboanga]
+    state: { at: 12000 }
+    derive:
+      - { fn: outlierScreen, in: { points: '@zamboanga.points', outlier: May, at: '@at' }, out: os }
+    steps:
+      - tex: |
+          \anchor{b}{b_{\text{with}}} = {=os.bWith|4} \quad \text{but} \quad \anchor{b}{b_{\text{without}}} = {=os.bWithout|4}
+        say: One typhoon month changes the variable rate by more than a third.
+      - tex: |
+          \anchor{a}{a_{\text{with}}} = {=os.aWith|comma} \quad \text{but} \quad \anchor{a}{a_{\text{without}}} = {=os.aWithout|comma}
+        say: The fixed cost moves the other way, because the line is forced through the abnormal month.
+      - tex: |
+          \anchor{pred}{y'(12{,}000)} = {=os.predWith|comma} \ \text{vs}\ {=os.predWithout|comma}
+        say: A ₱5,000 difference in the budget at an ordinary activity level.
+    journal:
+      title: Zamboanga Seafood Processing, refrigeration cost
+      blocks:
+        - { kind: schedule, title: With and without the typhoon month, columns: [With May, Without May], rows: '@os.rows' }
+    links:
+      - { anchor: b, label: Variable rate }
+      - { anchor: a, label: Fixed cost }
+      - { anchor: pred, label: 'Predicted cost at 12,000 kg' }
+    trace: { fn: outlierScreen, in: { points: '@zamboanga.points', outlier: May, at: '@at' } }
+    examples: [zamboanga-outlier]
+    tryIt: [outlier-numeric, outlier-mcq]
+    pitfalls:
+      - Letting the method choose the high point without ever plotting the data.
+      - Dropping a month you simply do not like. Exclude only a month with a documented one-time cause.
+    examTip: Plot first. If one point is far from the rest and has a known cause, exclude it and say so.

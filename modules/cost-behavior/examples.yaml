@@ -1,0 +1,122 @@
+examples:
+  - id: heaven-unit
+    source: 'Session 2, slides 15–16 (Example 1)'
+    fn: fixedPerUnit
+    in: { total: '@heaven.total', volumes: '@heaven.volumes' }
+    expect: { unit1: 5.4, unit2: 2.7, total: 27000, ratio: 0.5 }
+  - id: electric-mixed
+    source: 'Session 2, slides 23–24 (Example 2): ₱8,000 base + ₱0.15/kWh, evaluated at 40,000 kWh'
+    fn: behaviorAt
+    in: { kind: mixed, fixed: 8000, rate: 0.15, volume: 40000 }
+    expect: { total: 14000, perUnit: 0.35, fixedPart: 8000, varPart: 6000 }
+    note: The deck gives the rates but no usage figure; 40,000 kWh is illustrative.
+  - id: fmc-high-low
+    source: 'Session 2, slides 44–49 (Examples 4–6)'
+    page: 44
+    fn: highLow
+    in: { points: '@fmc.points' }
+    expect:
+      hiLabel: May
+      loLabel: September
+      hiX: 23000
+      hiY: 25000
+      loX: 7000
+      loY: 14000
+      dx: 16000
+      dy: 11000
+      b: 0.6875
+      varHigh: 15812.5
+      varLow: 4812.5
+      aHigh: 9187.5
+      aLow: 9187.5
+  - id: fmc-high-low-walk
+    source: 'Session 2, slides 44–49 (Examples 4–6), count-along'
+    fn: highLowWalk
+    in: { points: '@fmc.points' }
+    expect: { steps: 9, b: 0.6875, a: 9187.5 }
+  - id: fmc-predict-15000
+    source: 'Session 2, slide 50'
+    fn: costFormula
+    in: { a: '@fmc.hlFixed', b: '@fmc.hlRate', x: 15000 }
+    expect: { y: 19500 }
+  - id: fmc-predict-20000
+    source: 'Session 2, slide 50'
+    fn: costFormula
+    in: { a: '@fmc.hlFixed', b: '@fmc.hlRate', x: 20000 }
+    expect: { y: 22937.5 }
+  - id: fmc-predict-10000
+    source: 'Session 2, slide 50 (slide prints ₱15,875; the arithmetic gives ₱16,062.50, see errata)'
+    fn: costFormula
+    in: { a: '@fmc.hlFixed', b: '@fmc.hlRate', x: 10000 }
+    expect: { y: 16062.5, varPart: 6875 }
+    note: 9,187.50 + 0.6875 × 10,000 = 9,187.50 + 6,875 = 16,062.50. The deck prints 15,875 on slides 50 and 64.
+  - id: fmc-budget
+    source: 'Session 2, slides 68–69 (Example 8)'
+    fn: costFormula
+    in: { a: '@fmc.hlFixed', b: '@fmc.hlRate', x: '@fmc.forecastDLH' }
+    expect: { y: 21562.5, varPart: 12375 }
+  - id: bicol-high-low
+    source: 'Session 2, slides 73–74 (Example 9, parts a–c)'
+    fn: highLow
+    in: { points: '@bicol.points' }
+    expect: { hiLabel: April, loLabel: March, b: 30, a: 6000, dx: 600, dy: 18000 }
+  - id: bicol-predict
+    source: 'Session 2, slides 73–74 (Example 9, part d)'
+    fn: costFormula
+    in: { a: 6000, b: 30, x: '@bicol.predictAt' }
+    expect: { y: 27000, varPart: 21000 }
+  - id: scatter-fmc
+    source: 'Session 2, slides 57–58 (Example 7)'
+    fn: scatterFormula
+    in: { a: '@fmc.scatter.intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py' }
+    expect: { varPart: 19000, bExact: 0.826087 }
+    tol: 0.00001
+  - id: scatter-fmc-rounded
+    source: 'Session 2, slide 58 (Example 7), rate printed as ₱0.8261'
+    fn: scatterFormula
+    in: { a: '@fmc.scatter.intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 }
+    expect: { b: 0.8261 }
+    tol: 0.000001
+    note: The slide quotes the rate to 4 decimals and its table of predictions uses that rounded rate.
+  - id: compare-table
+    source: 'Session 2, slide 64'
+    page: 64
+    fn: compareMethods
+    in: { hlA: 9187.5, hlB: 0.6875, sgA: 6000, sgB: 0.8261, levels: '@fmc.levels' }
+    expect:
+      predictions.0.hl: 16062.5
+      predictions.0.sg: 14261
+      predictions.1.hl: 19500
+      predictions.1.sg: 18392
+      predictions.2.hl: 22938
+      predictions.2.sg: 22522
+      predictions.3.hl: 26375
+      predictions.3.sg: 26653
+    tol: 0.6
+    note: |
+      The slide rounds to whole pesos (half up), so 18,391.5 prints as 18,392 and 26,652.5 as 26,653. The slide's
+      high-low value at 10,000 DLH (₱15,875) is an arithmetic slip; the correct value is ₱16,062.50.
+  - id: compare-walk
+    source: 'Session 2, slide 64, count-along'
+    fn: compareWalk
+    in: { hlA: 9187.5, hlB: 0.6875, sgA: 6000, sgB: 0.8261, levels: '@fmc.levels' }
+    expect: { steps: 12 }
+  - id: cordillera-incremental
+    source: 'Session 2, slides 77–78 (Example 11)'
+    fn: incremental
+    in: { a: '@cordillera.a', b: '@cordillera.b', hours: '@cordillera.orderHours', deptHours: '@cordillera.deptHours' }
+    expect: { incremental: 320, wrongWithFixed: 12320, wholeDept: 16000 }
+  - id: zamboanga-outlier
+    source: 'Session 2, slides 75–76 (Example 10); seven typical months are illustrative'
+    fn: outlierScreen
+    in: { points: '@zamboanga.points', outlier: May, at: 12000 }
+    expect:
+      bWith: 4.25
+      aWith: 10000
+      bWithout: 3
+      aWithout: 20000
+      predWith: 61000
+      predWithout: 56000
+      hiWith: May
+      hiWithout: June
+    note: Illustrates the slide 76 point that high-low silently uses an abnormal month when it is the activity extreme.

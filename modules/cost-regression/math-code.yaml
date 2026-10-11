@@ -1,0 +1,344 @@
+sections:
+  - id: least-squares-fit
+    title: Three lines, one set of errors
+    skills: [least-squares]
+    summary: |
+      Every fitted line leaves a [[residual|residual]] u = y − y′ at each month. [[least-squares|Least squares]] adds the
+      **squares** of those errors and keeps the line with the smallest total. No other line through the same twelve
+      months does better.
+    keyFormula: '\min \sum (y - y'')^2'
+    data: [fmck]
+    derive:
+      - { fn: compareLines, in: { points: '@fmck.points', hlA: '@fmck.hl.a', hlB: '@fmck.hl.b', sgA: '@fmck.sg.a', sgB: '@fmck.sg.b' }, out: cl }
+    steps:
+      - tex: |
+          u = y - y'
+        say: The error is actual cost minus the cost the line predicts.
+      - tex: |
+          \text{Total error} = \sum u^2 = \sum (y - y')^2
+        say: Squaring makes every error positive, so over- and underestimates cannot cancel.
+      - tex: |
+          \anchor{hl}{ {=cl.sseHL|2f} } \quad \anchor{sg}{ {=cl.sseSG|2f} } \quad \anchor{ls}{ {=cl.sseLS|2f} }
+        say: Total squared error for the high-low, scattergraph and least-squares lines of Flexible Manufacturing.
+    journal:
+      title: Flexible Manufacturing Co., overhead in ₱000 on DLH in 000
+      blocks:
+        - { kind: schedule, title: Total squared error of each line, columns: [Fixed cost a, Rate b, 'Σu²'], rows: '@cl.rows' }
+    links:
+      - { anchor: hl, label: High-low line, say: Built from two months only. }
+      - { anchor: sg, label: Scattergraph line, say: The lecture's line drawn by eye. }
+      - { anchor: ls, label: Least-squares line, say: The smallest total of squared errors possible. }
+    trace: { fn: compareLines, in: { points: '@fmck.points', hlA: '@fmck.hl.a', hlB: '@fmck.hl.b', sgA: '@fmck.sg.a', sgB: '@fmck.sg.b' } }
+    examples: [fmc-lines]
+    tryIt: [error-numeric, sse-numeric, ls-mcq]
+    pitfalls:
+      - Adding the raw errors. They cancel, and a terrible line can score zero.
+      - Computing the error the wrong way round. It is actual minus predicted.
+    examTip: 'Say why: "Squaring stops positive and negative errors cancelling and penalises large errors more."'
+
+  - id: regression-line
+    title: Building a and b from the column totals
+    skills: [regression-line]
+    summary: |
+      Make one table: x, y, xy and x². Add each column. The slope b comes from the totals, and the intercept a from the
+      two [[mean|means]]. This is [[simple-regression|simple regression]] done by hand.
+    keyFormula: 'b = \frac{n\sum xy - \sum x \sum y}{n\sum x^2 - (\sum x)^2}, \quad a = \bar{y} - b\bar{x}'
+    data: [fmck]
+    derive:
+      - { fn: regression, in: { points: '@fmck.points' }, out: rg }
+    steps:
+      - tex: |
+          \anchor{sums}{n,\ \sum x,\ \sum y,\ \sum xy,\ \sum x^2}
+        say: First the table and its column totals.
+      - tex: |
+          b = \frac{\anchor{num}{n\sum xy - \sum x \sum y}}{\anchor{den}{n\sum x^2 - (\sum x)^2}}
+        say: Compute b first, because a needs it.
+      - tex: |
+          a = \anchor{ybar}{\bar{y}} - b\,\anchor{xbar}{\bar{x}}
+        say: The line always passes through the point of means.
+      - tex: |
+          \anchor{b}{b} = \frac{\anchor{num}{ {=rg.num|comma} }}{\anchor{den}{ {=rg.den|comma} }} = {=rg.b|4}
+        say: 'Flexible Manufacturing: the numerator is 40,968 − 39,150.'
+      - tex: |
+          \anchor{a}{a} = \anchor{ybar}{ {=rg.ybar|2f} } - {=rg.b|4} \times \anchor{xbar}{ {=rg.xbar|2f} } = {=rg.a|4}
+        say: 'In thousands: ₱10,583.60 of fixed cost.'
+    journal:
+      title: Flexible Manufacturing Co. (x in thousand DLH, y in ₱ thousand)
+      blocks:
+        - { kind: schedule, title: The regression table, columns: [DLH x, Overhead y, xy, 'x²'], rows: '@rg.tableRows' }
+        - { kind: schedule, title: The calculation, rows: '@rg.calcRows' }
+    links:
+      - { anchor: sums, label: Column totals }
+      - { anchor: num, label: Numerator, say: n × Σxy minus Σx × Σy. }
+      - { anchor: den, label: Denominator, say: n × Σx² minus (Σx)². }
+      - { anchor: b, label: Variable rate b }
+      - { anchor: xbar, label: Mean of x }
+      - { anchor: ybar, label: Mean of y }
+      - { anchor: a, label: Fixed cost a }
+    trace: { fn: regression, in: { points: '@fmck.points' } }
+    examples: [fmc-regression, fmc-walk, fmc-from-sums, fmc-predict-15, cordillera-sums, cordillera-predict]
+    tryIt: [regline-handcalc, regline-fill, regline-b-numeric]
+    pitfalls:
+      - Computing a before b.
+      - Dividing Σxy by Σx² without the n and the cross term. The full numerator is nΣxy − ΣxΣy.
+      - Forgetting the units. Here x is in thousands of hours and y in thousands of pesos, so b is pesos per hour and a is in thousands.
+    examTip: Lay out the table, total every column, then write n, Σx, Σy, Σxy, Σx² in a row before you touch the formula.
+
+  - id: deviation-form
+    title: The same line from deviations
+    skills: [regression-line]
+    summary: |
+      Subtract the [[mean|mean]] from every x and every y first. The deviations of each column add to zero, and the slope
+      is just Σxy ÷ Σx² of the deviations. The answer is the same line.
+    keyFormula: 'b = \frac{\sum xy}{\sum x^2} \ \text{(with } x = X - \bar{X},\ y = Y - \bar{Y}\text{)}'
+    data: [ads10]
+    derive:
+      - { fn: deviationForm, in: { points: '@ads10.points' }, out: dv }
+    steps:
+      - tex: |
+          x = X - \anchor{xbar}{\bar{X}}, \qquad y = Y - \anchor{ybar}{\bar{Y}}
+        say: Measure each value from its own mean.
+      - tex: |
+          \anchor{dsums}{\sum x = 0, \quad \sum y = 0}
+        say: By construction the deviations add to zero. A quick check on your arithmetic.
+      - tex: |
+          \anchor{b}{b} = \frac{\anchor{sxy}{\sum xy}}{\anchor{sxx}{\sum x^2}} = \frac{ {=dv.sxy|2f} }{ {=dv.sxx|2f} } = {=dv.b|4}
+        say: 'Advertising ($000) and sales ($000): the slope is about 1.63.'
+      - tex: |
+          \anchor{a}{a} = \bar{Y} - b\bar{X} = {=dv.ybar|2f} - {=dv.b|4} \times {=dv.xbar|2f} = {=dv.a|4}
+        say: The intercept is the same recipe as before.
+    journal:
+      title: Advertising and sales, 10 periods ($000), from the Excel illustration
+      blocks:
+        - { kind: schedule, title: Deviations from the means, columns: [X, Y, 'x = X − X̄', 'y = Y − Ȳ', xy, 'x²'], rows: '@dv.rows' }
+        - { kind: schedule, title: The calculation, rows: '@dv.calcRows' }
+    links:
+      - { anchor: xbar, label: Mean of X }
+      - { anchor: ybar, label: Mean of Y }
+      - { anchor: dsums, label: Deviations add to zero }
+      - { anchor: sxy, label: Σxy of the deviations }
+      - { anchor: sxx, label: Σx² of the deviations }
+      - { anchor: b, label: Slope b }
+      - { anchor: a, label: Intercept a }
+    trace: { fn: deviationForm, in: { points: '@ads10.points' } }
+    examples: [ads-deviation, ads-regression, template-regression]
+    tryIt: [regline-handcalc, regline-b-numeric]
+    pitfalls:
+      - Mixing the two methods. If you use deviations, the n disappears from the slope formula.
+    examTip: Check Σx = 0 and Σy = 0 before you go on; an error in a mean shows up there.
+
+  - id: r-squared
+    title: R², the share of cost the line explains
+    skills: [r-squared]
+    summary: |
+      [[r-squared|R²]] compares the squared numerator of b with the product of the two spreads. It runs from 0 (the line
+      explains nothing) to 1 (it explains everything). In simple regression it is the square of the
+      [[correlation-coefficient|correlation coefficient]] r.
+    keyFormula: 'R^2 = \frac{(n\sum xy - \sum x\sum y)^2}{(n\sum x^2 - (\sum x)^2)(n\sum y^2 - (\sum y)^2)}'
+    data: [fmck]
+    derive:
+      - { fn: rSquared, in: { points: '@fmck.points' }, out: rs }
+    steps:
+      - tex: |
+          R^2 = \frac{\anchor{num}{(n\sum xy - \sum x\sum y)^2}}{\anchor{den}{(n\sum x^2 - (\sum x)^2)}\;\anchor{deny}{(n\sum y^2 - (\sum y)^2)}}
+        say: The numerator is the one you already have, squared. The denominator adds the spread in y.
+      - tex: |
+          \anchor{r2}{R^2} = \frac{\anchor{num}{ {=rs.num|comma}^2 }}{\anchor{den}{ {=rs.den|comma} } \times \anchor{deny}{ {=rs.denY|comma} }} = {=rs.r2|4}
+        say: '3,305,124 ÷ 5,432,724, about 60.84%.'
+      - tex: |
+          \anchor{r}{r} = \sqrt{R^2} = {=rs.r|4}
+        say: The correlation, with the same sign as b.
+    journal:
+      title: Flexible Manufacturing Co., R² for overhead on DLH
+      blocks:
+        - { kind: schedule, title: From totals to R², rows: '@rs.rows' }
+    links:
+      - { anchor: num, label: Numerator squared }
+      - { anchor: den, label: Spread in x }
+      - { anchor: deny, label: Spread in y }
+      - { anchor: r2, label: R² }
+      - { anchor: r, label: Correlation r }
+    trace: { fn: rSquared, in: { points: '@fmck.points' } }
+    examples: [fmc-r2, fmc-r2-walk]
+    tryIt: [r2-handcalc, r2-numeric, r2-mcq]
+    pitfalls:
+      - Reporting r when R² is asked. R² is r squared.
+      - Treating a high R² as proof of cause. It shows that the two move together.
+    examTip: 'Say it as a sentence: "About 61% of the month-to-month swings in overhead are explained by direct labor hours."'
+
+  - id: standard-errors
+    title: Standard error and t, how much to trust the line
+    skills: [standard-error, t-statistic]
+    summary: |
+      The [[standard-error-of-estimate|standard error of the estimate]] sₑ is how far real costs typically sit from the
+      line; about two of them either side gives a rough 95% range. The [[t-statistic|t-statistic]] divides b by its own
+      standard error. Above about 2, b is probably not noise.
+    keyFormula: 's_e = \sqrt{\frac{\sum y^2 - a\sum y - b\sum xy}{n-2}}, \qquad t = \frac{b}{s_b}'
+    data: [fmck]
+    derive:
+      - { fn: standardError, in: { points: '@fmck.points' }, out: sd }
+    steps:
+      - tex: |
+          s_e = \sqrt{\frac{\anchor{sse}{\sum y^2 - a\sum y - b\sum xy}}{\anchor{df}{n - 2}}}
+        say: The squared errors added up, averaged over n − 2 because a and b were estimated.
+      - tex: |
+          \anchor{band}{y' \pm 2 s_e}
+        say: A rough 95% range around any prediction.
+      - tex: |
+          \anchor{sb}{s_b} = \frac{s_e}{\sqrt{\sum (x - \bar{x})^2}}, \qquad \anchor{t}{t} = \frac{b}{s_b}
+        say: How precisely b is pinned down, and how many of its own standard errors b is from zero.
+      - tex: |
+          \anchor{se}{s_e} = {=sd.se|4} \quad\Rightarrow\quad y' \pm {=sd.band|2f}, \qquad \anchor{t}{t} = {=sd.t|2f}
+        say: 'Flexible Manufacturing: about ₱2,344 typical error, and a clearly significant slope.'
+    journal:
+      title: Flexible Manufacturing Co. (₱ thousand)
+      blocks:
+        - { kind: schedule, title: From squared errors to t, rows: '@sd.rows' }
+    links:
+      - { anchor: sse, label: Squared errors }
+      - { anchor: df, label: Degrees of freedom }
+      - { anchor: se, label: Standard error of the estimate }
+      - { anchor: band, label: Rough 95% range }
+      - { anchor: sb, label: Standard error of b }
+      - { anchor: t, label: t-statistic }
+    trace: { fn: standardError, in: { points: '@fmck.points' } }
+    examples: [fmc-se, fmc-se-walk, predict-range]
+    tryIt: [serange-numeric, t-numeric, se-mcq]
+    pitfalls:
+      - Quoting sₑ as a percentage. It is in the cost's own units.
+      - Reading a significant t as a good fit. t is about one coefficient; R² is about the whole model.
+    examTip: Use R² for the model, t for each driver, sₑ for the size of a typical miss.
+    errata:
+      - 'The deck gives sₑ and tells the learner to interpret it; the formula and the s_b and t numbers shown here use the standard textbook definitions.'
+
+  - id: multiple-regression
+    title: Several drivers at once
+    skills: [multiple-regression]
+    summary: |
+      [[multiple-regression|Multiple regression]] fits y′ = a + b₁x₁ + b₂x₂ + … Each coefficient is the change in cost
+      for one more unit of that driver **holding the others fixed**. The same statistics, R², sₑ and t, are read
+      coefficient by coefficient.
+    keyFormula: 'y'' = a + b_1 x_1 + b_2 x_2 + \cdots'
+    data: [twovar10, baguio]
+    derive:
+      - { fn: multipleRegression, in: { xs: '@twovar10.xs', y: '@twovar10.y', names: '@twovar10.names' }, out: mr }
+      - { fn: predictMulti, in: { intercept: '@baguio.intercept', coefs: '@baguio.coefs', values: [5000, 40], names: '@baguio.names' }, out: pm }
+    steps:
+      - tex: |
+          \anchor{y}{y'} = \anchor{a}{a} + \anchor{b1}{b_1 x_1} + \anchor{b2}{b_2 x_2}
+        say: One intercept and one term for each driver.
+      - tex: |
+          \anchor{y}{ {=pm.y|comma} } = \anchor{a}{12{,}000} + \anchor{b1}{3.20 \times 5{,}000} + \anchor{b2}{180 \times 40}
+        say: 'Baguio Strawberry Farm: 5,000 kg across 40 orders costs ₱35,200 to pack.'
+      - tex: |
+          \anchor{r2}{R^2} = {=mr.r2|4}, \quad \anchor{adj}{\bar{R}^2} = {=mr.adjR2|4}, \quad \anchor{se}{s_e} = {=mr.se|3}, \quad \anchor{f}{F} = {=mr.f|1}
+        say: The workbook's two-driver data, with the fit statistics next to the coefficients.
+    journal:
+      title: Two multiple regressions
+      blocks:
+        - { kind: schedule, title: 'Baguio Strawberry Farm Cooperative: using the equation', rows: '@pm.rows' }
+        - { kind: schedule, title: 'Workbook illustration, 10 observations: the fitted coefficients', columns: [Coefficient, Std. error, t-statistic], rows: '@mr.rows' }
+        - { kind: schedule, title: 'The same fit, summarised', rows: '@mr.fitRows' }
+    links:
+      - { anchor: y, label: Predicted cost }
+      - { anchor: a, label: Intercept }
+      - { anchor: b1, label: First driver's term }
+      - { anchor: b2, label: Second driver's term }
+      - { anchor: r2, label: R² }
+      - { anchor: adj, label: Adjusted R², say: R² reduced for the number of drivers so that adding useless ones does not look like progress. }
+      - { anchor: se, label: Standard error of the estimate }
+      - { anchor: f, label: F-statistic, say: Tests whether the drivers together explain a real share of the variation. }
+    trace: { fn: multipleRegression, in: { xs: '@twovar10.xs', y: '@twovar10.y', names: '@twovar10.names' } }
+    examples: [baguio-predict, twovar-multiple, threevar-multiple]
+    tryIt: [multi-predict-numeric, multi-fill, multi-meaning-mcq]
+    pitfalls:
+      - Reading a coefficient on its own. It is the effect of that driver with the others held constant.
+      - Leaving out a term when predicting.
+    examTip: Write the equation, then substitute every driver's value, then add. Keep the intercept.
+
+  - id: multicollinearity
+    title: When drivers move together
+    skills: [multicollinearity]
+    summary: |
+      If two drivers rise and fall together, the regression cannot tell which one is doing the work.
+      [[multicollinearity|Multicollinearity]] leaves R² high while individual coefficients and their t-statistics become
+      unreliable. Dropping one of the pair often loses almost nothing.
+    keyFormula: 'r_{x_1 x_2} \text{ close to } \pm 1'
+    data: [twovar10, threevar12]
+    derive:
+      - { fn: multipleRegression, in: { xs: '@twovar10.xs', y: '@twovar10.y', names: '@twovar10.names' }, out: both }
+      - { fn: dropDriver, in: { xs: '@twovar10.xs', y: '@twovar10.y', names: '@twovar10.names', drop: 0 }, out: one }
+      - { fn: multipleRegression, in: { xs: '@threevar12.xs', y: '@threevar12.y', names: '@threevar12.names' }, out: three }
+    steps:
+      - tex: |
+          \anchor{corr}{r_{x_1 x_2}} = {=both.maxCorr|3}
+        say: The two drivers in the workbook are almost perfectly correlated with each other.
+      - tex: |
+          \anchor{b1}{t_{b_1}} = {=both.ts.0|2f} \quad \text{but} \quad \anchor{b2}{t_{b_2}} = {=both.ts.1|2f}
+        say: With both in, the first driver looks insignificant, though R² is about 0.996.
+      - tex: |
+          \anchor{a}{R^2_{\text{without } x_1}} = {=one.r2|4} \quad \text{vs} \quad {=both.r2|4}
+        say: Dropping X1 barely changes R², and the remaining driver becomes very significant.
+    journal:
+      title: Workbook illustrations
+      blocks:
+        - { kind: schedule, title: Correlations among the two drivers, columns: [X1, X2], rows: '@both.corrRows' }
+        - { kind: schedule, title: Both drivers in, columns: [Coefficient, Std. error, t-statistic], rows: '@both.rows' }
+        - { kind: schedule, title: X1 dropped, columns: [Coefficient, Std. error, t-statistic], rows: '@one.rows' }
+    links:
+      - { anchor: corr, label: Correlation between the drivers }
+      - { anchor: a, label: R² compared, say: Fit with and without the first driver. }
+      - { anchor: b1, label: First driver's t }
+      - { anchor: b2, label: Second driver's t }
+    examples: [twovar-multiple, threevar-multiple]
+    tryIt: [mc-mcq, mc-multi, mc-match]
+    pitfalls:
+      - Trusting a high R² and ignoring odd coefficient signs.
+      - Adding every available variable "just in case".
+    examTip: Check the correlations among the drivers, not only each driver with cost.
+    beyondSlides: true
+
+  - id: judge-output
+    title: Reading a regression printout
+    skills: [method-choice]
+    summary: |
+      A model is worth using when the fit is good (R²), the slope is distinguishable from zero (|t| above about 2),
+      and the question is asked inside the [[relevant-range|relevant range]]. Change the numbers and see the reading
+      change.
+    keyFormula: 'R^2 \ge 0.80 \text{ strong}, \quad |t| > 2 \text{ significant}'
+    state: { r2: 0.42, t: 0.85 }
+    derive:
+      - { fn: judgeModel, in: { r2: '@r2', t: '@t' }, out: jm }
+    live:
+      - id: r2-in
+        widget: Slider
+        props: { label: R², min: 0.1, max: 0.99, step: 0.01, format: 2 }
+        bind: { value: r2 }
+      - id: t-in
+        widget: Slider
+        props: { label: t-statistic of the slope, min: 0, max: 8, step: 0.1, format: 1 }
+        bind: { value: t }
+    steps:
+      - tex: |
+          \anchor{fit}{R^2}:\ \ge 0.80 \text{ strong};\ 0.50\text{ to }0.80 \text{ usable};\ < 0.50 \text{ weak}
+        say: The slide's rules of thumb for a cost model.
+      - tex: |
+          \anchor{sig}{|t|} > 2 \ \Rightarrow\ \text{the slope is statistically significant}
+        say: A slope that cannot be told from zero explains nothing, whatever R² says.
+      - tex: |
+          \anchor{verdict}{\text{Use the model only if both pass, inside its range}}
+        say: Example 6's output, R² = 0.42 and t = 0.85, fails both.
+    journal:
+      title: Example 6, software output for machine hours
+      blocks:
+        - { kind: schedule, title: Reading the output, rows: '@jm.rows' }
+    links:
+      - { anchor: fit, label: Fit, say: The share of cost the driver explains. }
+      - { anchor: sig, label: Significance, say: Whether the slope is distinguishable from zero. }
+      - { anchor: verdict, label: Verdict }
+    examples: [judge-software, judge-drivers, range-utilities]
+    tryIt: [judge-mcq, driver-mcq, method-mcq]
+    pitfalls:
+      - Looking at R² alone, or t alone.
+      - Using a good model outside the data it came from.
+    examTip: Quote R², the t of the slope and the range, then give the decision in one sentence.

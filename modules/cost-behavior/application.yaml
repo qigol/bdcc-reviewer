@@ -1,0 +1,173 @@
+intro: |
+  Every budget, price quote and make-or-buy decision starts with a question about cost: how much will it be at the
+  volume we expect? This case follows one factory's controller from a table of twelve months to a budget the board can
+  trust, and to the points where that budget should not be trusted.
+case:
+  id: fmc-budget
+  title: Budgeting Flexible Manufacturing Co.'s overhead
+  story: |
+    Flexible Manufacturing Company's controller must put next month's factory overhead into the budget. She has twelve
+    months of direct labor hours and overhead. The plant manager expects 18,000 hours next month, and the board has
+    asked whether a 26,000-hour month is possible. All figures are from the lecture; the case is synthetic.
+  data: [fmc]
+  derive:
+    - { fn: pointsMatrix, in: { points: '@fmc.points', xName: DLH, yName: Overhead }, out: mx }
+    - { fn: highLow, in: { points: '@fmc.points' }, out: h }
+    - { fn: scatterFormula, in: { a: '@fmc.scatter.intercept', x: '@fmc.scatter.px', y: '@fmc.scatter.py', roundRate: 4 }, out: sf }
+    - { fn: compareMethods, in: { hlA: '@h.a', hlB: '@h.b', sgA: '@fmc.scatter.intercept', sgB: '@sf.b', levels: '@fmc.levels' }, out: cmp }
+    - { fn: costFormula, in: { a: '@h.a', b: '@h.b', x: '@fmc.forecastDLH' }, out: bhl }
+    - { fn: costFormula, in: { a: '@fmc.scatter.intercept', b: '@sf.b', x: '@fmc.forecastDLH' }, out: bsg }
+    - { fn: rangeCheck, in: { volume: 26000, low: 7000, high: 23000 }, out: rc }
+    - { fn: incremental, in: { a: '@h.a', b: '@h.b', hours: 500, deptHours: '@fmc.forecastDLH' }, out: inc }
+  cells:
+    - id: look
+      title: Look at the data first
+      say: |
+        Twelve months of direct labor hours and overhead. Before any formula, ask whether the points line up and
+        whether one month is odd. A scattergraph is the quickest way to see it.
+      stage:
+        - { id: look-data, widget: Matrix, props: { data: '@mx.data', format: int, rowHeader: Month } }
+      decision:
+        prompt: Overhead rises with hours, but the points are scattered around the trend. Does any single month need to be excluded as a one-time event?
+        type: mcq
+        options:
+          - No month sits far from the rest and none has a documented one-time cause, so use all twelve
+          - Yes, May, because it is the highest
+          - Yes, September, because it is the lowest
+          - Yes, June and July, because they are equal
+        answer: 0
+        model: Extremes are not outliers. High and low months are legitimate data. Exclude a month only when it sits far from the cloud and has a known, one-time cause; none does here.
+    - id: high-low
+      title: The quick estimate
+      say: |
+        High-low uses May and September only. It is fast and she can explain it in one sentence.
+      stage:
+        - { id: hl-sheet, widget: Schedule, props: { title: High and low points, rows: '@h.rows' } }
+        - { id: hl-fixed, widget: Schedule, props: { title: Fixed cost from each point, columns: [High point, Low point], rows: '@h.fixedRows' } }
+    - id: scatter
+      title: The picture-based estimate
+      say: |
+        Plotting all twelve months, she draws a line that crosses the cost axis at ₱6,000 and passes through May. That
+        gives a different rate.
+      stage:
+        - { id: sg-sheet, widget: Schedule, props: { title: Reading the line, rows: '@sf.rows' } }
+    - id: compare
+      title: Two formulas, one budget
+      say: |
+        The two formulas agree near May and disagree most at low volume. Next month's 18,000 hours falls in between:
+        the high-low budget is {=bhl.y|money2} and the scattergraph budget is {=bsg.y|money2}.
+      stage:
+        - { id: cmp-sheet, widget: Schedule, props: { title: Predicted overhead, columns: [High-low, Scattergraph, Gap], rows: '@cmp.rows' } }
+      decision:
+        prompt: Which figure should go into the board paper, and how should it be presented?
+        type: mcq
+        options:
+          - Either, but state both and the gap between them, and say the estimate is within a range of about ₱700
+          - The higher one only, since it is safer
+          - The lower one only, since it saves money
+          - Neither; no budget is possible without regression
+        answer: 0
+        model: At 18,000 hours the methods differ by about ₱692. Neither is wrong. Present the estimate with its range and the method behind it, so the board sees the uncertainty rather than a false precision.
+    - id: range
+      title: Can we plan a 26,000-hour month?
+      say: |
+        The board asks about a 26,000-hour month. The formulas were built from months between 7,000 and 23,000 hours.
+        {=rc.text}
+      stage:
+        - id: range-out
+          widget: Readout
+          props:
+            items:
+              - { label: Requested hours, value: '26,000', tone: accent }
+              - { label: Status, value: '{=rc.status}', tone: good }
+      decision:
+        prompt: What should the controller tell the board about a 26,000-hour month?
+        type: mcq
+        options:
+          - The formulas were not built for that volume, so the figure is unreliable; gather data or ask operations what a second shift would cost
+          - Use the formula; it fits the existing data well
+          - Double the high-low variable rate to be safe
+          - Refuse to budget at all
+        answer: 0
+        model: Beyond 23,000 hours a new step in fixed costs, such as a second shift or more equipment, may appear. A formula built from lower volumes cannot see it, so the estimate must be flagged and supplemented with operational input.
+    - id: order
+      title: Pricing a special order
+      say: |
+        A customer asks for a rush order needing 500 direct labor hours. The sales manager wants to load the average
+        overhead per hour onto the quote. The incremental overhead is {=inc.incremental|money2}.
+      stage:
+        - { id: inc-sheet, widget: Schedule, props: { title: What the order really adds, rows: '@inc.rows' } }
+      decision:
+        prompt: For a one-off pricing decision, which overhead should the quote cover at minimum, and why?
+        type: mcq
+        options:
+          - The incremental overhead, because fixed overhead is paid with or without the order
+          - The whole month's overhead
+          - The average overhead per hour times 500, so every order pays its share
+          - No overhead; overhead is not a cost of an order
+        answer: 0
+        model: 'The quote must at least cover what the order adds, here ₱343.75, plus its materials and labor. A share of fixed overhead is a long-run pricing target, not a short-run floor, and a quote below the full average may still be worth accepting.'
+    - id: reflect
+      title: What would make this budget better?
+      say: |
+        The controller wants a formula she can defend. Both methods are hand-drawn answers with no measure of how well
+        the line fits.
+      stage:
+        - id: next-note
+          widget: Callout
+          props:
+            kind: note
+            title: Where this goes next
+            body: Session 3 fits the line by least squares from all twelve months and adds R², so the answer can be defended.
+      decision:
+        prompt: What single piece of information would most improve confidence in this overhead formula?
+        type: open
+        model: |
+          A measure of how well the line fits the data (R²) and of how much cost varies around it (the standard error),
+          which regression provides. Checking whether another driver, such as machine hours, explains overhead better
+          would also help.
+atScale:
+  title: Cost behavior in practice
+  body: |
+    **Where the data comes from.** Monthly overhead comes from the general ledger by cost center; activity comes from the
+    production system (hours from time clocks, units from the plant's MES or ERP). Controllers usually take twelve to
+    thirty-six months and adjust for price changes before estimating.
+
+    **How it is done.** In a spreadsheet the high-low method is three formulas: `=MAX(activity)` and `=MIN(activity)`
+    to find the two points, then `INDEX`/`MATCH` to fetch their costs. A scatter chart with a trendline shows the whole
+    cloud. Budget models then link the formula to a driver cell, so changing the forecast hours updates the overhead
+    line (this is the heart of a flexible budget, Session 24).
+
+    **Controls.** Document the date range, the driver, the excluded months and why. Review the formula when a lease,
+    shift pattern or equipment changes, because a new step invalidates the old relevant range.
+
+    Under PAS 2 *Inventories* (beyond the slides) a company must allocate fixed production overhead on the basis of normal
+    capacity, which is one reason finance teams keep separate fixed and variable estimates even for external reporting.
+  code:
+    - lang: text
+      title: High-low in a spreadsheet (illustrative)
+      source: |
+        Highest activity   =MAX(B2:B13)
+        Cost at highest    =INDEX(C2:C13, MATCH(MAX(B2:B13), B2:B13, 0))
+        Lowest activity    =MIN(B2:B13)
+        Cost at lowest     =INDEX(C2:C13, MATCH(MIN(B2:B13), B2:B13, 0))
+        b (variable rate)  =(cost_high - cost_low) / (act_high - act_low)
+        a (fixed cost)     =cost_high - b * act_high
+tradeoffs:
+  title: Choosing an estimation method
+  columns: [Method, Uses, Objective?, Tells you how well it fits?, Best when]
+  rows:
+    - ['High-low', 'Two points', 'Yes, but depends on the two extremes', 'No', 'A quick, rough estimate under time pressure']
+    - ['Scattergraph', 'All points, line by eye', 'No, the line is a judgment', 'No', 'Screening for outliers and seeing the shape of the data']
+    - ['Regression (Session 3)', 'All points, least squares', 'Yes', 'Yes (R², standard error)', 'A decision with real stakes that must be defended']
+connections:
+  - { module: cost-concepts, note: 'Session 1 sorted costs by traceability and timing. Behavior is a third way, and a cost can be direct and variable, or indirect and fixed.' }
+  - { module: cost-regression, note: 'Least squares replaces the two-point and by-eye methods with one reproducible line and reports how well it fits.' }
+  - { module: job-order, note: 'The predetermined overhead rate divides budgeted overhead, often estimated with a cost formula, by budgeted activity.' }
+explainBack:
+  prompt: Explain to a new plant manager how Flexible Manufacturing Co. got a figure for next month's overhead, why two methods gave two answers, and why the 26,000-hour month is a different kind of question.
+  rubric:
+    - A cost formula y' = a + bx splits a mixed cost into a fixed part and a variable rate
+    - High-low uses only the highest and lowest activity months; the scattergraph uses all the points but the line is drawn by eye
+    - The methods differ because they use different amounts of information, and the gap is itself a signal
+    - A formula holds only within the relevant range it was built from, so 26,000 hours needs new information
