@@ -31,6 +31,8 @@ export interface QuizInstance {
   show?: StageWidget[];
   /** progressive hints (practice only) */
   hints?: string[];
+  /** the template's `calculator` flag (see calculatorMode) */
+  calculator?: boolean;
   // mcq / multi
   options?: string[];
   answer?: number | number[];
@@ -125,6 +127,7 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
     explanation: t.explanation,
     show: t.show,
     hints: t.hints,
+    calculator: t.calculator,
     problems,
   };
   switch (t.type) {
@@ -364,10 +367,18 @@ export function checkOrder(order: number[]): number {
   return Math.max(0, Math.min(0.95, tau));
 }
 
-/** assignment[i] = index of the right-hand item placed next to left item i. */
-export function checkMatch(assignment: (number | null)[]): number {
+/**
+ * assignment[i] = index of the right-hand item placed next to left item i. With `pairs`, a card
+ * counts as right when its label equals the expected label, so two identical cards (e.g. two
+ * "Controller" cards) are interchangeable instead of being graded by which copy went where.
+ */
+export function checkMatch(assignment: (number | null)[], pairs?: [string, string][]): number {
   if (!assignment.length) return 0;
-  return assignment.filter((a, i) => a === i).length / assignment.length;
+  return assignment.filter((a, i) => matchSlotRight(a, i, pairs)).length / assignment.length;
+}
+export function matchSlotRight(a: number | null, i: number, pairs?: [string, string][]): boolean {
+  if (a === i) return true;
+  return !!pairs && a !== null && pairs[a]?.[1] === pairs[i]?.[1];
 }
 
 export function valuesEqual(actual: any, expected: Value, tol: number): boolean {
@@ -376,6 +387,24 @@ export function valuesEqual(actual: any, expected: Value, tol: number): boolean 
   if (Array.isArray(expected)) return Array.isArray(actual) && actual.length === expected.length && expected.every((e, i) => valuesEqual(actual[i], e, tol));
   if (typeof expected === 'object') return !!actual && typeof actual === 'object' && Object.entries(expected).every(([k, v]) => valuesEqual(actual[k], v, tol));
   return actual === expected;
+}
+
+/** Question types that ask the learner to work out amounts, so the calculator opens for them by default. */
+const CALC_TYPES: ReadonlySet<QuizInstance['type']> = new Set(['numeric', 'hand-calc', 'schedule-fill', 'journal-entry']);
+
+/**
+ * Whether the quiz calculator is offered for a question, and whether it opens on its own:
+ * - 'auto': open it when the question appears;
+ * - 'available': offer it (button) but leave it closed;
+ * - 'off': no calculator.
+ * Accounting modules (`workbench: journal`) always offer it and open it for the computational types;
+ * a template's `calculator: true/false` overrides the type. Other workbenches only get it when a template asks.
+ */
+export function calculatorMode(inst: Pick<QuizInstance, 'type' | 'calculator'>, workbench?: string): 'auto' | 'available' | 'off' {
+  if (inst.calculator === true) return 'auto';
+  if (workbench !== 'journal') return 'off';
+  if (inst.calculator === false) return 'available';
+  return CALC_TYPES.has(inst.type) ? 'auto' : 'available';
 }
 
 export { approx };

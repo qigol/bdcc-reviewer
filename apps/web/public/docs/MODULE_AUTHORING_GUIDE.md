@@ -593,6 +593,7 @@ interface Base {
   show?: StageWidget[];             // visuals (tables, matrices…); props may reference generator vars
   explanation: Markdown;            // worked solution, uses {=} for this instance's numbers
   hints?: Markdown[];               // progressive hints, revealed one at a time in practice (nudge → method → first step)
+  calculator?: boolean;             // quiz calculator: true = open it for this question, false = keep it closed (default by type, below)
 }
 interface Mcq extends Base { type: 'mcq'; options?: Markdown[]; answer?: number; shuffle?: boolean;  // default true
                              optionFeedback?: Record<string, Markdown> }                             // key = option index
@@ -623,6 +624,7 @@ type Template = Mcq | Multi | Numeric | CodeFill | Match | Order | HandCalc | Jo
 - **Misconceptions** are *specific wrong methods*, computed by the generator (`var`) or fixed (`value`), with feedback that names the mistake. The engine ignores any that coincide with the correct answer.
 - Glossary questions are auto-generated. **Don't** write plain "define term X" templates; write `term`-tagged templates only for richer conceptual distinctions.
 - **Hints** go from a nudge to the method to the first step, and never state the final answer. Every numeric, hand-calc, journal-entry and schedule-fill template gets 1–3 hints (hand-calc steps also keep their per-step `hint`).
+- **Calculator.** In a `workbench: journal` module the quiz offers a desk calculator on every question and opens it by itself for `numeric`, `hand-calc`, `schedule-fill` and `journal-entry` templates. Set `calculator: false` when the arithmetic is already done in the prompt (e.g. "record the transfer of ₱X"), and `calculator: true` on an `mcq`/`multi` that needs computing before choosing. In other workbenches it only appears on templates with `calculator: true`.
 - **journal-entry** grading: accounts match case-insensitively, line order doesn't matter, repeated accounts are netted. Each expected account earns its share when it is on the right side with the right amount; each account that doesn't belong costs one share. The learner gets specific feedback: wrong side, amount off, missing account, stray account, "debits and credits are reversed", and "your debits don't equal your credits". When the side depends on the numbers (over/underapplied, favorable/unfavorable), let the generator return `entries` and `accounts` (`entries: '@entries'`) built by the same fn the lesson uses, and shuffle the accounts list.
 - **schedule-fill** shows a statement or schedule with some rows blank; each blank cell is graded like a numeric answer (rows with `format: pct` also accept `40%`). Learners may type `₱12,500`, `12,500` or `(1,200)` for negatives.
 

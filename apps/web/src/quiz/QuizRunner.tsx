@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookMarked, Clock, Flag, RotateCcw, Trophy } from 'lucide-react';
-import type { QuizInstance } from '@kodigo/schema';
+import { ArrowRight, BookMarked, Calculator as CalcIcon, Clock, Dices, Flag, RotateCcw, Trophy } from 'lucide-react';
+import { calculatorMode, type QuizInstance } from '@kodigo/schema';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
 import { getRunState, getSession, instantiate, newSession, randomSeed, saveRunState, QTYPE_LABEL, MODE_LABEL, type QuizSession } from './session';
-import { QuestionView, emptyResponse, grade, isAnswered, type Graded } from './Question';
+import { QuestionView, emptyResponse, grade, isAnswered, solutionShown, type Graded } from './Question';
+import { Calculator, calcAutoOpenPref } from './Calculator';
 import { recordAttempt } from '../storage/progress';
 import { cn } from '../lib/util';
 import { usePopup } from '../lib/popup';
 
-interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number }
+/** `seed` is set once the learner asks for new numbers; otherwise the session item's seed is used. */
+interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number }
 
 export function QuizRunner() {
   const { sessionId } = useParams();
@@ -29,7 +31,7 @@ function Runner({ session }: { session: QuizSession }) {
   const [saved] = useState(() => getRunState(session.id));
   const [slots, setSlots] = useState<Slot[]>(() => session.items.map((_, i) => {
     const sv = saved?.slots[i];
-    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs } : {};
+    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed } : {};
   }));
   const [idx, setIdx] = useState(() => Math.min(saved?.idx ?? 0, session.items.length - 1));
   const [finished, setFinished] = useState(() => saved?.finished ?? false);
@@ -41,7 +43,7 @@ function Runner({ session }: { session: QuizSession }) {
   useEffect(() => {
     saveRunState(session.id, {
       idx, finished, deadline,
-      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs })),
+      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed })),
     });
   }, [slots, idx, finished]);
 
@@ -50,7 +52,7 @@ function Runner({ session }: { session: QuizSession }) {
     session.items.forEach(async (it, i) => {
       try {
         const mod = await store.load(it.moduleId);
-        const inst = await instantiate(mod, it);
+        const inst = await instantiate(mod, { ...it, seed: saved?.slots[i]?.seed ?? it.seed });
         if (alive) setSlots((s) => {
           const n = s.slice();
           const prev = n[i];
@@ -77,6 +79,27 @@ function Runner({ session }: { session: QuizSession }) {
   const slot = slots[idx];
   const setResponse = (r: any) => setSlots((s) => { const n = s.slice(); n[idx] = { ...n[idx], response: r }; return n; });
 
+  // Calculator: offered for accounting (journal-workbench) questions, and opened by itself for the
+  // ones that need arithmetic (calculatorMode), except on phone-width screens where it would cover
+  // the question. If the learner opens it by hand it stays open, and only then takes the keyboard.
+  const calcMode = slot?.inst && slot.mod ? calculatorMode(slot.inst, slot.mod.parsed.manifest.workbench) : 'off';
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [calcByHand, setCalcByHand] = useState(false);
+  const [calcDocked, setCalcDocked] = useState(true);
+  const [calcTarget, setCalcTarget] = useState<HTMLInputElement | null>(null);
+  useEffect(() => {
+    setCalcTarget(null);
+    if (calcMode === 'off') setCalcOpen(false);
+    else if (calcMode === 'auto' && calcAutoOpenPref() && window.innerWidth >= 640) setCalcOpen(true);
+    else if (!calcByHand) setCalcOpen(false);
+  }, [idx, calcMode, slot?.inst?.seed]);
+  const toggleCalc = () => { setCalcByHand(!calcOpen); setCalcOpen(!calcOpen); };
+  const closeCalc = () => { setCalcByHand(false); setCalcOpen(false); };
+  const trackAnswerField = (e: React.FocusEvent) => {
+    const el = e.target;
+    if (el instanceof HTMLInputElement && el.type === 'text' && !el.disabled) setCalcTarget(el);
+  };
+
   const record = async (i: number, g: Graded, sl: Slot) => {
     if (!sl.inst || !sl.mod || sl.mod.preview) return;
     await recordAttempt({
@@ -92,6 +115,20 @@ function Runner({ session }: { session: QuizSession }) {
     setSlots((s) => { const n = s.slice(); n[idx] = { ...n[idx], graded: g, timeMs }; return n; });
     if (practice) record(idx, g, { ...slot, timeMs });
     if (exam) goNext();
+  };
+  // Practice: after checking, rebuild this question with a fresh seed so the learner can try it unaided.
+  // The checked attempt is already recorded; the new one replaces it on this quiz's scorecard.
+  const generated = !!slot?.inst && !!slot.mod?.parsed.quiz.find((t) => t.id === slot.inst!.templateId)?.generator;
+  const newNumbers = async () => {
+    if (!slot?.mod) return;
+    const at = idx;
+    const seed = randomSeed();
+    try {
+      const inst = await instantiate(slot.mod, { ...session.items[at], seed });
+      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined }; return n; });
+    } catch (e: any) {
+      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], error: String(e?.message ?? e) }; return n; });
+    }
   };
   const goNext = () => {
     if (idx < session.items.length - 1) setIdx(idx + 1);
@@ -127,20 +164,23 @@ function Runner({ session }: { session: QuizSession }) {
   if (finished) return <Summary session={session} slots={slots} onRetry={retryWrong} />;
 
   return (
+    // while the calculator sits docked in the corner, keep that strip clear on wide screens so it never covers answers or buttons
+    <div className={cn('w-full', calcOpen && calcMode !== 'off' && calcDocked && 'lg:pr-[320px]')}>
     <div className="mx-auto w-full max-w-[900px] px-4 py-5">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="text-xs font-medium uppercase tracking-wide text-muted">{session.course && <span className="text-ink">{session.course} · </span>}{MODE_LABEL[session.mode] ?? session.mode}</div>
         <div className="flex flex-1 gap-1">
           {session.items.map((_, i) => (
             <button key={i} onClick={() => (exam || slots[i].graded || i <= answered) && setIdx(i)} aria-label={`question ${i + 1}`}
-              className={cn('h-1.5 flex-1 rounded-full transition', i === idx ? 'bg-accent' : slots[i].graded ? (exam ? 'bg-accent/40' : slots[i].graded!.correct ? 'bg-good' : slots[i].graded!.score > 0 ? 'bg-warn' : 'bg-bad') : 'bg-line')} />
+              className={cn('h-1.5 flex-1 rounded-full transition', i === idx ? 'bg-accent' : slots[i].graded ? (exam ? 'bg-accent/40' : slots[i].graded!.correct ? 'bg-good' : slots[i].graded!.score > 0 || (slots[i].inst && solutionShown(slots[i].inst!, slots[i].graded)) ? 'bg-warn' : 'bg-bad') : 'bg-line')} />
           ))}
         </div>
         {remaining !== null && <span className={cn('flex items-center gap-1 font-mono text-sm', remaining < 60 && 'text-bad')}><Clock size={14} /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</span>}
+        {calcMode !== 'off' && <button className={cn('btn btn-sm', calcOpen && 'border-accent text-accent')} onClick={toggleCalc} aria-pressed={calcOpen} data-testid="quiz-calculator"><CalcIcon size={13} /> Calculator</button>}
         <button className="btn btn-sm" onClick={() => popup.open({ title: 'Glossary', src: glossarySrc, note: 'Your quiz stays open underneath' })} data-testid="quiz-glossary"><BookMarked size={13} /> Glossary</button>
         {exam && <button className="btn btn-sm" onClick={finishExam}><Flag size={13} /> Finish</button>}
       </div>
-      <div className="card p-5" data-testid="question">
+      <div className="card p-5" data-testid="question" onFocusCapture={trackAnswerField}>
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted">
           <span className="font-semibold text-ink">Question {idx + 1} of {total}</span>
           {slot?.inst && <>
@@ -152,15 +192,22 @@ function Runner({ session }: { session: QuizSession }) {
         </div>
         {slot?.error ? <div className="text-sm text-bad">Couldn't generate this question: {slot.error}</div>
           : !slot?.inst ? <div className="h-40 animate-pulse rounded-lg bg-panel2" />
-          : <QuestionView key={idx} inst={slot.inst} mod={slot.mod!} response={slot.response} setResponse={setResponse} graded={exam ? null : slot.graded ?? null} reveal={practice && !!slot.graded} practice={practice} />}
+          : <QuestionView key={`${idx}:${slot.inst.seed}`} inst={slot.inst} mod={slot.mod!} response={slot.response} setResponse={setResponse} graded={exam ? null : slot.graded ?? null} reveal={practice && !!slot.graded} practice={practice} />}
         <div className="mt-4 flex items-center justify-between gap-2">
           <button className="btn" onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0}>Back</button>
           {slot?.error ? <button className="btn-primary" onClick={goNext}>Skip <ArrowRight size={15} /></button>
-            : practice && slot?.graded ? <button className="btn-primary" onClick={goNext} data-testid="next-question">{idx === total - 1 ? 'See results' : 'Next'} <ArrowRight size={15} /></button>
+            : practice && slot?.graded ? (
+              <div className="flex gap-2">
+                {!slot.graded.correct && generated && <button className="btn" onClick={newNumbers} title="Same question, new numbers" data-testid="quiz-new-numbers"><Dices size={15} /> New numbers</button>}
+                <button className="btn-primary" onClick={goNext} data-testid="next-question">{idx === total - 1 ? 'See results' : 'Next'} <ArrowRight size={15} /></button>
+              </div>
+            )
             : <button className="btn-primary" onClick={submit} disabled={!slot?.inst || (practice && !isAnswered(slot.inst, slot.response))} data-testid="submit-answer">{exam ? (idx === total - 1 ? 'Save & finish' : 'Save & next') : 'Check answer'}</button>}
         </div>
       </div>
       <div className="mt-2 text-center text-xs text-muted" data-testid="question-meta">Seed {slot?.inst?.seed} · {slot?.inst?.templateId}</div>
+      <Calculator open={calcOpen && calcMode !== 'off'} onClose={closeCalc} target={calcTarget} focusOnOpen={calcByHand} onDockedChange={setCalcDocked} />
+    </div>
     </div>
   );
 }
@@ -207,7 +254,7 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
         {slots.map((s, i) => s.inst && (
           <div key={i} className="card">
             <button className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm" onClick={() => setOpen(open === i ? null : i)}>
-              <span className={cn('h-2.5 w-2.5 rounded-full', s.graded?.correct ? 'bg-good' : (s.graded?.score ?? 0) > 0 ? 'bg-warn' : 'bg-bad')} />
+              <span className={cn('h-2.5 w-2.5 rounded-full', s.graded?.correct ? 'bg-good' : (s.graded?.score ?? 0) > 0 || solutionShown(s.inst, s.graded) ? 'bg-warn' : 'bg-bad')} />
               <span className="font-medium">Q{i + 1}</span>
               <span className="truncate text-muted">{QTYPE_LABEL[s.inst.type]} · {s.mod?.parsed.manifest.shortTitle} · {s.inst.templateId}</span>
               <span className="ml-auto font-mono text-xs">{Math.round((s.graded?.score ?? 0) * 100)}%</span>

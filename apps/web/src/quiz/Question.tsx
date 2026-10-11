@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { BookOpen, Check, GripVertical, Lightbulb, Plus, X } from 'lucide-react';
-import { checkBlank, checkMatch, checkMcq, checkMulti, checkNumeric, checkOrder, checkJournalEntry, parseNumber, normAccount, DEFAULT_CURRENCY, type QuizInstance, type NumericSpec } from '@kodigo/schema';
+import { BookOpen, Check, Eye, GripVertical, Lightbulb, Plus, X } from 'lucide-react';
+import { checkBlank, checkMatch, matchSlotRight, checkMcq, checkMulti, checkNumeric, checkOrder, checkJournalEntry, parseNumber, normAccount, DEFAULT_CURRENCY, type QuizInstance, type NumericSpec } from '@kodigo/schema';
 import { frac, moneyText } from '@kodigo/sdk';
 import { EntriesView, ScheduleView } from '../widgets/accounting';
 import { GlossaryProvider } from '../lib/md';
@@ -74,7 +74,7 @@ export function grade(inst: QuizInstance, r: any): Graded {
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
     case 'match': {
-      const s = checkMatch(r);
+      const s = checkMatch(r, inst.pairs);
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
     case 'order': {
@@ -91,6 +91,10 @@ export function grade(inst: QuizInstance, r: any): Graded {
         return r.hints[i] ? base * 0.75 : base;
       });
       const s = scores.reduce((a: number, b: number) => a + b, 0) / steps.length;
+      // "Show step" earns no credit for that step; say so, so a shown solution doesn't read as a wrong answer
+      const shown = (r.revealed as boolean[]).filter(Boolean).length;
+      if (shown === steps.length) fb.push('You used **Show step** on every step, so this one earns no credit.');
+      else if (shown) fb.push(`${shown} of ${steps.length} steps were shown with **Show step**, and shown steps earn no credit.`);
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
     case 'journal-entry': {
@@ -109,6 +113,12 @@ export function grade(inst: QuizInstance, r: any): Graded {
     }
   }
   return { score: 0, correct: false, response: r, feedback: fb };
+}
+
+/** True when a hand-calc answer earned nothing only because every step was shown, not because it was wrong. */
+export function solutionShown(inst: QuizInstance, g: Graded | null | undefined): boolean {
+  const r = g?.response as { revealed?: boolean[] } | undefined;
+  return inst.type === 'hand-calc' && !!r?.revealed?.length && r.revealed.every(Boolean);
 }
 
 function numText(v: number) {
@@ -139,6 +149,39 @@ function Sortable({ ids, onMove, render, locked, toneOf }: { ids: string[]; onMo
   );
 }
 
+/**
+ * Match questions: each left item and the card currently beside it share one grid row, so the row is
+ * as tall as the taller of the two and the pairs always line up, however the text wraps.
+ */
+function MatchCard({ id, children, locked, tone }: { id: string; children: React.ReactNode; locked: boolean; tone?: string }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: locked });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('flex h-full items-center gap-2 rounded-lg border bg-panel px-3 py-2 text-sm', tone ? `tone-${tone} mark-bg` : 'border-line', isDragging && 'relative z-10 shadow-lg')}>
+      {!locked && <button aria-label="drag" className="cursor-grab text-muted" {...attributes} {...listeners}><GripVertical size={15} /></button>}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+function MatchRows({ pairs, ids, onMove, locked, toneOf }: { pairs: [string, string][]; ids: string[]; onMove: (from: number, to: number) => void; locked: boolean; toneOf?: (id: string, i: number) => string | undefined }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const onDragEnd = (e: DragEndEvent) => { if (e.over && e.active.id !== e.over.id) onMove(ids.indexOf(String(e.active.id)), ids.indexOf(String(e.over.id))); };
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <ol className="flex flex-col gap-1.5" data-testid="match-rows">
+          {pairs.map((p, i) => (
+            <li key={i} className="grid grid-cols-2 items-stretch gap-2">
+              <div className="flex min-h-[42px] items-center rounded-lg border border-line bg-panel2 px-3 py-2 text-sm font-medium"><Markdown text={p[0]} inline /></div>
+              {ids[i] !== undefined && <MatchCard key={ids[i]} id={ids[i]} locked={locked} tone={toneOf?.(ids[i], i)}><Markdown text={pairs[Number(ids[i])][1]} inline /></MatchCard>}
+            </li>
+          ))}
+        </ol>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
 export function QuestionView({ inst, mod, response, setResponse, graded, reveal, practice }: {
   inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; graded: Graded | null; reveal: boolean; practice: boolean;
 }) {
@@ -147,6 +190,8 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
   const [hintsShown, setHintsShown] = useState(0);
   const hints = inst.hints ?? [];
   const extraScope = useMemo(() => inst.scope, [inst]);
+  // only templates with a generator get different figures from a new seed
+  const newNumbersPossible = !!mod.parsed.quiz.find((t) => t.id === inst.templateId)?.generator;
   const lessonHref = inst.lessonRef ? `/m/${inst.moduleId}/${inst.lessonRef.tab}${inst.lessonRef.tab === 'application' ? '' : `/${inst.lessonRef.id}`}` : null;
   // Open the lesson in a popup over the quiz instead of navigating away (which used to wipe quiz progress).
   const openLesson = () => lessonHref && popup.open({ title: `Lesson · ${mod.parsed.manifest.shortTitle}`, src: lessonHref, note: 'Your quiz stays open underneath' });
@@ -201,14 +246,10 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
         {inst.type === 'code-fill' && <CodeFill inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
 
         {inst.type === 'match' && (
-          <div className="grid grid-cols-2 gap-2">
-            <ol className="flex flex-col gap-1.5">
-              {inst.pairs!.map((p, i) => <li key={i} className="flex min-h-[42px] items-center rounded-lg border border-line bg-panel2 px-3 py-2 text-sm font-medium"><Markdown text={p[0]} inline /></li>)}
-            </ol>
-            <Sortable ids={(response as number[]).map(String)} locked={locked} onMove={(a, b) => setResponse(arrayMove(response, a, b))}
-              toneOf={(id, i) => (reveal ? (Number(id) === i ? 'good' : 'bad') : undefined)}
-              render={(id) => <Markdown text={inst.pairs![Number(id)][1]} inline />} />
-            <div className="col-span-2 text-xs text-muted">Drag the right-hand cards so each lines up with its partner.</div>
+          <div>
+            <MatchRows pairs={inst.pairs!} ids={(response as number[]).map(String)} locked={locked} onMove={(a, b) => setResponse(arrayMove(response, a, b))}
+              toneOf={(id, i) => (reveal ? (matchSlotRight(Number(id), i, inst.pairs) ? 'good' : 'bad') : undefined)} />
+            <div className="mt-1 text-xs text-muted">Drag the right-hand cards so each lines up with its partner.</div>
           </div>
         )}
 
@@ -240,11 +281,17 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
         )}
 
         {reveal && graded && (
-          <div className={cn('rounded-xl border p-3', graded.correct ? 'border-good/50 bg-good/5' : graded.score > 0 ? 'border-warn/50 bg-warn/5' : 'border-bad/40 bg-bad/5')} data-testid="feedback">
+          <div className={cn('rounded-xl border p-3', graded.correct ? 'border-good/50 bg-good/5' : graded.score > 0 || solutionShown(inst, graded) ? 'border-warn/50 bg-warn/5' : 'border-bad/40 bg-bad/5')} data-testid="feedback">
             <div className="mb-1 flex items-center gap-1.5 font-semibold">
-              {graded.correct ? <><Check size={16} className="text-good" /> Correct</> : graded.score > 0 ? <>Partly right · {Math.round(graded.score * 100)}%</> : <><X size={16} className="text-bad" /> Not quite</>}
+              {graded.correct ? <><Check size={16} className="text-good" /> Correct</>
+                : solutionShown(inst, graded) ? <><Eye size={16} className="text-warn" /> Solution shown · no credit</>
+                : graded.score > 0 ? <>Partly right · {Math.round(graded.score * 100)}%</>
+                : <><X size={16} className="text-bad" /> Not quite</>}
             </div>
             {graded.feedback.map((f, i) => <Markdown key={i} text={f} className="mb-1 text-sm font-medium text-warn" />)}
+            {practice && !graded.correct && newNumbersPossible && (
+              <div className="mb-1 text-sm text-muted">Press <b>New numbers</b> to get the same question with different figures and try it yourself.</div>
+            )}
             <Markdown text={inst.explanation} className="text-sm" />
             {lessonHref && <button onClick={openLesson} className="mt-2 inline-flex items-center gap-1 text-sm text-accent underline"><BookOpen size={13} /> Show me in the lesson</button>}
           </div>
