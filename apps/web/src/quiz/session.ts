@@ -63,7 +63,7 @@ export function getSession(id: string): QuizSession | undefined {
  * back, reload) and coming back resumes where you were instead of starting over.
  * Question instances aren't stored: they're regenerated deterministically from each item's seed.
  */
-export interface SavedSlot { response?: unknown; graded?: unknown; startedAt?: number; timeMs?: number }
+export interface SavedSlot { response?: unknown; graded?: unknown; startedAt?: number; timeMs?: number; seed?: number }
 export interface SavedRun { idx: number; finished: boolean; deadline: number | null; slots: SavedSlot[]; updatedAt: number }
 
 const RUN_KEY = 'kodigo-quiz-progress';

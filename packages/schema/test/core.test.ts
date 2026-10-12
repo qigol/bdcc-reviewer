@@ -106,6 +106,12 @@ describe('quiz checkers', () => {
     expect(checkOrder([3, 2, 1, 0])).toBe(0);
     expect(checkMatch([0, 1, null])).toBeCloseTo(2 / 3, 10);
   });
+  it('match cards with the same label are interchangeable', () => {
+    const pairs: [string, string][] = [['Designs the costing system', 'Controller'], ['Negotiates loans', 'Treasurer'], ['Prepares variance reports', 'Controller'], ['Manages cash', 'Treasurer']];
+    expect(checkMatch([2, 1, 0, 3], pairs)).toBe(1); // the two Controller cards swapped: still all right
+    expect(checkMatch([2, 1, 0, 3])).toBe(0.5); // without labels, graded by position
+    expect(checkMatch([1, 0, 2, 3], pairs)).toBe(0.5); // a Treasurer next to a Controller task is still wrong
+  });
   it('code blanks ignore whitespace and quote style', () => {
     expect(checkBlank('support( "milk" )', { accept: ["support('milk')"] })).toBe(true);
     expect(checkBlank('x', { regex: '^x$' })).toBe(true);

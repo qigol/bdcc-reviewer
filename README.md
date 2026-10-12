@@ -13,7 +13,7 @@ its modules, and every quiz stays inside one course.
 | **Intuition** | Guided, animated scenes in the style of a 3Blue1Brown video. Terms are defined where they first appear; you predict, drag, tune parameters, solve practice questions and explain ideas back before moving on. |
 | **Math & Code** / **Math & Journal** | Derivations side by side with the course's workbench: Python code, or (for accounting, `workbench: journal`) journal entries, schedules and T-accounts. Hovering a formula term lights up its partner, "Step through" plays the computation across both panes, and "Your turn" gives fresh practice. |
 | **Application** | A notebook-style case study (Philippine context) with decisions to make, plus the at-scale version (PySpark). |
-| **Quiz** (per course) | Nine question types (including journal entries and fill-in schedules for accounting) generated fresh every time, with hints and feedback on common mistakes. Spaced repetition, a mistake journal and per-skill mastery are included. |
+| **Quiz** (per course) | Nine question types (including journal entries and fill-in schedules for accounting) generated fresh every time, with hints and feedback on common mistakes. Spaced repetition, a mistake journal and per-skill mastery are included. Accounting courses (`workbench: journal`) get a desk calculator that opens by itself on calculation questions. |
 
 Three built-in BDCC modules reproduce every number in the lecture decks:
 

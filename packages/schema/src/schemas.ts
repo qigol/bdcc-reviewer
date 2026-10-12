@@ -329,6 +329,8 @@ const QBase = {
   explanation: Markdown,
   /** progressive hints, revealed one at a time in practice (nudge → method → first step) */
   hints: z.array(Markdown).optional(),
+  /** open the quiz calculator for this question (true) or keep it closed (false); default by type, see calculatorMode */
+  calculator: z.boolean().optional(),
 };
 const RefOr = <T extends z.ZodTypeAny>(t: T) => z.union([t, z.string().regex(/^@/, "a '@ref' to a generator var")]);
 export const QuizJournalEntry = z
