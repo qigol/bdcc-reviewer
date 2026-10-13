@@ -78,22 +78,78 @@
 - Each time ticket keeps its own wage rate (Chiphard: 6.50 then 7.25).
 - Gross margin percent on slide 59 is GM ÷ price.
 
+### Revision 1.1.0 (learner review 2026-10-05): judgment calls
+- **Scene order departs from the lecture.** The cost-flow scene (slides 57–61) now comes right after the POHR scene,
+  before under/overapplied overhead and proration, because closing to COGS and prorating across WIP/FG/COGS need those
+  accounts. The math sections `job-cost-sheet` and `pohr` carry the `cost-flow` skill as well, so the Path places them
+  after the scene that defines Work in Process and debit/credit (their journals post to WIP). `engagement` has its own
+  skill, `service-jobs`, introduced in the last scene.
+- **Purchase entry.** Slide 61's table starts with "Purchase raw materials: Raw Materials Inventory / Accounts Payable"
+  but gives no amount. The Bulacan walk and `flowQ` assume the materials were bought for the job, so the purchase equals
+  the materials issued. The walk now has six entries (`bulacan-walk` steps 5 → 6).
+- **Actual overhead entry.** The slides never show the entry that records actual overhead. The under-over section and
+  the Factory Overhead T-account use one summarized entry, Dr Factory Overhead / Cr Accounts Payable, labelled as a
+  summary of the year's bills (a textbook convention; in practice the credits go to payables, cash and accumulated
+  depreciation).
+- **Factory Overhead vs Factory Overhead Applied** (see the first bullet above) is now explained to learners in the glossary
+  (`factory-overhead` long) and a cost-flow pitfall. Cross-module titles (X11): cost-flows uses Manufacturing Overhead,
+  Raw Materials, Salaries and Wages Payable; process-costing uses Work-in-Process – <Dept> and Finished Goods Inventory.
+  This module keeps the lecture's titles (the journal grader matches strings) and names the others in glossary notes.
+- **Proration basis (audit T7).** This module prorates by the applied overhead in each account (slide 43). The
+  cost-flows module spreads by ending balances. Agreed wording, used in the glossary and a proration pitfall: both are
+  accepted methods; applied overhead is more precise.
+- **Materiality** is taught as a judgment (no fixed percentage). Malolos (4.8% of overhead, prorated) and Pampanga
+  (4.8%, closed) are reconciled by where the applied overhead sits: 30% of Malolos' is still in WIP and FG.
+- **DL cost as a base (slide 30)** gets its own predict with synthetic numbers (₱180,000 ÷ ₱120,000 = 150%), chosen
+  so they don't echo Company Y's misprinted ₱160,000 ÷ ₱160,000.
+- **Plantwide rate.** The new predict asks for 147,000 ÷ 81,500 "to the nearest percent" (answer 180.37, tol 0.5,
+  percent units), so both 180 and 180.4 are accepted; the slide's rounded 180% is then used for Job 105.
+- **Job 105 reflect** rewritten from the numbers: B's overhead is ₱4.29 per B labor peso (75,000 ÷ 17,500) against the
+  plantwide ₱1.80; Job 105 has 41% of its labor in B (25 of 61) vs 21% plant-wide (17,500 of 81,500). Plantwide
+  overcharges A by ₱24.30 (64.80 vs 40.50) and undercharges B by ₱67.50 (45 vs 112.50); net ₱43.20.
+- **Strengths and limitations (slide 65)** are written from the standard textbook list (per-job cost and profit,
+  evidence for quotes and cost control vs clerical cost of source documents, overhead still an estimate, poor fit for
+  identical output), because the slide text isn't in these notes. **Value chain (slide 64)** is still not covered.
+  Check both against the deck.
+- **EVPI aside (slide 38)** dropped from the lesson: it used three unexplained acronyms and is off the topic's path.
+- **Percent convention.** Every predict and quiz answer that asks "as a percent" is in percent units with
+  `percent: true` (112.5, 18.67, 150, 180.37; `profit-numeric` now answers 18.7 rather than 0.187).
+- **New transfer cases (synthetic):** the shoe company and print-shop predicts (scene 1), a tailoring shop whose
+  overhead follows labor hours (`base-mcq`, replacing a fourth "automated line → machine hours" item), and the
+  Application's "delivered in December, paid in February" decision (replacing a third "finished, not delivered").
+- **Application decisions now compute.** The cost-sheet cell shows inputs only (overhead blank) and asks for
+  Fabrication's overhead; the year-end cell shows where applied overhead sits and asks for COGS's share, with distractors
+  from real mistakes (equal split, all to COGS, wrong direction). The treatment toggle and the prorated entry were removed
+  from the case because every cell is visible at once and would show the answer.
+- **Errata placement.** Both errata callouts now appear on the beat after the gate they relate to, prefixed "If you're
+  reading the slide:"; slide numbers are kept out of learner text.
+- **Audit follow-up.** `flow-chain-handcalc` (level 3, generator `flowChainQ`) chains applied overhead, the WIP balance
+  with other jobs already in it, the transfer to Finished Goods, gross margin, and margin as a percent of price; the
+  price is cost plus a markup rounded to the nearest ₱1,000, so the markup and the margin percent never coincide. The
+  `cost-flow` math section sits right after `pohr`, so it reaches the learner with the follow-the-job scene, before the
+  year-end sections that use WIP/FG/COGS. The Application flow decision asks where the cost is "in the December 31
+  financial statements": COGS is not on the balance sheet, so the old wording made the Finished Goods distractor the
+  literal answer.
+
 ## Errata
 - slide 34: Company Y's budget is printed as ₱160,000 of overhead on ₱160,000 of direct labor cost, which is 100%, yet the rate is stated and used as 150%. The module follows the solution's 150% (applied 264,000; overapplied 8,000) and shows an errata callout.
 - slide 73: the "25% margin" on the quote is a 25% markup on the ₱120,000 estimated cost; on price the planned margin was ₱30,000 ÷ ₱150,000 = 20%. The slide then compares the actual 18.7% (on price) with 25% (on cost). The correct comparison is 20.0% → 18.7%.
 - slide 73: "The shortfall traces almost entirely to direct materials" — with the implied ₱30,000 overhead estimate, DM +8,000, DL +2,000 and OH −8,000 net to +2,000; the conclusion that the materials estimate needs review still holds.
 
 ## Beyond the slides
+- Debit/credit, Raw Materials Inventory and gross margin are defined as basic vocabulary (this is the first MANACC module and has no prerequisites).
+- The summarized actual-overhead entry (Dr Factory Overhead / Cr Accounts Payable) and the Factory Overhead T-account.
 - PAS 2 *Inventories* note in the application's "in practice" section (normal capacity; unallocated overhead expensed) — context for why underapplied amounts usually go to COGS.
 - The application case (Malolos Signs & Steel) is synthetic; it reuses the lecture's methods.
 - Revising next year's rates from this year's gap (application cell `next-year`), marked `beyond`.
 
 ## Skill map
-- cost-systems: concepts 1–6.
-- job-cost-sheet: concepts 7–9, Ex 2, Ex 12, Ex 14.
+- cost-systems: concepts 1–6, 22 (strengths and limitations).
+- job-cost-sheet: concepts 7–9, Ex 2.
+- service-jobs: concept 4 (services), Ex 12, Ex 14.
 - pohr: concepts 10–13, 15, Ex 3, Ex 11 (rate and job), Ex 13.
-- over-under: concepts 14, 16, Ex 4, Ex 11 (year end).
-- proration: concept 16 (material case), Ex 5.
+- over-under: concepts 14, 16, slide 46 (Factory Overhead account), Ex 4, Ex 11 (year end).
+- proration: concept 16 (material case, materiality), Ex 5.
 - dept-rates: concept 18, Ex 6–8.
 - cost-flow: concepts 19–20, slide 61, Ex 9.
 - cogm: concept 21, Ex 10.

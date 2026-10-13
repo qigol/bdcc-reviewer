@@ -2,7 +2,6 @@ scenes:
   - id: whats-in-a-basket
     title: What's in a basket
     goal: What exactly are we counting when we mine a store's receipts?
-    skills: [support]
     data: [grocery5]
     state:
       baskets:
@@ -32,10 +31,17 @@ scenes:
             **item** = one product (a chip)
 
             **k-itemset** = any set of k items, e.g. {bread, milk} is a 2-itemset
+
+            **database D** = all the rows; |D| = how many
     beats:
       - say: |
-          A supermarket logs every checkout. Each row is one **transaction**: the set of things bought together.
+          Every checkout leaves a receipt. A store that studies its receipts learns what sells together: which items
+          to **bundle** at one price, which to shelve side by side, what to suggest in a "frequently bought together"
+          box. Our first store is tiny: five checkouts.
+      - say: |
+          The store logs every checkout. Each row is one **transaction**: the set of things bought together.
           The first basket fell off the log. Let's rebuild it.
+        define: [transaction]
         gate:
           type: when
           prompt: Drag **bread**, **butter** and **milk** into T1.
@@ -44,6 +50,7 @@ scenes:
       - say: |
           Each chip is an **item**. Any set of items we care about is an **itemset**; one with k items is a **k-itemset**.
           T1 is now the 3-itemset $\{\text{bread}, \text{butter}, \text{milk}\}$.
+        define: [item, itemset]
         show: [terms]
         do:
           - { target: t, cmd: highlight, args: { sel: 'row:1', tone: accent } }
@@ -56,6 +63,10 @@ scenes:
           answer: { value: 4 }
           explain: It has four items, so it is a **4-itemset**.
       - say: |
+          The whole log is the **database**, written D. $|D|$, read "the size of D", is how many transactions it holds:
+          here $|D| = 5$.
+        define: [database]
+      - say: |
           Some items are everywhere. Milk sits in **every** basket; remember that, it will trick us later.
         do:
           - { target: t, cmd: highlight, args: { sel: 'item:milk', tone: warn } }
@@ -63,7 +74,7 @@ scenes:
       - say: |
           Frequent itemset mining asks one question over and over: **which itemsets show up together often?**
           To answer it we need a way to count, which is the next scene.
-    takeaway: A database is a list of transactions; each transaction is a set of items; we mine itemsets that recur.
+    takeaway: A database D is a list of transactions; each transaction is a set of items; we look for itemsets that recur.
 
   - id: counting-togetherness
     title: Counting togetherness
@@ -124,8 +135,10 @@ scenes:
           target: player
           event: done
       - say: |
-          The ticks add up to the **absolute support**: $\text{AbsSup} = 0 + 1 + 1 + 1 + 0 = 3$.
-          It only asks "is the whole itemset in this basket?", never "how many items match?".
+          The ticks add up to the **absolute support**: AbsSup $= 0 + 1 + 1 + 1 + 0 = 3$. The formula says the same in
+          symbols: $\#$ means "the number of", $T \in D$ means "a transaction T in the database D", and $X \subseteq T$
+          means "every item of X is in T".
+        define: [absolute-support]
         set: { hl: '@A' }
         show: [r]
         do:
@@ -133,6 +146,7 @@ scenes:
           - { target: f, cmd: highlight, args: { sel: 'term:abs', tone: good } }
       - say: |
           Divide by the number of baskets, $|D| = 5$, for **relative support**: $3/5 = 0.6$, the share of all transactions that hold X.
+        define: [relative-support]
         do:
           - { target: f, cmd: step, args: { n: 2 } }
           - { target: f, cmd: highlight, args: { sel: 'term:rel', tone: accent } }
@@ -145,12 +159,16 @@ scenes:
       - say: |
           Adding an item can only **lose** baskets. $\{\text{eggs}, \text{milk}, \text{yogurt}\}$: T2 ✓, T4 ✓, T3 ✗ (no yogurt), so $0 + 1 + 0 + 1 + 0 = 2$, down from 3.
         set: { A: [eggs, milk, yogurt], hl: [eggs, milk, yogurt] }
+      - say: Now count one on fresh baskets, on your own.
+        gate:
+          type: practice
+          template: support-abs
     takeaway: Support counts the transactions containing the whole itemset (a sum of 1s and 0s); relative support divides by |D|.
 
   - id: lecture-support-table
     title: The lecture's support table
-    goal: What are the supports on slides 8–13, and which itemsets pass each minsup?
-    skills: [support, frequent-itemset]
+    goal: Which itemsets clear the bar, as the bar moves?
+    skills: [support]
     data: [grocery5]
     state: { gridUpTo: 0, gridMinsup: null }
     derive:
@@ -164,7 +182,7 @@ scenes:
     stage:
       - id: grid
         widget: Matrix
-        props: { rows: '@g.rows', cols: '@g.cols', values: '@g.values', format: 2, title: 'Slides 8–13: a tick for every basket that holds the itemset' }
+        props: { rows: '@g.rows', cols: '@g.cols', values: '@g.values', format: 2, title: 'A tick for every basket that holds the itemset' }
       - id: t
         widget: TransactionTable
         region: side
@@ -172,6 +190,7 @@ scenes:
       - id: player
         widget: StepPlayer
         region: bottom
+        hidden: true
         props:
           fn: supportGridWalk
           in:
@@ -182,7 +201,8 @@ scenes:
           speed: 0.5
     beats:
       - say: |
-          Slide 8 lists seven itemsets built from bread, butter and milk. For each one we tick every basket that holds **all** of its items. AbsSup is the number of ticks; RelSup divides it by 5.
+          The lecture's first table lists seven itemsets built from bread, butter and milk. For each one we tick every
+          basket that holds **all** of its items. AbsSup is the number of ticks; RelSup divides it by 5.
       - say: Try one row yourself before the table fills in.
         gate:
           type: predict
@@ -190,20 +210,23 @@ scenes:
           answer: { value: 2 }
           explain: 'T1 {bread, butter, milk} ✓ and T3 {bread, cheese, eggs, milk} ✓. T2, T4 and T5 have no bread. AbsSup = 2, RelSup = 2/5 = 0.4.'
       - say: Fill the whole table, one itemset per step. Watch the baskets light up on the side.
+        show: [player]
         gate:
           type: event
           prompt: Play all seven rows.
           target: player
           event: done
       - say: |
-          Slide 10 sets **minsup = 3** (an absolute count). Look down the AbsSup column.
+          Now a bar. **minsup** (minimum support) is the bar: an itemset is **frequent** if its support is at least
+          minsup. Set minsup = 3, a count of baskets, and look down the AbsSup column.
+        define: [minsup, frequent-itemset]
         gate:
           type: predict
           question: How many of the seven itemsets have AbsSup ≥ 3?
           answer: { value: 1 }
           explain: 'Only {milk} (5). Every other row has 1 or 2 ticks.'
       - say: |
-          Only $\{\text{milk}\}$ passes: $5 \ge 3$. Now lower the bar to **minsup = 2** (slide 11).
+          Only $\{\text{milk}\}$ passes: $5 \ge 3$. Now lower the bar to **minsup = 2**.
         set: { gridUpTo: 7, gridMinsup: 3 }
         gate:
           type: predict
@@ -211,7 +234,8 @@ scenes:
           answer: { value: 3 }
           explain: '{bread, milk} 2, {bread} 2 and {milk} 5. The rest have 1 tick.'
       - say: |
-          $\{\text{bread},\text{milk}\}$, $\{\text{bread}\}$ and $\{\text{milk}\}$ pass: $2 \ge 2$ counts, because the test is **≥**. Slides 12–13 use a **relative** minsup instead, compared with the RelSup column.
+          $\{\text{bread},\text{milk}\}$, $\{\text{bread}\}$ and $\{\text{milk}\}$ pass: $2 \ge 2$ counts, because the test is **≥**.
+          A minsup below 1 is **relative**: a share of the baskets, compared with the RelSup column instead.
         set: { gridUpTo: 7, gridMinsup: 2 }
         gate:
           type: predict
@@ -219,13 +243,20 @@ scenes:
           answer: { value: 1 }
           explain: 'Only {milk}: 5/5 = 1 ≥ 0.5. The next best is 2/5 = 0.4 < 0.5.'
       - say: |
-          At 0.5 only milk survives. At **0.4**, $2/5 = 0.4 \ge 0.4$, so the same three as minsup 2 come back: a relative minsup of 0.4 on 5 baskets **is** an absolute minsup of 2.
+          At 0.5 only milk survives. At **0.4**, $2/5 = 0.4 \ge 0.4$, so the same three as minsup 2 come back: a relative
+          minsup of 0.4 on 5 baskets **is** an absolute minsup of 2.
         set: { gridUpTo: 7, gridMinsup: 0.4 }
+      - say: |
+          A relative minsup rarely lands on a whole number of baskets: 0.15 of 30 baskets is 4.5, so an itemset needs
+          at least 5. Try the conversion yourself.
+        gate:
+          type: practice
+          template: rel-minsup-count
     takeaway: Tick the baskets that hold every item, count the ticks (AbsSup), divide by |D| (RelSup), then compare with minsup using ≥.
 
   - id: the-bar
     title: Setting the bar
-    goal: How does minsup decide which itemsets count as "frequent"?
+    goal: How does moving the bar change which itemsets count as "frequent"?
     skills: [frequent-itemset]
     data: [grocery5]
     state: { minsup: 1 }
@@ -238,7 +269,7 @@ scenes:
           items: [bread, butter, cheese, eggs, milk, yogurt]
           support: '@freq.supportMap'
           minsup: '@minsup'
-          maxLevel: 3
+          maxLevel: 4
           showSupport: true
       - id: bar
         widget: Slider
@@ -248,15 +279,20 @@ scenes:
       - id: count
         widget: Readout
         region: top
+        hidden: true
         props:
           items:
             - { label: Frequent itemsets, value: '@freq.count', tone: good }
+      - id: t
+        widget: TransactionTable
+        hidden: true
+        props: { transactions: '@grocery5', itemOrder: [bread, butter, cheese, eggs, milk, yogurt], title: 'The 5 baskets' }
       - id: bins
         widget: DropBins
         hidden: true
         props:
           chips:
-            - { id: milk, label: '{milk} (5)' }
+            - { id: milk, label: '{milk}' }
             - { id: bb, label: '{bread, butter}' }
             - { id: ey, label: '{eggs, yogurt}' }
             - { id: ch, label: '{cheese}' }
@@ -268,8 +304,10 @@ scenes:
           solution: { milk: freq, bb: infreq, ey: freq, ch: freq, be: infreq, my: freq }
     beats:
       - say: |
-          Every node is an itemset; the number under it is how many baskets contain it.
-          With **minsup = {=minsup}**, anything that appears even once is "frequent".
+          This picture is the **itemset lattice**: single items on the first level, pairs on the next, and so on, each
+          joined to the itemsets one item bigger. The number under a node is its support. With minsup = {=minsup},
+          anything that appears even once is frequent.
+        define: [lattice]
       - say: |
           Raise the bar. Drag **minsup** until exactly one itemset survives.
         gate:
@@ -278,29 +316,36 @@ scenes:
           when: 'freq.count == 1'
           hint: Which item is in *every* basket?
       - say: |
-          Only $\{\text{milk}\}$ is left: it's in all 5 baskets. Let's use the lecture's setting.
-        set: { minsup: 2 }
+          Only $\{\text{milk}\}$ is left: it's in all 5 baskets. Before we move the bar back, read the numbers under the nodes.
+        hide: [bar, count]
         gate:
           type: predict
-          question: At minsup = 2, how many itemsets are frequent?
+          question: At minsup = 2, how many itemsets will be frequent?
           answer: { value: 11 }
-          explain: The lecture lists 11 (slide 45). Count the green nodes.
-      - say: Now sort a few by hand, without the colors. Use your counting from the last scene.
-        show: [bins]
+          explain: 'Count the nodes with support 2 or more: 5 single items (all but butter), 5 pairs ({bread, milk}, {cheese, milk}, {eggs, milk}, {eggs, yogurt}, {milk, yogurt}) and 1 triple ({eggs, milk, yogurt}).'
+      - say: |
+          At the lecture's setting, minsup = 2, the 11 green nodes are the frequent itemsets: 5 single items, 5 pairs, 1 triple.
+        set: { minsup: 2 }
+        show: [bar, count]
+      - say: Now sort a few by hand, straight from the baskets.
+        show: [bins, t]
+        hide: [lat]
         gate:
           type: event
           prompt: Put every itemset in the right bin (minsup = 2).
           target: bins
           event: solved
       - say: |
-          Raising minsup can only **remove** itemsets, never add them, because the cutoff is on a fixed count.
+          Raising minsup can only **remove** itemsets, never add them, because each itemset's support is a fixed count.
+        show: [lat]
+        hide: [bins, t]
         do:
           - { target: lat, cmd: pulse, args: { sel: 'set:milk' } }
     takeaway: minsup is a cutoff on support; raising it shrinks the set of frequent itemsets.
 
   - id: combinatorial-explosion
     title: The combinatorial explosion
-    goal: Why can't we just count the support of every itemset?
+    goal: Why can't we just count every possible combination?
     skills: [brute-force]
     data: [grocery5]
     state: { n: 6, logScale: false, bfUpTo: 0 }
@@ -344,6 +389,7 @@ scenes:
       - id: r
         widget: Readout
         region: side
+        hidden: true
         props:
           items:
             - { label: 'counted so far', value: '@bf.counted', format: int, tone: accent }
@@ -351,32 +397,45 @@ scenes:
       - id: f
         widget: Formula
         region: side
+        hidden: true
         props: { tex: '\#\text{candidates} = 2^{\anchor{n}{n}} - 1', size: md }
     beats:
       - say: |
-          **Brute force** (slides 15–16): count the support of every possible itemset. Here is every itemset of our 6 items, each still without a number.
+          The simplest method is **brute force**: count the support of every possible itemset. Here is every itemset of
+          our 6 items, each still without a number.
+        define: [brute-force]
         gate:
           type: predict
           question: How many non-empty itemsets can you make from 6 items?
           answer: { value: 63 }
           explain: 'Each item is either in or out: 2⁶ = 64 choices, minus the empty set = 63.'
       - say: |
-          So let's really do it: 63 support counts, level by level. For each itemset, the baskets that hold it light up and its count appears under its node (green once it reaches 2).
-        show: [t, player]
+          Each item is in or out, so 2⁶ = 64 subsets, minus the empty one: 63 counts. Our baskets hold only 3 or 4 items each.
+        gate:
+          type: predict
+          question: Before we count them, how many of the 63 itemsets do you expect to be in no basket at all?
+          options:
+            - Fewer than 10
+            - 10 to 30
+            - 31 to 55
+            - More than 55
+          shuffle: false
+          answer: 2
+          explain: 'A big itemset needs one basket that holds every one of its items, and no basket has more than 4. So most itemsets of 3 or more items are in no basket: 38 of the 63.'
+      - say: |
+          Let's really do it: 63 support counts, level by level. For each itemset, the baskets that hold it light up and
+          its count appears under its node (green once it reaches 2).
+        show: [t, player, r, f]
         gate:
           type: event
           prompt: Play all 63 counts (speed 4× is fine).
           target: player
           event: done
       - say: |
-          Slide 16's examples are in there: $\{\text{bread},\text{cheese},\text{eggs},\text{milk}\}$ is only in T3, so 1; $\{\text{eggs}\}$ 3, $\{\text{yogurt}\}$ 3, $\{\text{cheese}\}$ 2. Now look at all the zeros.
-        gate:
-          type: predict
-          question: How many of the 63 itemsets appear in **no** basket at all?
-          answer: { value: 38 }
-          explain: 'Every itemset from level 4 down, and most of level 3, is in no basket: 38 counts spent on zeros. Only 11 itemsets reach minsup 2.'
+          38 counts came back 0: 4 pairs, 13 triples, 14 four-item sets and all 7 sets of 5 or 6 items. Only 11 reach
+          minsup 2. Even $\{\text{bread},\text{cheese},\text{eggs},\text{milk}\}$ is not 0: it sits in T3 alone, so 1.
       - say: |
-          38 counts found zero and only 11 found a frequent itemset. Each item is in or out, so there are $2^n$ subsets and $2^n - 1$ to count. Now grow the store.
+          Each item is in or out, so n items give $2^n - 1$ itemsets to count. Now grow the store.
         show: [chart, s]
         hide: [lat, t, player]
         do:
@@ -388,36 +447,40 @@ scenes:
           when: 'ex.count > 1000000 and n <= 20'
           hint: '2²⁰ ≈ 1.05 million.'
       - say: |
-          Switch to a log scale: the curve becomes a straight line. That is what **exponential** growth looks like: every extra item doubles the work.
+          The curve shoots off the top. So we switch the chart to a **log scale**: each step up the axis is 10× the one
+          below (1, 10, 100, 1000…). On it the curve becomes a straight line. That is **exponential** growth: every extra
+          item doubles the work.
         set: { logScale: true }
       - say: |
-          A real sari-sari store stocks a few hundred products, and each count means scanning every receipt. Brute force is "simple but computationally expensive" (slide 41). We need to skip itemsets without counting them.
+          A real sari-sari store stocks a few hundred products, and each count means scanning every receipt. Brute force
+          is simple but computationally expensive. We need to skip itemsets without counting them. First, size one up yourself.
         set: { n: 24 }
+        hide: [s, r, chart]
+        gate:
+          type: practice
+          template: brute-count
     takeaway: Brute force checks 2ⁿ − 1 itemsets, most of them hopeless; each extra item doubles the work, so we must prune.
 
   - id: apriori-principle
     title: The Apriori principle
-    goal: Can one infrequent itemset save us from counting many others?
-    skills: [apriori, frequent-itemset]
+    goal: Can one rare combination save us from counting many others?
+    skills: [frequent-itemset]
     data: [grocery5]
     state: { picked: [] }
     derive:
-      - { fn: frequentItemsets, in: { transactions: '@grocery5', minsup: 2 }, out: freq }
       - { fn: support, in: { transactions: '@grocery5', itemset: '@picked' }, out: ps }
     stage:
       - id: lat
         widget: ItemsetLattice
         props:
           items: [bread, butter, cheese, eggs, milk, yogurt]
-          support: '@freq.supportMap'
-          minsup: 2
           maxLevel: 4
-          showSupport: true
         bind: { selection: picked }
       - id: f
         widget: Formula
         region: top
-        props: { tex: '\text{Sup}(X) < \text{minsup} \;\Rightarrow\; \text{Sup}(Y) < \text{minsup}\ \ \forall\, Y \supseteq X', size: sm }
+        hidden: true
+        props: { tex: '\text{Sup}(X) < \text{minsup} \;\Rightarrow\; \text{Sup}(Y) < \text{minsup}\ \ \text{for every } Y \supseteq X', size: sm }
       - id: r
         widget: Readout
         region: top
@@ -426,45 +489,63 @@ scenes:
             - { label: 'support of your pick', value: '@ps.abs', tone: accent }
     beats:
       - say: |
-          At minsup 2, look at $\{\text{bread}, \text{butter}\}$: support 1. It's **infrequent**.
+          At minsup 2, look at $\{\text{bread}, \text{eggs}\}$: support 1, only T3. Bread (2) and eggs (3) are each
+          frequent on their own, but together they are **infrequent**.
         do:
-          - { target: lat, cmd: highlight, args: { sel: 'set:bread,butter', tone: bad } }
-      - say: Here's the key question of this whole topic.
+          - { target: lat, cmd: highlight, args: { sel: 'set:bread,eggs', tone: bad } }
+      - say: |
+          A **superset** of $\{\text{bread}, \text{eggs}\}$ is any itemset that contains both, plus possibly more:
+          $\{\text{bread}, \text{eggs}, \text{milk}\}$, $\{\text{bread}, \text{cheese}, \text{eggs}\}$, and so on. Now the key question of this topic.
+        define: [superset]
         gate:
           type: predict
-          question: Knowing only that {bread, butter} is infrequent, which itemsets can we skip counting?
+          question: Knowing only that {bread, eggs} is infrequent, which itemsets can we skip counting?
           options:
-            - Only {bread, butter} itself
-            - Every superset of {bread, butter}
+            - Only {bread, eggs} itself
+            - Every superset of {bread, eggs}
             - Every itemset that contains bread
             - None; we still have to count everything
           answer: 1
-          explain: Any basket that holds {bread, butter, X} also holds {bread, butter}, so supersets can never have more support.
+          explain: Any basket that holds {bread, eggs, X} also holds {bread, eggs}, so a superset can never have more support.
       - say: |
-          Any basket holding $\{\text{bread}, \text{butter}, \text{milk}\}$ also holds $\{\text{bread}, \text{butter}\}$. So supersets can never beat support 1. Prune them all, uncounted.
+          Any basket holding $\{\text{bread}, \text{eggs}, \text{milk}\}$ also holds $\{\text{bread}, \text{eggs}\}$, so no superset
+          can beat support 1. This is the **Apriori principle**, or **antimonotonicity**: support never rises as items are
+          added. The formula on top says it: if X is below minsup, so is every $Y \supseteq X$. Prune them all, uncounted.
+        define: [apriori-principle]
+        show: [f]
         do:
-          - { target: lat, cmd: prune, args: { sel: 'set:bread,butter' } }
+          - { target: lat, cmd: prune, args: { sel: 'set:bread,eggs' } }
       - say: Try it yourself. Click nodes in the lattice.
         gate:
           type: when
           prompt: Click another **infrequent 2-itemset** (support below 2).
-          when: 'len(picked) == 2 and ps.abs < 2'
-          hint: '{bread, eggs} or {cheese, eggs} work.'
+          when: "len(picked) == 2 and ps.abs < 2 and not (has(picked, 'bread') and has(picked, 'eggs'))"
+          hint: '{bread, butter} or {cheese, eggs} work.'
       - say: |
-          Butter alone has support 1, so the whole butter branch goes. So do the other infrequent pairs. Watch how much of the lattice disappears.
-        do:
-          - { target: lat, cmd: prune, args: { sel: ['set:butter', 'set:bread,cheese', 'set:bread,eggs', 'set:bread,yogurt', 'set:cheese,eggs', 'set:cheese,yogurt'] } }
-      - say: Count what survives at level 3.
+          Butter alone has support 1, so the whole butter branch can go. So can the supersets of every other infrequent
+          pair: {bread, cheese}, {bread, yogurt}, {cheese, eggs} and {cheese, yogurt}. Before we prune them:
         gate:
           type: predict
-          question: How many 3-itemsets are still not pruned?
+          question: After all that pruning, how many 3-itemsets are left to count?
           answer: { value: 1 }
-          explain: 'Only {eggs, milk, yogurt}: all three of its pairs are frequent.'
+          explain: 'Only {eggs, milk, yogurt}: it is the only 3-itemset whose three pairs are all frequent. Every other one contains butter or an infrequent pair.'
+      - say: |
+          Only $\{\text{eggs}, \text{milk}, \text{yogurt}\}$ survives at level 3. This is the classic, strict prune. The
+          lecture's level-by-level method is less strict and still counts a few of these, as the next scene shows.
+        do:
+          - { target: lat, cmd: prune, args: { sel: ['set:butter', 'set:bread,cheese', 'set:bread,yogurt', 'set:cheese,eggs', 'set:cheese,yogurt'] } }
+        gate:
+          type: reflect
+          prompt: Why is it safe to skip every superset of an infrequent itemset without counting it?
+          model: |
+            Every basket that holds the superset also holds the smaller itemset, so the superset's support is at most the
+            smaller one's. If the smaller one is already below minsup, the superset is too. Counting it could never change
+            the answer.
     takeaway: If an itemset is infrequent, all its supersets are too, so a whole branch of the lattice can be skipped uncounted.
 
   - id: apriori-run
     title: Apriori, level by level
-    goal: How many support counts does Apriori save on the lecture data?
+    goal: How many counts does a level-by-level search save on the lecture data?
     skills: [apriori]
     data: [grocery5]
     state: { apUpTo: 0 }
@@ -490,6 +571,7 @@ scenes:
       - id: player
         widget: StepPlayer
         region: bottom
+        hidden: true
         props:
           fn: aprioriWalk
           in: { transactions: '@grocery5', minsup: 2 }
@@ -506,51 +588,76 @@ scenes:
           kind: note
           title: The lecture's version of Apriori
           body: |
-            Slide 19 extends each frequent itemset by a later frequent item, so it still counts {bread, milk, eggs} even though {bread, eggs} is infrequent. Classic Apriori would prune that candidate before counting. See the Math & Code tab.
+            The classic prune of the last scene would skip any candidate with an infrequent pair inside, such as
+            {bread, milk, eggs}. The lecture's version only drops **infrequent single items**: it extends each frequent
+            itemset by a later frequent item. So it still counts some candidates the classic prune skips. Both find the
+            same frequent itemsets. The classic version is in the Math & Code tab.
+      - id: count22
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          body: |
+            If you're reading the slide: its list stops at {milk, yogurt, cheese}. The same scheme also counts
+            {eggs, yogurt, cheese} and {milk, eggs, yogurt, cheese}, both 0, so we get 24 counts where the slide prints 22.
     beats:
       - say: |
-          Apriori on the lecture data, minsup = 2, item order bread, butter, milk, eggs, yogurt, cheese (slide 19). Level 1 counts each single item. A node gets its number only when Apriori actually counts it.
-      - say: Predict level 1 before you play it.
+          **Apriori** counts level by level and only grows itemsets that are already frequent. We run the lecture's
+          version with minsup = 2. A node gets its number only when Apriori actually counts it.
+        define: [apriori]
+        show: [note]
+      - say: |
+          Order inside a set doesn't matter: {milk, bread} is {bread, milk}. But to grow each itemset once, Apriori
+          needs *some* fixed order. We use the lecture's: bread, butter, milk, eggs, yogurt, cheese. Level 1 counts all
+          6 items and drops butter (support 1). Level 2 extends each survivor only by survivors that come **later**.
         gate:
           type: predict
-          question: Which single item fails minsup = 2?
-          options: [bread, butter, cheese, yogurt]
-          answer: 1
-          explain: 'Butter is only in T1, so its support is 1 < 2. Bread (T1, T3) and cheese (T3, T5) just make it with 2.'
+          question: How many level-2 candidates start with {milk}?
+          answer: { value: 3 }
+          explain: 'Milk is extended only by the later survivors: eggs, yogurt and cheese. {bread, milk} is not built again here; it already came from bread.'
       - say: Now predict level 2.
         gate:
           type: predict
           question: How many 2-item candidates will Apriori count at level 2?
           answer: { value: 10 }
-          explain: 'Five items survive level 1 (butter drops out). Each is extended by every later survivor: 4 + 3 + 2 + 1 = 10 pairs, as on slide 19.'
+          explain: 'Five items survive level 1 (butter drops out). Each is extended by every later survivor: 4 + 3 + 2 + 1 = 10 pairs.'
       - say: |
-          Play the run. Each step names the baskets that hold the candidate and the count. Green = frequent and extended later; grey with a number = counted but never extended; no number = never counted at all.
+          Level 2 will find five frequent pairs: {bread, milk}, {milk, eggs}, {milk, yogurt}, {milk, cheese} and
+          {eggs, yogurt}. Level 3 extends each one by every frequent item that comes **later** in the order.
+        gate:
+          type: predict
+          question: How many 3-item candidates will level 3 count?
+          answer: { value: 7 }
+          explain: '{bread, milk} + eggs, yogurt or cheese (3); {milk, eggs} + yogurt or cheese (2); {milk, yogurt} + cheese (1); {milk, cheese} has no later item (0); {eggs, yogurt} + cheese (1). 3 + 2 + 1 + 0 + 1 = 7.'
+      - say: |
+          Play the run. Each step names the baskets that hold the candidate and the count. Green = frequent and extended
+          later; grey with a number = counted but infrequent; no number = never counted at all.
+        show: [player]
         gate:
           type: event
           prompt: Play the run to the end (▶, or drag the scrubber to the last step).
           target: player
           event: done
       - say: |
-          Level 3 took the 5 frequent pairs and extended each by a later frequent item: $\{\text{bread},\text{milk}\}$ + eggs/yogurt/cheese, $\{\text{milk},\text{eggs}\}$ + yogurt/cheese, $\{\text{milk},\text{yogurt}\}$ + cheese, $\{\text{eggs},\text{yogurt}\}$ + cheese.
+          Level 3 found one frequent triple, {milk, eggs, yogurt}; level 4 tried {milk, eggs, yogurt, cheese}: 0.
+          That is **{=run.evaluated}** support counts ($6 + 10 + 7 + 1$) instead of {=run.bruteForce}, for the same 11
+          frequent itemsets. On real data with many rare items, the saving is usually huge.
+        show: [count22]
+      - say: Same baskets, but now raise the bar.
         gate:
           type: predict
-          question: How many 3-item candidates is that?
-          answer: { value: 7 }
-          explain: '3 + 2 + 1 + 1 = 7 ({milk, cheese} has no later item). Only {milk, eggs, yogurt} reaches 2 (T2, T4). Level 4 then tries {milk, eggs, yogurt, cheese}: 0.'
-      - say: |
-          **{=run.evaluated}** support counts instead of **{=run.bruteForce}**: 6 + 10 + 7 + 1 = 24. Same answer, fewer counts, and the saving grows exponentially with more items.
-        show: [note]
-      - say: One last check.
+          question: At minsup = 3, how many support counts would the lecture's Apriori make in total?
+          answer: { value: 10 }
+          explain: 'Level 1: 6 counts; only milk (5), eggs (3) and yogurt (3) reach 3. Level 2: {milk, eggs}, {milk, yogurt}, {eggs, yogurt}: 3 counts; the first two pass. Level 3: {milk, eggs, yogurt}: 1 count (2 < 3). 6 + 3 + 1 = 10.'
+      - say: Your turn on fresh baskets.
         gate:
-          type: predict
-          question: How many frequent itemsets did Apriori find?
-          answer: { value: 11 }
-          explain: 'The green nodes: 5 singles, 5 pairs, 1 triple. The same 11 as brute force (slide 45). Apriori is exact, just cheaper.'
+          type: practice
+          template: apriori-candidates
     takeaway: Apriori finds exactly the frequent itemsets while counting only candidates built from frequent ones.
 
   - id: fp-growth-filter
     title: 'FP-growth: shrink the world'
-    goal: Can we find frequent itemsets by filtering the database instead of generating candidates?
+    goal: Can we find the frequent itemsets by shrinking the table instead of listing candidates?
     skills: [fp-growth]
     data: [grocery5]
     state: { fpPrefix: [], fpStep: 0, showCount: false }
@@ -582,10 +689,23 @@ scenes:
         hidden: true
         props:
           kind: errata
-          body: 'Slide 25 shows the {bread, eggs}-projected database as T1 {milk}; it should be **T3** {milk}. T1 has no eggs. The support is still 1.'
+          body: 'If you''re reading the slides: the {bread, eggs} table is shown as T1 {milk}; it should be **T3** {milk}. T1 has no eggs. The support is still 1.'
+      - id: compare
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            | Method | Work on the lecture's 5 baskets |
+            |---|---|
+            | Brute force | 63 support counts |
+            | Apriori (lecture version) | 24 support counts |
+            | FP-growth | 18 small filtered tables |
     beats:
       - say: |
-          FP-growth (slides 20–40) **successively filters the database**. First it counts every item in the whole table: one tick per basket that holds it, then add the ticks. The count column is hidden, so count yourself.
+          **FP-growth** (Frequent-Pattern growth) finds the same itemsets without listing candidates: it **successively
+          filters the database**. First it counts every item in the whole table: one tick per basket that holds it. The
+          count column is hidden, so count yourself.
+        define: [fp-growth]
       - say: Read the grid.
         gate:
           type: predict
@@ -593,22 +713,41 @@ scenes:
           answer: { value: 3 }
           explain: 'Eggs is in T2, T3 and T4. Bread 2, butter 1, cheese 2, eggs 3, milk 5, yogurt 3.'
       - say: |
-          Counts: bread 2, butter 1, cheese 2, eggs 3, milk 5, yogurt 3. Now **filter on bread**: keep the rows with bread (T1, T3) and drop bread plus every item before it alphabetically. Two rows remain, so Sup({bread}) = 2.
-        set: { showCount: true, fpPrefix: [bread], fpStep: 1 }
+          Now grow the **prefix** {bread}: keep the rows with bread (T1, T3) and drop bread and every item before it
+          alphabetically. This smaller table is the **projected database** $D_{\{\text{bread}\}}$, read "D restricted to
+          bread". Two rows remain, so Sup({bread}) = 2.
+        define: [prefix, projected-database]
+        set: { showCount: false, fpPrefix: [bread], fpStep: 1 }
         do:
           - { target: t, cmd: project, args: { prefix: [bread] } }
-      - say: The grid now counts **inside** $D_{\{\text{bread}\}}$. Each count is the support of bread **plus** that item.
-        set: { showCount: false }
+      - say: |
+          Why drop earlier items? An itemset with an earlier item is found under that earlier prefix, so dropping it means
+          each itemset is counted exactly once. Inside $D_{\{\text{bread}\}}$, each item's ticks give the support of bread
+          **plus** that item.
         gate:
           type: predict
           question: 'Inside the bread table, what is Sup({bread, milk})?'
           answer: { value: 2 }
           explain: 'Both remaining rows (T1: butter, milk; T3: cheese, eggs, milk) contain milk. Butter, cheese and eggs appear once each, so {bread, butter}, {bread, cheese}, {bread, eggs} all have support 1 and stop.'
       - say: |
-          Only milk reaches 2 inside $D_{\{\text{bread}\}}$. Filtering again on milk leaves two **empty** rows: nothing after milk, so the bread branch ends with $\{\text{bread}\} = 2$ and $\{\text{bread},\text{milk}\} = 2$.
+          Only milk reaches 2 inside $D_{\{\text{bread}\}}$. Filtering on milk leaves two **empty** rows, so the bread branch
+          ends with {bread} = 2 and {bread, milk} = 2. The tree on the side records each prefix tried: green = frequent,
+          filter again; grey = below minsup, stop.
         set: { showCount: true, fpStep: 5 }
+        show: [errata]
+      - say: |
+          Next come {butter} (1 row, stop) and then {cheese}: its table keeps T3 and T5, with only the items after cheese.
+        set: { fpPrefix: [cheese], showCount: false }
+        do:
+          - { target: t, cmd: project, args: { prefix: [cheese] } }
+        gate:
+          type: predict
+          question: 'Inside the cheese table, what is Sup({cheese, milk})?'
+          answer: { value: 2 }
+          explain: 'T3 keeps {eggs, milk} and T5 keeps {milk, yogurt}. Milk is in both rows: 2. Eggs and yogurt appear once each.'
       - say: Now let the recursion run over **every** prefix. Each step either counts inside a filtered table or decides one prefix, and the tree records it.
         show: [player]
+        set: { fpPrefix: [], showCount: true }
         do:
           - { target: t, cmd: unproject }
         gate:
@@ -616,20 +755,26 @@ scenes:
           prompt: Play the recursion to the end.
           target: player
           event: done
-      - say: Check the tree.
-        gate:
-          type: predict
-          question: How many prefixes did FP-growth try in total (green and grey nodes)?
-          answer: { value: 18 }
-          explain: 'bread (+4 extensions), butter, cheese (+4 including {cheese, milk, yogurt}), eggs (+3), milk (+1), yogurt: 18 tables, exactly slides 22–39. 11 are green.'
       - say: |
-          18 filtered tables, 11 frequent itemsets, and every support was just a **row count** of a small table. Each prefix only needs its own table, so different prefixes can run on different machines: slide 41's "parallelizable".
-        show: [errata]
+          18 filtered tables, 11 frequent itemsets, and every support was just a **row count** of a small table. Each
+          prefix only needs its own table, so different prefixes can run on different machines: FP-growth is **parallelizable**.
+        show: [compare]
+        gate:
+          type: reflect
+          prompt: Why does FP-growth never count an itemset that is in no basket, while the lecture's Apriori counted several?
+          model: |
+            FP-growth only grows a prefix by items that are still in the rows of its filtered table, so every itemset it
+            counts is in at least one basket. Apriori builds candidates from its list of frequent items before looking at
+            the baskets, so some, like {eggs, yogurt, cheese}, turn out to have support 0.
+      - say: Your turn on fresh baskets.
+        gate:
+          type: practice
+          template: fp-projected
     takeaway: FP-growth filters to the rows containing a prefix, counts each remaining item there, and recurses only on counts that reach minsup.
 
   - id: itemsets-to-rules
     title: From itemsets to rules
-    goal: If a basket has A, how likely is it to have B, for every rule the lecture keeps?
+    goal: If a basket has A, how likely is it to have B?
     skills: [rules, confidence]
     data: [grocery5]
     state:
@@ -652,16 +797,17 @@ scenes:
       - id: pick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: Rule
           style: dropdown
           options:
-            - { value: { A: [bread], B: [butter], a: bread, b: butter, AB: [bread, butter] }, label: '{bread} → {butter}' }
-            - { value: { A: [butter], B: [bread], a: butter, b: bread, AB: [bread, butter] }, label: '{butter} → {bread}' }
+            - { value: { A: [bread], B: [butter], a: bread, b: butter, AB: [bread, butter] }, label: '{bread} → {butter} (not frequent)' }
+            - { value: { A: [butter], B: [bread], a: butter, b: bread, AB: [bread, butter] }, label: '{butter} → {bread} (not frequent)' }
             - { value: { A: [milk], B: [yogurt], a: milk, b: yogurt, AB: [milk, yogurt] }, label: '{milk} → {yogurt}' }
             - { value: { A: [yogurt], B: [milk], a: yogurt, b: milk, AB: [milk, yogurt] }, label: '{yogurt} → {milk}' }
             - { value: { A: [eggs], B: [yogurt], a: eggs, b: yogurt, AB: [eggs, yogurt] }, label: '{eggs} → {yogurt}' }
-            - { value: { A: [cheese], B: [eggs], a: cheese, b: eggs, AB: [cheese, eggs] }, label: '{cheese} → {eggs}' }
+            - { value: { A: [cheese], B: [eggs], a: cheese, b: eggs, AB: [cheese, eggs] }, label: '{cheese} → {eggs} (not frequent)' }
         bind: { value: rule }
       - id: f
         widget: Formula
@@ -674,7 +820,7 @@ scenes:
       - id: rgm
         widget: Matrix
         hidden: true
-        props: { rows: '@rg.rows', cols: '@rg.cols', values: '@rg.values', format: 2, title: 'Slides 47–60: every split of every frequent itemset (minconf 0.6)' }
+        props: { rows: '@rg.rows', cols: '@rg.cols', values: '@rg.values', format: 2, title: 'Every split of every frequent itemset (minconf 0.6)' }
       - id: player
         widget: StepPlayer
         region: bottom
@@ -689,56 +835,83 @@ scenes:
           speed: 1
     beats:
       - say: |
-          A rule $A \rightarrow B$ says "baskets with A tend to have B". A is the **antecedent**, B the **consequent**. Both can be itemsets, like $\{\text{eggs}, \text{yogurt}\} \rightarrow \{\text{milk}\}$.
+          Itemsets become **association rules**. $A \rightarrow B$ says "baskets with A tend to have B". A is the
+          **antecedent**, B the **consequent**, and both can be itemsets, like $\{\text{eggs}, \text{yogurt}\} \rightarrow \{\text{milk}\}$.
+          Finding such rules is called association pattern mining.
+        define: [association-rule, antecedent, consequent]
       - say: |
-          **Confidence** = of the baskets with A, the share that also has B. In the Venn diagram: the overlap divided by circle A, which is P(B | A). $\{\text{bread}\} \rightarrow \{\text{butter}\}$: bread is in T1, T3; butter joins it only in T1, so $1/2 = 0.5$ (slide 43).
+          **Confidence** = of the baskets with A, the share that also has B: the Venn overlap divided by circle A. It is
+          written P(B | A), read "the probability of B given A". $\{\text{bread}\} \rightarrow \{\text{butter}\}$: bread is in
+          T1, T3; butter joins it only in T1, so $1/2 = 0.5$.
+        define: [confidence]
         do:
           - { target: venn, cmd: highlight, args: { sel: AB, tone: warn } }
           - { target: f, cmd: highlight, args: { sel: 'term:a', tone: accent } }
-      - say: Try one before we show it.
+      - say: |
+          Sup in the formula means the count (AbsSup). Dividing both counts by |D| would cancel, so counts give the same
+          ratio as shares. Try one before we show it.
         gate:
           type: predict
           question: What is conf({milk} → {yogurt})?
           answer: { value: 0.6, tol: 0.01 }
-          explain: 'Milk is in all 5 baskets; yogurt joins it in T2, T4, T5. So 3/5 = 0.6 (slide 47).'
+          explain: 'Milk is in all 5 baskets; yogurt joins it in T2, T4, T5. So 3/5 = 0.6.'
       - say: |
-          3 of the 5 milk baskets have yogurt: 0.6. Now flip it: $\{\text{yogurt}\} \rightarrow \{\text{milk}\}$ is 3/3 = 1. **Direction matters**, because the denominator is the antecedent.
+          3 of the 5 milk baskets have yogurt: 0.6. Flip it: $\{\text{yogurt}\} \rightarrow \{\text{milk}\}$ is 3/3 = 1.
+          **Direction matters**, because the denominator is the antecedent's count.
         set:
-          rule: { A: [milk], B: [yogurt], a: milk, b: yogurt, AB: [milk, yogurt] }
+          rule: { A: [yogurt], B: [milk], a: yogurt, b: milk, AB: [milk, yogurt] }
       - say: Explore the rules in the dropdown.
+        show: [pick]
         gate:
           type: when
-          prompt: Pick a rule with confidence **exactly 1**.
-          when: 'c.conf == 1'
-          hint: Which item appears in every basket that has yogurt?
+          prompt: Find a **different** rule with confidence exactly 1.
+          when: "c.conf == 1 and rule.a != 'yogurt'"
+          hint: Butter is in only one basket. What else is in that basket?
       - say: |
-          Slide 44's recipe: take every frequent itemset with 2+ items, split it every way into A → B, and compute $\frac{\text{Sup}(I)}{\text{Sup}(A)}$. The numerator is fixed per itemset; only Sup(A) changes.
-        show: [rgm]
+          {butter} → {bread} has confidence 1/1. But {bread, butter} is in only one basket, below minsup, so the lecture
+          never makes this rule: rules come only from frequent itemsets. High confidence on tiny support is noise. Now
+          compute a confidence yourself.
+        gate:
+          type: practice
+          template: conf-numeric
+      - say: |
+          The lecture's recipe, **rule generation**: split every frequent itemset I with 2 or more items every way into
+          A → B, and keep the rules whose confidence reaches **minconf** (minimum confidence), here 0.6. Each split's
+          confidence is Sup(I) / Sup(A), so the numerator stays fixed for one itemset.
+        define: [rule-generation, minconf]
         gate:
           type: predict
           question: How many candidate rules does {eggs, yogurt, milk} alone produce?
           answer: { value: 6 }
-          explain: 'Every non-empty proper subset can be A: 2³ − 2 = 6 (three with 2-item antecedents, three with 1-item antecedents).'
-      - say: Work through all 16 candidates from the six frequent itemsets (slides 47–60). Each step shows the fraction and whether it clears minconf = 0.6.
+          explain: 'Every non-empty part of I except I itself can be A: 2³ − 2 = 6 (three with 2-item antecedents, three with 1-item antecedents).'
+      - say: |
+          Six splits from one triple. The six frequent itemsets with 2+ items give 16 candidates in all, listed here.
+        show: [rgm]
+        gate:
+          type: predict
+          question: Before we compute them, which kind of candidate is most likely to fail minconf = 0.6?
+          options:
+            - Rules whose antecedent is {milk}
+            - Rules whose consequent is {milk}
+            - Rules with a two-item antecedent
+            - Rules split from {eggs, yogurt, milk}
+          answer: 0
+          explain: 'Confidence divides by Sup(A). Milk is in all 5 baskets, the biggest Sup(A) possible, so milk → anything gets Sup(I)/5: with Sup(I) = 2 that is 0.4 < 0.6. Rules into milk get the opposite: confidence 1.'
+      - say: Work through all 16 candidates. Each step shows the fraction and whether it clears minconf = 0.6.
         show: [player]
         gate:
           type: event
           prompt: Play every split.
           target: player
           event: done
-      - say: Count the verdicts.
-        gate:
-          type: predict
-          question: How many of the 16 candidates are kept?
-          answer: { value: 13 }
-          explain: 'Only the three with antecedent {milk} and a 2/5 numerator fail: milk → {eggs, yogurt}, milk → bread, milk → cheese (0.4 each). 13 rules pass, as on slide 60.'
       - say: |
-          13 rules pass at minsup 2, minconf 0.6. Notice every rule into milk has confidence 1. Is that as good as it looks? That's the next scene.
+          13 rules pass at minsup 2, minconf 0.6. The three that fail all have antecedent {milk} and Sup(I) = 2, so 2/5 = 0.4
+          each. Notice every rule **into** milk has confidence 1. Is that as good as it looks? That's the next scene.
     takeaway: 'Confidence is P(B | A) = Sup(A ∪ B)/Sup(A); rules come from splitting each frequent itemset every possible way.'
 
   - id: milk-trap
     title: The milk trap
-    goal: Is a rule with confidence 1 always a good rule?
+    goal: Is a rule that is never wrong always a useful rule?
     skills: [lift, interpretation]
     data: [grocery5]
     state:
@@ -763,12 +936,13 @@ scenes:
           options:
             - { value: { A: [yogurt], B: [milk], label: 'yogurt → milk' }, label: '{yogurt} → {milk}' }
             - { value: { A: [cheese], B: [milk], label: 'cheese → milk' }, label: '{cheese} → {milk}' }
-            - { value: { A: [bread], B: [butter], label: 'bread → butter' }, label: '{bread} → {butter}' }
-            - { value: { A: [bread], B: [eggs], label: 'bread → eggs' }, label: '{bread} → {eggs}' }
+            - { value: { A: [bread], B: [butter], label: 'bread → butter' }, label: '{bread} → {butter} (not frequent)' }
+            - { value: { A: [bread], B: [eggs], label: 'bread → eggs' }, label: '{bread} → {eggs} (not frequent)' }
             - { value: { A: [eggs], B: [yogurt], label: 'eggs → yogurt' }, label: '{eggs} → {yogurt}' }
         bind: { value: rule }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: confidence, value: '@l.conf', format: 2, tone: accent }
@@ -776,6 +950,7 @@ scenes:
             - { label: lift, value: '@l.lift', format: 2, tone: good }
       - id: f
         widget: Formula
+        hidden: true
         props: { tex: '\text{Lift} = \frac{\anchor{conf}{\text{Conf}(A \rightarrow B)}}{\anchor{relb}{\text{RelSup}(B)}} = \frac{ {=l.supAB}/{=l.supA} }{ {=l.supB}/{=l.n} } = \frac{ {=l.conf|2} }{ {=l.relB|2} } = \anchor{lift}{ {=l.lift|2} }' }
       - id: t
         widget: TransactionTable
@@ -786,7 +961,7 @@ scenes:
         hidden: true
         props:
           kind: errata
-          body: 'Slide 62''s legend is garbled ("Lift = 1: more likely…"). Slide 61 has it right: **> 1** positive association, **= 1** none, **< 1** negative.'
+          body: 'If you''re reading the slides: one lift legend is garbled ("Lift = 1: more likely…"). Read lift this way: **> 1** positive association, **= 1** none, **< 1** negative.'
       - id: lgm
         widget: Matrix
         hidden: true
@@ -808,18 +983,25 @@ scenes:
           $\{\text{yogurt}\} \rightarrow \{\text{milk}\}$ has confidence **1**. A perfect rule? But look at the table: milk is in **every** basket.
         do:
           - { target: t, cmd: highlight, args: { sel: 'item:milk', tone: warn } }
-      - say: If everyone buys milk anyway, what does yogurt tell us?
+      - say: |
+          **Lift** checks a rule against how common B already is. Divide the confidence by B's **base rate**: its relative
+          support, the share of **all** baskets that hold B, with or without A.
+        define: [lift, base-rate]
         gate:
           type: predict
           question: What is Lift(yogurt → milk)?
           answer: { value: 1, tol: 0.01 }
           explain: 'Conf = 3/3 = 1 and RelSup(milk) = 5/5 = 1, so lift = 1/1 = 1: no association at all.'
       - say: |
-          **Lift** divides confidence by how common B already is. Milk's base rate is 5/5 = 1, so lift = 1: knowing yogurt changes **nothing**. Every rule X → {milk} is a trap.
+          Milk's base rate is 5/5 = 1, so lift = 1: knowing yogurt changes **nothing**. Any rule with milk alone as the
+          consequent is a trap.
+        show: [r, f]
         do:
           - { target: f, cmd: highlight, args: { sel: 'term:relb', tone: warn } }
       - say: |
-          Compare $\{\text{bread}\} \rightarrow \{\text{butter}\}$: confidence only $1/2 = 0.5$, but butter is rare ($1/5 = 0.2$). $0.5 / 0.2 = 2.5$: bread buyers take butter **2.5×** as often as usual (slide 61).
+          Compare $\{\text{bread}\} \rightarrow \{\text{butter}\}$: confidence only 0.5, but butter is rare (1/5 = 0.2), so lift
+          $= 0.5 / 0.2 = 2.5$. Yet {bread, butter} is in only one basket, below minsup, so this rule is never generated.
+          A big lift on tiny support is noise.
         set:
           rule: { A: [bread], B: [butter], label: 'bread → butter' }
       - say: Lift can go below 1 too.
@@ -827,17 +1009,21 @@ scenes:
           type: when
           prompt: Find a rule with lift **below 1** (a negative association).
           when: 'l.lift < 1'
-          hint: 'Bread and eggs (slide 62).'
+          hint: 'Try bread and eggs.'
       - say: |
-          $\{\text{bread}\} \rightarrow \{\text{eggs}\}$: $\frac{1/2}{3/5} = 0.5 / 0.6 = 0.83$. Bread buyers pick eggs *less* often than average. Read the lecture's legend carefully:
+          $\{\text{bread}\} \rightarrow \{\text{eggs}\}$: $\frac{1/2}{3/5} = 0.5 / 0.6 = 0.83$. Baskets with bread hold eggs
+          *less* often than baskets in general. Now compute a lift yourself.
         show: [legend]
+        gate:
+          type: practice
+          template: lift-numeric
       - say: Now judge all 13 rules that survived minconf, the same way.
         show: [lgm]
         gate:
           type: predict
           question: How many of the 13 kept rules do you expect to have lift exactly 1?
           answer: { value: 7 }
-          explain: 'Every rule with milk on either side: yogurt → milk, milk → yogurt, eggs → milk, milk → eggs, {eggs, yogurt} → milk, bread → milk, cheese → milk. Milk is in every basket, so it can''t raise or lower anything.'
+          explain: 'Every rule where milk alone is the antecedent or the consequent: yogurt → milk, milk → yogurt, eggs → milk, milk → eggs, {eggs, yogurt} → milk, bread → milk, cheese → milk. Milk is in every basket, so it can''t raise or lower anything.'
       - say: Play the lift of each rule. Every value is conf divided by the consequent's share of baskets.
         show: [player]
         gate:
@@ -846,5 +1032,19 @@ scenes:
           target: player
           event: done
       - say: |
-          Seven rules have lift 1. The six eggs–yogurt rules have lift $\frac{2/3}{3/5} = \frac{10}{9} \approx 1.11$: the only real (if mild) association in this data. High confidence alone would have fooled us seven times.
+          Seven rules have lift 1. The six eggs–yogurt rules have lift $\frac{2/3}{3/5} = \frac{10}{9} \approx 1.11$: a positive
+          but **weak** association, and on just 5 baskets it could easily be chance. Five rules had confidence 1 and lift 1:
+          confidence alone would have fooled us five times.
+        gate:
+          type: reflect
+          prompt: Why can a rule with confidence 1 be useless?
+          model: |
+            Confidence only asks how often B appears in baskets that have A. If B is in almost every basket anyway, like
+            milk here, any A gives confidence near 1. Lift compares that with B's base rate: lift 1 means A tells us nothing
+            about B.
+      - say: |
+          Libraries such as mlxtend also print **leverage**, the pair's share minus what unrelated items would give, and
+          **conviction**, how often the rule would fail by chance compared with how often it does. Both go beyond the
+          lecture; lift is the one to know.
+        define: [leverage, conviction]
     takeaway: High confidence can be meaningless when B is common; lift compares against B's base rate (> 1 positive, = 1 none, < 1 negative).

@@ -11,6 +11,9 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: abs, tol: 0 }
+    hints:
+      - A basket counts only if it holds **every** item of the itemset.
+      - Write 1 or 0 next to each basket, then add them up.
     explanation: |
       Count the baskets that contain **every** item of {=X|set}: $\text{AbsSup} = {=abs}$ of the ${=n}$ transactions.
 
@@ -26,6 +29,9 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: abs, tol: 0 }
+    hints:
+      - All three items must be in the same basket.
+      - Go basket by basket and tick only the ones that hold all three.
     explanation: |
       A basket counts only if all three items are present. {=abs} baskets qualify. ({=anyCount} contain at least one of them, which is a different question.)
 
@@ -41,8 +47,48 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: rel, tol: 0.01 }
+    hints:
+      - First count the baskets that hold every item (the absolute support).
+      - Divide by |D|, the number of baskets, not the number of items.
     explanation: |
       $\text{RelSup} = \dfrac{\text{AbsSup}}{|D|} = \dfrac{ {=abs} }{ {=n} } = {=rel|2}$
+
+  - id: rel-minsup-count
+    type: numeric
+    skills: [frequent-itemset, support]
+    difficulty: 1
+    tags: [math]
+    generator: relMinsupQ
+    lessonRef: { tab: intuition, id: lecture-support-table }
+    prompt: |
+      A database has **{=n}** baskets and a **relative** minsup of **{=minsup}**. In at least how many baskets must an
+      itemset appear to be frequent?
+    answer: { var: need, tol: 0 }
+    hints:
+      - Turn the fraction into a basket count by multiplying by |D|.
+      - Baskets come in whole numbers, and the count must reach the bar.
+    explanation: |
+      $\text{minsup} \times |D| = {=minsup} \times {=n} = {=product|2}$. A count must reach it, so round **up**: {=need} baskets.
+      ({=wrongFloor} baskets would be a share of only {=wrongFloor}/{=n}, below {=minsup}.)
+
+  - id: rel-minsup-frequent
+    type: numeric
+    skills: [frequent-itemset]
+    difficulty: 2
+    tags: [math]
+    generator: relMinsupQ
+    lessonRef: { tab: intuition, id: lecture-support-table }
+    prompt: |
+      Relative **minsup = {=minsup}** on these {=n} baskets. How many itemsets (of any size) are frequent?
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    answer: { var: count, tol: 0 }
+    hints:
+      - First turn {=minsup} into a whole number of baskets (round up).
+      - Then count supports level by level; only extend itemsets that pass.
+    explanation: |
+      ${=minsup} \times {=n} = {=product|2}$, so an itemset needs at least {=need} baskets. Per level: {=byLevel|list}.
+      Frequent: {=list}, {=count} in total.
 
   - id: count-frequent
     type: numeric
@@ -56,6 +102,10 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: count, tol: 0 }
+    hints:
+      - Work level by level, single items first.
+      - Only itemsets made of frequent smaller ones can be frequent.
+      - Frequent means support ≥ minsup, not strictly greater.
     explanation: |
       Per level: {=byLevel|list} frequent itemsets of size 1, 2, 3, …, so {=count} in total. They are: {=list}.
 
@@ -71,6 +121,10 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: count, tol: 0 }
+    hints:
+      - Find the frequent single items first.
+      - Pair only frequent items; then grow only frequent pairs.
+      - Count support ≥ minsup at every level and add the levels up.
     explanation: |
       Level counts: {=byLevel|list}. Total {=count}: {=list}. Only extend itemsets that are already frequent.
 
@@ -84,6 +138,9 @@ templates:
     prompt: |
       A store sells **{=n}** distinct items. How many itemsets would brute force have to count?
     answer: { var: count, tol: 0 }
+    hints:
+      - Each item is either in an itemset or out of it.
+      - That gives 2ⁿ subsets; one of them is empty.
     explanation: |
       Every non-empty subset is a candidate: $2^{ {=n} } - 1 = {=count}$.
 
@@ -98,8 +155,39 @@ templates:
       minsup = {=minsup}. Item supports: {=counts}. Which of these 2-itemsets would Apriori still **count** at level 2?
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    hints:
+      - Which single items fall below minsup?
+      - A pair is counted only if both of its items are frequent.
     explanation: |
       Level 2 only extends frequent items. {=infreq|set} is infrequent, so every pair containing it is skipped without counting (Apriori principle).
+
+  - id: apriori-count-hand
+    type: hand-calc
+    skills: [apriori]
+    difficulty: 3
+    tags: [math]
+    generator: aprioriCountQ
+    lessonRef: { tab: intuition, id: apriori-run }
+    prompt: |
+      Run the **lecture's Apriori** on these baskets with minsup = 2 and the item order {=order}. Level 1 counts every
+      item; each later level extends every frequent itemset by one frequent item that comes **later** in the order.
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    steps:
+      - prompt: 'Level 2: how many pairs does Apriori count?'
+        answer: { var: c2, tol: 0 }
+        hint: Count the frequent single items first; pair only those.
+      - prompt: 'Level 3: how many 3-item candidates does it count?'
+        answer: { var: c3, tol: 0 }
+        hint: Extend each frequent pair by every frequent item later in the order.
+      - prompt: 'How many support counts does it make in total, over all levels?'
+        answer: { var: total, tol: 0 }
+        hint: Add level 1, level 2, level 3 and any level 4 candidates.
+    hints:
+      - Write each level's candidates in the given order, strike the infrequent ones, and extend only the survivors.
+    explanation: |
+      {=levelText}. Total {=total} counts, against {=bruteForce} for brute force and {=classic} with the classic
+      prune, for the same {=count} frequent itemsets.
 
   - id: apriori-principle
     type: mcq
@@ -116,7 +204,9 @@ templates:
     answer: 0
     optionFeedback:
       '1': 'Backwards: supersets can lose baskets. {milk} is frequent but {milk, butter} is not.'
-      '2': 'Subsets of an infrequent itemset can be frequent: {bread, butter} is infrequent but {bread} is frequent.'
+      '2': 'Subsets of an infrequent itemset can be frequent: {bread, eggs} is infrequent but {bread} is frequent.'
+    hints:
+      - What happens to an itemset's support when you add an item?
     explanation: Support can only drop as items are added, so an infrequent itemset rules out all its supersets. That's why Apriori extends only frequent itemsets.
 
   - id: minsup-monotone
@@ -134,6 +224,8 @@ templates:
     answer: 0
     optionFeedback:
       '3': Close, but it loses every itemset with support exactly 2, and that may be none.
+    hints:
+      - Does changing minsup change any itemset's support?
     explanation: Each itemset's support is fixed; a higher cutoff keeps a subset of what a lower cutoff kept.
 
   - id: apriori-steps
@@ -149,7 +241,7 @@ templates:
       - Extend each frequent itemset by one later frequent item to form the next candidates
       - Count the support of those candidates only
       - Keep the frequent ones and repeat until no candidates are left
-    explanation: Level by level, only frequent itemsets are extended (slide 19), so infrequent branches are never counted.
+    explanation: Level by level, only frequent itemsets are extended, so infrequent branches are never counted.
 
   - id: fp-projected
     type: numeric
@@ -157,15 +249,44 @@ templates:
     difficulty: 2
     tags: [math]
     generator: projectedQ
-    lessonRef: { tab: math-code, id: fp-growth }
+    lessonRef: { tab: intuition, id: fp-growth-filter }
     prompt: |
       Items are ordered alphabetically. Build the **{{=a}}-projected database** (rows containing {=a}, keeping only items after it).
       In that projected database, how many rows contain **{=b}**? (That is $\text{Sup}(\{ {=a}, {=b} \})$.)
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions', itemOrder: [bread, butter, cheese, eggs, milk, yogurt] } }
     answer: { var: supAB, tol: 0 }
+    hints:
+      - Keep only the rows that contain {=a}; ignore the rest.
+      - Inside those rows, count the ones that also hold {=b}.
     explanation: |
       The {=a}-projected database has {=rows} rows. {=supAB} of them still contain {=b}, so $\text{Sup}(\{ {=a}, {=b} \}) = {=supAB}$.
+
+  - id: fp-enum-hand
+    type: hand-calc
+    skills: [fp-growth]
+    difficulty: 3
+    tags: [math]
+    generator: fpEnumQ
+    lessonRef: { tab: intuition, id: fp-growth-filter }
+    prompt: |
+      Mine these baskets completely with **FP-growth** as taught: alphabetical order, minsup = 2. Filter on each item,
+      keep only the items after it, and recurse inside every filtered table that has at least 2 rows.
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions', itemOrder: [bread, butter, cheese, eggs, milk] } }
+    steps:
+      - prompt: At the top level FP-growth tries every item in the table. How many of them are frequent?
+        answer: { var: topFreq, tol: 0 }
+        hint: Count each item's baskets; frequent means 2 or more.
+      - prompt: How many prefixes does FP-growth try in total, counting the ones that stop below minsup?
+        answer: { var: explored, tol: 0 }
+        hint: Draw the tree. Inside each frequent prefix's table, every remaining item is one more prefix to try.
+      - prompt: How many frequent itemsets does it find?
+        answer: { var: count, tol: 0 }
+    hints:
+      - Each prefix's support is just the number of rows in its filtered table.
+    explanation: |
+      Frequent: {=frequentList}. Tried but stopped: {=stopList}. That is {=explored} prefixes and {=count} frequent itemsets.
 
   - id: fp-steps
     type: order
@@ -196,7 +317,9 @@ templates:
       - Different prefixes can be mined independently, which makes it parallelizable
       - It finds fewer frequent itemsets than Apriori
     answer: [0, 1, 3]
-    explanation: Projected databases shrink as the prefix grows; their row count is the support; each branch is independent (slide 41). It finds exactly the same itemsets as Apriori.
+    hints:
+      - Think about what a prefix's filtered table contains.
+    explanation: Projected databases shrink as the prefix grows; their row count is the support; each branch is independent, so it can be split across machines. It finds exactly the same itemsets as Apriori.
 
   - id: conf-numeric
     type: numeric
@@ -210,6 +333,9 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: conf, tol: 0.01 }
+    hints:
+      - Only baskets that hold the antecedent matter.
+      - Of those, what share also hold the consequent? Sup(A ∪ B) / Sup(A).
     explanation: |
       $\text{Conf}(A \rightarrow B) = \dfrac{\text{Sup}(A \cup B)}{\text{Sup}(A)} = \dfrac{ {=supAB} }{ {=supA} } = {=conf|2}$
 
@@ -225,6 +351,9 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: conf, tol: 0.01 }
+    hints:
+      - The antecedent has two items; a basket holds it only if it has both.
+      - Divide the baskets holding all three items by the baskets holding the antecedent.
     explanation: |
       Baskets with **both** antecedent items: {=supA}. Of those, {=supAB} also contain {=B|set}. Confidence $= {=supAB}/{=supA} = {=conf|2}$.
 
@@ -240,6 +369,9 @@ templates:
     show:
       - { id: v, widget: Venn, props: { labels: [A, B], nA: '@nA', nB: '@nB', nAB: '@nAB', N: '@N' } }
     answer: { var: conf, tol: 0.01 }
+    hints:
+      - Confidence looks only inside circle A.
+      - Divide the overlap by the size of circle A.
     explanation: |
       Condition on A: $\dfrac{n_{AB}}{n_A} = \dfrac{ {=nAB} }{ {=nA} } = {=conf|2}$. (Lift would be ${=conf|2} / ({=nB}/{=N}) = {=lift|2}$.)
 
@@ -273,6 +405,9 @@ templates:
       {=itemset|set} is frequent (support {=supI}). Which rules generated from it pass **minconf = {=minconf}**?
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    hints:
+      - Every rule from this itemset has the same numerator, {=supI}.
+      - Divide by the support of each rule's antecedent and compare with {=minconf}.
     explanation: |
       Each split has confidence Sup(I) / Sup(A): {=detail}.
 
@@ -286,6 +421,9 @@ templates:
     prompt: |
       How many candidate rules A → B (both sides non-empty) can be generated from one frequent **{=k}-itemset**?
     answer: { var: count, tol: 0 }
+    hints:
+      - The antecedent can be any part of the itemset, and the consequent is the rest.
+      - Both sides must be non-empty, so the antecedent can't be empty or the whole itemset.
     explanation: |
       Every non-empty **proper** subset can be the antecedent: $2^{ {=k} } - 2 = {=count}$.
 
@@ -301,8 +439,30 @@ templates:
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     answer: { var: lift, tol: 0.02 }
+    hints:
+      - First the confidence, Sup(A ∪ B) / Sup(A).
+      - Then divide by the consequent's base rate, Sup(B) / |D|.
     explanation: |
       $\text{Conf} = {=supAB}/{=supA} = {=conf|2}$, $\text{RelSup}(B) = {=supB}/{=n} = {=relB|2}$, so $\text{Lift} = {=conf|2}/{=relB|2} = {=lift|2}$ ({=verdict} association).
+
+  - id: lift-symmetry
+    type: numeric
+    skills: [lift]
+    difficulty: 2
+    tags: [math]
+    generator: liftSymQ
+    lessonRef: { tab: math-code, id: lift }
+    prompt: |
+      On these baskets, $\text{Lift}({=A|set} \rightarrow {=B|set}) = {=lift|2}$. What is $\text{Lift}({=B|set} \rightarrow {=A|set})$?
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    answer: { var: lift, tol: 0.02 }
+    hints:
+      - Write lift with counts only, Sup(A ∪ B)·|D| / (Sup(A)·Sup(B)).
+      - What changes in that formula when A and B swap places?
+    explanation: |
+      $\text{Lift} = \dfrac{\text{Sup}(A \cup B)\,|D|}{\text{Sup}(A)\,\text{Sup}(B)} = \dfrac{ {=supAB} \cdot {=n} }{ {=supA} \cdot {=supB} } = {=lift|2}$
+      in both directions. Confidence changes ({=confAB|2} vs {=confBA|2}), lift does not.
 
   - id: lift-verdict
     type: mcq
@@ -315,8 +475,10 @@ templates:
       For these baskets, Lift({=A|set} → {=B|set}) = **{=lift|2}**. What does that mean?
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    hints:
+      - Compare the lift with 1.
     explanation: |
-      Lift > 1: positive association; = 1: none; < 1: negative (slide 61). Here conf = {=conf|2} vs base rate {=relB|2}.
+      Lift > 1: positive association; = 1: none; < 1: negative. Here conf = {=conf|2} vs base rate {=relB|2}. Lift describes co-occurrence, not cause.
 
   - id: milk-trap
     type: mcq
@@ -326,11 +488,15 @@ templates:
     generator: trapQ
     lessonRef: { tab: intuition, id: milk-trap }
     prompt: |
-      In these baskets **{=always}** appears in every transaction. What can you say about the rule {{=a}} → {{=always}}?
+      In these {=n} baskets **{=always}** appears in {=supB} of them. What can you say about the rule {{=a}} → {{=always}}?
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    hints:
+      - Compute the confidence first, then the base rate of {=always}.
+      - Lift = confidence / base rate of the consequent.
     explanation: |
-      Every basket with {=a} has {=always} (conf = 1), but so does every basket, so lift = 1/1 = 1. The rule carries no information: the lecture's milk trap.
+      Conf = {=conf|2}, but {=always} is in {=supB}/{=n} = {=relB|2} of all baskets, so lift = {=conf|2}/{=relB|2} = {=lift|2}.
+      Knowing {=a} barely changes the chance of {=always}: the lecture's milk trap.
 
   - id: hand-rule-metrics
     type: hand-calc
@@ -340,7 +506,7 @@ templates:
     generator: handRuleQ
     lessonRef: { tab: math-code, id: lift }
     prompt: |
-      Evaluate the rule {=A|set} → {=B|set} step by step, exactly like the slides.
+      Evaluate the rule {=A|set} → {=B|set} step by step, as in the lecture.
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     steps:
@@ -361,6 +527,8 @@ templates:
         misconceptions:
           - { var: wrongLift, feedback: 'You divided by RelSup(A). Lift uses the consequent.' }
         hint: Divide the confidence by the base rate of the consequent.
+    hints:
+      - Every step is a count of baskets or a ratio of two counts.
     explanation: |
       Sup(A∪B) = {=supAB}, Sup(A) = {=supA}, conf = {=conf|2}; RelSup(B) = {=supB}/{=n} = {=relB|2}; lift = {=lift|2} ({=verdict}).
 
@@ -372,7 +540,7 @@ templates:
     generator: handMineQ
     lessonRef: { tab: math-code, id: rule-generation }
     prompt: |
-      Mine this database completely, like slides 45–60: **minsup = 2**, **minconf = {=minconf}**.
+      Mine this database completely, as in the lecture's grocery example: **minsup = 2**, **minconf = {=minconf}**.
     show:
       - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
     steps:
@@ -382,14 +550,43 @@ templates:
         answer: { var: l2, tol: 0 }
       - prompt: How many frequent 3-itemsets?
         answer: { var: l3, tol: 0 }
-        hint: Only combine items whose pairs are all frequent.
+        hint: A frequent triple is built only from frequent pairs (Apriori principle). Count the baskets of each such triple.
       - prompt: How many frequent itemsets in total?
         answer: { var: total, tol: 0 }
       - prompt: 'How many rules (from all frequent itemsets of size ≥ 2) pass minconf = {=minconf}?'
         answer: { var: rules, tol: 0 }
         hint: 'Each k-itemset gives 2^k − 2 candidate rules; conf = Sup(itemset) / Sup(antecedent).'
+    hints:
+      - Find all frequent itemsets first, level by level; rules come only from them.
     explanation: |
       Frequent itemsets: {=frequentList}. Rules kept ({=rules} of {=considered} candidates): {=ruleList}.
+
+  - id: rel-mine-hand
+    type: hand-calc
+    skills: [frequent-itemset, rules, confidence]
+    difficulty: 3
+    tags: [math]
+    generator: relMineQ
+    lessonRef: { tab: math-code, id: rule-generation }
+    prompt: |
+      Mine these {=n} baskets with a **relative** minsup = {=minsup} and minconf = {=minconf}.
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    steps:
+      - prompt: In at least how many baskets must an itemset appear to be frequent?
+        answer: { var: need, tol: 0 }
+        hint: Multiply minsup by |D| and round up.
+      - prompt: How many frequent itemsets (of any size) are there?
+        answer: { var: total, tol: 0 }
+        hint: Level by level; only grow itemsets that pass.
+      - prompt: How many rules pass minconf?
+        answer: { var: rules, tol: 0 }
+        hint: Split every frequent itemset of size ≥ 2 every way; conf = Sup(itemset) / Sup(antecedent).
+    hints:
+      - Turn the relative minsup into a basket count first; everything after that is counting.
+    explanation: |
+      ${=minsup} \times {=n}$ rounded up is {=need} baskets. Frequent: {=frequentList} ({=total}). Rules kept ({=rules} of
+      {=considered} candidates): {=ruleList}.
 
   - id: code-support
     type: code-fill
@@ -428,6 +625,8 @@ templates:
     blanks:
       '1': { accept: ['A'] }
       '2': { accept: ['sup_a'] }
+    hints:
+      - Confidence divides by the support of the "if" side.
     explanation: Confidence divides the joint count by the **antecedent's** count.
 
   - id: code-lift
@@ -445,6 +644,8 @@ templates:
     blanks:
       '1': { accept: ['B'] }
       '2': { accept: ['conf / rel_b', 'conf/rel_b'] }
+    hints:
+      - Lift compares the confidence with how common the consequent is overall.
     explanation: Lift divides the confidence by the relative support of the **consequent**.
 
   - id: code-apriori-extend
@@ -460,6 +661,9 @@ templates:
     blanks:
       '1': { accept: ['level'] }
       '2': { accept: ['>'] }
+    hints:
+      - Which itemsets may be extended?
+      - The new item must come after the itemset's last item, so each candidate is built once.
     explanation: Only frequent itemsets (`level`) are extended, and only by items that come **after** their last item, so each candidate is generated once.
 
   - id: code-brute
@@ -484,6 +688,8 @@ templates:
     blanks:
       '1': { accept: ['len(items) + 1', 'len(items)+1'] }
       '2': { accept: ['combinations'] }
+    hints:
+      - Itemset sizes run from 1 to n, and Python's range leaves out its end.
     explanation: Sizes 1 … n (`range` excludes its end, hence `+ 1`), and every combination of each size.
 
   - id: match-terms
@@ -501,7 +707,7 @@ templates:
       - [Antecedent, The "if" side of a rule]
       - [Consequent, The "then" side of a rule]
     pick: 5
-    explanation: These are the building blocks from slides 4–10 and 42.
+    explanation: These are the building blocks of the whole topic, from baskets to rules.
 
   - id: match-metrics
     type: match
@@ -524,7 +730,7 @@ templates:
     difficulty: 1
     tags: [intuition]
     lessonRef: { tab: math-code, id: rule-generation }
-    prompt: Order the association-rule mining pipeline (slide 44).
+    prompt: Order the association-rule mining pipeline.
     items:
       - Choose minsup and minconf
       - Find all frequent itemsets (Apriori or FP-growth)
@@ -538,8 +744,8 @@ templates:
     skills: [fp-growth, brute-force, apriori]
     difficulty: 1
     tags: [term]
-    lessonRef: { tab: application, id: sari-sari }
-    prompt: 'According to slide 41, which method is **parallelizable but more complicated to implement**?'
+    lessonRef: { tab: intuition, id: fp-growth-filter }
+    prompt: 'Which method does the lecture call **parallelizable but more complicated to implement**?'
     options:
       - FP-growth
       - Apriori
@@ -549,6 +755,8 @@ templates:
     optionFeedback:
       '1': 'Apriori: "faster but more complicated than brute force".'
       '2': 'Brute force: "simple but computationally expensive".'
+    hints:
+      - Which method splits the work into independent filtered tables?
     explanation: Projected databases for different prefixes are independent, so FP-growth splits across workers (Spark's parallel FP-growth).
 
   - id: act-on-rule
@@ -556,16 +764,19 @@ templates:
     skills: [interpretation, lift]
     difficulty: 2
     tags: [application]
-    lessonRef: { tab: application, id: load-trap }
-    prompt: 'A store sees these rules. Which one is the best basis for a cross-promotion?'
+    lessonRef: { tab: application, id: bundle }
+    prompt: 'A neighborhood pharmacy mined one month of receipts. Which rule is the best basis for a cross-promotion?'
     options:
-      - '{kape} → {load}: conf 0.75, lift 0.87'
-      - '{Lucky Me} → {load}: conf 1.00, lift 1.15'
-      - '{pandesal} → {kape}: conf 0.83, lift 2.08, support 0.33'
-      - '{sardinas} → {itlog}: conf 0.60, lift 2.00, support 0.10'
-    answer: 2
+      - '{cough syrup} → {lozenges}: conf 0.70, lift 2.30, support 0.12'
+      - '{paracetamol} → {face mask}: conf 0.92, lift 1.02, support 0.40'
+      - '{vitamin C} → {paracetamol}: conf 0.35, lift 0.80, support 0.15'
+      - '{antacid} → {ginger tea}: conf 1.00, lift 4.00, support 0.01'
+    answer: 0
     optionFeedback:
-      '0': Lift below 1; kape buyers buy load slightly less often than average.
-      '1': High confidence, but load is in most baskets; lift near 1.
-      '3': A real association, but it touches few customers.
-    explanation: Look for lift clearly above 1 **and** enough support to matter. Pandesal → kape has both.
+      '1': High confidence, but face masks are in almost every basket; lift near 1 means no real association.
+      '2': Lift below 1; vitamin C buyers buy paracetamol less often than average.
+      '3': A huge lift on 1% of baskets may be a handful of receipts; it could easily be chance and reaches few customers.
+    hints:
+      - Which rules have lift clearly above 1?
+      - Of those, which one touches enough customers to matter?
+    explanation: Look for lift clearly above 1 **and** enough support to matter. Cough syrup → lozenges has both.

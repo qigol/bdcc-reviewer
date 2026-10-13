@@ -146,12 +146,20 @@ export function checkJournalEntry(
   const money = opts.money ?? ((n: number) => String(n));
   const tol = opts.tol ?? 0.01;
   const relTol = opts.relTol ?? 0.0005;
+  // the column carries the side: a negative typed into Debit or Credit (e.g. "(500)") counts as nothing
+  let negatives = 0;
+  const amount = (s: string) => {
+    const v = opts.parse(s) ?? 0;
+    if (v < 0) { negatives++; return 0; }
+    return v;
+  };
   const parsed = learner
     .filter((l) => normAccount(l.account) || String(l.debit).trim() || String(l.credit).trim())
-    .map((l) => ({ account: l.account, debit: opts.parse(l.debit) ?? 0, credit: opts.parse(l.credit) ?? 0 }));
+    .map((l) => ({ account: l.account, debit: amount(l.debit), credit: amount(l.credit) }));
   const exp = netMap(expected.lines);
   const got = netMap(parsed);
   const feedback: string[] = [];
+  if (negatives) feedback.push('Enter amounts as positive numbers: the column (Debit or Credit) shows the side.');
   const marks: EntryCheck['marks'] = {};
   const missing: string[] = [];
   let right = 0, reversed = 0;

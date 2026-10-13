@@ -25,6 +25,31 @@ export default function register(sdk) {
       return clean({ label: s.label, math: s.math, code: s.code ?? s.math, vars: s.vars ?? {}, ops });
     });
   }
+  // Progressive worksheets for Intuition scenes. `stages` is a list of key lists ('rowId' or 'rowId:col'); with
+  // upTo = n the first n stages are revealed and every later key shows a blank amount. Rows may carry `plain`, the
+  // label without its arithmetic, shown while the row is still hidden. upTo undefined/null shows everything.
+  const dropPlain = (r) => { const { plain, ...rest } = r; return rest; };
+  function reveal(rows, stages, upTo) {
+    if (upTo === undefined || upTo === null) return rows.map(dropPlain);
+    const pending = new Set();
+    stages.slice(upTo).forEach((keys) => keys.forEach((k) => pending.add(k)));
+    return rows.map((r) => {
+      const out = dropPlain(r);
+      if (!r.id) return out;
+      if (Array.isArray(out.amounts)) out.amounts = out.amounts.map((v, j) => (pending.has(r.id) || pending.has(`${r.id}:${j}`) ? null : v));
+      else if ('amount' in out && pending.has(r.id)) out.amount = null;
+      if (r.plain && pending.has(r.id)) out.label = r.plain;
+      return out;
+    });
+  }
+  // A walk: each trace step patches `key` so the worksheet fills in as the StepPlayer plays (roles: journal).
+  function toWalk(steps, key, first) {
+    return steps.map((s, i) => clean({
+      label: s.label, vars: s.vars ?? {}, patch: { [key]: first + i + 1 },
+      ops: [...(i === 0 ? [{ role: 'journal', cmd: 'clear' }] : []), ...(s.row ? [{ role: 'journal', cmd: 'highlight', args: { sel: `row:${s.row}`, tone: s.tone ?? 'accent' } }] : [])],
+    }));
+  }
+  const maxUpTo = (...xs) => { const d = xs.filter((x) => x !== undefined && x !== null); return d.length ? Math.max(...d) : undefined; };
 
   // ------------------------------------------------------------------ process-value analysis (Cordillera, Luzon Savings Bank)
   const ACTION = { eliminate: 'Eliminate', reduce: 'Reduce', select: 'Select', share: 'Share' };
@@ -43,7 +68,9 @@ export default function register(sdk) {
   }
 
   // ------------------------------------------------------------------ driver analysis: setups per unit (Cavite Precision, slide 36)
-  function setups({ products, costPerSetup }) {
+  // upTo (Intuition worksheet): 0 = setups and units only; 1 = + batch sizes and the first product's cost per unit;
+  // 2 = everything.
+  function setups({ products, costPerSetup, upTo }) {
     const prod = products.map((p) => ({ ...p, cost: p.setups * costPerSetup, perUnit: (p.setups * costPerSetup) / p.units, batch: p.units / p.setups }));
     const [a, b] = prod;
     const rows = [
@@ -58,7 +85,8 @@ export default function register(sdk) {
       { row: 's-batch', math: 'batch', label: `Batch size: ${C(a.units)} ÷ ${C(a.setups)} = ${C(a.batch)} units vs ${C(b.batch)}`, vars: { batchA: a.batch, batchB: b.batch } },
       { row: 's-unit', math: 'cost', label: `Setup cost per unit: ${P2(a.perUnit)} vs ${P2(b.perUnit)}`, vars: { perUnitA: a.perUnit, perUnitB: b.perUnit }, tone: 'bad' },
     ];
-    return clean({ ratio: a.setups / b.setups, costA: a.cost, costB: b.cost, perUnitA: a.perUnit, perUnitB: b.perUnit, batchA: a.batch, batchB: b.batch, columns: prod.map((p) => p.name), rows, trace: toTrace(steps) });
+    const stages = [['s-batch', 's-cost:0', 's-unit:0'], ['s-cost:1', 's-unit:1']];
+    return clean({ ratio: a.setups / b.setups, costA: a.cost, costB: b.cost, perUnitA: a.perUnit, perUnitB: b.perUnit, batchA: a.batch, batchB: b.batch, columns: prod.map((p) => p.name), rows: reveal(rows, stages, upTo), trace: toTrace(steps) });
   }
   // Batangas Steel: how much of a cost increase volume explains (slide 72)
   function costGrowth({ before, after, volumeGrowth }) {
@@ -88,7 +116,8 @@ export default function register(sdk) {
     });
     return { R, cust };
   }
-  function customers({ pools, customers: list, consolidated, scenario }) {
+  // upTo (Intuition worksheet): 0 = sales and gross margin only, cost to serve and profit blank; 1 = everything.
+  function customers({ pools, customers: list, consolidated, scenario, upTo }) {
     const applied = scenario === 'consolidated' && consolidated ? list.map((c) => (c.id === consolidated.id ? { ...c, use: consolidated.use } : c)) : list;
     const { R, cust } = customerCore({ pools, customers: applied });
     const hasSales = cust.every((c) => c.sales !== undefined);
@@ -107,8 +136,10 @@ export default function register(sdk) {
       { row: 'c-profit', math: 'profit', label: `Operating profit: ${cust.map((c) => `${c.id} ${P(c.profit)}`).join('; ')}`, vars: Object.fromEntries(cust.map((c) => [`profit_${c.id}`, c.profit])), tone: 'good' },
     ];
     const by = (k) => Object.fromEntries(cust.map((c) => [c.id, c[k]]));
+    const stages = [[...R.map((p) => `c-${p.id}`), 'c-cost', 'c-profit']];
+    const hiddenRank = upTo !== undefined && upTo !== null && upTo < 1;
     return clean({ rates: Object.fromEntries(R.map((p) => [p.id, p.rate])), cost: by('cost'), profit: by('profit'), total: sum(cust.map((c) => c.profit)), rankGm: byGm, rankProfit: byProfit,
-      columns: cust.map((c) => c.name), rows, trace: toTrace(steps) });
+      rankShown: hiddenRank ? '?' : byProfit, columns: cust.map((c) => c.name), rows: reveal(rows, stages, upTo), trace: toTrace(steps) });
   }
   // The whale curve: customers from most to least profitable, cumulative share of total profit
   function whale({ pools, customers: list }) {
@@ -124,12 +155,23 @@ export default function register(sdk) {
       { row: `w-${pts.indexOf(peak) + 1}`, math: 'peak', label: `The ${pts.indexOf(peak) + 1} profitable customers earn ${P(peak.cum)}, ${PCT(peak.share)} of total profit`, vars: { peak: peak.share } },
       { row: `w-${pts.length}`, math: 'tail', label: `${losers.length} customers lose ${P(-sum(losers.map((c) => c.profit)))}, bringing it back down to ${P(total)}`, vars: { tail: sum(losers.map((c) => c.profit)) }, tone: 'bad' },
     ];
-    return clean({ total, peakShare: peak.share, peakCount: pts.indexOf(peak) + 1, losers: losers.length, lossTotal: -sum(losers.map((c) => c.profit)), worst: pts[pts.length - 1].name, worstLoss: -pts[pts.length - 1].profit,
-      chart: pts.map((c, i) => ({ x: i + 1, y: 100 * c.share })), rows, trace: toTrace(steps) });
+    const xs = [0, ...pts.map((_, i) => i + 1)];
+    const cross = pts.findIndex((c) => c.share > 1) + 1;
+    return clean({ total, peakShare: peak.share, peakCount: pts.indexOf(peak) + 1, peakProfit: peak.cum, crossCount: cross, losers: losers.length, lossTotal: -sum(losers.map((c) => c.profit)), worst: pts[pts.length - 1].name, worstLoss: -pts[pts.length - 1].profit,
+      chart: pts.map((c, i) => ({ x: i + 1, y: 100 * c.share })),
+      // Chart series: cumulative share of total profit (%) after the first n customers, most profitable first
+      series: [
+        { name: 'Cumulative profit, % of total', x: xs, y: [0, ...pts.map((c) => 100 * c.share)] },
+        { name: '100% of total profit', x: xs, y: xs.map(() => 100) },
+      ],
+      rows, trace: toTrace(steps) });
   }
 
   // ------------------------------------------------------------------ supplier total cost of ownership (slides 55–56, 75)
-  function tco({ qty, suppliers, activities }) {
+  // upTo (set by beats) and walkUpTo (patched by the tcoWalk player) reveal the rows in trace order: 1 = the price row,
+  // 1 + k = the first k activity lines, then the hidden subtotal, then TCO and TCO per unit. The larger of the two wins;
+  // with neither, everything shows. Row labels keep their rate × driver inputs, so a learner can compute a blank row.
+  function tco({ qty, suppliers, activities, upTo, walkUpTo }) {
     const sup = suppliers.map((s, j) => {
       const lines = activities.map((a) => a.rate * a.use[j]);
       const hidden = sum(lines);
@@ -152,8 +194,15 @@ export default function register(sdk) {
       { row: 't-total', math: 'tco', label: `TCO: ${sup.map((s) => `${s.name} ${P(s.total)}`).join(' vs ')}; per unit ${sup.map((s) => P2(s.perUnit)).join(' vs ')}`, vars: Object.fromEntries(sup.map((s) => [`tco_${s.id}`, s.total])), tone: 'good' },
     ];
     const by = (k) => Object.fromEntries(sup.map((s) => [s.id, s[k]]));
+    const stages = [['t-price'], ...activities.map((a) => [`t-${a.id}`]), ['t-hidden'], ['t-total', 't-unit']];
     return clean({ base: by('base'), hidden: by('hidden'), total: by('total'), perUnit: by('perUnit'), best: best.name, cheapest: cheapest.name,
-      diff: Math.abs(sup[0].total - sup[1].total), columns: sup.map((s) => s.name), rows, trace: toTrace(steps) });
+      diff: Math.abs(sup[0].total - sup[1].total), columns: sup.map((s) => s.name), rows: reveal(rows, stages, maxUpTo(upTo, walkUpTo)), trace: toTrace(steps),
+      // walk for the Intuition scene: the hidden lines one by one, ending at their subtotal (patches walkUpTo)
+      walk: toWalk(steps.slice(1, activities.length + 2), 'walkUpTo', 1) });
+  }
+  function tcoWalk(args) {
+    const r = tco(args);
+    return clean({ steps: r.walk.length, hidden: r.hidden, trace: r.walk });
   }
 
   // ------------------------------------------------------------------ cycle time, MCE, velocity (slides 61–68, 74)
@@ -161,7 +210,8 @@ export default function register(sdk) {
     const total = process + inspect + move + wait;
     return { total, nva: inspect + move + wait, mce: process / total, velocity: units ? units / total : null };
   }
-  function cycle({ process, inspect, move, wait, units, unit = 'hour' }) {
+  // upTo (Intuition worksheet): 0 = the four times only; 1 = + cycle time; 2 = + MCE; 3 = + velocity.
+  function cycle({ process, inspect, move, wait, units, unit = 'hour', upTo }) {
     const c = cycleCore({ process, inspect, move, wait, units });
     const rows = [
       { id: 'y-p', label: 'Processing (value-added)', amount: process, format: 'number', anchor: 'va' },
@@ -179,7 +229,7 @@ export default function register(sdk) {
       { row: 'y-mce', math: 'mce', label: `MCE: ${N(process)} ÷ ${N(c.total)} = ${PCT(c.mce)}; the largest waste is ${biggest[0]} (${N(biggest[1])} ${unit}s)`, vars: { mce: c.mce }, tone: c.mce >= 0.5 ? 'good' : 'bad' },
       ...(units ? [{ row: 'y-v', math: 'velocity', label: `Velocity: ${C(units)} ÷ ${N(c.total)} = ${N(c.velocity)} units per ${unit}`, vars: { velocity: c.velocity } }] : []),
     ];
-    return clean({ total: c.total, nva: c.nva, mce: c.mce, velocity: c.velocity, nvaShare: 1 - c.mce, biggest: biggest[0], rows, trace: toTrace(steps) });
+    return clean({ total: c.total, nva: c.nva, mce: c.mce, velocity: c.velocity, nvaShare: 1 - c.mce, biggest: biggest[0], rows: reveal(rows, [['y-t'], ['y-mce'], ['y-v']], upTo), trace: toTrace(steps) });
   }
   function cycleCompare({ before, after, units, unit = 'hour' }) {
     const b = cycleCore({ ...before, units });
@@ -205,32 +255,53 @@ export default function register(sdk) {
   // ------------------------------------------------------------------ quiz generators
   const nice = (rng, lo, hi, step) => rng.int(Math.ceil(lo / step), Math.floor(hi / step)) * step;
   function mceQ({ rng }) {
-    const process = rng.pick([2, 2.5, 3, 3.5, 4]);
-    const inspect = rng.pick([0.5, 1, 1.5]);
-    const move = rng.pick([0.5, 1, 1.5, 2]);
-    const wait = rng.pick([2, 3, 4, 4.5, 5, 6]);
-    const c = cycleCore({ process, inspect, move, wait });
-    const newWait = Math.max(0.5, wait - rng.pick([1.5, 2, 3]));
-    const n = cycleCore({ process, inspect, move, wait: newWait });
-    return { vars: { process, inspect, move, wait, total: c.total, mcePct: 100 * c.mce, mce: c.mce, newWait, newTotal: n.total, newMcePct: 100 * n.mce,
-      wrongNvaPct: 100 * (1 - c.mce), wrongWaitOnly: (100 * process) / (process + wait) },
-      misconceptions: [
-        { var: 'wrongNvaPct', feedback: 'That is the non-value-added share. MCE is value-added (processing) time ÷ cycle time.' },
-        { var: 'wrongWaitOnly', feedback: 'Cycle time includes inspection and moving time too.' },
-      ] };
+    for (;;) {
+      const process = rng.pick([2, 2.5, 3, 3.5, 4]);
+      const inspect = rng.pick([0.5, 1, 1.5]);
+      const move = rng.pick([0.5, 1, 1.5, 2]);
+      const wait = rng.pick([2, 3, 4, 4.5, 5, 6]);
+      const c = cycleCore({ process, inspect, move, wait });
+      const newWait = Math.max(0.5, wait - rng.pick([1.5, 2, 3]));
+      const n = cycleCore({ process, inspect, move, wait: newWait });
+      // the non-value-added share must stay clearly apart from MCE (it equals it at exactly 50%)
+      if (Math.abs(c.mce - 0.5) < 0.01 || Math.abs(n.mce - 0.5) < 0.01) continue;
+      return { vars: { process, inspect, move, wait, total: c.total, mcePct: 100 * c.mce, mce: c.mce, newWait, newTotal: n.total, newMcePct: 100 * n.mce,
+        wrongNvaPct: 100 * (1 - c.mce), wrongWaitOnly: (100 * process) / (process + wait) },
+        misconceptions: [
+          { var: 'wrongNvaPct', feedback: 'That is the non-value-added share. MCE is value-added (processing) time ÷ cycle time.', for: 'mcePct' },
+          { var: 'wrongWaitOnly', feedback: 'Cycle time includes inspection and moving time too.', for: 'mcePct' },
+          { value: process + wait, feedback: 'Cycle time includes inspection and moving time too.', for: 'total' },
+          { value: inspect + move + wait, feedback: 'Cycle time includes the processing time as well as the waste.', for: 'total' },
+          { value: c.total, feedback: 'That is the cycle time before the change; waiting is now shorter.', for: 'newTotal' },
+          { value: 100 * (1 - n.mce), feedback: 'That is the non-value-added share. MCE is processing time ÷ the new cycle time.', for: 'newMcePct' },
+          { value: 100 * c.mce, feedback: 'That is the MCE before the change. Processing stays the same, but the cycle time is shorter.', for: 'newMcePct' },
+        ] };
+    }
   }
   function velocityQ({ rng }) {
-    const units = rng.pick([50, 60, 100, 120, 200, 240]);
-    const before = { process: rng.pick([1, 2, 3]), inspect: rng.pick([0.5, 1]), move: rng.pick([0.5, 1, 1.5]), wait: rng.pick([3.5, 4.5, 5, 6.5]) };
-    const after = { ...before, move: before.move / 2, wait: before.wait - rng.pick([2, 2.5, 3]) };
-    const b = cycleCore({ ...before, units });
-    const a = cycleCore({ ...after, units });
-    return { vars: { units, ...Object.fromEntries(Object.entries(before).map(([k, v]) => [`b_${k}`, v])), a_move: after.move, a_wait: after.wait,
-      before: b.total, after: a.total, velBefore: b.velocity, velAfter: a.velocity, speedup: b.total / a.total, cutPct: 100 * (1 - a.total / b.total) },
-      misconceptions: [
-        { var: 'velBefore', feedback: 'That is the velocity before the change.' },
-        { value: units / after.process, feedback: 'Velocity divides by the whole cycle time, not processing time alone.' },
-      ] };
+    for (;;) {
+      const units = rng.pick([50, 60, 100, 120, 200, 240]);
+      const before = { process: rng.pick([1, 2, 3]), inspect: rng.pick([0.5, 1]), move: rng.pick([0.5, 1, 1.5]), wait: rng.pick([3.5, 4.5, 5, 6.5]) };
+      const after = { ...before, move: before.move / 2, wait: before.wait - rng.pick([2, 2.5, 3]) };
+      const b = cycleCore({ ...before, units });
+      const a = cycleCore({ ...after, units });
+      // the non-value-added share equals MCE at exactly 50%, so redraw those cases
+      if (Math.abs(a.mce - 0.5) < 0.01) continue;
+      const cutPct = 100 * (1 - a.total / b.total);
+      const risePct = 100 * (b.total / a.total - 1);
+      return { vars: { units, ...Object.fromEntries(Object.entries(before).map(([k, v]) => [`b_${k}`, v])), a_move: after.move, a_wait: after.wait,
+        before: b.total, after: a.total, velBefore: b.velocity, velAfter: a.velocity, speedup: b.total / a.total, cutPct, risePct,
+        mceBeforePct: 100 * b.mce, mceAfterPct: 100 * a.mce },
+        misconceptions: [
+          { var: 'velBefore', feedback: 'That is the velocity before the change.', for: 'velAfter' },
+          { value: units / after.process, feedback: 'Velocity divides by the whole cycle time, not processing time alone.', for: 'velAfter' },
+          { var: 'cutPct', feedback: 'That is how much shorter the cycle got. Velocity is units ÷ cycle time, so it rises by old ÷ new − 1, which is more.', for: 'risePct' },
+          { value: 100 * b.total / a.total, feedback: 'That is the new velocity as a percent of the old one. Subtract 100% to get the rise.', for: 'risePct' },
+          { value: b.total, feedback: 'That is the cycle time before the change.', for: 'after' },
+          { value: 100 * (1 - a.mce), feedback: 'That is the non-value-added share. MCE is processing time ÷ cycle time.', for: 'mceAfterPct' },
+          { value: 100 * b.mce, feedback: 'That is the MCE before the change; use the new cycle time.', for: 'mceAfterPct' },
+        ] };
+    }
   }
   function customerQ({ rng }) {
     for (;;) {
@@ -253,8 +324,12 @@ export default function register(sdk) {
           { label: 'Operating profit', amounts: [gm - cost, gm - newCost], style: 'total', blank: true },
         ] },
         misconceptions: [
-          { value: gm - cost, feedback: 'That is the profit before consolidation.' },
-          { value: newCost, feedback: 'That is the new cost to serve; subtract it from the gross margin.' },
+          { value: gm - cost, feedback: 'That is the profit before consolidation.', for: 'newProfit' },
+          { value: newCost, feedback: 'That is the new cost to serve; subtract it from the gross margin.', for: 'newProfit' },
+          { value: orders * oRate, feedback: 'That is only the order-processing cost; add the delivery cost.', for: 'cost' },
+          { value: cost, feedback: 'That is the cost to serve. Operating profit is gross margin minus it (a loss here).', for: 'profit' },
+          { value: cost - gm, feedback: 'Check the sign: cost to serve is larger than the gross margin, so this is a loss (a negative number).', for: 'profit' },
+          { value: newOrders * oRate, feedback: 'That is only the new order-processing cost; add the new delivery cost.', for: 'newCost' },
         ] };
     }
   }
@@ -274,11 +349,17 @@ export default function register(sdk) {
       const per = { deliveries: 'delivery', 'units checked': 'unit checked', defects: 'defect', 'rush orders': 'rush order' };
       const table = acts.map((a) => `| ${a.name} | ${P(a.rate)} per ${per[a.driver]} | ${C(a.use[0])} | ${C(a.use[1])} |`).join('\n');
       return { vars: { qty, pA, pB, table, tcoA: r.total.A, tcoB: r.total.B, unitA: r.perUnit.A, unitB: r.perUnit.B, hiddenA: r.hidden.A, hiddenB: r.hidden.B, diff: r.total.A - r.total.B,
+        priceGap: (pB - pA) * qty, unitDiff: r.perUnit.A - r.perUnit.B,
         wrongPriceOnly: pA * qty, wrongHiddenOnly: r.hidden.A,
         rows: r.rows.filter((x) => x.id !== 't-unit').map((x) => clean({ label: x.label.replace(/:.*$/, ''), amounts: x.amounts, indent: x.indent, style: x.style, blank: x.id !== 't-price' || undefined })) },
         misconceptions: [
-          { var: 'wrongPriceOnly', feedback: 'That is only the invoice price. Add the hidden activity costs.' },
-          { var: 'wrongHiddenOnly', feedback: 'Those are only the hidden costs. Add the purchase price.' },
+          { var: 'wrongPriceOnly', feedback: 'That is only the invoice price. Add the hidden activity costs.', for: 'tcoA' },
+          { var: 'wrongHiddenOnly', feedback: 'Those are only the hidden costs. Add the purchase price.', for: 'tcoA' },
+          { value: r.hidden.A - r.hidden.B, feedback: 'That is only the gap in hidden costs. Supplier A\'s lower price claws part of it back.', for: 'diff' },
+          { value: r.total.A - r.total.B + 2 * (pB - pA) * qty, feedback: 'Check the price gap\'s direction: Supplier A is cheaper on the invoice, which narrows its total-cost gap.', for: 'diff' },
+          { value: pB * qty + r.hidden.A, feedback: 'Supplier A\'s TCO uses Supplier A\'s own price.', for: 'tcoA' },
+          { value: r.hidden.B, feedback: 'Those are only Supplier B\'s hidden costs. Add its purchase price.', for: 'tcoB' },
+          { value: r.hidden.A / qty, feedback: 'That is only the hidden cost per unit; add the price per unit.', for: 'unitDiff' },
         ] };
     }
   }
@@ -301,8 +382,12 @@ export default function register(sdk) {
           { label: 'Total cost of ownership', amounts: [tcoOld, tcoNew], style: 'total', blank: true },
         ] },
       misconceptions: [
-        { value: base + units * newRate * rework, feedback: 'Add the rush replacement shipments too.' },
-        { value: units * newRate * rework + rush * rushCost, feedback: 'Total cost of ownership includes the purchase price.' },
+        { value: base + units * newRate * rework, feedback: 'Add the rush replacement shipments too.', for: 'tcoNew' },
+        { value: units * newRate * rework + rush * rushCost, feedback: 'Total cost of ownership includes the purchase price.', for: 'tcoNew' },
+        { value: base + units * (newRate - oldRate) * rework + rush * rushCost, feedback: 'Rework uses this year\'s whole defect rate, not just the rise in it.', for: 'tcoNew' },
+        { value: (100 * (tcoNew - tcoOld)) / tcoNew, feedback: 'A percent change divides by the starting value: last year\'s total cost of ownership.', for: 'increasePct' },
+        { value: (100 * (newRate - oldRate)) / oldRate, feedback: 'That is how much the defect rate rose. The question asks how much the whole cost of ownership rose.', for: 'increasePct' },
+        { value: (100 * (tcoNew - tcoOld)) / base, feedback: 'Divide by last year\'s total cost of ownership, which includes last year\'s rework, not by the purchase price alone.', for: 'increasePct' },
       ] };
   }
   function setupQ({ rng }) {
@@ -315,6 +400,8 @@ export default function register(sdk) {
     const perA = (setupsA * cost) / unitsA;
     const perB = (setupsB * cost) / unitsB;
     if ([perA, perB].some((v) => Math.abs(v * 100 - Math.round(v * 100)) > 1e-6)) continue;
+    // whole batch sizes, so the explanation never says "batches of 21.43 units"
+    if (unitsA % setupsA || unitsB % setupsB) continue;
     return { vars: { cost, unitsA, setupsA, unitsB, setupsB, perA, perB, batchA: unitsA / setupsA, batchB: unitsB / setupsB, gap: perA - perB, wrongTotal: setupsA * cost,
         rows: [
           { label: 'Setups per year', amounts: [setupsA, setupsB], format: 'units' },
@@ -323,8 +410,8 @@ export default function register(sdk) {
           { label: 'Setup cost per unit', amounts: [perA, perB], style: 'total', blank: true },
         ] },
       misconceptions: [
-        { var: 'wrongTotal', feedback: 'That is the total setup cost; divide by the units produced.' },
-        { value: cost / unitsA, feedback: 'Multiply the cost per setup by the number of setups first.' },
+        { var: 'wrongTotal', feedback: 'That is the total setup cost; divide by the units produced.', for: 'perA' },
+        { value: cost / unitsA, feedback: 'Multiply the cost per setup by the number of setups first.', for: 'perA' },
       ] };
     }
   }
@@ -336,13 +423,44 @@ export default function register(sdk) {
     const expected = before * (1 + g);
     return { vars: { before, after, gPct: 100 * g, expected, unexplained: after - expected, wrongTotalInc: after - before },
       misconceptions: [
-        { var: 'wrongTotalInc', feedback: 'That is the whole increase. Volume growth explains part of it; subtract that part.' },
-        { value: before * g, feedback: 'That is the increase volume explains; the question asks for what it does not.' },
+        { var: 'wrongTotalInc', feedback: 'That is the whole increase. Volume growth explains part of it; subtract that part.', for: 'unexplained' },
+        { value: before * g, feedback: 'That is the increase volume explains; the question asks for what it does not.', for: 'unexplained' },
       ] };
+  }
+  // Whale curve by hand: 5 or 6 customers, ₱oRate an order and ₱dRate a delivery. At least two lose money, total
+  // profit stays positive, and the profitable group earns between 110% and 200% of it.
+  function whaleQ({ rng }) {
+    const names = ['Customer P', 'Customer Q', 'Customer R', 'Customer S', 'Customer T', 'Customer U'];
+    for (;;) {
+      const n = rng.pick([5, 6]);
+      const oRate = rng.pick([50, 100, 150]);
+      const dRate = rng.pick([200, 250, 300]);
+      const list = names.slice(0, n).map((name, i) => ({ id: `c${i + 1}`, name, gm: nice(rng, 50000, 400000, 10000), use: [nice(rng, 100, 1200, 50), nice(rng, 50, 800, 50)] }));
+      const pools = [
+        { id: 'orders', name: 'Order processing', driver: 'orders', total: sum(list.map((c) => c.use[0])) },
+        { id: 'deliveries', name: 'Delivery', driver: 'deliveries', total: sum(list.map((c) => c.use[1])) },
+      ];
+      pools[0].cost = oRate * pools[0].total;
+      pools[1].cost = dRate * pools[1].total;
+      const w = whale({ pools, customers: list });
+      if (w.losers < 2 || w.total <= 0 || w.peakShare < 1.1 || w.peakShare > 2) continue;
+      if (list.some((c) => c.gm - c.use[0] * oRate - c.use[1] * dRate === 0)) continue;
+      const gmWinners = sum(list.filter((c) => c.gm - c.use[0] * oRate - c.use[1] * dRate > 0).map((c) => c.gm));
+      const totalGm = sum(list.map((c) => c.gm));
+      const table = list.map((c) => `| ${c.name} | ${P(c.gm)} | ${C(c.use[0])} | ${C(c.use[1])} |`).join('\n');
+      return { vars: { n, oRate, dRate, table, total: w.total, peakProfit: w.peakProfit, peakPct: 100 * w.peakShare, peakCount: w.peakCount, losers: w.losers, lossTotal: w.lossTotal, totalGm },
+        misconceptions: [
+          { value: totalGm, feedback: 'That is total gross margin. Subtract each customer\'s cost to serve first.', for: 'total' },
+          { value: w.peakProfit, feedback: 'That is what the profitable customers earn. The loss-makers give part of it back.', for: 'total' },
+          { value: gmWinners, feedback: 'That is the profitable customers\' gross margin. Use their operating profit (after cost to serve).', for: 'peakProfit' },
+          { value: (100 * gmWinners) / totalGm, feedback: 'That is a share of gross margin. The whale curve uses operating profit after cost to serve.', for: 'peakPct' },
+          { value: 100 / w.peakShare, feedback: 'Turn the division around: the profitable customers\' profit ÷ total profit.', for: 'peakPct' },
+        ] };
+    }
   }
 
   return {
-    fns: { classify, setups, costGrowth, customers, whale, tco, cycle, cycleCompare },
-    generators: { mceQ, velocityQ, customerQ, tcoQ, defectQ, setupQ, growthQ },
+    fns: { classify, setups, costGrowth, customers, whale, tco, tcoWalk, cycle, cycleCompare },
+    generators: { mceQ, velocityQ, customerQ, tcoQ, defectQ, setupQ, growthQ, whaleQ },
   };
 }

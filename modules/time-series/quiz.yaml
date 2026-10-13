@@ -23,14 +23,14 @@ templates:
     lessonRef: { tab: intuition, id: be-the-forecaster }
     prompt: A monthly series climbs steadily and repeats the same yearly shape. What should a forecast of the next 12 months use?
     options:
-      - The direction and last year's shape
-      - Only the typical level
-      - Only the last value
-      - Nothing; it cannot be forecast without a model
+      - Its direction and its yearly shape
+      - Its usual level only
+      - Its last value only
+      - Its direction only
     answer: 0
     hints:
       - Which two patterns does the description mention?
-    explanation: 'That is series C on slide 10. The trend gives the direction, seasonality the repeating shape.'
+    explanation: 'That is series C in the first scene. The trend gives the direction, seasonality the repeating shape.'
 
   - id: additive-multi
     type: multi
@@ -38,7 +38,7 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: math-code, id: decomposition }
-    prompt: 'About the idea y_t ≈ T_t + S_t + R_t (slide 13), which statements are true?'
+    prompt: 'About the idea y_t ≈ T_t + S_t + R_t, which statements are true?'
     options:
       - It is a way of looking at a series, not a theory of how the data were generated
       - Some series combine their parts by multiplying rather than adding
@@ -115,10 +115,10 @@ templates:
     lessonRef: { tab: intuition, id: order-is-signal }
     prompt: Why is `train_test_split(X, y, shuffle=True)` wrong for a time series?
     options:
-      - 'It lets the model train on later months and be tested on earlier ones, so the score is excellent and meaningless'
-      - It deletes rows from the series
-      - It changes the values of the series
-      - It only works for classification
+      - 'It lets the model learn from later months and be tested on earlier ones'
+      - 'It drops some rows, leaving gaps the model cannot handle'
+      - 'It rescales the values, so the scores are in the wrong units'
+      - 'It keeps too few test months to score the model fairly'
     answer: 0
     hints:
       - 'After shuffling, which months could end up in training?'
@@ -128,21 +128,24 @@ templates:
 
   - id: forecast-workflow
     type: order
-    skills: [chrono-split, baselines]
+    skills: [chrono-split, arima]
     difficulty: 1
     tags: [application]
-    lessonRef: { tab: intuition, id: baselines }
-    prompt: Put the Session 11 workflow in order.
+    lessonRef: { tab: intuition, id: arima-assembled }
+    prompt: Put the ARIMA workflow in order.
     items:
       - Plot the series and name its patterns
       - Split by date into training and test months
-      - Score the naive and seasonal naive forecasts on the test months
-      - Test for stationarity and difference if needed
-      - Read the ACF and PACF to choose p and q
-      - 'Fit ARIMA(p, d, q), forecast the test months and compare with the baselines'
+      - Run the ADF test on the training months and difference until it rejects (choose d)
+      - Read the ACF and PACF of the differenced series to choose p and q
+      - 'Fit ARIMA(p, d, q), forecast the test months and compare with the naive baselines'
       - Check the residuals for patterns the model missed
+    hints:
+      - Which step needs the differenced series before it can start?
+      - 'The lesson looks at the whole series before cutting it; every step that fits or tests uses the training months only.'
     explanation: |
-      Set the baseline first, then choose each ARIMA number from its own evidence, then check the residuals honestly.
+      Plot first to see the patterns; then split, because everything after that is learned from the training months only.
+      d comes before p and q because the ACF and PACF are read on the differenced series. The residual check comes last, after there is a fitted model.
 
 
   - id: forest-mcq
@@ -155,14 +158,13 @@ templates:
       A random forest on CO₂ lag columns scores MAE 0.515 with a random split and 3.174 with a split by date. Its highest
       forecast is 366.06, while the highest training value is 366.68. What explains the gap?
     options:
-      - |
-        A tree predicts averages of training values, so it cannot forecast above the highest one; the random split hid this
-      - The split by date had too few test months
-      - The forest needs more trees
-      - CO₂ is not a time series
+      - Trees cannot forecast above their highest training value; the random split hid this
+      - The split by date had too few test months to score the forest fairly
+      - The forest had too few trees, so its forecasts were too noisy
+      - The trees overfit the training months and needed to be pruned
     answer: 0
     hints:
-      - Can an average of training values ever be bigger than the biggest training value?
+      - Compare where the test months sat in time under each split.
     explanation: |
       With a shuffled split, every test month had training months on both sides, so the forest only filled gaps. Linear regression has no such ceiling.
 
@@ -188,7 +190,7 @@ templates:
     difficulty: 1
     tags: [term]
     lessonRef: { tab: intuition, id: stationary-gallery }
-    prompt: Which are the three conditions for a stationary series (slide 17)?
+    prompt: Which are the three conditions for a stationary series?
     options:
       - A steady typical level
       - A steady amount of wiggle
@@ -208,18 +210,18 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: intuition, id: stationary-gallery }
-    prompt: Match each series from slide 18 to the reason for its verdict.
+    prompt: Match each series from the stationarity gallery to the reason for its verdict.
     pairs:
-      -   - 'Random walk: not stationary'
-          - It wanders with no level to return to
-      -   - 'Growing wiggle: not stationary'
-          - The level is steady but the wiggle grows
-      -   - 'Sunspots: stationary'
-          - 'Big swings, but the behaviour stays the same and the cycles have no fixed length'
-      -   - 'Nile flow: not stationary'
-          - The level jumps part-way through
-      -   - 'Monthly CO₂: not stationary'
-          - Trend and seasonality
+      -   - 'Random walk'
+          - 'Not stationary: no level to return to'
+      -   - 'Growing wiggle'
+          - 'Not stationary: the spread changes over time'
+      -   - 'Sunspots'
+          - 'Stationary: large but unchanging behaviour'
+      -   - 'Nile flow'
+          - 'Not stationary: the level shifts part-way'
+      -   - 'Monthly CO₂'
+          - 'Not stationary: a climb plus a yearly pattern'
     pick: 4
     hints:
       - 'For each series, ask which of level, wiggle size or link to the past changes over time.'
@@ -286,7 +288,7 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: intuition, id: difference-by-hand }
-    prompt: What are the consequences of first differencing (slide 22)?
+    prompt: What are the consequences of first differencing?
     options:
       - You lose one value
       - Every forecast afterwards is a forecast of change
@@ -322,7 +324,7 @@ templates:
           Top number $\sum_{t=2}^{n} (y_t - \bar y)(y_{t-1} - \bar y)$
         answer: { var: num1, tol: 0.01 }
         hint: 'Multiply each gap by the gap one step earlier, and add.'
-      - prompt: '$r_1$'
+      - prompt: '$r_1$ (2 decimal places)'
         answer: { var: r1, tol: 0.01 }
         misconceptions:
           - { var: wrongPearson, feedback: 'That is the Pearson correlation of the pairs, with separate means and denominators. The ACF uses one overall mean and the full sum of squares.' }
@@ -338,9 +340,9 @@ templates:
     difficulty: 2
     tags: [math]
     lessonRef: { tab: intuition, id: autocorrelation }
-    prompt: Match each pattern to what it suggests (Session 11 reading table).
+    prompt: Match each pattern to what it suggests.
     pairs:
-      -   - ACF fades very slowly and never dies out
+      -   - 'ACF fades very slowly from lags 1, 2, 3 onward'
           - 'Not stationary yet: difference again (raise d)'
       -   - 'PACF stops after lag k, ACF fades'
           - p ≈ k
@@ -348,8 +350,8 @@ templates:
           - q ≈ k
       -   - Both ACF and PACF fade
           - Try a small p and a small q
-      -   - Big spikes at lags 12 and 24
-          - 'A yearly pattern, which ARIMA(p, d, q) cannot capture'
+      -   - 'Tall bars at lags 12, 24, 36 that fade slowly'
+          - 'A yearly pattern: seasonal difference or SARIMA'
     pick: 4
     hints:
       - '"Stops" after lag k points to that number of terms; "fades" points to small p and q.'
@@ -361,10 +363,10 @@ templates:
     difficulty: 3
     tags: [math]
     generator: pacfQ
-    lessonRef: { tab: intuition, id: autocorrelation }
+    lessonRef: { tab: math-code, id: pacf }
     prompt: |
       A stationary series has autocorrelations $r_1 = {=r1}$ and $r_2 = {=r2}$. The lag-2 partial autocorrelation (what lag 2
-      adds once lag 1 is accounted for) is $\phi_{22} = \frac{r_2 - r_1^2}{1 - r_1^2}$. Compute it.
+      adds once lag 1 is accounted for) is $\phi_{22} = \frac{r_2 - r_1^2}{1 - r_1^2}$. Compute it (2 decimal places).
     answer: { var: p2, tol: 0.01 }
     misconceptions:
       - {var: wrongR2, feedback: 'r₂ is the full link at lag 2. The PACF removes the part that is passed along through lag 1.'}
@@ -423,6 +425,29 @@ templates:
     explanation: |
       Horizon {=h} lands on a {=targetMonth}; copy {=targetMonth} 1997: {=sn}.
 
+  - id: snaive-far-numeric
+    type: numeric
+    skills: [baselines]
+    difficulty: 2
+    tags: [math]
+    generator: naiveQ
+    lessonRef: { tab: math-code, id: baselines }
+    prompt: |
+      Training ends in December 1997; its last 12 months are shown. What is the **seasonal naive** forecast {=h} months
+      ahead (a {=targetMonth}, more than a year away)? Beyond one season, keep repeating last year.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 1 } }
+    answer: { var: sn, tol: 0.001 }
+    misconceptions:
+      - {var: nv, feedback: 'That is the naive forecast (the last value). Seasonal naive copies the same month from the last training year.'}
+      - {var: wrongShift, feedback: 'Off by one month: count h months on from December, and wrap past each year.'}
+    hints:
+      - Seasonal naive never uses months after December 1997; it repeats the last training year again and again.
+      - 'Subtract 12 from h until it is 12 or less: that month of the year is the one to copy.'
+    explanation: |
+      {=h} months after December 1997 is a {=targetMonth}, {=years} full year(s) beyond the first. Seasonal naive copies
+      {=targetMonth} 1997 again: {=sn}.
+
   - id: baseline-mcq
     type: mcq
     skills: [baselines]
@@ -431,15 +456,17 @@ templates:
     lessonRef: { tab: intuition, id: baselines }
     prompt: 'On CO₂ 1998–2001, naive scores MAE 4.527 and seasonal naive 5.063. Why does the forecast with more information score worse?'
     options:
-      - 'It repeats 1997''s shape but forgets the yearly growth, so it sits further and further below'
-      - Seasonal naive uses less information
-      - MAE punishes seasonal shapes
-      - The test set is too short
+      - 'It sits at 1997''s average level, below December''s, and nearly every miss has the same sign'
+      - 'It copies the yearly shape, and MAE gives extra weight to errors in shape'
+      - 'It uses less information than naive, because it ignores the last value'
+      - 'Its forecast changes every month, so small misses add up over four years'
     answer: 0
     hints:
-      - 'Does 1997''s shape know that CO₂ keeps rising each year?'
+      - 'Are the forecasts above or below the real values, and does that change from month to month?'
     explanation: |
-      Naive got the level, seasonal naive the yearly shape; neither got both. ARIMA and lag columns fill that gap.
+      Seasonal naive sits below every real month, naive below 47 of 48. With same-sign misses, MAE is about the gap
+      between the average real value and the average forecast: seasonal naive averages 363.70, naive sits 0.55 higher at
+      364.25. Naive got the level, seasonal naive the shape; neither got both.
 
 
   - id: baseline-code
@@ -457,7 +484,7 @@ templates:
       naive = pd.Series(train.iloc[__BLANK_2__], index=test.index)
     blanks:
       '1': { accept: ['%'] }
-      '2': { accept: ['-1'] }
+      '2': { accept: ['-1', 'len(train)-1'] }
     hints:
       - Which slice of the training data holds last year?
     explanation: |
@@ -471,7 +498,7 @@ templates:
     tags: [math]
     generator: metricsQ
     lessonRef: { tab: math-code, id: forecast-metrics }
-    prompt: Score these forecasts.
+    prompt: Score these forecasts (2 decimal places).
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
     steps:
@@ -485,8 +512,8 @@ templates:
         misconceptions:
           - { var: mse, feedback: 'That is the MSE; take the square root.' }
         hint: 'Square each miss, average, then square root.'
-      - prompt: 'MAPE (%)'
-        answer: { var: mape, tol: 0.01 }
+      - prompt: 'MAPE (in %)'
+        answer: { var: mape, tol: 0.01, percent: true }
         misconceptions:
           - { var: wrongMapeByF, feedback: 'Divide each error by the actual value, not the forecast.' }
         hint: 'Each |miss| ÷ real value, averaged, × 100.'
@@ -500,7 +527,7 @@ templates:
     tags: [math]
     generator: metricsQ
     lessonRef: { tab: math-code, id: forecast-metrics }
-    prompt: Compute the RMSE of these forecasts.
+    prompt: Compute the RMSE of these forecasts (2 decimal places).
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
     answer: { var: rmse, tol: 0.01 }
@@ -520,10 +547,10 @@ templates:
     tags: [math]
     generator: metricsQ
     lessonRef: { tab: math-code, id: forecast-metrics }
-    prompt: Compute the MAPE (in %) of these forecasts.
+    prompt: Compute the MAPE (in %, 2 decimal places) of these forecasts.
     show:
       - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
-    answer: { var: mape, tol: 0.01 }
+    answer: { var: mape, tol: 0.01, percent: true }
     misconceptions:
       - { var: wrongMapeByF, feedback: 'Divide by the actual value y_t, not by the forecast.' }
       - { var: mae, feedback: 'That is the MAE; express each error as a percentage of the actual value.' }
@@ -560,11 +587,13 @@ templates:
     lessonRef: { tab: math-code, id: arima-forecast }
     prompt: |
       ARIMA(1,1,1) with drift: average change c = {=c}, φ = {=phi}, θ = {=theta}. The last two values are {=y0} and {=y1}
-      (so the last change is {=dy}), and the last surprise is ε = {=eps}. Forecast the next value.
+      (so the last change is {=dy}), and the last surprise is ε = {=eps}. Forecast the next value (2 decimal places).
     answer: { var: yhat, tol: 0.01 }
     misconceptions:
       - {var: wrongLevel, feedback: 'That is the forecast **change**. Add it to the last value to get the forecast value.'}
       - {var: wrongNoMa, feedback: 'Include the surprise term θ × ε for the first step.'}
+      - {var: wrongAsWritten, feedback: 'You used c as a plain constant: c + φ × (last change). Here c is the average change, so φ multiplies (last change − c).'}
+      - {var: wrongNoC, feedback: 'The drift c is missing. The forecast change is c + φ × (last change − c) + θ × ε.'}
     hints:
       - Forecast change = c + φ × (last change − c) + θ × ε.
       - Then add that change to the last value.
@@ -579,7 +608,7 @@ templates:
     generator: arimaQ
     lessonRef: { tab: intuition, id: arima-assembled }
     prompt: |
-      Same model (c = {=c}, φ = {=phi}, θ = {=theta}), last values {=y0}, {=y1}, last surprise {=eps}. Forecast two steps.
+      Same model (c = {=c}, φ = {=phi}, θ = {=theta}), last values {=y0}, {=y1}, last surprise {=eps}. Forecast two steps (2 decimal places each).
     steps:
       - prompt: Forecast change for step 1
         answer: { var: dh, tol: 0.01 }
@@ -592,6 +621,8 @@ templates:
         hint: 'Use the step-1 change as the "last change"; drop the θ term.'
       - prompt: Forecast value for step 2
         answer: { var: yhat2, tol: 0.01 }
+        misconceptions:
+          - { var: wrongKeepMa, feedback: 'From step 2 on the next surprise is unknown and set to 0, so drop the θ × ε term.' }
         hint: Step-1 value + this change.
     hints:
       - 'Each step works on the change first, then adds it to the level.'
@@ -627,9 +658,9 @@ templates:
     prompt: The ARIMA(1,1,1) residuals on CO₂ have an ACF spike of 0.58 at lag 12. What does it mean, and what is the fix?
     options:
       - The mistakes repeat every year; add yearly (seasonal) terms with SARIMA
-      - The residuals are pure noise; nothing to fix
-      - The model is differenced too much; use d = 0
-      - The series has no seasonality
+      - The residuals are pure noise at this size; nothing to fix
+      - The model is differenced too much; go back to d = 0
+      - The model needs a larger p to reach 12 months back
     answer: 0
     hints:
       - What happens every 12 months in monthly data?
@@ -650,7 +681,7 @@ templates:
       arima_forecast = forecast.predicted_mean
     blanks:
       '1': { accept: ['1'] }
-      '2': { accept: ['len(test)'] }
+      '2': { accept: ['len(test)', '48', 'test.shape[0]'] }
     hints:
       - 'The order is written (p, d, q).'
     explanation: d = 1 from the ADF test; one forecast per test month.
@@ -663,7 +694,7 @@ templates:
     generator: rollQ
     lessonRef: { tab: intuition, id: lag-features }
     prompt: |
-      Monthly values t1 … t5: {=valsList}. What is the safe (leak-free) `roll_mean_3` value for the t5 row?
+      Monthly values t1 … t5: {=valsList}. What is the safe (leak-free) `roll_mean_3` value for the t5 row (3 decimal places)?
     answer: { var: roll, tol: 0.005 }
     misconceptions:
       - { var: leaky, feedback: 'That includes t5 itself: rolling(3) without shift(1) leaks the target.' }
@@ -682,11 +713,10 @@ templates:
     lessonRef: { tab: math-code, id: lag-regression }
     prompt: Replacing `roll_mean_3` with `co2.rolling(3).mean()` drops the test MAE to 0.0. Why?
     options:
-      - |
-        The input contains y_t itself, so the regression works out y_t = 3·roll − lag_1 − lag_2 instead of forecasting
-      - Three-month averages are perfect forecasters of CO₂
-      - The test set became easier
-      - Linear regression always reaches MAE 0 with enough input columns
+      - The input now contains y_t itself, so the regression solves for the answer
+      - Three-month averages are such smooth inputs that CO₂ becomes easy
+      - Without the shift, the test months line up better with training
+      - With fifteen input columns, a regression always fits the data exactly
     answer: 0
     hints:
       - 'Which month does `rolling(3)` include by default?'
@@ -698,17 +728,18 @@ templates:
     difficulty: 1
     tags: [code]
     lessonRef: { tab: math-code, id: lag-regression }
-    prompt: Put the Session 12 pipeline in order.
+    prompt: Put the lag-feature regression pipeline in order.
     items:
-      - Make lag columns with shift()
-      - Make the rolling column with shift() and then rolling()
-      - Add one 0/1 column per month
-      - Drop rows with missing lags
+      - 'Build the input columns (lags, the shifted rolling mean, month columns), then drop rows with missing lags'
       - Split by date into training and test rows
-      - Fit LinearRegression on the training rows
-      - Forecast the test months one step ahead and compare with naive and ARIMA
+      - Fit LinearRegression on the training rows only
+      - Forecast each test month one step ahead
+      - Compare the score with one-step naive and one-step ARIMA
+    hints:
+      - The model can only be fitted once there are training rows to fit it on.
     explanation: |
-      Series → lag columns → safe rolling mean → month columns → drop empty rows → split by date → fit → one-step forecasts → compare.
+      Columns first (shift() only looks back, so building them before the split is safe), then split by date, fit on the
+      past, forecast one step ahead, and compare like with like: one-step against one-step.
 
 
   - id: roll-code
@@ -733,13 +764,288 @@ templates:
     difficulty: 2
     tags: [application]
     lessonRef: { tab: intuition, id: lag-features }
-    prompt: 'Scenario B (lags + 11 month columns) scores MAE 0.222, versus 0.509 without the months and 0.600 for ARIMA(1,1,1). Where did the gain come from?'
+    prompt: 'Scenario B (lags + 11 month columns) scores one-step MAE 0.222, versus 0.509 without the months and 0.600 for one-step ARIMA(1,1,1). Where did the gain come from?'
     options:
-      - 'Yearly information: the month columns, which ARIMA(p,d,q) has no part for'
-      - Having more rows
-      - The roll_mean_3 column alone
-      - Using a random split
+      - 'The month columns: yearly information ARIMA(p,d,q) has no part for'
+      - 'The extra rows: B was trained on more months than A'
+      - 'The rolling mean: it smooths away the yearly wiggle'
+      - 'The lag_12 column: it carries last year''s shape alone'
     answer: 0
     hints:
       - Which kind of information did scenario B add that the others lacked?
     explanation: 'Nine more lags (scenario C, 0.232) did not help; the calendar did.'
+
+  - id: step-naive-hand
+    type: hand-calc
+    skills: [baselines, forecast-metrics]
+    difficulty: 3
+    tags: [math]
+    generator: stepQ
+    lessonRef: { tab: intuition, id: lag-features }
+    prompt: |
+      A monthly series ended its training months at {=last}. The next five months turned out {=testList}. Score two naive
+      forecasts on these five months.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
+    steps:
+      - prompt: 'MAE of the **multi-step** naive forecast (every month forecast as {=last})'
+        answer: { var: maeMulti, tol: 0.01 }
+        misconceptions:
+          - { var: maeOne, feedback: 'That is the one-step score. Multi-step repeats the last training value for all five months.' }
+          - { var: wrongSumMulti, feedback: 'That is the total miss. Divide by the 5 months.' }
+        hint: 'Each miss is |real − {=last}|; average the five.'
+      - prompt: 'MAE of the **one-step** naive forecast (each month forecast as the real month before it)'
+        answer: { var: maeOne, tol: 0.01 }
+        misconceptions:
+          - { var: maeMulti, feedback: 'That is the multi-step score. One-step uses the real value of the month just before.' }
+          - { var: meOne, feedback: 'Take absolute values before averaging, or misses of opposite sign cancel.' }
+        hint: 'The first forecast is {=last}; after that, each forecast is the previous real month.'
+    hints:
+      - 'Multi-step: one forecast number for every month. One-step: a new forecast each month from the latest real value.'
+      - Write both forecast columns next to the real values before scoring.
+    explanation: |
+      Multi-step misses grow as the series climbs away from {=last}: MAE {=maeMulti|2}. One-step forecasts ({=oneList})
+      only bridge one month: MAE {=maeOne|2}. Same naive rule, different setup, so compare models only within one setup.
+
+  - id: baseline-duel-hand
+    type: hand-calc
+    skills: [baselines, forecast-metrics]
+    difficulty: 3
+    tags: [application]
+    generator: horizonQ
+    lessonRef: { tab: math-code, id: baselines }
+    prompt: |
+      Quarterly sales of a new product line: the last training year was {=trainList} (Q1 to Q4) and the next year turned
+      out {=testList}. Forecast all four test quarters once, from the end of training, with both baselines.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
+    steps:
+      - prompt: 'MAE of the naive forecast (all four quarters forecast as {=last})'
+        answer: { var: maeMulti, tol: 0.01 }
+        misconceptions:
+          - { var: maeSn, feedback: 'That is the seasonal naive score. Naive repeats the last training quarter.' }
+          - { var: maeOne, feedback: 'That uses each real quarter before it (one-step). Here every forecast is made once, from the end of training.' }
+        hint: 'Each miss is |real − {=last}|.'
+      - prompt: 'MAE of the seasonal naive forecast (each quarter copies the same quarter of the training year)'
+        answer: { var: maeSn, tol: 0.01 }
+        misconceptions:
+          - { var: maeMulti, feedback: 'That is the naive score. Seasonal naive copies Q1 from Q1, Q2 from Q2, and so on.' }
+          - { var: maeOne, feedback: 'That compares each quarter with the one just before it. Seasonal naive uses the same quarter a year earlier.' }
+        hint: 'Pair test Q1 with training Q1, test Q2 with training Q2, and so on.'
+    hints:
+      - Write the two forecast columns next to the test year before scoring.
+      - 'A season here is 4 quarters, so "the same quarter last year" is 4 steps back.'
+    explanation: |
+      Naive misses average {=maeMulti|2}; seasonal naive misses average {=maeSn|2}, so {=snWins} wins here. Seasonal naive
+      wins when the yearly swing is bigger than a year's growth; naive wins when the growth is bigger.
+
+  - id: horizon-mcq
+    type: mcq
+    skills: [baselines, lag-features]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lag-features }
+    prompt: |
+      On the same 48 test months, a regression on lag_1, lag_2, lag_12 and a rolling mean scores one-step MAE 0.509. The
+      naive forecast made once from the last training month (multi-step) scores 4.527. A teammate says the regression is
+      9× better than naive. What is wrong?
+    options:
+      - 'The setups differ: compare it with the one-step naive score instead'
+      - 'MAE cannot compare two different kinds of model on one test set'
+      - 'The ratio should use RMSE, because big misses matter more here'
+      - 'Nothing: a lower MAE on the same months settles the question'
+    answer: 0
+    hints:
+      - Which forecast gets to see the real value of the month before?
+    explanation: |
+      One-step forecasts see each real month before forecasting the next, which is far easier. On CO₂ the one-step naive
+      scores 1.080, not 4.527, so the one-step 0.509 is about 2× better, not 9×.
+
+  - id: arima-names-mcq
+    type: mcq
+    skills: [arima]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: arima-assembled }
+    prompt: In ARIMA, what does the MA ("moving average") part average?
+    options:
+      - The last few shocks, the surprises nothing could predict
+      - The last few values, like a three-month rolling mean
+      - The last few changes of the differenced series
+      - The model's own forecasts for the previous months
+    answer: 0
+    hints:
+      - 'AR looks at past values (or changes). What is left for MA?'
+    explanation: |
+      AR = autoregressive (past values), I = integrated (changes added back up), MA = moving average of past shocks. It is
+      not the rolling mean of past values used as a regression input.
+
+  - id: family-match
+    type: match
+    skills: [arima]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: arima-assembled }
+    prompt: Match each relative of ARIMA to what it adds.
+    pairs:
+      - ['SARIMA', 'Yearly terms (P, D, Q) at the season length']
+      - ['ARIMAX / SARIMAX', 'Outside inputs, such as temperature']
+      - ['VAR', 'Several related series forecast together']
+      - ['GARCH', 'A wiggle whose size changes over time']
+    hints:
+      - 'S is for seasonal, X for extra (outside) inputs.'
+    explanation: SARIMA adds a season, the X versions add outside inputs, VAR handles several series, GARCH a changing wiggle size.
+
+  - id: history-order
+    type: order
+    skills: [ts-structure]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: be-the-forecaster }
+    prompt: Put these forecasting approaches in the order they appeared.
+    items:
+      - Exponential smoothing
+      - Box–Jenkins ARIMA
+      - Machine learning on lag columns
+      - Large pretrained foundation models
+    hints:
+      - The oldest needs only a running weighted average; the newest is trained on huge collections of series.
+    explanation: Exponential smoothing (1950s), Box–Jenkins ARIMA (1970s), machine learning with lag features, then foundation models.
+
+  - id: leak-audit-multi
+    type: multi
+    skills: [lag-features, chrono-split]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: lag-features }
+    prompt: |
+      At the start of each month, an electric cooperative forecasts that month's sales with a regression. Which input
+      columns are safe (known before the month starts)?
+    options:
+      - Sales last month
+      - Sales in the same month last year
+      - The average of this month's and the two previous months' sales
+      - This month's average temperature, measured over the month
+      - Which calendar month it is
+      - The number of customers connected at the start of the month
+    answer: [0, 1, 4, 5]
+    hints:
+      - For each column, ask whether its value exists on the first day of the month.
+    explanation: |
+      The rolling mean that includes this month contains the answer (leakage), and this month's measured temperature is not
+      known yet when the forecast is made. Lags, the calendar month and the customer count are all known in advance.
+
+  - id: pq-read-mcq
+    type: mcq
+    skills: [autocorrelation, arima]
+    difficulty: 3
+    tags: [math]
+    generator: pqQ
+    lessonRef: { tab: math-code, id: pacf }
+    prompt: |
+      A new monthly series (not CO₂) gives the sample ACF and PACF below. Values within about ±0.06 of 0 count as "nothing".
+      Which choice does this evidence support?
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 2, rowHeader: lag } }
+    hints:
+      - 'For each column, ask: does it stop after a lag (then nothing), or fade gradually?'
+      - 'PACF stops after lag k → p ≈ k. ACF stops after lag k → q ≈ k. Both fade → start small. ACF barely falls at all → difference first.'
+    explanation: |
+      The column that **stops** names the model: a PACF that stops after lag k means k past values (p = k); an ACF that
+      stops after lag k means k past shocks (q = k). When both fade, start with a small p and q and check the residuals.
+      An ACF that stays near 1 for lag after lag is not stationary yet, so difference before reading p and q.
+
+  - id: seasonal-forecast-hand
+    type: hand-calc
+    skills: [differencing, baselines]
+    difficulty: 3
+    tags: [math]
+    generator: seasonQ
+    lessonRef: { tab: math-code, id: differencing }
+    prompt: |
+      Monthly electricity sales (GWh) of a small utility, January of year 1 to March of year 2. Take the seasonal
+      difference $\Delta_{12}\, y_t = y_t - y_{t-12}$, then use it to forecast April of year 2.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 1, rowHeader: month } }
+    steps:
+      - prompt: How many seasonal differences can you compute from these 15 months?
+        answer: { var: nd }
+        hint: The first 12 months have no value one year earlier.
+      - prompt: '$\Delta_{12}$ for March of year 2 (2 decimal places)'
+        answer: { var: dLast, tol: 0.01 }
+        hint: March of year 2 minus March of year 1.
+      - prompt: 'Average of all the seasonal differences: the typical yearly growth (2 decimal places)'
+        answer: { var: mD, tol: 0.01 }
+        hint: 'Compute Δ12 for January and February too, then average the three.'
+      - prompt: 'Forecast for April of year 2: April of year 1 plus the average yearly growth (2 decimal places)'
+        answer: { var: fc, tol: 0.01 }
+        hint: 'A forecast of a change is added back to the value it was measured from: here, April a year earlier.'
+    hints:
+      - 'A seasonal difference compares each month with the same month a year earlier, so the yearly swing cancels out.'
+    explanation: |
+      The {=nd} seasonal differences are {=d12List}: steady, so the yearly swing is gone and only the growth is left.
+      Their average is {=mD|2}. April of year 1 was {=aprPrev}, so the forecast is {=aprPrev} + {=mD|2} = {=fc|2}.
+      Seasonal naive alone ({=aprPrev}) would miss a whole year of growth.
+
+  - id: arima-transfer-hand
+    type: hand-calc
+    skills: [arima]
+    difficulty: 3
+    tags: [math]
+    generator: arimaTQ
+    lessonRef: { tab: math-code, id: arima-forecast }
+    prompt: |
+      Weekly orders at a bakery: the last two weeks were {=y0} and {=y1}, so the last change was {=dy}. The fitted model is
+      {=modelText}. Forecast the next three weeks (2 decimal places each).
+    steps:
+      - prompt: Forecast change for week 1
+        answer: { var: dh1, tol: 0.01 }
+        hint: 'Use the lesson''s recipe, c + φ × (last change − c) + θ × ε, and leave out the part this model does not have.'
+      - prompt: Forecast value for week 1
+        answer: { var: f1, tol: 0.01 }
+        hint: Last value + the forecast change.
+      - prompt: Forecast value for week 2
+        answer: { var: f2, tol: 0.01 }
+        hint: 'The "last change" is now the week-1 forecast change, and the next surprise is unknown, so it is 0.'
+      - prompt: Forecast value for week 3
+        answer: { var: f3, tol: 0.01 }
+        hint: Recompute the change from the week-2 change, then add it on.
+    hints:
+      - 'ARIMA(1,1,0) has φ but no θ; ARIMA(0,1,1) has θ but no φ. Each step: forecast the change first, then add it to the level.'
+    explanation: |
+      Changes: {=dh1|3}, {=dh2|3}, {=dh3|3}. Values: {=y1} → {=f1|2} → {=f2|2} → {=f3|2}. With an AR part the change
+      drifts back toward c step by step; with only an MA part the surprise counts once, and from week 2 the change is just c.
+
+  - id: feature-row-hand
+    type: hand-calc
+    skills: [lag-features]
+    difficulty: 3
+    tags: [application]
+    generator: featQ
+    lessonRef: { tab: intuition, id: lag-features }
+    prompt: |
+      A shop's monthly sales, January of year 1 to February of year 2. February of year 2 is the month being forecast (its
+      real value is shown only to check the forecast later). A fitted regression is
+      $\hat y = {=b0} + {=w1}\cdot\text{lag\_1} + {=w12}\cdot\text{lag\_12} + {=w3}\cdot\text{roll\_mean\_3}$. Build the
+      inputs for February of year 2 and forecast it.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 0, rowHeader: month } }
+    steps:
+      - prompt: lag_1
+        answer: { var: lag1, tol: 0.01 }
+        hint: The month just before February of year 2.
+      - prompt: lag_12
+        answer: { var: lag12, tol: 0.01 }
+        hint: The same month one year earlier.
+      - prompt: 'Safe roll_mean_3 (2 decimal places)'
+        answer: { var: roll, tol: 0.01 }
+        hint: 'Shift first: average the three months **before** February of year 2.'
+      - prompt: 'Forecast $\hat y$ (2 decimal places)'
+        answer: { var: fc, tol: 0.01 }
+        hint: Intercept + each weight × its column.
+    hints:
+      - 'Every input must be known before February of year 2 starts.'
+    explanation: |
+      lag_1 = {=lag1}, lag_12 = {=lag12}, roll_mean_3 = {=roll|2} (November, December, January). Forecast
+      {=b0} + {=w1}·{=lag1} + {=w12}·{=lag12} + {=w3}·{=roll|2} = {=fc|2}; the real value was {=actual}. The leaky window
+      (December to February, {=leaky|2}) would have slipped the answer into the inputs.

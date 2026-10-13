@@ -77,3 +77,46 @@
 - Rule order in `rulesWalk` follows the slides: itemsets in slide-45 order, items written as on the slides (e.g. {eggs, yogurt, milk}), bigger antecedents first (slides 51–52).
 - Math & Code: every section's trace is line-level (one anchor per code line) and walks every loop iteration, e.g. `supportCode`, `bruteForceCode` (208 steps), `aprioriCode`, `fpGrowthCode` (recursive calls with their prefix), `confidenceCode` (single pass), `rulesCode`, `liftCode`.
 - Examples added as regression checks for the walks: brute-walk-63, apriori-walk-24, fp-walk-18, rules-walk-13.
+
+## Revision 1.2 — learner review 2026-10-05 (guide edition 2)
+- Guide 2: objectives in the manifest; every glossary term is `define`d in one Intuition beat. New terms: `database` (D, |D|), `lattice`, `superset`, `prefix`, `base-rate`. Leverage and conviction (beyond the slides) are defined in a closing milk-trap beat.
+- Path order: scene `whats-in-a-basket` has no skills, `lecture-support-table` only `support`, `apriori-principle` only `frequent-itemset`. So the Math sections land after the scene that teaches them (support after counting-togetherness, frequent-itemsets after the-bar, apriori after apriori-run). minsup and "frequent" are defined in lecture-support-table, before the-bar uses them.
+- Apriori principle vs the lecture's Apriori: the principle scene uses {bread, eggs} (both items frequent, pair infrequent) instead of {bread, butter}. It ends by calling its result "the classic, strict prune". The lecture-version callout now opens the apriori-run scene, before any count is asked. The 22 vs 24 count is explained in a callout after the run and in a math-code pitfall (scheme in Conventions above).
+- Predicts asked before the reveal (guide 7.1b):
+  - the-bar hides the slider and readout while "11" is asked;
+  - "38 zeros" became a pre-play MCQ on ranges; the reveal narration gives the 4 + 13 + 14 + 7 breakdown (audit T2);
+  - the level-3 "7" predict gives the five frequent pairs and asks before the run;
+  - the re-asked "11 frequent" became a new question: total candidates at minsup 3 = 10 (6 + 3 + 1, checked with aprioriRun);
+  - FP-growth's "18" became a pre-play Sup({cheese, milk}) = 2 inside D_{cheese};
+  - "13 of 16 kept" became a pre-play MCQ on which antecedent fails;
+  - the milk-trap Readout and Formula stay hidden until Lift(yogurt → milk) is answered.
+- One stance on weak lift: a lift just above 1 (1.11 on 5 baskets, 1.15 on 30) is a weak positive association that could easily be chance. It is not "the only real association" and not "no connection". Big lift on an itemset below minsup (bread → butter, 2.5 on 1 basket) is called noise. Five rules have conf 1 and lift 1 ("fooled us five times"; the other two lift-1 rules have conf 0.6). The lift-1 rules are "milk alone as antecedent or consequent" (audit T3).
+- Lift wording is non-causal everywhere: "baskets with A hold B more often than average".
+- Notation: 𝓘 = all items (math-code brute force and Apriori); I = one frequent itemset (rule generation); k = antecedent size there; an itemset with m items gives 2^m − 2 rules. Every symbol is written out in words at first use: ⊆, ∈, #, |D|, ∀, ⊇, ⇒, ∖, P(B | A), n choose k.
+- Conviction (audit T4): expected failures under independence divided by observed failures.
+- Slide, session and example numbers are removed from learner-facing text. Errata read "If you're reading the slides: …" and appear after the gate they relate to. The {bread, eggs} erratum appears on the beat after the bread-branch gate, before the full walk.
+- New quiz generators:
+  - relMinsupQ (relative minsup → round up; keyed misconceptions);
+  - aprioriCountQ (the lecture scheme with a given order; the classic-prune and brute-force counts are misconceptions);
+  - fpEnumQ (full FP-growth enumeration);
+  - liftSymQ (lift symmetry);
+  - relMineQ (integrative level 3).
+- Generator fixes:
+  - ruleCountQ now draws k = 3–6 with a "single-item antecedents" misconception (the old k(k − 1) equalled 2^k − 2 for k = 2, 3);
+  - handRuleQ redraws when Sup(A) = |D| or Sup(A) = Sup(B);
+  - trapQ varies the common item (all baskets or all but one), and every option cites a computed number.
+- Application:
+  - minsup 15% × 30 = 4.5 is shown as "at least 5 (rounded up)" (`minsupCount` in frequentItemsets);
+  - new cells ask for Lift(sardinas → itlog) = (3/5)/(9/30) = 2.0, then whether {sardinas, itlog} (support 0.10) is frequent at 15%;
+  - decision options cite numbers;
+  - the load-trap cell shows confidence and base rate, and the learner computes the lift.
+- Re-audit (1.3.0):
+  - apriori-run no longer re-asks which item fails minsup (answered in the previous scene); it asks how many level-2 candidates start with {milk} (3: eggs, yogurt, cheese), which introduces "extend only by later items" before the 10-pair predict.
+  - Load-trap base rate is 26/30 = 0.867; it is printed to 3 decimals (0.75 / 0.867 ≈ 0.87) because 0.75 / 0.87 rounds to 0.86.
+  - act-on-rule (quiz): RelSup(paracetamol) = 0.40 / 0.92 ≈ 0.435 from option 2, so option 3 is conf 0.35, lift 0.80 (0.35 / 0.435).
+  - FP-growth cheese gate is a count-along on the cheese tick grid (counts hidden), like the bread gate.
+- Re-audit 2 (1.4.0):
+  - apriori-principle lattice gets no support map at all (the freq derive is gone). supportMap holds every itemset up to level 4, so showing it gave away the level-3 predict (only {eggs, milk, yogurt} shows 2). showSupport: false alone is not enough: ItemsetLattice still prints "support N" in each node's hover tooltip whenever a map is passed. Without minsup the map drove nothing else (no colouring; prune/highlight are set-based). Beat 0's narration gives the supports it needs, and the "support of your pick" Readout still answers the click-an-infrequent-pair gate.
+  - Every StepPlayer is now hidden until the beat that asks the learner to play it (lecture-support-table, apriori-run), so no predict can be answered by scrubbing.
+  - Confidence glossary: Sup is the count, one convention throughout (shares give the same ratio).
+  - Load-trap supersedes the 1.3.0 note above: the 3-decimal base-rate Readout is gone; the say gives load as 26 of 30 baskets next to kape 12 of 30, so the learner picks the base rate. Options state comparative results without numbers, because the bundle cell already prints "lift 0.87" for kape + load and the say prints 75%.

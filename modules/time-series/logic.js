@@ -46,22 +46,29 @@ export default function register(sdk) {
     });
     const shown = reveal ? 60 : 48;
     const series = [{ name: 'observed', x: Array.from({ length: shown }, (_, t) => t + 1), y: y.slice(0, shown) }];
-    if (!reveal) series.push({ name: 'hidden (your forecast)', x: [49, 60], y: [mean(y.slice(36, 48)), mean(y.slice(36, 48))] });
+    if (!reveal) {
+      // An outline box over the hidden months: it marks *where* the gap is without suggesting a level or a direction.
+      const obs = y.slice(0, 48);
+      const lo = Math.min(...obs), hi = Math.max(...obs), m = 0.25 * (hi - lo);
+      series.push({ name: 'hidden months', x: [48.5, 48.5, 60.5, 60.5, 48.5], y: [lo - m, hi + m, hi + m, lo - m, lo - m] });
+    }
     return { series, used: { A: 'the typical level', B: 'the direction', C: "the direction and last year's shape" }[which] };
   }
 
-  function decompose({ slope = 0.5, amp = 5, noise = 1.5, n = 48 }) {
+  // mode 'add': y = T + S + R. mode 'multiply': the seasonal swing grows in proportion to the level (T × S style).
+  function decompose({ slope = 0.5, amp = 5, noise = 1.5, n = 48, mode = 'add' }) {
     const r = prng(7);
     const T = [], S = [], R = [], y = [];
     for (let t = 0; t < n; t++) {
       T.push(30 + slope * t);
-      S.push(amp * Math.sin((2 * Math.PI * t) / 12));
+      const s = amp * Math.sin((2 * Math.PI * t) / 12);
+      S.push(mode === 'multiply' ? s * (T[t] / 30) : s);
       R.push(noise * r.n());
       y.push(T[t] + S[t] + R[t]);
     }
     const x = Array.from({ length: n }, (_, t) => t + 1);
     return {
-      series: [{ name: 'y = T + S + R', x, y }, { name: 'trend T', x, y: T }, { name: 'seasonal S', x, y: S.map((s) => s + 30) }],
+      series: [{ name: mode === 'multiply' ? 'y (swing grows with the level)' : 'y = T + S + R', x, y }, { name: 'trend T', x, y: T }, { name: 'seasonal S', x, y: S.map((s) => s + 30) }],
       parts: [{ name: 'remainder R', x, y: R }],
       hasTrend: Math.abs(slope) > 0.05, hasSeason: Math.abs(amp) > 0.5,
     };
@@ -123,6 +130,28 @@ export default function register(sdk) {
       trace.push({ label: `${r.month}: $y_{t-12}$ = same month last year = ${r.lag12}.`, code: 'lag12', math: 'lag12', vars: { t: r.month, lag_12: r.lag12 }, ops: [{ role: 'rows', cmd: 'highlight', args: { sel: `cell:${r.month},lag12`, tone: 'warn' } }] });
     }
     return { trace };
+  }
+
+  // A y-only lookup table of monthly CO₂ (one decimal, as on the lecture's table). The lag columns appear only once
+  // `reveal` is true, so the scene's lag predicts are answered by counting back rows, not by reading a labelled column.
+  function lagLookup({ co2, from = '1998-04', to = '1999-06', reveal = false }) {
+    const a = idx(from), b = idx(to);
+    const rows = [], values = [];
+    // One decimal, rounded the way pandas/NumPy print it: on the exact binary value, ties to even
+    // (June 1999 = 370.25 shows as 370.2, matching the lecture table and the lagrows dataset).
+    const r1 = (v) => {
+      const s = Math.abs(v).toFixed(60), i = s.indexOf('.');
+      const down = Number(s.slice(0, i + 2)), rest = s.slice(i + 2);
+      const tie = rest[0] === '5' && !/[1-9]/.test(rest.slice(1));
+      const up = rest[0] > '5' || (rest[0] === '5' && !tie) || (tie && Number(s[i + 1]) % 2 === 1);
+      const r = up ? Math.round((down + 0.1) * 10) / 10 : down;
+      return v < 0 ? -r : r;
+    };
+    for (let t = a; t <= b; t++) {
+      rows.push(label(t));
+      values.push(reveal ? [r1(co2[t]), r1(co2[t - 1]), r1(co2[t - 12])] : [r1(co2[t])]);
+    }
+    return { rows, cols: reveal ? ['y', 'lag_1', 'lag_12'] : ['y'], values };
   }
 
   // A table dataset as a Matrix payload: the first column becomes the row labels.
@@ -192,8 +221,9 @@ export default function register(sdk) {
     return { reject, byStat: stat < crit, consistent: reject === (stat < crit), text: reject ? 'reject H₀: evidence consistent with stationarity' : 'fail to reject H₀: no evidence against a unit root' };
   }
 
-  function adfView({ adf }) {
-    const rows = adf.rows.map((r) => Object.fromEntries(adf.columns.map((c, i) => [c, r[i]])));
+  // runs: optional list of run ids to show (e.g. only the level run before differencing has been taught).
+  function adfView({ adf, runs = null }) {
+    const rows = adf.rows.map((r) => Object.fromEntries(adf.columns.map((c, i) => [c, r[i]]))).filter((r) => !runs || runs.includes(r.run));
     return {
       table: { rows: rows.map((r) => r.run), cols: ['statistic', '5% critical', 'p-value', 'decision'], values: rows.map((r) => [r.stat, r.crit5, r.p, adfDecision({ stat: r.stat, crit: r.crit5, p: r.p }).reject ? '\\text{reject } H_0' : '\\text{fail to reject}']) },
       rejects: rows.filter((r) => r.p < 0.05).map((r) => r.run),
@@ -224,33 +254,33 @@ export default function register(sdk) {
     const d = difference({ y: vals });
     const values = rows.map((r, i) => [r[1], i === 0 ? null : i <= upTo ? d.d[i - 1] : null]);
     return {
-      rows: rows.map((r) => String(r[0])), cols: ['value', 'change Δy'], values, diffs: d.d, mean: d.mean, n: d.n, nd: d.nd,
+      rows: rows.map((r) => String(r[0])), cols: ['value', 'Δy'], values, diffs: d.d, mean: d.mean, n: d.n, nd: d.nd,
       done: Math.min(upTo, d.nd), series: [{ name: 'level y_t', x: rows.map((r) => r[0]), y: vals }],
       diffSeries: [{ name: 'change Δy_t', x: rows.slice(1).map((r) => r[0]), y: d.d }],
     };
   }
 
-  // roles: sheet (Matrix). Patches diffUpTo.
+  // roles: sheet (Matrix). Patches diffUpTo. One step per difference; the average is left for the learner to work out
+  // (the scene asks for it right after the walk), so no step prints it.
   function diffWalk({ annual }) {
     const rows = annual.rows;
     const trace = rows.slice(1).map((r, i) => ({
       label: `${r[0]}: $${r[1]} - ${rows[i][1]} = ${sg(r[1] - rows[i][1], 1)}$`,
       patch: { diffUpTo: i + 1 }, vars: { dy: r[1] - rows[i][1] },
-      ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: [`cell:${r[0]},change Δy`, `cell:${r[0]},value`, `cell:${rows[i][0]},value`], tone: 'accent' } }],
+      ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: [`cell:${r[0]},Δy`, `cell:${r[0]},value`, `cell:${rows[i][0]},value`], tone: 'accent' } }],
     }));
     const d = difference({ y: rows.map((r) => r[1]) });
-    trace.push({ label: `Average change $= (${d.d.map((x) => dn(x, 1)).join(' + ')}) / ${d.nd} = ${dn(d.mean, 2)}$. Six values in, five out.`, patch: { diffUpTo: d.nd }, vars: { mean: d.mean },
-      ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: 'col:change Δy', tone: 'good' } }] });
     return { steps: trace.length, mean: d.mean, trace };
   }
 
-  // anchors: lag, sub, lose. roles: sheet (Matrix)
+  // anchors: lag, sub, lose. roles: sheet (Matrix; its 'Δy' column starts blank and is filled step by step)
   function diffCode({ annual, lag = 1 }) {
     const rows = annual.rows;
     const trace = [{ label: `Pair each value with the one ${lag} step${lag > 1 ? 's' : ''} earlier.`, code: 'lag', math: 'lag', vars: { lag }, ops: [{ role: 'sheet', cmd: 'clear' }] }];
     rows.slice(lag).forEach((r, i) => {
-      trace.push({ label: `${r[0]}: $${r[1]} - ${rows[i][1]} = ${sg(r[1] - rows[i][1], 1)}$.`, code: 'sub', math: 'sub', vars: { t: r[0], dy: r[1] - rows[i][1] },
-        ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: `row:${r[0]}`, tone: 'accent' } }, { role: 'sheet', cmd: 'annotate', args: { sel: `cell:${r[0]},value`, text: sg(r[1] - rows[i][1], 1) } }] });
+      const dy = r[1] - rows[i][1];
+      trace.push({ label: `${r[0]}: $${r[1]} - ${rows[i][1]} = ${sg(dy, 1)}$.`, code: 'sub', math: 'sub', vars: { t: r[0], dy },
+        ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: [`cell:${r[0]},value`, `cell:${rows[i][0]},value`], tone: 'accent' } }, { role: 'sheet', cmd: 'fill', args: { cell: `${r[0]},Δy`, value: Math.round(dy * 10) / 10 } }] });
     });
     trace.push({ label: `${rows.length} values in, ${rows.length - lag} changes out: the first ${lag} cannot be differenced.`, code: 'lose', math: 'lose', vars: { n_out: rows.length - lag },
       ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: `row:${rows[0][0]}`, tone: 'bad' } }] });
@@ -317,12 +347,84 @@ export default function register(sdk) {
     return { r: lags.map((k) => a.r[k]), trace };
   }
 
-  // theoretical ACFs of the two notebook processes (beyond the slides)
-  function arMaAcf({ phi = 0.8, theta = 0.8, nlags = 10 }) {
+  // Partial autocorrelations from autocorrelations r[0..n] (Durbin–Levinson). Applied to the statsmodels ACF estimator
+  // this is statsmodels' pacf(method="ywm"), the method the notebook plots.
+  function pacfFromAcf(r, n) {
+    const out = [1];
+    let phi = [];
+    for (let k = 1; k <= n; k++) {
+      let num = r[k], den = 1;
+      for (let j = 1; j < k; j++) { num -= phi[j - 1] * r[k - j]; den -= phi[j - 1] * r[j]; }
+      const pk = num / den;
+      const next = [];
+      for (let j = 1; j < k; j++) next.push(phi[j - 1] - pk * phi[k - j - 1]);
+      next.push(pk);
+      phi = next;
+      out.push(pk);
+    }
+    return out;
+  }
+
+  // ACF and PACF of the differenced CO₂ training series, side by side (lags 1..nlags).
+  function pacfDiff({ co2, trainEnd = TRAIN_END, nlags = 12 }) {
+    const e = idx(trainEnd);
+    const d = difference({ y: co2.slice(0, e + 1) }).d;
+    const a = acf({ y: d, nlags });
+    const p = pacfFromAcf(a.r, nlags);
     const ks = Array.from({ length: nlags }, (_, i) => i + 1);
     return {
-      ar: ks.map((k) => phi ** k), ma: ks.map((k) => (k === 1 ? theta / (1 + theta * theta) : 0)),
-      bars: [{ name: 'AR(1) ACF: φᵏ (decays)', x: ks, y: ks.map((k) => phi ** k) }, { name: 'MA(1) ACF: cuts off after 1', x: ks, y: ks.map((k) => (k === 1 ? theta / (1 + theta * theta) : 0)) }],
+      r1: a.r[1], r2: a.r[2], p1: p[1], p2: p[2], pacf: p, acf: a.r,
+      bars: [{ name: 'ACF', x: ks, y: a.r.slice(1) }, { name: 'PACF', x: ks, y: p.slice(1) }],
+      table: { rows: ks.map((k) => `lag${k}`), cols: ['ACF', 'PACF'], values: ks.map((k) => [a.r[k], p[k]]) },
+    };
+  }
+
+  // anchors: r1, rsq, num, den, p22. roles: pacf (Matrix with rows lag1, lag2)
+  function pacfCode({ co2, trainEnd = TRAIN_END }) {
+    const v = pacfDiff({ co2, trainEnd, nlags: 2 });
+    const { r1, r2 } = v;
+    const num = r2 - r1 * r1, den = 1 - r1 * r1;
+    return {
+      p22: num / den,
+      trace: [
+        { label: `From the ACF: $r_1 = ${dn(r1, 3)}$, $r_2 = ${dn(r2, 3)}$.`, code: 'r1', math: 'r1', vars: { r1, r2 }, ops: [{ role: 'pacf', cmd: 'clear' }, { role: 'pacf', cmd: 'highlight', args: { sel: 'col:ACF', tone: 'accent' } }] },
+        { label: `If lag 2 only echoed lag 1, $r_2$ would be $r_1^2 = ${dn(r1 * r1, 3)}$.`, code: 'rsq', math: 'rsq', vars: { r1sq: r1 * r1 }, ops: [{ role: 'pacf', cmd: 'highlight', args: { sel: 'cell:lag1,ACF', tone: 'accent' } }] },
+        { label: `Top: what lag 2 adds beyond that echo, $${dn(r2, 3)} - ${dn(r1 * r1, 3)} = ${dn(num, 3)}$.`, code: 'num', math: 'num', vars: { num }, ops: [{ role: 'pacf', cmd: 'highlight', args: { sel: 'cell:lag2,ACF', tone: 'accent' } }] },
+        { label: `Bottom: $1 - r_1^2 = ${dn(den, 3)}$, the part lag 1 does not explain.`, code: 'den', math: 'den', vars: { den }, ops: [] },
+        { label: `$\\phi_{22} = ${dn(num, 3)} / ${dn(den, 3)} = ${dn(num / den, 3)}$.`, code: 'p22', math: 'p22', vars: { p22: num / den }, ops: [{ role: 'pacf', cmd: 'highlight', args: { sel: 'cell:lag2,PACF', tone: 'good' } }] },
+      ],
+    };
+  }
+
+  // In-sample residuals of the fitted ARIMA(1,1,1) on the training changes, by running the model's own recursion
+  // (ε_t = Δy_t − c − φ(Δy_{t−1} − c) − θ ε_{t−1}, started at 0). Reproduces the notebook's last residual (0.7249) and
+  // its residual ACF spike at lag 12 (0.58).
+  function residualAcf({ co2, arima, trainEnd = TRAIN_END, nlags = 24 }) {
+    const e = idx(trainEnd);
+    const d = difference({ y: co2.slice(0, e + 1) }).d;
+    const { drift: c, phi, theta } = arima;
+    let eps = 0;
+    const res = [];
+    for (let t = 1; t < d.length; t++) { eps = d[t] - (c + phi * (d[t - 1] - c) + theta * eps); res.push(eps); }
+    const a = acf({ y: res, nlags });
+    const ks = Array.from({ length: nlags }, (_, i) => i + 1);
+    return { lastResid: eps, lag1: a.r[1], lag12: a.r[12], lag24: a.r[24] ?? null, bars: [{ name: 'residual ACF', x: ks, y: a.r.slice(1) }] };
+  }
+
+  // Theoretical ACF or PACF of the two textbook processes (beyond the slides).
+  // AR(1): ACF fades as φ, φ², φ³…; PACF is φ at lag 1, then 0. MA(1): ACF is θ/(1+θ²) at lag 1, then 0; PACF fades.
+  function arMaAcf({ phi = 0.8, theta = 0.8, nlags = 10, kind = 'acf' }) {
+    const ks = Array.from({ length: nlags }, (_, i) => i + 1);
+    const arAcf = ks.map((k) => phi ** k), maAcf = ks.map((k) => (k === 1 ? theta / (1 + theta * theta) : 0));
+    const arPacf = ks.map((k) => (k === 1 ? phi : 0));
+    const maPacf = ks.map((k) => (-((-theta) ** k) * (1 - theta * theta)) / (1 - theta ** (2 * (k + 1))));
+    const isP = kind === 'pacf';
+    return {
+      ar: arAcf, ma: maAcf, arPacf, maPacf,
+      bars: [
+        { name: isP ? 'built from past values: PACF stops after lag 1' : 'built from past values: ACF fades', x: ks, y: isP ? arPacf : arAcf },
+        { name: isP ? 'built from past shocks: PACF fades' : 'built from past shocks: ACF stops after lag 1', x: ks, y: isP ? maPacf : maAcf },
+      ],
     };
   }
 
@@ -718,10 +820,13 @@ export default function register(sdk) {
       const base = rng.int(200, 400);
       const vals = Array.from({ length: n }, (_, i) => base + rng.int(-5, 5) + i);
       const k = difficulty === 1 ? rng.pick([1, 2, 3]) : rng.pick([1, per, per - 1, 2]);
-      if (k >= n) continue;
+      if (k >= n - 1) continue;
       const t = n - 1;
+      const value = vals[t - k], wrongForward = vals[t - k + 1], wrongOff = vals[t - k - 1];
+      // the two off-by-one rows must differ from the answer, or the misconception can never be told apart
+      if (wrongForward === value || wrongOff === value) continue;
       const rows = vals.map((_, i) => `t${i - t === 0 ? '' : i - t}`);
-      return { vars: { freq, per, k, vals, value: vals[t - k], wrongForward: vals[t - k + 1], wrongOff: vals[t - k - 1] ?? vals[0], yt: vals[t],
+      return { vars: { freq, per, k, vals, value, wrongForward, wrongOff, yt: vals[t],
         table: { rows: vals.map((_, i) => (i === t ? 't' : `t-${t - i}`)), cols: ['y'], values: vals.map((v) => [v]) }, rowsLabel: rows.join(',') } };
     }
   }
@@ -746,8 +851,9 @@ export default function register(sdk) {
       const target = (h - 1) % 12;
       const sn = last12[target];
       const nv = last12[11];
-      if (sn === nv) continue;
-      return { vars: { last12, h, sn, nv, targetMonth: months[target], wrongShift: last12[h % 12], table: { rows: months.map((m) => `${m}-97`), cols: ['y'], values: last12.map((v) => [v]) } } };
+      const wrongShift = last12[h % 12];
+      if (sn === nv || wrongShift === sn) continue;
+      return { vars: { last12, h, sn, nv, targetMonth: months[target], wrongShift, years: Math.floor((h - 1) / 12), table: { rows: months.map((m) => `${m}-97`), cols: ['y'], values: last12.map((v) => [v]) } } };
     }
   }
 
@@ -758,8 +864,11 @@ export default function register(sdk) {
       const fc = act.map((a) => a + rng.pick([-6, -4, -3, -2, 2, 3, 4, 5, 8]));
       const s = forecastScores({ actual: act, forecast: fc });
       const me = mean(act.map((a, i) => a - fc[i]));
+      const wrongMapeByF = 100 * mean(act.map((a, i) => Math.abs((a - fc[i]) / fc[i])));
       if (Math.abs(me) < 0.2 || Math.abs(s.mae - s.rmse) < 0.2) continue;
-      return { vars: { act, fc, mae: s.mae, rmse: s.rmse, mape: s.mape, me, mse: s.rmse ** 2, errors: s.errors, table: { rows: act.map((_, i) => `m${i + 1}`), cols: ['actual', 'forecast'], values: act.map((a, i) => [a, fc[i]]) }, wrongMapeByF: 100 * mean(act.map((a, i) => Math.abs((a - fc[i]) / fc[i]))) } };
+      // values near 100 make MAE and MAPE (%) almost equal; keep every warned-against value clear of each answer
+      if (Math.abs(s.mae - s.mape) < 0.03 || Math.abs(wrongMapeByF - s.mape) < 0.03 || Math.abs(s.rmse - s.mape) < 0.03) continue;
+      return { vars: { act, fc, mae: s.mae, rmse: s.rmse, mape: s.mape, me, mse: s.rmse ** 2, errors: s.errors, table: { rows: act.map((_, i) => `m${i + 1}`), cols: ['actual', 'forecast'], values: act.map((a, i) => [a, fc[i]]) }, wrongMapeByF } };
     }
   }
 
@@ -784,22 +893,31 @@ export default function register(sdk) {
       const y0 = +(y1 - dy).toFixed(1);
       const dh = c + phi * (dy - c) + theta * eps;
       const yhat = y1 + dh;
-      const wrongNoC = y1 + phi * dy + theta * eps;
-      const wrongLevel = c + phi * (dy - c) + theta * eps;
-      if (Math.abs(wrongNoC - yhat) < 0.02) continue;
+      const wrongNoC = y1 + phi * dy + theta * eps;                 // drift left out entirely
+      const wrongAsWritten = y1 + c + phi * dy + theta * eps;       // c used as a plain constant (the notebook's written form)
+      const wrongLevel = c + phi * (dy - c) + theta * eps;          // the change, not added back to the last value
+      const wrongNoMa = y1 + c + phi * (dy - c);                   // surprise term dropped at step 1
       const dh2 = c + phi * (dh - c);
-      return { vars: { c, phi, theta, y1, y0, dy, eps, dh, yhat, yhat2: yhat + dh2, dh2, wrongNoC, wrongLevel, wrongNoMa: y1 + c + phi * (dy - c) } };
+      const wrongKeepMa = yhat + dh2 + theta * eps;                 // surprise term kept at step 2
+      const far = (a) => Math.abs(a - yhat) >= 0.03;
+      if (!far(wrongNoC) || !far(wrongAsWritten) || !far(wrongNoMa) || Math.abs(wrongKeepMa - (yhat + dh2)) < 0.03) continue;
+      return { vars: { c, phi, theta, y1, y0, dy, eps, dh, yhat, yhat2: yhat + dh2, dh2, wrongNoC, wrongAsWritten, wrongLevel, wrongNoMa, wrongKeepMa } };
     }
   }
 
   function adfQ({ rng, difficulty }) {
     const crit = rng.pick([-2.868, -2.87, -3.42, -2.89]);
     const reject = rng.bool(0.5);
-    const stat = reject ? +(crit - rng.int(5, 200) / 100).toFixed(3) : +(crit + rng.int(10, 500) / 100).toFixed(3);
-    const p = reject ? rng.pick([0.0006, 0.003, 0.012, 0.031]) : rng.pick([0.08, 0.21, 0.51, 0.9989]);
+    // p follows the statistic: just past the cut-off gives p just under 0.05, far past it a tiny p; just short of the
+    // cut-off gives p a little above 0.05, far above it p near 1. (Pairs like "statistic barely above, p = 0.9989" are
+    // impossible for a real ADF test.)
+    const off = reject ? rng.int(5, 200) / 100 : rng.int(10, 500) / 100;
+    const stat = +(reject ? crit - off : crit + off).toFixed(3);
+    const p = reject ? (off < 0.3 ? 0.031 : off < 0.8 ? 0.012 : off < 1.4 ? 0.003 : 0.0006)
+      : (off < 0.6 ? 0.08 : off < 1.5 ? 0.21 : off < 3 ? 0.51 : 0.9989);
     return {
       vars: { stat, crit, p, reject },
-      options: ['Reject H₀: evidence consistent with stationarity', 'Fail to reject H₀: no evidence against a unit root', 'The series is proven stationary', 'The series is proven non-stationary'],
+      options: ['Reject H₀: the data give evidence that the series is stationary', 'Fail to reject H₀: the data give no evidence against a random walk', 'Reject H₀: the test proves that the series is stationary', 'Fail to reject H₀: the test proves the series is a random walk'],
       answer: reject ? 0 : 1,
     };
   }
@@ -818,20 +936,232 @@ export default function register(sdk) {
   function pacfQ({ rng, difficulty }) {
     for (;;) {
       const r1 = rng.int(3, 9) / 10, r2 = rng.int(0, 8) / 10;
+      // A real stationary series needs r2 ≥ 2·r1² − 1 (otherwise |φ22| > 1 is impossible, e.g. r1 = 0.9, r2 = 0.1).
+      if (r2 < 2 * r1 * r1 - 1) continue;
       const p2 = (r2 - r1 * r1) / (1 - r1 * r1);
-      if (Math.abs(p2 - r2) < 0.03) continue;
+      if (Math.abs(p2) >= 1) continue;
+      if (Math.abs(p2 - r2) < 0.03 || Math.abs(p2 - (r2 - r1 * r1)) < 0.03) continue;
       return { vars: { r1, r2, p2, wrongR2: r2, wrongNoDen: r2 - r1 * r1 } };
+    }
+  }
+
+  // A short new quarterly series: the last training year and the next four quarters. Used for one-step vs
+  // multi-step naive scores and for naive vs seasonal naive on the same hidden quarters.
+  function horizonQ({ rng, difficulty }) {
+    const Q = ['Q1', 'Q2', 'Q3', 'Q4'];
+    for (;;) {
+      // sometimes the yearly growth beats the seasonal swing (naive wins), sometimes the swing dominates (seasonal naive wins)
+      const big = rng.bool(0.5);
+      const base = rng.int(40, 80), growth = big ? rng.int(10, 16) : rng.int(1, 4);
+      const amp = big ? 1 : 2;
+      const swing = [rng.int(-3, -1) * amp, rng.int(0, 2) * amp, rng.int(2, 4) * amp, rng.int(-2, 0) * amp];
+      const val = (yr, q) => base + growth * (4 * yr + q) / 4 + swing[q] + rng.int(-1, 1);
+      const train = Q.map((_, q) => Math.round(val(0, q)));
+      const test = Q.map((_, q) => Math.round(val(1, q)));
+      const last = train[3];
+      const multi = test.map(() => last);
+      const one = test.map((_, i) => (i === 0 ? last : test[i - 1]));
+      const sn = train.slice();
+      const mae = (f) => forecastScores({ actual: test, forecast: f }).mae;
+      const maeMulti = mae(multi), maeOne = mae(one), maeSn = mae(sn);
+      const vals = [maeMulti, maeOne, maeSn];
+      if (new Set(test).size < 3 || maeMulti === maeOne) continue;
+      if (Math.abs(maeMulti - maeOne) < 0.5 || Math.abs(maeMulti - maeSn) < 0.5) continue;
+      if (Math.abs(maeOne - maeSn) < 0.5 || vals.some((v) => v === 0)) continue;
+      return {
+        vars: {
+          train, test, last, maeMulti, maeOne, maeSn,
+          snWins: maeSn < maeMulti ? 'seasonal naive' : 'naive',
+          table: { rows: ['Q1-train', 'Q2-train', 'Q3-train', 'Q4-train', 'Q1-test', 'Q2-test', 'Q3-test', 'Q4-test'], cols: ['sales'], values: [...train, ...test].map((v) => [v]) },
+          testList: test.join(', '), trainList: train.join(', '),
+          oneList: one.join(', '),
+        },
+      };
+    }
+  }
+
+  // A short monthly series that keeps climbing: the last training month and the next five months. Multi-step naive
+  // repeats the last training value for all five; one-step naive repeats each month's real predecessor.
+  function stepQ({ rng, difficulty }) {
+    for (;;) {
+      const last = rng.int(200, 400), g = rng.int(1, 3);
+      const test = Array.from({ length: 5 }, (_, i) => last + g * (i + 1) + rng.int(-1, 1));
+      if (test.some((v, i) => v === (i === 0 ? last : test[i - 1]))) continue;
+      const one = test.map((_, i) => (i === 0 ? last : test[i - 1]));
+      const sc = (f) => forecastScores({ actual: test, forecast: f });
+      const maeMulti = sc(test.map(() => last)).mae, maeOne = sc(one).mae;
+      const meOne = mean(test.map((a, i) => a - one[i]));
+      const wrongSumMulti = sum(test.map((a) => Math.abs(a - last)));
+      if (Math.abs(maeMulti - maeOne) < 0.5 || Math.abs(meOne - maeOne) < 0.03) continue;
+      return {
+        vars: {
+          last, test, maeMulti, maeOne, meOne, wrongSumMulti, ratio: maeMulti / maeOne, testList: test.join(', '), oneList: one.join(', '),
+          table: { rows: ['last-train', 'h1', 'h2', 'h3', 'h4', 'h5'], cols: ['value'], values: [last, ...test].map((v) => [v]) },
+        },
+      };
+    }
+  }
+
+  // ------------------------------------------------------------ level-3 transfer generators (new series, not CO₂)
+
+  // Reading p and q off a new set of sample ACF/PACF values (lags 1–5). The pattern is drawn from AR(1), AR(2), MA(1),
+  // ARMA(1,1) or a not-yet-stationary series; values are the model's theoretical ones plus a little sampling noise.
+  function pqQ({ rng, difficulty }) {
+    const L = 5;
+    const noise = () => rng.int(-3, 3) / 100;
+    const r2 = (v) => Math.round(v * 100) / 100;
+    for (;;) {
+      const kind = rng.pick(['ar1', 'ar2', 'ma1', 'arma', 'nonstat']);
+      const r = [1];
+      if (kind === 'ar1') {
+        const phi = rng.pick([-1, 1]) * rng.int(55, 80) / 100;
+        for (let k = 1; k <= L; k++) r.push(phi ** k);
+      } else if (kind === 'ar2') {
+        const p1 = rng.int(20, 60) / 100, p2 = rng.pick([-1, 1]) * rng.int(35, 50) / 100;
+        if (p1 + p2 >= 0.95 || p2 - p1 >= 0.95) continue;
+        r.push(p1 / (1 - p2));
+        for (let k = 2; k <= L; k++) r.push(p1 * r[k - 1] + p2 * r[k - 2]);
+      } else if (kind === 'ma1') {
+        const th = rng.pick([-1, 1]) * rng.int(55, 90) / 100;
+        for (let k = 1; k <= L; k++) r.push(k === 1 ? th / (1 + th * th) : 0);
+      } else if (kind === 'arma') {
+        const phi = rng.int(50, 75) / 100, th = rng.int(30, 60) / 100;
+        r.push(((1 + phi * th) * (phi + th)) / (1 + 2 * phi * th + th * th));
+        for (let k = 2; k <= L; k++) r.push(phi * r[k - 1]);
+      } else {
+        const a = rng.int(2, 4) / 100;
+        for (let k = 1; k <= L; k++) r.push(1 - a * k);
+      }
+      const pTrue = pacfFromAcf(r, L);
+      // a random walk's sample PACF: one big bar at lag 1, then nothing
+      if (kind === 'nonstat') for (let k = 2; k <= L; k++) pTrue[k] = 0;
+      const pacfV0 = pTrue.slice(1).map((v) => r2(v + noise()));
+      const pacfV = pacfV0.map((v) => Math.max(-0.99, Math.min(0.99, v)));
+      const acfV = r.slice(1).map((v) => r2(v + noise()));
+      // the pattern must be readable: cut-offs near 0, fades clearly non-zero for a few lags
+      const small = (a, from) => a.slice(from).every((v) => Math.abs(v) <= 0.06);
+      const fades = (a) => Math.abs(a[1]) >= 0.12 && Math.abs(a[2]) >= 0.1;   // a gap above the ±0.06 "nothing" band
+      const ok = {
+        ar1: small(pacfV, 1) && fades(acfV) && Math.abs(acfV[4]) < 0.5,
+        ar2: small(pacfV, 2) && Math.abs(pacfV[1]) >= 0.3 && fades(acfV),
+        ma1: small(acfV, 1) && Math.abs(acfV[0]) >= 0.35 && fades(pacfV),
+        arma: fades(acfV) && fades(pacfV) && Math.abs(acfV[4]) < 0.5,
+        nonstat: acfV[4] >= 0.75 && small(pacfV, 1),
+      }[kind];
+      if (!ok) continue;
+      const answer = { ar1: 0, ar2: 1, ma1: 2, arma: 3, nonstat: 4 }[kind];
+      return {
+        vars: { kind, acf: acfV, pacf: pacfV, table: { rows: ['lag 1', 'lag 2', 'lag 3', 'lag 4', 'lag 5'], cols: ['ACF', 'PACF'], values: acfV.map((v, i) => [v, pacfV[i]]) } },
+        options: ['AR(1): p = 1, q = 0', 'AR(2): p = 2, q = 0', 'MA(1): p = 0, q = 1', 'ARMA(1,1): p = 1, q = 1', 'Difference first: not stationary yet'],
+        answer,
+      };
+    }
+  }
+
+  // Seasonal difference on a new monthly series (15 months: a full year plus Jan–Mar), then a forecast for April that
+  // adds the average yearly change back to April a year earlier.
+  function seasonQ({ rng, difficulty }) {
+    for (;;) {
+      const base = rng.int(150, 300), g = rng.int(3, 8) / 10, amp = rng.int(30, 60) / 10;
+      const y = Array.from({ length: 15 }, (_, t) => +(base + g * t + amp * Math.sin((2 * Math.PI * (t - 2)) / 12) + rng.int(-4, 4) / 10).toFixed(1));
+      const d12 = difference({ y, lag: 12 }).d;
+      const d1 = difference({ y }).d;
+      const mD = mean(d12);
+      const fc = y[3] + mD;
+      const dLast = d12[2];
+      const wrongLast = y[14] + mD, wrongSn = y[3], wrongSum = sum(d12), wrongD1 = d1[d1.length - 1];
+      const far = (a, b) => Math.abs(a - b) >= 0.05;
+      if (!far(wrongLast, fc) || !far(wrongSn, fc) || !far(wrongD1, dLast) || !far(-dLast, dLast) || !far(wrongSum, mD)) continue;
+      const names = [...MONTHS, 'Jan', 'Feb', 'Mar'].map((m, i) => `${m}-${i < 12 ? 1 : 2}`);
+      return {
+        vars: { y, d12, mD, fc, nd: d12.length, aprPrev: y[3], marNow: y[14], marPrev: y[2], dLast, d12List: d12.map((v) => dn(v, 2)).join(', '),
+          table: { rows: names, cols: ['GWh'], values: y.map((v) => [v]) } },
+        misconceptions: [
+          { value: 14, feedback: 'That is the count for a first difference (n − 1). A seasonal difference loses the first 12 values.', for: 'nd' },
+          { value: 15, feedback: 'The first 12 months have no value a year earlier, so they give no seasonal difference.', for: 'nd' },
+          { value: wrongD1, feedback: 'That is March minus February, a first difference. Δ12 compares March with March a year earlier.', for: 'dLast' },
+          { value: -dLast, feedback: 'Later minus earlier: Δ12 y_t = y_t − y_(t−12).', for: 'dLast' },
+          { value: wrongSum, feedback: 'That is the total of the three changes. Divide by 3 for the average.', for: 'mD' },
+          { value: wrongLast, feedback: 'A yearly change is added to the same month last year (April), not to the latest month (March).', for: 'fc' },
+          { value: wrongSn, feedback: 'That is the plain seasonal naive forecast. Add the average yearly change to bring it up to this year.', for: 'fc' },
+        ],
+      };
+    }
+  }
+
+  // A fitted ARIMA(1,1,0) or ARIMA(0,1,1) with drift on a new weekly series: forecast three steps. Same recipe as the
+  // lesson's ARIMA(1,1,1), with the missing part left out.
+  function arimaTQ({ rng, difficulty }) {
+    for (;;) {
+      const order = rng.pick(['110', '011']);
+      const c = rng.int(3, 15) / 10;
+      const phi = order === '110' ? rng.int(3, 7) / 10 : 0, theta = order === '011' ? rng.int(3, 7) / 10 : 0;
+      const y1 = rng.int(1200, 2500) / 10, dy = rng.int(-30, 40) / 10, eps = order === '011' ? rng.int(-20, 20) / 10 : 0;
+      const y0 = +(y1 - dy).toFixed(1);
+      const step = (last, e) => c + phi * (last - c) + theta * e;
+      const dh1 = step(dy, eps), dh2 = step(dh1, 0), dh3 = step(dh2, 0);
+      const f1 = y1 + dh1, f2 = f1 + dh2, f3 = f2 + dh3;
+      const wrongNoC = order === '110' ? phi * dy : theta * eps;   // drift left out entirely
+      const wrongNoDrift = phi * (dy - c) + theta * eps;            // c subtracted inside but never added back
+      const wrongStale2 = f1 + step(dy, eps);                       // step 2 reuses the real last change (and surprise)
+      const wrongStraight3 = y1 + 3 * dh1;                          // the step-1 change repeated every step
+      const far = (a, b) => Math.abs(a - b) >= 0.03;
+      if (!far(wrongNoC, dh1) || !far(wrongNoDrift, dh1) || !far(dh1, f1) || !far(wrongStale2, f2) || !far(wrongStraight3, f3)) continue;
+      if (Math.abs(dy) < 0.1) continue;
+      const modelText = order === '110'
+        ? `ARIMA(1,1,0) with drift: average change c = ${c}, φ = ${phi} (no MA part)`
+        : `ARIMA(0,1,1) with drift: average change c = ${c}, θ = ${theta} (no AR part); the last surprise was ε = ${eps}`;
+      const misc0 = [
+        { value: wrongNoC, feedback: 'The drift c is missing: the forecast change starts from c.', for: 'dh1' },
+        { value: wrongNoDrift, feedback: 'You left out the drift c itself; add it to the rest of the change.', for: 'dh1' },
+        { value: dh1, feedback: 'That is the forecast **change**. Add it to the last value.', for: 'f1' },
+        { value: wrongStale2, feedback: order === '110' ? 'Step 2 builds on the step-1 forecast change, not the real last change again.' : 'From step 2 on the next surprise is unknown and set to 0, so the change is just c.', for: 'f2' },
+        { value: wrongStraight3, feedback: 'The change is not repeated unchanged: each step recomputes it from the one before.', for: 'f3' },
+      ];
+      // with φ = 0 the two drift mistakes give the same number: keep the first
+      const misc = misc0.filter((m, i) => !misc0.slice(0, i).some((o) => o.for === m.for && Math.abs(o.value - m.value) < 1e-9));
+      return { vars: { order, c, phi, theta, y0, y1, dy, eps, dh1, dh2, dh3, f1, f2, f3, modelText }, misconceptions: misc };
+    }
+  }
+
+  // One row of lag features for a new monthly series (Jan year 1 to Feb year 2), then the regression forecast for
+  // February of year 2 from given weights.
+  function featQ({ rng, difficulty }) {
+    for (;;) {
+      const base = rng.int(40, 70);
+      const y = Array.from({ length: 14 }, (_, t) => base + Math.round(0.5 * t + 6 * Math.sin((2 * Math.PI * t) / 12)) + rng.int(-2, 2));
+      const t = 13;
+      const lag1 = y[t - 1], lag12 = y[t - 12], roll = (y[t - 1] + y[t - 2] + y[t - 3]) / 3, leaky = (y[t] + y[t - 1] + y[t - 2]) / 3;
+      const b0 = rng.int(1, 5), w1 = rng.pick([0.4, 0.5]), w12 = rng.pick([0.2, 0.3]), w3 = Math.round((1 - w1 - w12) * 10) / 10;
+      const fc = b0 + w1 * lag1 + w12 * lag12 + w3 * roll;
+      const wrongLeaky = b0 + w1 * lag1 + w12 * lag12 + w3 * leaky, wrongNoB0 = fc - b0;
+      const far = (a, b) => Math.abs(a - b) >= 0.05;
+      if (lag1 === lag12 || !far(leaky, roll) || !far(y[t - 11], lag12) || !far(y[t], lag12) || !far(y[t], lag1) || !far(y[t - 2], lag1) || !far(wrongLeaky, fc)) continue;
+      const names = MONTHS.map((m) => `${m}-1`).concat(['Jan-2', 'Feb-2']);
+      return {
+        vars: { y, lag1, lag12, roll, leaky, b0, w1, w12, w3, fc, actual: y[t],
+          table: { rows: names, cols: ['sales'], values: y.map((v) => [v]) } },
+        misconceptions: [
+          { value: y[t], feedback: 'That is February itself, the month being forecast. lag_1 is the month before it.', for: 'lag1' },
+          { value: y[t - 2], feedback: 'Count one step back from February: lag_1 is January.', for: 'lag1' },
+          { value: y[t - 11], feedback: 'That is 11 steps back. lag_12 is February of the year before.', for: 'lag12' },
+          { value: y[t], feedback: 'lag_12 is the same month **last** year, not this February.', for: 'lag12' },
+          { value: leaky, feedback: 'That window includes February, the month being predicted (leakage). Shift first: average Nov, Dec and Jan.', for: 'roll' },
+          { value: wrongLeaky, feedback: 'You used the leaky rolling mean, which contains February itself.', for: 'fc' },
+          { value: wrongNoB0, feedback: 'Add the intercept as well as the weighted columns.', for: 'fc' },
+        ],
+      };
     }
   }
 
   return {
     fns: {
-      forecaster, tableMatrix, decompose, decomposeAt, decomposeCode, lagAt, lagView, lagCode, shuffleOrder, chronoSplit, splitCode,
+      forecaster, tableMatrix, decompose, decomposeAt, decomposeCode, lagAt, lagView, lagLookup, lagCode, shuffleOrder, chronoSplit, splitCode,
       gallery, adfDecision, adfView, adfCode, difference, annualDiff, diffWalk, diffCode, trainDiff,
-      acf, acfDiff, lagScatter, acfCode, arMaAcf, forecastScores, naive, seasonalNaive, arimaForecast, arimaAsWritten, arimaOneStep,
+      acf, acfDiff, pacfDiff, pacfCode, residualAcf, lagScatter, acfCode, arMaAcf, forecastScores, naive, seasonalNaive, arimaForecast, arimaAsWritten, arimaOneStep,
       baselineCompare, allScores, maeSheet, maeWalk, metricsCode, testTable, baselineCode, baselineTable,
       arimaCode, arimaTable, arimaWalk, arimaScene, lrScenario, featureSheet, appView, appBaselines, appAcf, appLR, appNaive1, featureWalk, featuresCode, scenarioTable, scenarioView,
     },
-    generators: { lagQ, diffQ, naiveQ, metricsQ, acfQ, arimaQ, adfQ, rollQ, pacfQ },
+    generators: { lagQ, diffQ, naiveQ, metricsQ, acfQ, arimaQ, adfQ, rollQ, pacfQ, horizonQ, stepQ, pqQ, seasonQ, arimaTQ, featQ },
   };
 }

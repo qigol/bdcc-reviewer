@@ -16,10 +16,12 @@ templates:
       - prompt: 'Size-weighted Gini of the two children'
         answer: { var: child, tol: 0.005 }
         misconceptions:
-          - { var: wrongNoChildWeights, feedback: 'Weight each child by its share of the node''s rows, N_L/N_t and N_R/N_t, not ½ each.' }
+          - { var: wrongChildMean, feedback: 'That is the plain average of the two Ginis. Weight each child by its share of the node''s rows, N_L/N_t and N_R/N_t, not ½ each.' }
         hint: 'Work out each child''s Gini, then weight each by its share of the node''s cases.'
       - prompt: Impurity decrease credited to this split
         answer: { var: decrease, tol: 0.005 }
+        misconceptions:
+          - { var: wrongNoChildWeights, feedback: 'Use the size-weighted children''s Gini from the step before, not their plain average.' }
         hint: 'Node Gini minus the weighted children''s Gini.'
     hints:
       - Gini measures how mixed a group is. Start with the group before the split.
@@ -81,7 +83,7 @@ templates:
       - Whether larger values push towards benign or malignant
       - How well the model does on new data (it is worked out on the training data)
       - How much accuracy the feature is worth
-      - 'Which features the model''s questions used most'
+      - 'Which features'' questions removed the most mixing'
     answer: [0, 1, 2]
     hints:
       - What three things would you want to know that a list of shares cannot tell you?
@@ -98,7 +100,7 @@ templates:
     generator: permQ
     lessonRef: { tab: math-code, id: permutation-importance }
     prompt: |
-      The test {=metric} is {=base}. After shuffling one feature {=reps} times, the {=metric} values are {=shuffledList}. What is that feature's permutation importance?
+      The test {=metric} is {=base}. After shuffling one feature {=reps} times, the {=metric} values are {=shuffledList}. What is that feature's permutation importance? Give 3 decimal places.
     answer: { var: imp, tol: 0.001 }
     misconceptions:
       - { var: wrongSign, feedback: 'Importance is baseline − shuffled score, so a drop is positive.' }
@@ -117,10 +119,10 @@ templates:
     lessonRef: { tab: intuition, id: twins }
     prompt: A feature has permutation importance −0.0003. What should you do?
     options:
-      - Treat it as noise around zero; check for twin features before concluding anything
-      - Delete the feature because it hurts the model
+      - Treat it as noise near zero and look for twin features
+      - Delete the feature, since shuffling it helped the model
       - 'Report that the feature lowers the model''s accuracy'
-      - Re-run until the value is positive
+      - Re-run the shuffles until the value comes out positive
     answer: 0
     hints:
       - Could a shuffle make the score slightly better just by chance?
@@ -134,7 +136,7 @@ templates:
     difficulty: 1
     tags: [term]
     lessonRef: { tab: math-code, id: permutation-importance }
-    prompt: Complete the Session 6 comparison of the two importances.
+    prompt: Complete the comparison of the two importances.
     pairs:
       -   - 'Built-in importance: data used'
           - The training data
@@ -188,11 +190,10 @@ templates:
     lessonRef: { tab: intuition, id: twins }
     prompt: 'worst radius is 5th by built-in importance but 29th of 30 by permutation importance. The best explanation?'
     options:
-      - |
-        Its look-alikes (worst perimeter, worst area) carry the same information, so shuffling it alone costs almost nothing
-      - Built-in importance is wrong and should be ignored
-      - 'worst radius only matters on the training data, so it is overfit'
-      - Permutation importance cannot handle number features
+      - Its look-alikes carry the same information, so shuffling it alone costs little
+      - Built-in importance is unreliable and should simply be ignored
+      - 'Worst radius only matters on the training data, so it is overfit'
+      - Permutation importance cannot handle features measured in numbers
     answer: 0
     hints:
       - What happens when you scramble one twin but the model can still read the others?
@@ -268,10 +269,10 @@ templates:
     lessonRef: { tab: intuition, id: pdp-sweep }
     prompt: 'A PDP of P(class 1 = benign) against worst concave points slopes downward. What does it say?'
     options:
-      - 'On average, when this model sees more concave points it predicts a lower benign probability'
-      - More concave points cause malignancy
+      - 'On average, this model gives a lower benign probability at more concave points'
+      - More concave points cause a tumour to become malignant
       - Every patient's benign probability falls as concave points rise
-      - Concave points is the most important feature
+      - Concave points is the most important feature in the model
     answer: 0
     hints:
       - 'A PDP is an average of the model''s answers. Does it say anything about causes or about each patient?'
@@ -285,7 +286,7 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: math-code, id: partial-dependence }
-    prompt: Which are genuine limitations of a PDP (Session 6)? Select all that apply.
+    prompt: Which are genuine limitations of a PDP? Select all that apply.
     options:
       - 'It averages, so two groups moving in opposite directions can cancel out to a flat line'
       - Setting one feature while the others stay put can create impossible cases
@@ -395,12 +396,12 @@ templates:
     difficulty: 2
     tags: [math]
     lessonRef: { tab: math-code, id: shapley-formula }
-    prompt: 'Match each piece of the Shapley formula $\phi_j = \sum_S \frac{|S|!\,(|F|-|S|-1)!}{|F|!}[f(S \cup \{j\}) - f(S)]$ to what it counts.'
+    prompt: 'Match each piece of the Shapley formula $\phi_j = \sum_S \frac{|S|!\,(|F|-|S|-1)!}{|F|!}[v(S \cup \{j\}) - v(S)]$ to what it counts.'
     pairs:
       - ['$|S|!$', 'Orderings of the features already known before j']
       - ['$(|F| - |S| - 1)!$', 'Orderings of the features that come after j']
       - ['$|F|!$', 'All orderings of the features']
-      - ['$f(S \cup \{j\}) - f(S)$', 'How much the prediction moved when j joined']
+      - ['$v(S \cup \{j\}) - v(S)$', 'How much the prediction moved when j joined']
     hints:
       - '"n!" counts the orders of n things.'
     explanation: |
@@ -409,7 +410,7 @@ templates:
 
   - id: additivity-missing
     type: numeric
-    skills: [shapley]
+    skills: [shap-reading, shapley]
     difficulty: 2
     tags: [math]
     generator: additivityQ
@@ -429,7 +430,7 @@ templates:
 
   - id: class-flip
     type: numeric
-    skills: [shapley, honest-reading]
+    skills: [shap-reading, honest-reading]
     difficulty: 1
     tags: [intuition]
     generator: additivityQ
@@ -448,7 +449,7 @@ templates:
 
   - id: shap-slice-code
     type: code-fill
-    skills: [shapley, honest-reading]
+    skills: [shap-reading, honest-reading]
     difficulty: 1
     tags: [code]
     lessonRef: { tab: math-code, id: shap-additivity }
@@ -497,17 +498,16 @@ templates:
     lessonRef: { tab: intuition, id: local-line }
     prompt: What is a LIME weight such as +0.047 for "worst texture ≤ 21.06"?
     options:
-      - |
-        A weight in a simple stand-in model fitted around this one case; compare it with SHAP only by order and sign
-      - The change in P(benign) caused by worst texture
-      - 'The forest''s own internal weight for worst texture'
-      - 'The feature''s importance for the whole model'
+      - A weight in a small stand-in line fitted around this one case
+      - The change in P(benign) caused by this patient's worst texture
+      - 'The forest''s own internal weight for the worst texture feature'
+      - 'How important worst texture is for the whole model overall'
     answer: 0
     hints:
       - LIME fits its own small model. Whose number is the weight?
     explanation: |
       LIME is a second model of the first one, built around one case using ranges like "≤ 21.06". Its weights are not
-      changes in probability and can change between runs.
+      changes in probability, can change between runs, and should be compared with SHAP only by order and sign.
 
 
   - id: lime-order
@@ -555,8 +555,8 @@ templates:
     generator: cfQ
     lessonRef: { tab: math-code, id: counterfactual-search }
     prompt: |
-      {=rule}. A case has x1 = {=x1}, x2 = {=x2}, so its score is {=s} (malignant). Holding the other feature fixed, what
-      value of **{=feature}** puts the score exactly at 0?
+      {=rule}. The model says benign when the score is above 0. A case has x1 = {=x1}, x2 = {=x2}, so its score is {=s}
+      (malignant). Holding the other feature fixed, what value of **{=feature}** puts the score exactly at 0?
     answer: { var: target, tol: 0.01 }
     misconceptions:
       - { var: wrongSign, feedback: 'Wrong direction: with a negative weight, the feature must go down to raise the score.' }
@@ -565,8 +565,8 @@ templates:
       - The score must rise from its current value to 0.
       - Each unit of the feature changes the score by its weight. Change needed = gap ÷ weight.
     explanation: |
-      The score must rise by {=s} to reach 0. Each unit of {=feature} changes the score by its weight, so {=feature}
-      must move by {=change|2}, to {=target|2}.
+      The score must rise by {=gap} to reach 0. Each unit of {=feature} changes the score by its weight, {=w}, so {=feature}
+      must move by {=gap} ÷ ({=w}) = {=change|2}, to {=target|2}.
 
   - id: cf-valid-plausible
     type: mcq
@@ -576,10 +576,10 @@ templates:
     lessonRef: { tab: intuition, id: flip-it }
     prompt: 'DiCE returns a counterfactual that halves worst perimeter (117.7 → 57.4) but leaves worst area at 989.5. The forest calls it benign. Which is true?'
     options:
-      - 'It is valid (it flips the model) but not plausible: perimeter and area are tied together by geometry'
-      - 'It is valid and plausible, so it is a good treatment target'
-      - It is invalid because the model is wrong
-      - It proves that perimeter causes malignancy
+      - 'Valid but not plausible: perimeter and area are tied by geometry'
+      - 'Valid and plausible, so it is a sensible treatment target'
+      - Invalid, because the forest must have made a mistake
+      - It shows that a large perimeter causes malignancy
     answer: 0
     hints:
       - Can perimeter halve while area stays the same?
@@ -628,10 +628,10 @@ templates:
     lessonRef: { tab: intuition, id: global-or-local }
     prompt: A patient asks why her result came out malignant. A colleague shows her the PDP of worst radius. What is wrong?
     options:
-      - 'Wrong size of question: a PDP is an average over all cases, not an explanation of her result'
-      - Nothing; the PDP explains every patient
-      - PDPs can only be shown to auditors
-      - The PDP should be replaced by built-in importance
+      - 'Wrong size of question: a PDP averages over all patients, not her'
+      - 'Nothing: a PDP explains every single patient''s result'
+      - 'Nothing, as long as the PDP is for her strongest feature'
+      - 'It should be built-in importance, which is about her case'
     answer: 0
     explanation: |
       For one decision, use a local tool (SHAP, LIME, counterfactual). The size of the question decides the tool.
@@ -645,10 +645,10 @@ templates:
     lessonRef: { tab: intuition, id: flip-it }
     prompt: Why can none of SHAP, LIME, PDPs or counterfactuals support a causal claim?
     options:
-      - 'They all change inputs and watch the model react, which only ever describes the model'
-      - Because the forest has too many trees
-      - Because the data set is too small
-      - 'They can, if accuracy is above 95%'
+      - 'They change inputs and watch the model react, which describes only the model'
+      - 'The forest has too many trees for its answers to be traced back'
+      - 'Their numbers change between runs, so they cannot be trusted at all'
+      - 'They can, but only when the model''s accuracy is above 95%'
     answer: 0
     hints:
       - What do all four methods do to get their answer?
@@ -656,11 +656,11 @@ templates:
 
   - id: encoding-multi
     type: multi
-    skills: [honest-reading, shapley]
+    skills: [honest-reading, shap-reading]
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: intuition, id: waterfall }
-    prompt: In the Session 7 notebook (0 = malignant, 1 = benign), the SHAP waterfall for class 1 shows worst area at −0.16. Which statements are true?
+    prompt: 'Suppose a SHAP waterfall for one patient, explaining class 1 = benign (0 = malignant), shows worst area at −0.16. Which statements are true?'
     options:
       - 'worst area pushed this patient''s P(benign) down by about 0.16'
       - 'Explained for class 0, the same bar would be +0.16'
@@ -668,6 +668,8 @@ templates:
       - 'The bar''s sign depends on which class was picked'
       - '"Negative" means the feature is bad for the patient'
     answer: [0, 1, 3]
+    hints:
+      - What does a negative bar mean when the class explained is benign?
     explanation: |
       Negative means "towards class 0" for the class you picked. Switching class flips every sign. Nothing here is a cause or a judgement.
 
@@ -714,3 +716,235 @@ templates:
       - Each question is scaled by the share of cases that reach it.
     explanation: |
       Each question is weighted by the share of training cases that reach it, and each feature's total is divided by the overall total so they sum to 1.
+
+  - id: perm-auc-numeric
+    type: numeric
+    skills: [permutation-importance]
+    difficulty: 2
+    tags: [math]
+    generator: permQ
+    lessonRef: { tab: math-code, id: permutation-importance }
+    prompt: |
+      A forest's test {=metric} is {=base}. After shuffling one feature {=reps} times, the {=metric} values are
+      {=shuffledList}. What is that feature's permutation importance? Give 4 decimal places.
+    answer: { var: imp, tol: 0.0005 }
+    misconceptions:
+      - { var: wrongSign, feedback: 'Importance is original score − shuffled score, so a drop is positive.' }
+      - { var: wrongFirst, feedback: 'Average over all the shuffles; one shuffle can be luck.' }
+    hints:
+      - The drops are in thousandths of ROC-AUC, as in the real forest. Keep every decimal.
+      - Average the shuffled scores, then subtract that average from the original score.
+    explanation: |
+      Average shuffled ROC-AUC {=meanShuffled|4}; importance = {=base} − {=meanShuffled|4} = {=imp|4}. Small, because a
+      score near 1 has little room to fall: read the order of the features, not the size.
+
+  - id: waterfall-hand
+    type: hand-calc
+    skills: [shap-reading, honest-reading]
+    difficulty: 3
+    tags: [math, application]
+    generator: waterfallQ
+    lessonRef: { tab: intuition, id: waterfall }
+    prompt: |
+      A bank's loan model explains P(approved) for one applicant (class 1 = approved, class 0 = refused) with a SHAP
+      waterfall. The table lists it top-down as the plot draws it: the prediction f(x) at the top (hidden), the bars
+      sorted by size, and the baseline E[f(x)] at the bottom.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 2 } }
+    steps:
+      - prompt: 'Read from the bottom: the running total after the two bars nearest the baseline ({=bottomTwo})'
+        answer: { var: afterTwo, tol: 0.005 }
+        hint: Start at the baseline and add the two lowest bars.
+      - prompt: 'P(approved) at the top of the plot, f(x)'
+        answer: { var: fx, tol: 0.005 }
+        hint: Keep adding bars until all four are in.
+      - prompt: 'The top of the same plot if you explain class 0 instead: P(refused)'
+        answer: { var: fxNo, tol: 0.005 }
+        hint: 'Switching class flips the baseline (1 − E[f(x)]) and every bar''s sign.'
+    hints:
+      - A waterfall is read from the bottom up, one bar at a time.
+      - Baseline + every push = the prediction at the top.
+    explanation: |
+      Bottom-up: {=base} plus the {=bottomTwo} bars gives {=afterTwo|2}; all four bars (sum {=sumPhi|2}) give
+      f(x) = {=fx|2}. For class 0 the baseline is 1 − {=base} and every push flips, so the top is 1 − {=fx|2} = {=fxNo|2}.
+      A bar's sign says "towards approved" or "towards refused", never "good" or "bad".
+
+  - id: twins-loan-hand
+    type: hand-calc
+    skills: [correlation-trap, permutation-importance]
+    difficulty: 3
+    tags: [math, application]
+    generator: twinsQ
+    lessonRef: { tab: math-code, id: correlated-twins }
+    prompt: |
+      A loan model uses monthly income and monthly salary, which are near twins (for most people salary is most of their
+      income). Its test ROC-AUC is {=base}. Shuffling income alone, twice, gives {=incList}. Shuffling salary alone gives
+      {=salList}. Shuffling both columns together with the same shuffle gives {=bothList}.
+    steps:
+      - prompt: 'Permutation importance of income alone (4 decimal places)'
+        answer: { var: impIncome, tol: 0.0002 }
+        hint: Original score minus the average of the two shuffled scores.
+      - prompt: 'Permutation importance of income and salary shuffled together (4 decimal places)'
+        answer: { var: impBoth, tol: 0.0002 }
+        hint: Same rule, using the scores with both columns shuffled.
+    hints:
+      - Permutation importance = original score − average shuffled score.
+      - Work out each one separately; do not add the single importances.
+    explanation: |
+      Income alone: {=base} − {=meanInc|4} = {=impIncome|4}, about zero, because the model still reads salary. Together:
+      {=base} − {=meanBoth|4} = {=impBoth|4}. Adding the one-at-a-time values ({=sumSingles|4}) would hide what the twins
+      carry between them, so report them as one group.
+
+  - id: twins-transfer-multi
+    type: multi
+    skills: [correlation-trap, honest-reading]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: twins }
+    prompt: |
+      In a loan model, income alone has permutation importance 0.0005 and salary alone −0.001, but shuffling the two
+      together drops ROC-AUC by 0.06. Which conclusions are sound? Select all that apply.
+    options:
+      - The pair carries real information even though each looks useless alone
+      - Income can be dropped, because its own importance is about zero
+      - Report income and salary as one group in the ranking
+      - The negative value means salary makes the model worse
+      - Built-in importance would probably split the credit between them
+    answer: [0, 2, 4]
+    hints:
+      - When one twin is shuffled, what can the model still read?
+    explanation: |
+      Twins cover for each other, so one-at-a-time shuffles look like zero. The joint drop shows what they carry together.
+      A tiny negative value is noise, and built-in importance shares credit between twins rather than erasing it.
+
+  - id: cf-loan-hand
+    type: hand-calc
+    skills: [counterfactuals]
+    difficulty: 3
+    tags: [math, application]
+    generator: cfQ
+    lessonRef: { tab: math-code, id: counterfactual-search }
+    prompt: |
+      A bank's loan model: {=rule}, where x1 is monthly debt payments and x2 is credit-card balance, both in ₱10,000s.
+      It approves when the score is above 0. An applicant has x1 = {=x1} and x2 = {=x2}.
+    steps:
+      - prompt: Her score now
+        answer: { var: s, tol: 0.01 }
+        hint: Put her two values into the score.
+      - prompt: How much the score must rise to reach 0
+        answer: { var: gap, tol: 0.01 }
+        hint: The distance from her score up to 0.
+      - prompt: 'The value of {=feature} that puts the score exactly at 0, with the other feature held fixed'
+        answer: { var: target, tol: 0.01 }
+        misconceptions:
+          - { var: wrongSign, feedback: 'Wrong direction: with a negative weight, the feature must go down to raise the score.' }
+          - { var: wrongNoWeight, feedback: 'Divide the score gap by the feature''s weight.' }
+        hint: Change needed = gap ÷ weight; add it to her current value.
+    hints:
+      - First find how far below 0 she is.
+      - Each unit of a feature moves the score by that feature's weight.
+    explanation: |
+      Score {=s}; it must rise by {=gap}. The weight of {=feature} is {=w}, so {=feature} must change by {=gap} ÷ ({=w}) =
+      {=change|2}, to {=target|2}. That is valid; whether she could pay that much down is the actionability question.
+
+  - id: cf-actionable-multi
+    type: multi
+    skills: [counterfactuals, honest-reading]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: flip-it }
+    prompt: |
+      A loan model refuses an applicant. A counterfactual search returns these changes, and each one would flip the model to
+      "approve". Which are both plausible and actionable? Select all that apply.
+    options:
+      - Pay down ₱20,000 of credit-card debt
+      - Be five years younger
+      - Have a monthly salary higher than her total monthly income
+      - Have opened her bank account ten years earlier
+      - Take a second job that adds ₱8,000 a month
+    answer: [0, 4]
+    hints:
+      - Check each change twice. Could such a person exist? Could she make it happen from today?
+    explanation: |
+      All five are valid: they flip the model. Age and the past cannot be changed (not actionable). Salary above total
+      income cannot exist (not plausible). Only paying down debt and earning more are both, and even these describe the
+      model's rule, not a promise about her real finances.
+
+  - id: highcard-mcq
+    type: mcq
+    skills: [impurity-importance, permutation-importance]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: impurity-credit }
+    prompt: |
+      A colleague leaves a "patient ID" column (a different number for every patient) in a forest's training data. Its
+      built-in importance comes out at 0.04, but its permutation importance on the test set is about 0. What is going on?
+    options:
+      - With so many values, trees found splits on it that fit training noise
+      - The ID really matters, and permutation importance missed it
+      - Permutation importance cannot handle columns with many values
+      - The ID must be a twin of another feature in the data
+    answer: 0
+    hints:
+      - Which of the two importances is worked out on the training data?
+    explanation: |
+      A feature with many distinct values offers many possible questions, so trees can use it to separate training rows by
+      luck. Built-in importance counts that as credit. On new data the ID carries no signal, so shuffling it costs nothing.
+
+  - id: pdp-flat-multi
+    type: multi
+    skills: [pdp, honest-reading]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: math-code, id: partial-dependence }
+    prompt: 'A house-price model''s PDP for "number of bathrooms" is flat. Which conclusions are justified? Select all that apply.'
+    options:
+      - "On average, the model's answer does not change with bathrooms"
+      - Bathrooms make no difference to the price of any house
+      - Some groups of houses may move in opposite directions and cancel out
+      - Adding a bathroom to a real house will not change its price
+      - 'Some forced cases may be impossible, like a studio flat with five bathrooms'
+    answer: [0, 2, 4]
+    hints:
+      - A PDP is an average of the model's answers over cases with one feature forced.
+    explanation: |
+      A flat PDP says the model's average answer does not move. It can hide groups that cancel out, it can rest on
+      impossible cases, and it never says what would happen to a real house.
+
+  - id: lime-objective-mcq
+    type: mcq
+    skills: [lime]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: lime-surrogate }
+    prompt: 'In LIME''s objective $\xi(x) = \arg\min_{g \in G} \mathcal{L}(f, g, \pi_x) + \Omega(g)$, what does $\Omega(g)$ do?'
+    options:
+      - It penalizes a complicated stand-in, keeping it simple to read
+      - It weights each changed copy by how close it is to x
+      - It measures how badly g copies the model f near x
+      - It lists the family of simple models LIME may choose from
+    answer: 0
+    hints:
+      - 'Match each symbol: G is the family, π_x the closeness weights, L the copying error.'
+    explanation: |
+      L measures how well g copies f near x, using the closeness weights π_x; G is the family of simple models; Ω(g) adds a
+      cost for complexity, so the winning g stays simple enough to explain.
+
+  - id: cf-lambda-mcq
+    type: mcq
+    skills: [counterfactuals]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: counterfactual-search }
+    prompt: 'In the counterfactual objective $\arg\min_{x''} \text{loss}(f(x''), y_{\text{target}}) + \lambda\, d(x, x'')$, what happens if λ is made much larger?'
+    options:
+      - Staying close to x counts more, so x' moves less and may not flip
+      - Flipping the class counts more, so x' may move as far as it needs
+      - More features are allowed to change at the same time
+      - The model is retrained with a stronger penalty on its weights
+    answer: 0
+    hints:
+      - λ multiplies the distance term. What does a bigger multiplier make the search care about?
+    explanation: |
+      λ weighs closeness against reaching the wanted class. A large λ keeps x' near x, at the risk of not flipping; a small
+      λ flips reliably but may wander far from the real case. The model itself never changes.

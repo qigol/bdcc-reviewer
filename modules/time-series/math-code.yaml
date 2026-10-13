@@ -4,7 +4,7 @@ sections:
     skills: [ts-structure]
     beyondSlides: true
     summary: |
-      Slide 13's idea, made concrete (this is what statsmodels' `seasonal_decompose` does). A 12-month moving average
+      The additive idea, made concrete (this is what statsmodels' `seasonal_decompose` does). A 12-month moving average
       centred on the month estimates the [[trend|trend]]. The average left-over for each calendar month estimates the
       [[seasonality|season]]. The [[remainder|remainder]] is what is left.
     keyFormula: 'y_t \approx T_t + S_t + R_t'
@@ -37,35 +37,46 @@ sections:
         say: The remainder is everything the trend and the season do not explain.
       - tex: |
           {=month}: \ {=dc.y|3} = {=dc.T|3} + ({=dc.S|3}) + ({=dc.R|3})
-        say: '"≈, not =": a way of looking at the data, not a theory of how CO₂ is made (slide 13).'
+        say: '"≈, not =": a way of looking at the data, not a theory of how CO₂ is made.'
     code:
       lang: python
       source: |
         import numpy as np
 
+        def trend_at(y, i):
+            """2×12 centred moving average at index i.
+
+            Args:
+                y: 1-D array of monthly values; i: index with 6 months on each side.
+
+            Returns:
+                float, the trend estimate T_i.
+            """
+            return (0.5 * y[i - 6] + y[i - 5 : i + 6].sum() + 0.5 * y[i + 6]) / 12
+
         def decompose_at(y, t):
             """Classical additive decomposition of one monthly value.
 
             Args:
-                y: 1-D array of monthly values; t: index with 6 months on each side.
+                y: 1-D array of monthly values starting in January; t: index with 6 months on each side.
 
             Returns:
                 (T, S, R) with y[t] == T + S + R.
-                CO₂, June 1999: 370.25 = 368.18 + 2.28 − 0.22.
+                Lecture: CO₂, June 1999: 370.25 = 368.18 + 2.28 − 0.22.
             """
             # @a window
             w = y[t - 6 : t + 7]
             # @end
             trend = (0.5 * w[0] + w[1:-1].sum() + 0.5 * w[-1]) / 12          # @a:trend
-            T_all = np.array([np.nan] * 6 + [(0.5 * y[i - 6] + y[i - 5 : i + 6].sum() + 0.5 * y[i + 6]) / 12
-                              for i in range(6, len(y) - 6)] + [np.nan] * 6)
-            d = y - T_all                                                    # @a:detrend
+            d = np.full(len(y), np.nan)
+            for i in range(6, len(y) - 6):
+                d[i] = y[i] - trend_at(y, i)                                 # @a:detrend
             means = np.array([np.nanmean(d[m::12]) for m in range(12)])
             season = (means - means.mean())[t % 12]                          # @a:season
             return trend, season, y[t] - trend - season                      # @a:rem
     extraCode:
       - lang: python
-        title: statsmodels (cited in the Session 10 sources)
+        title: statsmodels
         source: |
           from statsmodels.tsa.seasonal import seasonal_decompose
 
@@ -85,11 +96,10 @@ sections:
         Some series multiply their pieces (y = T × S × R) instead of adding them; their swings grow as the level grows.
     examTip: |
       Name the three pieces by what a forecaster would use: the direction (trend), last year's shape (season), the rest (remainder).
-
-
     tryIt:
       - structure-mcq
       - additive-multi
+
   - id: lag-notation
     title: Lags
     skills: [lags]
@@ -104,7 +114,7 @@ sections:
     live:
       - id: rows
         widget: Matrix
-        props: { data: '@lm', format: 1, title: 'Slide 16: monthly CO₂ and two of its lags', rowHeader: month }
+        props: { data: '@lm', format: 1, title: 'Monthly CO₂ and two of its lags', rowHeader: month }
     steps:
       - tex: |
           \anchor{shift}{\text{lag}_k[t] = y[t - k]}
@@ -120,22 +130,30 @@ sections:
       source: |
         import pandas as pd
 
-        def add_lags(co2: pd.Series, lags=(1, 12)):
+        def lag(y: pd.Series, k: int) -> pd.Series:
+            """The series k steps back.
+
+            Args:
+                y: values in time order; k: the lag, in steps of the data.
+
+            Returns:
+                Series where row t holds the value from row t − k (the first k rows are empty).
+            """
+            return y.shift(k)                            # @a:shift
+
+        def add_lags(co2: pd.Series) -> pd.DataFrame:
             """Lag columns for a monthly series.
 
             Args:
-                co2: values indexed by month; lags: which k to add.
+                co2: values indexed by month.
 
             Returns:
-                DataFrame with columns y, lag_1, lag_12, …
-                Slide 16: June 1999 → 370.2, lag_1 370.8, lag_12 368.8.
+                DataFrame with columns y, lag_1, lag_12.
+                Lecture: June 1999 → 370.2, lag_1 370.8, lag_12 368.8.
             """
             df = co2.to_frame(name="y")
-            for k in lags:
-                df[f"lag_{k}"] = df["y"].shift(k)       # @a:shift
-            # lag_1 = last month, lag_12 = same month last year
-            assert "lag_1" in df                         # @a:lag1
-            assert "lag_12" in df                        # @a:lag12
+            df["lag_1"] = lag(df["y"], 1)                # @a:lag1
+            df["lag_12"] = lag(df["y"], 12)              # @a:lag12
             return df
     links:
       - { anchor: shift, label: 'shift(k)' }
@@ -148,11 +166,11 @@ sections:
         k counts steps of the data: for quarterly data, t − 4 is a year ago; for daily data, t − 7 is a week ago.
       - The first k rows of a lag column are empty and must be dropped before fitting a model.
     examTip: '"Lag" only ever means one thing: how far back in time you are looking, in steps of the data.'
-
     tryIt:
       - lag-numeric
       - lag-units
       - lag-code
+
   - id: chrono-split
     title: Chronological split
     skills: [chrono-split]
@@ -178,7 +196,7 @@ sections:
         say: 'A date, not a random share of the rows.'
       - tex: |
           \anchor{train}{\text{train: } 1959\text{-}01 \to 1997\text{-}12} \qquad \anchor{test}{\text{test: } 1998\text{-}01 \to 2001\text{-}12}
-        say: 'Session 11: 468 training months and 48 hidden test months.'
+        say: 'The notebooks use 468 training months and 48 hidden test months.'
       - tex: |
           {=cs.train} + {=cs.test} = 516 \text{ months}
         say: |
@@ -194,7 +212,7 @@ sections:
 
             Returns:
                 (train, test).
-                Session 11: 468 training months, 48 test months.
+                Lecture: 468 training months, 48 test months.
             """
             # train on the past, test on the future
             cut_label = cut                          # @a:cut
@@ -214,17 +232,15 @@ sections:
       - { anchor: test, label: 'the future tests' }
     trace: { fn: splitCode, in: { co2: '@co2' } }
     examples: [split, split-code]
-    errata:
-      - 'Slide 14 says the chronological split is built "properly in Session 4". The deck''s own slide 2 places time series in Sessions 10–13; it is built in the Session 11 notebook.'
     pitfalls:
       - |
         `train_test_split(..., shuffle=True)` is scikit-learn's default. On a time series it lets the future into training.
       - 'Making lag columns before splitting is fine, because `shift()` only looks backward.'
     examTip: 'If any training row is later than any test row, the split is wrong.'
-
     tryIt:
       - random-split-mcq
       - forest-mcq
+
   - id: differencing
     title: Differencing
     skills: [differencing]
@@ -235,30 +251,29 @@ sections:
     keyFormula: '\Delta y_t = y_t - y_{t-1}, \qquad \Delta_{12}\, y_t = y_t - y_{t-12}'
     data: [annual, co2]
     derive:
-      - { fn: tableMatrix, in: { table: '@annual' }, out: am }
-      - { fn: annualDiff, in: { annual: '@annual' }, out: ad }
+      - { fn: annualDiff, in: { annual: '@annual', upTo: 0 }, out: ad }
       - { fn: trainDiff, in: { co2: '@co2' }, out: td }
     live:
       - id: sheet
         widget: Matrix
-        props: { data: '@am', format: 1, title: 'Slide 19: annual mean CO₂ (ppm)', rowHeader: year }
+        props: { rows: '@ad.rows', cols: '@ad.cols', values: '@ad.values', format: 1, title: 'Yearly average CO₂ (ppm) and its changes', rowHeader: year }
       - id: monthly
         widget: Chart
-        props: { kind: line, series: '@td.series', xLabel: year, yLabel: 'Δy (ppm)', title: 'Monthly changes in the training years' }
+        props: { kind: line, series: '@td.series', xLabel: year, yLabel: 'change (ppm)', title: 'Monthly changes in the training years' }
     steps:
       - tex: |
           \anchor{lag}{(y_t,\ y_{t-1})}
         say: Pair each value with the one before it.
       - tex: |
           \anchor{sub}{\Delta y_t = y_t - y_{t-1}}
-        say: '1960: 316.9 − 316.0 = +0.9. The left column climbs forever; the right column stays around +0.7.'
+        say: '1960: 316.9 − 316.0 = +0.9. Step through to fill the Δy (change) column: the values climb forever, the changes stay around +0.7.'
       - tex: |
           \anchor{lose}{n \text{ values} \to n - 1 \text{ changes}}
         say: The first year has nothing before it. You lose one value and never get it back.
       - tex: |
           \Delta y = ({=ad.diffs|list}), \quad \bar{\Delta y} = {=ad.mean|2}; \qquad \text{monthly: } {=td.nd} \text{ changes, mean } {=td.mean|3}
         say: |
-          The yearly pattern survives one difference: monthly changes still rise and fall every 12 months. Removing it needs Δ₁₂.
+          The yearly pattern survives one difference: monthly changes still rise and fall every 12 months. Removing it needs Δ₁₂, not a second Δ.
     code:
       lang: python
       source: |
@@ -270,16 +285,16 @@ sections:
 
             Returns:
                 list of len(y) − lag changes.
-                Slide 20: 316.0 … 319.5 → +0.9, +0.7, +0.8, +0.5, +0.6.
+                Lecture: 316.0 … 319.5 → +0.9, +0.7, +0.8, +0.5, +0.6.
             """
             out = []
             for t in range(lag, len(y)):            # @a:lag
                 out.append(y[t] - y[t - lag])       # @a:sub
-            assert len(out) == len(y) - lag         # @a:lose
-            return out
+            # the first `lag` values have no earlier partner, so len(out) == len(y) - lag
+            return out                              # @a:lose
     extraCode:
       - lang: python
-        title: pandas (Session 11 notebook)
+        title: pandas (as in the ARIMA notebook)
         source: |
           train_diff = train.diff().dropna()        # 468 → 467 values
           seasonal_diff = train.diff(12).dropna()   # Δ12 y_t = y_t − y_(t−12)
@@ -292,13 +307,242 @@ sections:
     pitfalls:
       - |
         Difference as little as needed. Differencing too much creates patterns and makes forecasts less certain.
+      - |
+        Difference again (raise d) only when the ACF still fades slowly from lags 1, 2, 3 onward. Slow fading only at lags 12, 24, 36 is a yearly pattern: take a seasonal difference instead.
       - A forecast of the change must be added back to the last real value to give a forecast of the value.
     examTip: 'Write the differenced column one row lower than the original: its first row is always empty.'
-
     tryIt:
       - diff-numeric
       - seasonal-diff-numeric
       - diff-code
+
+  - id: adf
+    title: Reading an ADF test
+    skills: [stationarity, differencing]
+    summary: |
+      The [[adf-test|ADF test]] asks whether a series wanders like a [[random-walk|random walk]]. Its
+      [[null-hypothesis|null hypothesis]] (H₀) is "it does". A small [[p-value|p-value]] (statistic below the cut-off)
+      rejects H₀, which suggests the series is stationary but never proves it. The answer also depends on which version
+      of the test you ran.
+    keyFormula: 'H_0:\ y_t = y_{t-1} + \varepsilon_t \ (\text{unit root}); \quad \text{reject if } p < 0.05 \iff \text{statistic} < \text{critical value}'
+    data: [adf]
+    derive:
+      - { fn: adfView, in: { adf: '@adf' }, out: av }
+    live:
+      - id: adf
+        widget: Matrix
+        props: { data: '@av.table', format: 4, title: 'Three ADF runs on the CO₂ training months', rowHeader: run }
+    steps:
+      - tex: |
+          \anchor{hyp}{H_0: \text{unit root} \quad H_1: \text{no unit root}}
+        say: 'A "unit root" is the random-walk behaviour: does the series pull back after it moves away, or does every move shift its path for good?'
+      - tex: |
+          \anchor{stat}{\text{statistic} < \text{critical value}?} \qquad \anchor{pval}{p < 0.05?}
+        say: |
+          Two views of the same decision. The lower (more negative) the statistic, the stronger the evidence against H₀.
+      - tex: |
+          \anchor{decide}{\text{reject} \Rightarrow \text{consistent with stationarity}; \ \text{fail to reject} \not\Rightarrow \text{non-stationary}}
+        say: A test never proves H₀ or its opposite.
+      - tex: |
+          \text{level, c: } 2.287 > -2.868,\ p = 0.9989; \quad \text{differenced, c: } -4.237 < -2.868,\ p = 0.0006 \Rightarrow d = 1
+        say: '"c" lets the series sit at any constant level; "ct" also allows a straight-line trend. With a trend allowed, the level''s statistic moves to −2.168, but p = 0.508 still does not reject.'
+    code:
+      lang: python
+      source: |
+        from statsmodels.tsa.stattools import adfuller
+
+        def adf_decision(series, regression="c", alpha=0.05):
+            """Run an ADF test and state the decision carefully.
+
+            Args:
+                series: values in time order; regression: "c" (constant level) or "ct" (level + trend).
+                alpha: significance level.
+
+            Returns:
+                str decision.
+                Lecture: level "c" → fail (p 0.9989); differenced "c" → reject (p 0.0006).
+            """
+            # H0: unit root (non-stationary); H1: no unit root      # @a:hyp
+            stat, p, used_lag, n_obs, crit, _ = adfuller(series, regression=regression)  # @a:stat
+            reject = p < alpha                                     # @a:pval
+            if reject:                                             # @a:decide
+                return "reject H0: evidence consistent with stationarity"
+            return "fail to reject H0: no evidence against a unit root"
+    links:
+      - { anchor: hyp, label: 'hypotheses' }
+      - { anchor: stat, label: 'statistic vs critical value' }
+      - { anchor: pval, label: 'p-value vs 0.05' }
+      - { anchor: decide, label: 'careful decision' }
+    trace: { fn: adfCode, in: { adf: '@adf' } }
+    examples: [adf-decisions]
+    pitfalls:
+      - |
+        Not rejecting H₀ does not prove the series is non-stationary; rejecting does not prove it is stationary.
+      - 'Always say which version you ran: "c" (constant level) or "ct" (level + trend). Same data, different answers.'
+      - 'The statistic must fall **below** the (negative) cut-off to reject.'
+      - 'The ADF test looks for wandering, not for a season: a series can pass it and still carry a yearly pattern.'
+    examTip: 'Read p first: p < 0.05 → reject H₀ → no further ordinary difference. A yearly pattern is a separate question.'
+    tryIt:
+      - adf-mcq
+      - stationarity-multi
+
+  - id: acf
+    title: Autocorrelation (ACF)
+    skills: [autocorrelation]
+    summary: |
+      How much does the present look like the past, and how far back does that reach? The
+      [[autocorrelation|ACF]] correlates the series with a copy of itself shifted k steps: one number per lag, using one
+      overall average and one shared bottom number.
+    keyFormula: 'r_k = \frac{\sum_{t=k+1}^{n}(y_t - \bar y)(y_{t-k} - \bar y)}{\sum_{t=1}^{n}(y_t - \bar y)^2}'
+    data: [co2]
+    derive:
+      - { fn: acfDiff, in: { co2: '@co2' }, out: ac }
+    live:
+      - id: acf
+        widget: Matrix
+        props: { data: '@ac.table', format: 3, title: 'ACF of the differenced CO₂ training series', rowHeader: lag }
+      - id: bars
+        widget: Chart
+        props: { kind: bar, series: '@ac.bars', xLabel: lag, yLabel: r_k }
+    steps:
+      - tex: |
+          \anchor{mean}{\bar y = \tfrac1n \textstyle\sum_t y_t}
+        say: One average for the whole series.
+      - tex: |
+          \anchor{den}{\textstyle\sum_{t=1}^{n}(y_t - \bar y)^2}
+        say: One bottom number for every lag.
+      - tex: |
+          \anchor{num}{\textstyle\sum_{t=k+1}^{n}(y_t - \bar y)(y_{t-k} - \bar y)} \qquad \anchor{rk}{r_k = \frac{\text{num}_k}{\text{den}}}
+        say: Only n − k pairs exist at lag k.
+      - tex: |
+          r_1 = {=ac.lag1|3}, \quad r_2 = {=ac.lag2|3}, \quad r_6 = {=ac.lag6|3}, \quad r_{12} = {=ac.lag12|3}, \quad r_{24} = {=ac.r.24|3}, \quad r_{36} = {=ac.r.36|3}
+        say: |
+          Strong at lag 1 and huge at lag 12. Lags 24 and 36 stay high: slow fading only at multiples of 12 is the yearly pattern, not a reason to difference again.
+    code:
+      lang: python
+      source: |
+        import numpy as np
+
+        def acf(y, lags):
+            """Sample autocorrelation at the requested lags (statsmodels' estimator).
+
+            Args:
+                y: 1-D array in time order; lags: e.g. [1, 2, 12].
+
+            Returns:
+                dict lag → r_k.
+                Lecture: differenced CO₂ train: r_1 = 0.708, r_12 = 0.916.
+            """
+            y = np.asarray(y, dtype=float)
+            ybar = y.mean()                                        # @a:mean
+            den = np.sum((y - ybar) ** 2)                          # @a:den
+            out = {}
+            for k in lags:
+                num = np.sum((y[k:] - ybar) * (y[:-k] - ybar))     # @a:num
+                out[k] = num / den                                 # @a:rk
+            return out
+    extraCode:
+      - lang: python
+        title: statsmodels (as in the ARIMA notebook)
+        source: |
+          from statsmodels.tsa.stattools import acf
+          from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+          acf_values = acf(train_diff, nlags=13)
+          plot_acf(train_diff, lags=36); plot_pacf(train_diff, lags=36, method="ywm")
+    links:
+      - { anchor: mean, label: 'overall mean' }
+      - { anchor: den, label: 'shared denominator' }
+      - { anchor: num, label: 'lag-k cross products' }
+      - { anchor: rk, label: 'r_k' }
+    trace: { fn: acfCode, in: { co2: '@co2', lags: [1, 2, 12] } }
+    examples: [acf-diff, acf-code, nino-lag1, nino-lag6, nino-lag12]
+    pitfalls:
+      - 'Bars smaller than about ±1.96/√n could be pure chance: here about ±0.09, since n = 467 changes.'
+      - |
+        An ACF that fades slowly from lags 1, 2, 3 onward says "not stationary yet": difference again. Slow fading only at lags 12, 24, 36 says "yearly pattern": take a seasonal difference, which ARIMA(p, d, q) alone cannot do.
+      - 'The ACF uses one overall average and one shared bottom number, so it differs slightly from the plain correlation of the (y_t, y_(t−k)) pairs.'
+    examTip: |
+      PACF stops after lag k while ACF fades → p ≈ k. ACF stops after lag k while PACF fades → q ≈ k. Both fade → small p and q.
+    tryIt:
+      - acf-hand
+      - acf-code
+
+  - id: pacf
+    title: Partial autocorrelation at lag 2
+    skills: [autocorrelation]
+    beyondSlides: true
+    summary: |
+      The [[pacf|PACF]] at lag 2 asks what lag 2 adds once lag 1 is known. If lag 2 only echoed lag 1, its
+      autocorrelation would be r₁². The PACF keeps what is left over and rescales it. On the CO₂ changes it is about
+      −0.50, far from 0, so their PACF does not stop after lag 1.
+    keyFormula: '\phi_{22} = \frac{r_2 - r_1^2}{1 - r_1^2}'
+    data: [co2]
+    derive:
+      - { fn: pacfDiff, in: { co2: '@co2', nlags: 12 }, out: pd }
+    live:
+      - id: pacf
+        widget: Matrix
+        props: { data: '@pd.table', format: 3, title: 'ACF and PACF of the differenced CO₂ training series', rowHeader: lag }
+      - id: bars
+        widget: Chart
+        props: { kind: bar, series: '@pd.bars', xLabel: lag }
+    steps:
+      - tex: |
+          \anchor{r1}{r_1,\ r_2} \ \text{from the ACF}
+        say: Start from the two autocorrelations you already have.
+      - tex: |
+          \anchor{rsq}{r_1^2} = \text{lag 2's autocorrelation if it only echoed lag 1}
+        say: 'In a series built only from last month, each step passes on r₁, so two steps pass on r₁ × r₁.'
+      - tex: |
+          \anchor{p22}{\phi_{22}} = \frac{\anchor{num}{r_2 - r_1^2}}{\anchor{den}{1 - r_1^2}}
+        say: Top, the link beyond the echo; bottom, the part lag 1 leaves unexplained.
+      - tex: |
+          \phi_{22} = \frac{ {=pd.r2|3} - {=pd.r1|3}^2 }{ 1 - {=pd.r1|3}^2 } = {=pd.p2|3}
+        say: 'Strongly negative: lag 2 still adds something. Neither plot stops cleanly, so start with small p and q and check the residuals.'
+    code:
+      lang: python
+      source: |
+        def pacf_lag2(y):
+            """Lag-2 partial autocorrelation from the ACF (Yule–Walker).
+
+            Args:
+                y: 1-D array in time order.
+
+            Returns:
+                float phi_22.
+                Lecture: differenced CO₂ train: r_1 = 0.708, r_2 = 0.253 → φ22 = −0.499.
+            """
+            # acf() is the function from the ACF section
+            r = acf(y, [1, 2])                 # @a:r1
+            r1, r2 = r[1], r[2]
+            echo = r1 ** 2                     # @a:rsq
+            num = r2 - echo                    # @a:num
+            den = 1 - echo                     # @a:den
+            return num / den                   # @a:p22
+    extraCode:
+      - lang: python
+        title: statsmodels (the method the notebook plots)
+        source: |
+          from statsmodels.tsa.stattools import pacf
+
+          pacf(train_diff, nlags=12, method="ywm")   # lag 1 0.708, lag 2 −0.499, …
+    links:
+      - { anchor: r1, label: 'r₁ and r₂ from the ACF' }
+      - { anchor: rsq, label: 'the echo of lag 1' }
+      - { anchor: num, label: 'what lag 2 adds' }
+      - { anchor: den, label: 'what lag 1 leaves' }
+      - { anchor: p22, label: 'partial autocorrelation' }
+    trace: { fn: pacfCode, in: { co2: '@co2' } }
+    examples: [pacf-diff, pacf-code]
+    pitfalls:
+      - 'The PACF at lag 1 always equals the ACF at lag 1: there are no months in between to remove.'
+      - 'If r₂ is exactly r₁², the PACF at lag 2 is 0: lag 2 only echoes lag 1. That is the signature of a series built from its last value only.'
+    examTip: 'PACF that stops after lag k → try p = k. Here it does not stop, so start small and check the residuals.'
+    tryIt:
+      - pacf-numeric
+      - pq-read-mcq
+
   - id: baselines
     title: Naive and seasonal naive forecasts
     skills: [baselines]
@@ -306,7 +550,7 @@ sections:
       Before any model, set the bar. The [[naive-forecast|naive forecast]] repeats the last value; the
       [[seasonal-naive|seasonal naive]] repeats the value from the same month last year. Each catches one pattern only:
       naive gets the level, seasonal naive the yearly shape.
-    keyFormula: '\hat y_{t+h \mid t} = y_t \quad \text{(naive)}, \qquad \hat y_{t+h \mid t} = y_{t+h-m} \quad \text{(seasonal naive)}'
+    keyFormula: '\hat y_{T+h} = y_T \ \ \text{(naive)}, \qquad \hat y_{T+h} = y_{T+h-m(k+1)},\ k = \lfloor (h-1)/m \rfloor \ \ \text{(seasonal naive)}'
     data: [co2, arima]
     derive:
       - { fn: baselineTable, in: { co2: '@co2', arima: '@arima' }, out: bt }
@@ -324,10 +568,10 @@ sections:
       - tex: |
           \anchor{season}{\text{last season} = (y_{T-11}, \dots, y_T)} \qquad \anchor{copy}{\hat y_{T+1+i} = \text{last season}[\, i \bmod 12 \,]}
         say: |
-          "Look at the same month last year." For forecasts more than a year ahead, the notebook keeps repeating 1997.
+          "Look at the same month last year." For forecasts more than a year ahead, keep repeating the last season (the k in the formula counts the extra years).
       - tex: |
           \hat y_{\text{1998-01}} = 363.125 \ (\text{from 1997-01}), \qquad \hat y_{\text{1999-01}} = 363.125 \ (\text{still 1997-01})
-        say: 'Right shape, but about 2 ppm too low and sinking further every year.'
+        say: 'Right shape, but about 3 ppm too low in 1998 and about 7 ppm too low by 2001.'
     code:
       lang: python
       source: |
@@ -341,7 +585,7 @@ sections:
 
             Returns:
                 (naive, seasonal_naive) as Series on the test index.
-                Session 11: naive = 364.25 everywhere; Jan 1998 seasonal = 363.125.
+                Lecture: naive = 364.25 everywhere; Jan 1998 seasonal = 363.125.
             """
             y_T = train.iloc[-1]                                          # @a:last
             naive = pd.Series(y_T, index=test.index)                      # @a:naive
@@ -358,15 +602,15 @@ sections:
     examples: [naive-value, snaive-values]
     pitfalls:
       - |
-        More information is not automatically better. Seasonal naive scored worse than naive here because it forgets that each year sits higher.
+        More information is not automatically better. Seasonal naive scored worse than naive here: it forecasts 1997's average level, 0.55 below December's, and when nearly every miss has the same sign the higher level wins.
       - Any model must beat the naive forecast on the test set before it is worth its extra complexity.
     examTip: |
       For a forecast h months ahead, seasonal naive copies month number (h − 1) mod 12 of last year (0 = January).
-
-
     tryIt:
       - snaive-numeric
+      - snaive-far-numeric
       - baseline-code
+
   - id: forecast-metrics
     title: MAE, RMSE and MAPE
     skills: [forecast-metrics, baselines]
@@ -418,7 +662,7 @@ sections:
 
             Returns:
                 (mae, rmse, mape).
-                Session 11: naive → (4.527, 5.103, 1.224).
+                Lecture: naive → (4.527, 5.103, 1.224).
             """
             abs_e, sq_e, pct_e = [], [], []
             for y, f in zip(actual, forecast):
@@ -434,7 +678,7 @@ sections:
             return mae, rmse, mape
     extraCode:
       - lang: python
-        title: Session 11 notebook
+        title: As in the ARIMA notebook
         source: |
           from sklearn.metrics import mean_absolute_error, mean_squared_error
 
@@ -453,164 +697,14 @@ sections:
       - |
         MAPE divides by the real value, not the forecast, and becomes unreliable when real values are near zero.
       - RMSE is always at least as big as MAE; a large gap means a few big misses.
+      - 'Compare scores only on the same setup: multi-step forecasts with multi-step, one-step with one-step.'
     examTip: |
       MAE and RMSE are in the series' units (ppm); MAPE is a percentage, so it compares across different series.
-
-
     tryIt:
       - metrics-hand
       - rmse-numeric
       - mape-numeric
-  - id: acf
-    title: Autocorrelation (ACF)
-    skills: [autocorrelation]
-    summary: |
-      How much does the present look like the past, and how far back does that reach? The
-      [[autocorrelation|ACF]] correlates the series with a copy of itself shifted k steps: one number per lag, using one
-      overall average and one shared bottom number.
-    keyFormula: 'r_k = \frac{\sum_{t=k+1}^{n}(y_t - \bar y)(y_{t-k} - \bar y)}{\sum_{t=1}^{n}(y_t - \bar y)^2}'
-    data: [co2]
-    derive:
-      - { fn: acfDiff, in: { co2: '@co2' }, out: ac }
-    live:
-      - id: acf
-        widget: Matrix
-        props: { data: '@ac.table', format: 3, title: 'ACF of the differenced CO₂ training series', rowHeader: lag }
-      - id: bars
-        widget: Chart
-        props: { kind: bar, series: '@ac.bars', xLabel: lag, yLabel: r_k }
-    steps:
-      - tex: |
-          \anchor{mean}{\bar y = \tfrac1n \textstyle\sum_t y_t}
-        say: One average for the whole series.
-      - tex: |
-          \anchor{den}{\textstyle\sum_{t=1}^{n}(y_t - \bar y)^2}
-        say: One bottom number for every lag.
-      - tex: |
-          \anchor{num}{\textstyle\sum_{t=k+1}^{n}(y_t - \bar y)(y_{t-k} - \bar y)} \qquad \anchor{rk}{r_k = \frac{\text{num}_k}{\text{den}}}
-        say: Only n − k pairs exist at lag k.
-      - tex: |
-          r_1 = {=ac.lag1|3}, \quad r_2 = {=ac.lag2|3}, \quad r_6 = {=ac.lag6|3}, \quad r_{12} = {=ac.lag12|3}
-        say: |
-          Strong at lag 1 and huge at lag 12: the yearly pattern survives differencing. The dip around lag 6 is its other half.
-    code:
-      lang: python
-      source: |
-        import numpy as np
 
-        def acf(y, lags):
-            """Sample autocorrelation at the requested lags (statsmodels' estimator).
-
-            Args:
-                y: 1-D array in time order; lags: e.g. [1, 2, 12].
-
-            Returns:
-                dict lag → r_k.
-                Differenced CO₂ train: r_1 = 0.708, r_12 = 0.916.
-            """
-            y = np.asarray(y, dtype=float)
-            ybar = y.mean()                                        # @a:mean
-            den = np.sum((y - ybar) ** 2)                          # @a:den
-            out = {}
-            for k in lags:
-                num = np.sum((y[k:] - ybar) * (y[:-k] - ybar))     # @a:num
-                out[k] = num / den                                 # @a:rk
-            return out
-    extraCode:
-      - lang: python
-        title: statsmodels (Session 11 notebook)
-        source: |
-          from statsmodels.tsa.stattools import acf
-          from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-
-          acf_values = acf(train_diff, nlags=13)
-          plot_acf(train_diff, lags=36); plot_pacf(train_diff, lags=36, method="ywm")
-    links:
-      - { anchor: mean, label: 'overall mean' }
-      - { anchor: den, label: 'shared denominator' }
-      - { anchor: num, label: 'lag-k cross products' }
-      - { anchor: rk, label: 'r_k' }
-    trace: { fn: acfCode, in: { co2: '@co2', lags: [1, 2, 12] } }
-    examples: [acf-diff, acf-code, nino-lag1, nino-lag6, nino-lag12]
-    pitfalls:
-      - The shaded band (±1.96/√n) shows roughly where a bar could land by pure chance.
-      - 'An ACF that fades very slowly and never dies out says "not stationary yet": difference again.'
-      - 'Big bars at lags 12 and 24 are a yearly pattern that ARIMA(p, d, q) has no part for.'
-    examTip: |
-      PACF stops after lag k while ACF fades → p ≈ k. ACF stops after lag k while PACF fades → q ≈ k. Both fade → small p and q.
-
-
-    tryIt:
-      - acf-hand
-      - acf-code
-  - id: adf
-    title: Reading an ADF test
-    skills: [stationarity]
-    summary: |
-      The [[adf-test|ADF test]] asks whether a series wanders like a [[random-walk|random walk]]. Its default assumption
-      (H₀) is "it does". A small [[p-value|p-value]] (statistic below the cut-off) rejects H₀, which suggests the series is
-      stationary but never proves it. The answer also depends on which version of the test you ran.
-    keyFormula: 'H_0:\ y_t = y_{t-1} + \varepsilon_t \ (\text{unit root}); \quad \text{reject if } p < 0.05 \iff \text{statistic} < \text{critical value}'
-    data: [adf]
-    derive:
-      - { fn: adfView, in: { adf: '@adf' }, out: av }
-    live:
-      - id: adf
-        widget: Matrix
-        props: { data: '@av.table', format: 4, title: 'Session 11: three ADF runs', rowHeader: run }
-    steps:
-      - tex: |
-          \anchor{hyp}{H_0: \text{unit root} \quad H_1: \text{no unit root}}
-        say: 'Does the series pull back after it moves away, or does every move shift its path for good?'
-      - tex: |
-          \anchor{stat}{\text{statistic} < \text{critical value}?} \qquad \anchor{pval}{p < 0.05?}
-        say: |
-          Two views of the same decision. The more negative the statistic, the stronger the evidence against H₀.
-      - tex: |
-          \anchor{decide}{\text{reject} \Rightarrow \text{consistent with stationarity}; \ \text{fail to reject} \not\Rightarrow \text{non-stationary}}
-        say: A test never proves H₀ or its opposite.
-      - tex: |
-          \text{level, c: } 2.287 > -2.868,\ p = 0.9989; \quad \text{differenced, c: } -4.237 < -2.868,\ p = 0.0006 \Rightarrow d = 1
-        say: 'The version with a trend ("ct") moves the statistic to −2.168, but p = 0.508 still does not reject.'
-    code:
-      lang: python
-      source: |
-        from statsmodels.tsa.stattools import adfuller
-
-        def adf_decision(series, regression="c", alpha=0.05):
-            """Run an ADF test and state the decision carefully.
-
-            Args:
-                series: values in time order; regression: "c", "ct", "ctt" or "n".
-                alpha: significance level.
-
-            Returns:
-                str decision.
-                Session 11: level "c" → fail (p 0.9989); differenced "c" → reject (p 0.0006).
-            """
-            # H0: unit root (non-stationary); H1: no unit root      # @a:hyp
-            stat, p, used_lag, n_obs, crit, _ = adfuller(series, regression=regression)  # @a:stat
-            reject = p < alpha                                     # @a:pval
-            if reject:                                             # @a:decide
-                return "reject H0: evidence consistent with stationarity"
-            return "fail to reject H0: no evidence against a unit root"
-    links:
-      - { anchor: hyp, label: 'hypotheses' }
-      - { anchor: stat, label: 'statistic vs critical value' }
-      - { anchor: pval, label: 'p-value vs 0.05' }
-      - { anchor: decide, label: 'careful decision' }
-    trace: { fn: adfCode, in: { adf: '@adf' } }
-    examples: [adf-decisions]
-    pitfalls:
-      - |
-        Not rejecting H₀ does not prove the series is non-stationary; rejecting does not prove it is stationary.
-      - 'Always say which version you ran: "c" (level) or "ct" (level + trend). Same data, different answers.'
-      - 'The statistic must fall **below** the (negative) cut-off to reject.'
-    examTip: 'Read p first: p < 0.05 → reject H₀ → no more differencing needed.'
-
-    tryIt:
-      - adf-mcq
-      - stationarity-multi
   - id: arima-forecast
     title: ARIMA(1, 1, 1) with drift, forecast by hand
     skills: [arima, differencing]
@@ -628,13 +722,17 @@ sections:
         props: { data: '@at', format: 2, title: 'Test months: actual vs ARIMA(1,1,1) forecast', rowHeader: month, emptyLabel: '?' }
     steps:
       - tex: |
+          w_t = \Delta^d y_t, \qquad w_t - c = \sum_{i=1}^{p}\phi_i\,(w_{t-i} - c) + \varepsilon_t + \sum_{j=1}^{q}\theta_j\,\varepsilon_{t-j}
+        say: |
+          The general ARIMA(p, d, q): difference d times, then explain each change by p past changes (AR) and q past shocks (MA), around the average change c.
+      - tex: |
           \anchor{diff}{w_t = \Delta y_t = y_t - y_{t-1}} \quad (d = 1)
         say: |
           I (the d part): the model works on changes, because the ADF test said the values themselves are not stationary.
       - tex: |
           \anchor{drift}{c = 0.1156} \qquad \anchor{ar}{\phi\,(\Delta y_{t-1} - c),\ \phi = 0.5744} \qquad \anchor{ma}{\theta\,\varepsilon_{t-1},\ \theta = 0.3733}
         say: |
-          AR: recent changes carry on. MA: part of the last surprise carries over. σ² = 0.6001 is the size of the surprises, not a term.
+          c is the model's estimate of the average change (the plain average of the training changes is 0.104). AR: recent changes carry on. MA: part of the last surprise carries over. σ² = 0.6001 is the size of the surprises, not a term.
       - tex: |
           \anchor{undiff}{\hat y_{T+1} = y_T + \Delta\hat y_{T+1}} = 364.25 + 0.1156 + 0.5744(1.87 - 0.1156) + 0.3733(0.7249) = 365.64
         say: 'January 1998. Then 366.49 and 367.03, with the surprise term set to 0 from step 2 on.'
@@ -650,7 +748,7 @@ sections:
 
             Returns:
                 list of forecasts.
-                Session 11: 365.64, 366.49, 367.03 for 1998-01 … 03.
+                Lecture: 365.64, 366.49, 367.03 for 1998-01 … 03.
             """
             prev_d = y[-1] - y[-2]                     # @a:diff
             level, eps, out = y[-1], last_eps, []
@@ -664,7 +762,7 @@ sections:
             return out
     extraCode:
       - lang: python
-        title: statsmodels (Session 11 notebook)
+        title: statsmodels (as in the ARIMA notebook)
         source: |
           from statsmodels.tsa.arima.model import ARIMA
 
@@ -679,27 +777,28 @@ sections:
       - { anchor: ma, label: 'MA(1) term' }
       - { anchor: undiff, label: 'add the change back' }
     trace: { fn: arimaCode, in: { co2: '@co2', arima: '@arima', steps: 3 } }
-    examples: [arima-first3, arima-code, arima-scores, arima-errata, arima1-scores]
+    examples: [arima-first3, arima-code, arima-scores, arima-errata, arima1-scores, residual-acf]
     errata:
-      - 'Session 11 §5 writes the fitted model as Δy_t = 0.1156 + 0.5744 Δy_(t−1) + ε_t + 0.3733 ε_(t−1). In statsmodels, 0.1156 is the **mean** of Δy, so the equation''s constant is 0.1156 × (1 − 0.5744) = 0.049. Used as written, 0.1156 forecasts 365.71 for January 1998, not the notebook''s own 365.64.'
+      - 'If you''re reading the notebook: it writes the fitted model as Δy_t = 0.1156 + 0.5744 Δy_(t−1) + ε_t + 0.3733 ε_(t−1). In statsmodels, 0.1156 is the **mean** of Δy, so the equation''s constant is 0.1156 × (1 − 0.5744) = 0.049. Used as written, 0.1156 forecasts 365.71 for January 1998, not the notebook''s own 365.64.'
     pitfalls:
       - Forecasts of the change must be added back to the last value.
       - |
         The residuals' ACF still spikes at lag 12 (about 0.58): the model is good but clearly incomplete. The fix is SARIMA, ARIMA(p,d,q)(P,D,Q)₁₂.
       - 'AR, MA, ARMA and ARIMA are one model built up piece by piece, not four rival models.'
+      - 'MA means a weighted sum of past shocks, not the rolling mean of past values.'
     examTip: 'Read ARIMA(1,1,1) aloud: one past change, one difference, one past surprise.'
-
     tryIt:
       - arima-numeric
       - arima-hand
       - arima-code
+
   - id: lag-regression
     title: Lag features for linear regression
     skills: [lag-features, chrono-split]
     summary: |
       A regression does not know its rows are in time order, so give it time as columns: [[lag-feature|lag columns]]
-      (`shift`), a safe rolling mean (shift **then** roll), and one 0/1 column per month. Drop rows with missing lags, split
-      by date, fit, and forecast one month ahead.
+      (`shift`), a safe [[rolling-mean|rolling mean]] (shift **then** roll), and [[month-columns|month columns]]. Drop rows
+      with missing lags, split by date, fit, and make [[one-step-forecast|one-step forecasts]].
     keyFormula: '\hat y_t = f\big(y_{t-1}, y_{t-2}, \ldots,\ x_{t,1}, x_{t,2}, \ldots\big)'
     data: [co2, notebook]
     derive:
@@ -725,7 +824,7 @@ sections:
           One 0/1 column per month, because a linear model would read the numbers 1–12 as a straight line. The first 12 rows have no lag_12, so they are dropped.
       - tex: |
           \anchor{split}{\text{train: 1960-01} \to \text{1997-12}\ (456)} \qquad \anchor{fit}{\hat f = \text{OLS}(X_{\text{train}}, y_{\text{train}})}
-        say: 'Past only (A) 0.509; past + months (B) 0.222; all 12 lags (C) 0.232. The month columns did the work.'
+        say: 'One-step scores: past only (A) 0.509; past + months (B) 0.222; all 12 lags (C) 0.232. The month columns did the work.'
     code:
       lang: python
       source: |
@@ -733,14 +832,14 @@ sections:
         from sklearn.linear_model import LinearRegression
 
         def fit_scenario_b(co2: pd.Series):
-            """Scenario B of Session 12: lags, leak-free rolling mean, month dummies.
+            """Scenario B of the lecture notebook: lags, leak-free rolling mean, month columns.
 
             Args:
                 co2: monthly series with a PeriodIndex.
 
             Returns:
                 (fitted model, one-step test predictions).
-                Session 12: MAE 0.222 on 1998–2001.
+                Lecture: MAE 0.222 on 1998–2001.
             """
             f = co2.to_frame(name="co2")
             for k in (1, 2, 12):
@@ -755,14 +854,14 @@ sections:
             return model, model.predict(test[X_cols])
     extraCode:
       - lang: python
-        title: The leak (Session 12, section 6)
+        title: The leak
         source: |
           features["roll_mean_3_leaky"] = features["co2"].rolling(window=3).mean()   # includes y_t!
           # LinearRegression learns y_t = 3·roll_leaky − lag_1 − lag_2 → MAE 0.0
     links:
       - { anchor: lags, label: 'lag columns (shift)' }
       - { anchor: roll, label: 'shift, then rolling' }
-      - { anchor: month, label: 'month dummies' }
+      - { anchor: month, label: 'month columns' }
       - { anchor: drop, label: 'drop incomplete rows' }
       - { anchor: split, label: 'split by date' }
       - { anchor: fit, label: 'fit OLS' }
@@ -774,7 +873,7 @@ sections:
       - |
         A random forest cannot predict above its highest training value (366.68), so with a trend it fails a split by date (MAE 3.174) while a shuffled split hides this (0.515).
       - |
-        lag_1 needs last month's real value, so these are one-step-ahead forecasts. Compare them only with one-step baselines.
+        lag_1 needs last month's real value, so these are one-step forecasts. Compare them only with one-step baselines (naive 1.080, ARIMA 0.600), never with the multi-step 4.527 and 1.900.
     examTip: |
       For every input column ask: could I have known this value before the month I am predicting? If not, it leaks.
     tryIt:

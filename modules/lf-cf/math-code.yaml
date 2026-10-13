@@ -1,7 +1,7 @@
 sections:
   - id: latent-model
     title: The latent-factor model
-    skills: [latent-model, rank-choice]
+    skills: [latent-model]
     summary: |
       Give every user a short vector of tastes and every item a vector of traits. A predicted rating is their dot
       product. The whole matrix is U (m×d) times V (d×n), which numpy computes with one `@`.
@@ -27,6 +27,14 @@ sections:
       lang: python
       source: |
         import numpy as np
+
+        # the lecture's rating matrix; np.nan marks a missing rating
+        nan = np.nan
+        R = np.array([[5, 2, 4, 4, 3],
+                      [3, 1, 2, 4, 1],
+                      [nan, nan, 3, 1, 4],
+                      [2, 5, 4, 3, 5],
+                      [4, 4, 5, 4, nan]])
 
         def predict(U, V, i, j):
             """Predicted rating of user i for item j: one dot product.
@@ -68,8 +76,9 @@ sections:
       - { anchor: all, label: 'P = U @ V (all cells)', say: '`@` on two 2-D arrays is the matrix product.' }
     trace: { fn: predictOneCode, in: { U: '@a.U', V: '@a.V', R: '@r5x5', cells: [[0, 0], [2, 0]] } }
     examples: [init-ones]
+    tryIt: [dot-numeric, params-numeric, code-predict]
     pitfalls:
-      - V is d×n on the slides, so item j's factors are a **column** of V (`V[:, j]`, not `V[j]`).
+      - V is d×n, so item j's factors are a **column** of V (`V[:, j]`, not `V[j]`). We write its entries v_sj (factor s, item j); the lecture's general formula writes v_js.
       - '`U * V` would try an element-wise product and fail (shapes 5×2 and 2×5); the matrix product is `U @ V`.'
       - The model has m·d + d·n parameters, far fewer than m·n cells.
     examTip: 'Write U and V next to R with their shapes; every p_ij is "row i of U · column j of V".'
@@ -95,11 +104,11 @@ sections:
           The same sum, as array operations. `R - P` works entry by entry, and a blank (NaN) stays NaN. `E[M]` is **boolean indexing**:
           it keeps the entries where the mask M is True and returns them as a flat 1-D array. `** 2` squares each, `.sum()` adds them.
       - tex: |
-          \begin{gathered} \text{column } i_1: \\ [5 - (\bar v_{11} + \bar v_{12})]^2 + [3 - (\cdot)]^2 + [2 - (\cdot)]^2 + [4 - (\cdot)]^2 \end{gathered}
-        say: 'Slide 4 writes it per item column. Column 1 has four terms because u3·i1 is missing.'
+          \begin{gathered} \text{column } i_1: \\ [5 - (v_{11} + v_{21})]^2 + [3 - (\cdot)]^2 + [2 - (\cdot)]^2 + [4 - (\cdot)]^2 \end{gathered}
+        say: 'The lecture writes it per item column (here with U = ones, so each prediction is v₁₁ + v₂₁). Column 1 has four terms because u3·i1 is missing.'
       - tex: |
           \begin{gathered} U = V = \mathbf{1}: \quad 18 + 7 + 6 + 23 + 21 = \anchor{add}{ {=s.sse|2} } \\ \text{over } {=s.observed} \text{ observed cells} \end{gathered}
-        say: The CGD starting point on slide 9, one row sum at a time.
+        say: The coordinate-descent starting point, one row sum at a time.
     code:
       lang: python
       source: |
@@ -152,6 +161,7 @@ sections:
       - { anchor: add, label: 'the SSE', say: '`.sum()` adds every entry.' }
     trace: { fn: sseCode, in: { R: '@r5x5', U: '@st.U', V: '@st.V' } }
     examples: [sse-ones]
+    tryIt: [sse-hand, code-sse]
     pitfalls:
       - Treating missing ratings as 0 would train the model to predict 0 for everything unseen.
       - '`((R - P) ** 2).sum()` returns NaN: a single NaN poisons the sum. Mask first (`E[M]`) or use `np.nansum`.'
@@ -173,22 +183,23 @@ sections:
       - tex: |
           \begin{gathered} U \text{ fixed}: \quad \anchor{init}{V = 0_{d \times n}} \\ \anchor{loop}{\text{for each item } j}: \ \mathbf{v}_j = \anchor{solve}{\arg\min_{\mathbf{v}} \|A\mathbf{v} - \mathbf{b}\|^2} \end{gathered}
         say: |
-          A linear regression per item. `np.zeros((d, n))` makes the empty V, and the loop fills one column per item:
-          each column has its own set of raters, so the items are solved one at a time.
+          One least-squares fit per item: find the best weights in the recipe "rating ≈ u₁·v₁ + u₂·v₂". `np.zeros((d, n))`
+          makes the empty V, and the loop fills one column per item: each column has its own set of raters.
       - tex: |
           \begin{gathered} \anchor{obs}{\text{obs}(j) = \{\, i : r_{ij} \text{ observed} \,\}} \\ \anchor{feat}{A = U_{\text{obs}(j),\,:}}, \qquad \anchor{target}{\mathbf{b} = R_{\text{obs}(j),\,j}} \end{gathered}
         say: |
-          `~np.isnan(R[:, j])` marks the raters of item j. `U[rated]` keeps their rows of the frozen U (the features)
-          and `R[rated, j]` their ratings (the targets). `np.linalg.lstsq(A, b)` returns the v with the smallest $\|A\mathbf{v} - \mathbf{b}\|^2$.
+          `~np.isnan(R[:, j])` marks the raters of item j. `U[rated]` keeps their rows of the frozen U: the inputs of the
+          recipe, called **features**. `R[rated, j]` holds their ratings: the values to match, called **targets**.
+          `np.linalg.lstsq(A, b)` returns the v with the smallest $\|A\mathbf{v} - \mathbf{b}\|^2$.
       - tex: |
-          \begin{gathered} U = \mathbf{1}: \quad \bar v_{j1} + \bar v_{j2} = \text{mean of column } j \\ \Rightarrow\; \bar v_{j1} = \bar v_{j2} = \tfrac{\text{mean}}{2} \end{gathered}
+          \begin{gathered} U = \mathbf{1}: \quad v_{1j} + v_{2j} = \text{mean of column } j \\ \Rightarrow\; v_{1j} = v_{2j} = \tfrac{\text{mean}}{2} \end{gathered}
         say: 'Every row of A is (1, 1), so only the sum is determined. `lstsq` returns the minimum-norm solution, the even split: 3.5/2 = 1.75, 3/2 = 1.5, 3.6/2 = 1.8 …'
       - tex: |
           \anchor{solve}{V} = \begin{pmatrix} {=s1.V.values.0.0|3} & {=s1.V.values.0.1|3} & {=s1.V.values.0.2|3} & {=s1.V.values.0.3|3} & {=s1.V.values.0.4|3} \\ {=s1.V.values.1.0|3} & {=s1.V.values.1.1|3} & {=s1.V.values.1.2|3} & {=s1.V.values.1.3|3} & {=s1.V.values.1.4|3} \end{pmatrix}
-        say: Slide 5. Step through to watch each column get solved and stored.
+        say: The lecture's first V-step. Step through to watch each column get solved and stored.
       - tex: |
           \begin{gathered} \anchor{transpose}{U = \text{als\_step\_V}(R^{\top}, V^{\top})^{\top}} \\ u_{11} = u_{12} = {=s2.U.values.0.0|8} \end{gathered}
-        say: '`.T` transposes (swaps rows and columns). With users and items swapped, the U-step is the same function, and the answer is flipped back: slide 8''s 1.09884117.'
+        say: '`.T` transposes (swaps rows and columns). With users and items swapped, the U-step is the same function, and the answer is flipped back: the lecture''s 1.09884117.'
     code:
       lang: python
       source: |
@@ -254,6 +265,7 @@ sections:
       - { anchor: transpose, label: 'U-step = V-step on the transposes' }
     trace: { fn: alsStepVCode, in: { R: '@r5x5', U: '@st.U' } }
     examples: [als-v-first, als-v-symmetric, als-u-first]
+    tryIt: [als-column-hand, als-row, code-als]
     pitfalls:
       - Each regression uses only the **observed** ratings of that column (or row).
       - With U = all ones the problem has infinitely many solutions; the slides pick the even split, which is what `lstsq` returns.
@@ -354,12 +366,14 @@ sections:
       - { anchor: sse, label: 'SSE after the round' }
     trace: { fn: alsCode, in: { R: '@r5x5', iters: '@iters', initKind: '@initKind' } }
     examples: [als-symmetry]
+    tryIt: [symmetry-mcq, symmetry-fixes, als-steps]
     pitfalls:
       - All-ones initialization is fine for a hand example but wastes the extra factors; use random initialization in practice.
-    examTip: 'If asked why U''s columns are equal on slide 8: the symmetric start (all ones) makes both factors receive identical updates.'
+      - Regularization does not cure the trap. From a symmetric start the ridge step is symmetric too; only a random start (or one-at-a-time coordinate updates) separates the factors.
+    examTip: 'If asked why the lecture''s U has equal columns: the symmetric start (all ones) makes both factors receive identical updates. Symmetry → random init; over-fitting → λ or a smaller d.'
 
   - id: cgd-derivation
-    title: 'Coordinate descent: deriving the update (slide 15)'
+    title: 'Coordinate descent: deriving the update'
     skills: [cgd-derivation]
     summary: |
       Change one entry u_is and freeze everything else. The SSE is then a parabola in that entry, so setting the
@@ -377,7 +391,7 @@ sections:
         say: Differentiate and set to zero.
       - tex: |
           \sum_j v_{sj} r_{ij} - u_{is} \sum_j v_{sj}^2 - \sum_j v_{sj} \sum_{t \ne s} u_{it} v_{tj} = 0
-        say: Expand the sum (slide 15, line 3).
+        say: Expand the sum (the lecture's derivation, line 3).
       - tex: |
           \anchor{closed}{u_{is}} = \frac{\anchor{num}{\sum_{j} v_{sj}\left(r_{ij} - \text{rest}_j\right)}}{\anchor{den}{\sum_{j} v_{sj}^2}}
         say: Solve for u_is. The v_sj entries update the same way, with U and V swapped.
@@ -437,6 +451,7 @@ sections:
       - { anchor: den, label: 'Σ v²', say: 'A vector dotted with itself.' }
       - { anchor: closed, label: closed-form minimizer, say: 'Written straight into U.' }
     trace: { fn: cgdUpdateCode, in: { R: '@r5x5', U: '@st.U', V: '@st.V', which: U, i: 0, s: 0 } }
+    tryIt: [cgd-hand, cgd-steps, code-cgd]
     pitfalls:
       - Sum only over the columns the user rated (`rated`).
       - Subtract the contribution of the **other** factors before regressing on v_sj.
@@ -455,13 +470,13 @@ sections:
     steps:
       - tex: |
           \begin{gathered} \anchor{start}{U = V = \mathbf{1}}: \quad \anchor{x}{(4-x)^2 + (1-x)^2 + (3-x)^2 + (3-x)^2 + (2-x)^2} \\ \Rightarrow\; -2\,[13 - 5x] = 0 \;\Rightarrow\; x = 2.6 \end{gathered}
-        say: Row 1's ratings minus 1 (the frozen factor's contribution), as on slide 11.
+        say: Row 1's ratings minus 1 (the frozen factor's contribution), as in the lecture's first coordinate step.
       - tex: |
           \anchor{y}{(4 - 2.6y)^2 + (2-y)^2 + (1-y)^2 + (3-y)^2}
-        say: Column 1 with u₁₁ = 2.6 fixed (slides 12–13); u3·i1 is blank, so four terms.
+        say: Column 1 with u₁₁ = 2.6 fixed; u3·i1 is blank, so four terms.
       - tex: |
           \begin{gathered} \anchor{update}{y} = \frac{\anchor{num}{2.6(5 - \anchor{rest}{1}) + 1(3 - 1) + 1(2 - 1) + 1(4 - 1)}}{\anchor{den}{2.6^2 + 1^2 + 1^2 + 1^2}} \\ = \frac{16.4}{9.76} = {=cg.y|4} \end{gathered}
-        say: 'The same recipe: Σ u(r − rest) / Σ u². The slide writes "x = 1.68"; it is y.'
+        say: 'The same recipe: Σ u(r − rest) / Σ u². The lecture labels this "x = 1.68"; it is y.'
       - tex: |
           \begin{gathered} \anchor{obs}{I = \text{users who rated } j}: \quad \anchor{rest}{\textbf{rest} = \anchor{full}{U_{I,:}\,\mathbf{v}_j} - U_{I,s}\, v_{sj}} \\ \text{SSE}: {=cg.sse0} \to {=cg.sse1|2} \to {=cg.sse2|2} \end{gathered}
         say: '`update_v` mirrors `update_u`: a column of R instead of a row, `U[rated]` instead of `V[:, rated]`. Each exact update lowers the SSE.'
@@ -535,12 +550,13 @@ sections:
       - { anchor: update, label: the new value }
     trace: { fn: cgdWorkedCode, in: { R: '@r5x5' } }
     examples: [cgd-x, cgd-y]
+    tryIt: [cgd-numeric, cgd-v-numeric, slide14]
     pitfalls:
       - Only observed cells count; column 1 has four terms because u3·i1 is missing.
       - After updating x, use the **new** x when updating y (the functions change U and V in place).
     examTip: 'Write the parabola, differentiate, solve: for u₁₁ from all ones it is just the mean of (rating − 1) over the row.'
     errata:
-      - 'Slide 14 solves for **y** (= v₁₁) but labels the answer "x = 1.68". It is y = 1.68.'
+      - 'The lecture''s second coordinate step solves for **y** (= v₁₁) but labels the answer "x = 1.68". It is y = 1.68.'
 
   - id: prediction
     title: Filling the blanks
@@ -605,6 +621,7 @@ sections:
       - { anchor: fill, label: predictions for missing cells }
       - { anchor: filled, label: 'the completed matrix', say: 'np.where(condition, if_true, if_false), entry by entry.' }
     trace: { fn: fillCode, in: { R: '@r5x5', U: '@run.U', V: '@run.V' } }
+    tryIt: [predict-missing, overfit]
     pitfalls:
       - A tiny training SSE does not mean good predictions for the blanks.
       - Clip predictions to the rating scale in practice (`np.clip(R_hat, 1, 5)`).
@@ -612,11 +629,11 @@ sections:
 
   - id: regularization
     title: Regularization (λ)
-    skills: [rank-choice, als-symmetry]
+    skills: [rank-choice, prediction]
     beyondSlides: true
     summary: |
-      Add λ‖U‖² + λ‖V‖² to the SSE. Each ALS step becomes a ridge regression: factors shrink, predictions calm down,
-      and the minimizer becomes unique (no more free split of v₁ + v₂).
+      Add λ‖U‖² + λ‖V‖² to the SSE. Each ALS step becomes a ridge regression with exactly one answer: factors shrink
+      and predictions calm down. It does **not** break the symmetry trap: only a random start does.
     keyFormula: '\min_{U,V} \sum_{\text{obs}} (r_{ij} - \mathbf{u}_i\cdot\mathbf{v}_j)^2 + \lambda\left(\|U\|^2 + \|V\|^2\right)'
     data: [r5x5]
     state: { lambda: 1 }
@@ -705,6 +722,8 @@ sections:
       - { anchor: rhs, label: 'Uoᵀ r' }
       - { anchor: ridge, label: ridge solution, say: '`np.linalg.solve` solves a square linear system.' }
     trace: { fn: ridgeCode, in: { R: '@r5x5', U: '@st.U', lambda: '@lambda' } }
+    tryIt: [lambda-effect, fold-in]
     pitfalls:
       - Not on the slides; Spark's ALS calls λ `regParam`.
-    examTip: If asked how to fix the symmetry or over-fitting problems, mention random initialization and regularization.
+      - '"λ makes the solution unique" is true only for each single ALS step. The whole objective still has many equally good answers (rotate the factors), and from all ones the two factors still tie.'
+    examTip: 'Two different fixes for two different problems: symmetry trap → random initialization; over-fitting → λ (or a smaller d).'

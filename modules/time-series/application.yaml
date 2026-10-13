@@ -32,9 +32,9 @@ case:
         type: mcq
         options:
           - 'Both the upward trend and the April–June seasonal peak'
-          - 'Only the trend; seasons average out over a year'
-          - 'Only the season; the trend is too small to matter'
-          - 'Neither; the series is a random walk'
+          - 'Only the upward trend; the seasons average out over a year'
+          - 'Only the seasonal peak; the trend is too small to matter'
+          - 'Only the latest level; both patterns are mostly noise'
         answer: 0
         model: |
           Buying power for May at the yearly average would leave the cooperative short at the peak, and repeating last May
@@ -48,10 +48,10 @@ case:
         prompt: A teammate suggests `train_test_split(X, y, test_size=0.3)` "to be safe". What do you say?
         type: mcq
         options:
-          - 'No: its default shuffles, so the model would train on 2025 to predict 2023 and the score would be meaningless'
-          - 'Yes: a random 30% is more representative'
-          - 'Yes, as long as we set random_state'
-          - 'Only if we also standardize the features'
+          - 'No: it shuffles by default, so the model would learn from 2025 to predict 2023'
+          - 'Yes: a random 30% covers every season, so it is more representative'
+          - 'Yes, as long as random_state is fixed so the split can be repeated'
+          - 'Only if the features are standardized first, so no month dominates'
         answer: 0
         model: |
           Never split a time series at random. Learn from the past, test on the future; the order is the information.
@@ -83,9 +83,11 @@ case:
         prompt: Seasonal naive (MAE 4.19) beats naive (5.14) here, unlike CO₂. Why might that be?
         type: open
         model: |
-          Here the yearly swing (about ±6 GWh) is big compared with one year of growth (about 4 GWh), so getting the shape
-          right matters more than getting the level right. For CO₂ the yearly growth (about 1.5 ppm) caused most of the
-          seasonal naive's misses. Seasonal naive still sits low every month: it forgets a year of growth.
+          Two things differ from CO₂. The test here is one year, so seasonal naive is off by only one year of growth (about
+          4 GWh, every month too low); on CO₂ the test ran four years and its miss piled up from about 3 ppm in 1998 to
+          about 7 ppm in 2001. And naive starts from April, near the hot-season peak, so it overshoots the cool months by up
+          to 11.5 GWh; on CO₂ it started from December, close to the yearly average. The swing (about ±6 GWh) matters more
+          here than a year's growth.
     - id: stationarity
       title: Remove trend and season
       say: |
@@ -112,13 +114,14 @@ case:
         type: mcq
         options:
           - 'Add seasonal terms: a seasonal difference or SARIMA(p,d,q)(P,D,Q)₁₂'
-          - 'Difference a second time at lag 1'
-          - 'Ignore it; ARIMA(p,d,q) handles seasons'
-          - 'Shuffle the data to remove the pattern'
+          - 'Difference a second time at lag 1, so the swing is removed'
+          - 'Ignore it: ARIMA(p,d,q) picks up seasons through its p terms'
+          - 'Take logarithms first, so the yearly swing disappears'
         answer: 0
         model: |
           One difference removes the trend, not the season. ARIMA(p,d,q) has no yearly part; Δ₁₂ or SARIMA does. With only
-          27 differenced training months, though, the ACF itself is noisy: treat it as a hint, not a verdict.
+          27 differenced training months the ACF is noisy: treat it as a hint, not a verdict. After Δ₁₂ only 16 values
+          remain, so its lag-12 bar rests on just 4 pairs: do not read anything into it.
     - id: regression
       title: Lag-feature regression
       say: |
@@ -149,10 +152,10 @@ case:
         prompt: 'lag_12 alone (MAE 1.28) does as well as lag_1 + lag_12 (1.30), and the leaky version scores 0. Which do you deploy?'
         type: mcq
         options:
-          - 'lag_12 (or lag_1 + lag_12): it beats the one-step naive bar; the leaky model is invalid'
-          - 'The leaky model: MAE 0 is unbeatable'
-          - 'lag_1 only: simplest is best'
-          - 'None: regression cannot forecast time series'
+          - 'lag_12: it clears the one-step naive bar, and the leaky score is invalid'
+          - 'The leaky model: a score of 0 means it has learned the pattern perfectly'
+          - 'lag_1 only: it is the simplest model, and simple models generalise best'
+          - 'lag_1 + lag_12: more inputs always help when the scores are this close'
         answer: 0
         model: |
           The leaky rolling mean contains the month being predicted, so its perfect score means nothing. Between the honest
@@ -185,7 +188,7 @@ atScale:
     **Backtesting.** One train/test cut is one opinion. Use rolling-origin evaluation (`TimeSeriesSplit`): train on the
     past, test on the next block, move the cut forward, and repeat.
 
-    **Foundation models.** TimesFM-style models (Session 10, slide 4) forecast series they have never seen before. They
+    **Foundation models.** Large pretrained models such as TimesFM forecast series they have never seen before. They
     still have to beat the naive forecast on your hidden months.
   code:
     - lang: python
@@ -215,7 +218,7 @@ atScale:
 
         forecasts = sales.groupBy("coop").applyInPandas(fit_one, schema="coop string, h int, forecast double")
 tradeoffs:
-  title: ARIMA vs classical ML (Session 12 summary, extended)
+  title: ARIMA vs classical ML
   columns: [Aspect, ARIMA family, Lag-feature regression]
   rows:
     - ['How the past enters', 'Built into the model (p, d, q)', 'Columns you create (lags, rolling means)']

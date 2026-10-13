@@ -25,6 +25,7 @@ sections:
       - tex: |
           \mu_u = \frac{\anchor{total}{\sum_{j \in I_u} r_{uj}}}{\anchor{count}{|I_u| = \sum_j M_{uj}}}, \qquad \anchor{mu}{\text{mu} = \text{totals} \,/\, \text{counts}}
         say: |
+          $I_u$ ("I sub u") is the set of items user u rated, and $|I_u|$ is how many there are.
           `axis=1` means "along each row", giving one number per user. `M.sum(axis=1)` counts the Trues (True = 1),
           and `np.nansum(R, axis=1)` adds the ratings while skipping NaN. `keepdims=True` keeps both as m × 1 columns,
           so `/` divides them row by row.
@@ -35,7 +36,7 @@ sections:
           so each rating loses its own row's mean, and NaN − μ stays NaN. `mu.ravel()` hands the means back as a flat 1-D array.
       - tex: |
           \mu_A = \anchor{mu}{\tfrac{4 + 5 + 1}{3} = {=c.meansMap.A|frac}}, \qquad s_{A,\text{HP1}} = \anchor{s}{4 - \tfrac{10}{3} = {=c.values.0.0|frac}}
-        say: 'Lecture example (slides 3–4). B''s mean is {=c.meansMap.B|frac}, C''s {=c.meansMap.C|frac}, D''s {=c.meansMap.D|frac}. Step through to see the array each line produces.'
+        say: 'The lecture''s HP example. B''s mean is {=c.meansMap.B|frac}, C''s {=c.meansMap.C|frac}, D''s {=c.meansMap.D|frac}. Step through to see the array each line produces.'
     code:
       lang: python
       source: |
@@ -105,15 +106,16 @@ sections:
       - Divide by the number of ratings the user gave, not by the number of columns (`R.shape[1]`).
       - 'Without `keepdims=True` (or `mu[:, None]`), `mu` has shape (m,) and broadcasting lines it up with the **columns**: an error, or silently wrong when m = n.'
       - Missing ratings stay missing after centering; they do not become −μᵤ.
-    examTip: Keep fractions (10/3, 14/3 …) until the end; the slides' centered table is in thirds.
+    examTip: Keep fractions (10/3, 14/3 …) until the end; the lecture's centered HP table is in thirds.
+    tryIt: [mean-numeric, center-numeric, code-center]
 
   - id: similarity
     title: 'User similarity: cosine over co-rated items'
     skills: [similarity]
     summary: |
-      Compare two users only on the items **both** rated, using their centered ratings. The result is a cosine between −1
-      (opposite tastes) and 1 (same tastes); no overlap, or a zero vector, gives 0. With matrix products, numpy fills
-      the whole user × user table at once.
+      Compare two users only on the items **both** rated, using their [[mean-centering|centered]] ratings. The result is a
+      [[cosine-similarity|cosine]] between −1 (opposite tastes) and 1 (same tastes); no overlap, or a zero vector, gives 0.
+      The code does one pair at a time; the extra tab fills the whole user × user table at once.
     keyFormula: '\text{sim}(u,v) = \frac{\sum_{j \in I_u \cap I_v} s_{uj} s_{vj}}{\sqrt{\sum_{j \in I_u \cap I_v} s_{uj}^2}\sqrt{\sum_{j \in I_u \cap I_v} s_{vj}^2}}'
     data: [ab5x6]
     state: { a: A, b: B }
@@ -122,102 +124,96 @@ sections:
       - { fn: simSheet, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user }, out: ws }
     steps:
       - tex: |
-          \text{sim}(u,v) = \frac{\anchor{dot}{\sum_{j \in I_u \cap I_v} s_{uj}\, s_{vj}}}{\anchor{nu}{\sqrt{\textstyle\sum_{j \in I_u \cap I_v} s_{uj}^2}}\;\anchor{nv}{\sqrt{\textstyle\sum_{j \in I_u \cap I_v} s_{vj}^2}}}
-        say: The formula has three sums, all over the co-rated items only.
-      - tex: |
-          \anchor{mask}{M_{uj} = [\,r_{uj} \text{ observed}\,] \in \{0, 1\}}, \qquad \anchor{fill}{Z_{uj} = \begin{cases} s_{uj} & \text{rated} \\ 0 & \text{blank} \end{cases}}
+          \anchor{corated}{I_u \cap I_v = \{\, j : u \text{ rated } j \text{ and } v \text{ rated } j \,\}}
         say: |
-          `.astype(float)` turns the True/False mask into 1/0. `np.nan_to_num` swaps NaN for 0, and a 0 adds nothing to a sum,
-          so any product or square that involves a blank vanishes. That is how whole-matrix products can respect "co-rated only".
+          $I_u$ ("I sub u") is the set of items u rated, and ∩ ("intersect") keeps the items in both sets: the
+          [[co-rated]] items. In code, `np.isnan` is True at a blank, `~` flips it, and `&` is an element-wise "and".
+          `S[u, both]` keeps only those entries.
       - tex: |
-          \anchor{dot}{\text{dot} = Z Z^{\top}}, \qquad \anchor{sq}{\text{sq} = Z \odot Z}, \qquad \anchor{ss}{\text{ss} = \text{sq}\; M^{\top}}
-        say: |
-          `@` is matrix multiplication: entry (u, v) of $ZZ^\top$ is row u · row v, the dot product over co-rated items.
-          `**` squares entry by entry (⊙). In `sq @ M.T`, u's squares are multiplied by v's 0/1 mask, so ss[u, v] = ‖u‖² over the items v also rated.
+          \anchor{dot}{\sum_{j \in I_u \cap I_v} s_{uj}\, s_{vj}}
+        say: '`a @ b` on two 1-D arrays multiplies them entry by entry and adds: the [[dot-product|dot product]] over the co-rated items.'
       - tex: |
-          \begin{gathered} \anchor{nu}{\text{nu} = \sqrt{\text{ss}}}, \quad \anchor{nv}{\text{nv} = \text{nu}^{\top}}, \quad \anchor{den}{\text{den} = \text{nu} \odot \text{nv}} \\ \anchor{sim}{\text{sims} = \text{dot} \oslash \text{den}}, \quad \anchor{zero}{0 \text{ where den} = 0} \end{gathered}
+          \anchor{norm}{\sqrt{\textstyle\sum_{j \in I_u \cap I_v} s_{uj}^2}\;\sqrt{\textstyle\sum_{j \in I_u \cap I_v} s_{vj}^2}}
         say: |
-          `np.sqrt`, `*` and `/` all work entry by entry (⊙, ⊘). Transposing gives v's length over the same items.
-          Where a length is 0 (no overlap, or a zero vector), `np.where` puts 0 instead of dividing by 0.
+          `np.linalg.norm(a)` is the square root of the sum of squares of `a`, its [[norm|length]]. Because `a` and `b`
+          already hold only the co-rated entries, these are the lecture's lengths.
+      - tex: |
+          \anchor{sim}{\text{sim}(u,v) = \frac{\text{dot}}{\|a\|\,\|b\|}} \quad (0 \text{ if a length is } 0)
+        say: No overlap, or a zero vector, makes a length 0; return 0 instead of dividing by 0.
       - tex: |
           \anchor{sim}{ {=ws.simTex} }
-        say: 'Slide 9 shows 0.70 for (A, B). Overlap here: {=s.overlap} items ({=s.corated|list}). Step through to see every array the code builds.'
+        say: 'At the default pair (A, B) the lecture''s table shows 0.70. Pick another pair to see its co-rated items ({=s.overlap} here: {=s.corated|list}). Step through to see each line on the data.'
     code:
       lang: python
       source: |
         import numpy as np
 
-        def user_sims(S):
-            """Pearson similarity of every pair of users, over co-rated items only.
-
-            Cosine of the centered rows, where both sums and both norms run only
-            over the items the two users have both rated.
+        def sim(S, u, v):
+            """Centered cosine of users u and v over the items both rated.
 
             Args:
                 S: users × items centered ratings, np.nan = blank.
+                u, v: the two rows to compare.
 
             Returns:
-                users × users array of similarities in [−1, 1]; 0 where a pair
-                shares no rated item (a norm of 0).
+                float in [−1, 1]; 0 when they share no rated item or a
+                length is 0.
+                Lecture: sim(S, B, A) == 0.70 on the 5 × 6 matrix.
             """
-            # @a mask
-            # 1 where rated, 0 where blank
-            M = (~np.isnan(S)).astype(float)
-            # @end
-            # @a fill
-            # blanks become 0, so they add nothing to any sum
-            Z = np.nan_to_num(S)
+            # @a corated
+            # True where both rated; keep only those entries
+            both = ~np.isnan(S[u]) & ~np.isnan(S[v])
+            a, b = S[u, both], S[v, both]
             # @end
             # @a dot
-            # every row · row dot product at once (users × users)
-            dot = Z @ Z.T
+            # multiply pairwise and add
+            dot = a @ b
             # @end
-            # @a sq
-            # square each entry (element-wise)
-            sq = Z ** 2
-            # @end
-            # @a ss
-            # u's squares, kept only where v also rated
-            ss = sq @ M.T
-            # @end
-            # @a nu
-            # ‖u‖ over the items both rated
-            nu = np.sqrt(ss)
-            # @end
-            # @a nv
-            # ‖v‖ over the same items: swap rows and columns
-            nv = nu.T
-            # @end
-            # @a den
-            # the denominator, entry by entry
-            den = nu * nv
-            # @end
-            # @a zero
-            # put 1 where den is 0, so we never divide by 0
-            safe = np.where(den > 0, den, 1.0)
+            # @a norm
+            # lengths over the same co-rated items
+            norm = np.linalg.norm(a) * np.linalg.norm(b)
             # @end
             # @a sim
-            # divide entry by entry; 0 where a norm was 0
-            return np.where(den > 0, dot / safe, 0.0)
+            # no overlap or a zero vector gives 0
+            return 0.0 if norm == 0 else dot / norm
             # @end
+    extraCode:
+      - lang: python
+        title: All pairs at once (numpy)
+        source: |
+          import numpy as np
+
+          def user_sims(S):
+              """Centered cosine of every pair of users, over co-rated items only.
+
+              Args:
+                  S: users × items centered ratings, np.nan = blank.
+
+              Returns:
+                  users × users array of similarities; 0 where a pair shares
+                  no rated item (a length of 0).
+              """
+              M = (~np.isnan(S)).astype(float)   # 1 = rated, 0 = blank
+              Z = np.nan_to_num(S)               # blanks become 0
+              dot = Z @ Z.T                      # every row · row at once
+              ss = (Z ** 2) @ M.T                # u's squares, only where v also rated
+              nu = np.sqrt(ss)                   # ‖u‖ over the items both rated
+              den = nu * nu.T                    # ‖u‖ · ‖v‖, entry by entry
+              safe = np.where(den > 0, den, 1.0) # never divide by 0
+              return np.where(den > 0, dot / safe, 0.0)
     links:
-      - { anchor: mask, label: 'M: 1 = rated', say: 'Boolean mask converted to floats so it can take part in matrix products.' }
-      - { anchor: fill, label: 'Z: blanks → 0', say: 'A 0 contributes nothing to a sum of products.' }
-      - { anchor: dot, label: 'dot = Z Zᵀ', say: 'Every pairwise dot product in one matrix multiplication.' }
-      - { anchor: sq, label: 'squares', say: 'Element-wise power, not a matrix power.' }
-      - { anchor: ss, label: 'ss = sq Mᵀ', say: 'Masked sums of squares: only the items the other user also rated.' }
-      - { anchor: nu, label: '‖u‖ (co-rated)', say: 'Element-wise square root.' }
-      - { anchor: nv, label: '‖v‖ (co-rated)', say: 'The transpose swaps which user is "u" and which is "v".' }
-      - { anchor: den, label: 'denominator', say: 'Element-wise product of the two lengths.' }
-      - { anchor: zero, label: 'zero norm → 0', say: 'np.where(condition, if_true, if_false), entry by entry.' }
-      - { anchor: sim, label: 'the similarity, in [−1, 1]', say: 'Element-wise division, 0 where the denominator was 0.' }
-    trace: { fn: simCode, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user } }
+      - { anchor: corated, label: 'Iᵤ ∩ Iᵥ: co-rated items', say: 'A boolean mask, then boolean indexing keeps those entries.' }
+      - { anchor: dot, label: 'dot product', say: '`@` on two vectors is the dot product.' }
+      - { anchor: norm, label: 'lengths over the co-rated items', say: '`np.linalg.norm` of the already-cut arrays.' }
+      - { anchor: sim, label: 'the similarity, in [−1, 1]', say: 'A conditional expression returns 0 when a length is 0.' }
+    trace: { fn: sim, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: user } }
     examples: [ab-sim-ab, ab-sim-ac, ab-sim-bc, ab-sim-bd, ab-sim-de, hp-sim-ca, hp-sim-cb, hp-sim-da]
     pitfalls:
-      - '`np.linalg.norm(Z, axis=1)` gives each user''s length over **everything** they rated. The lecture''s norms are over the co-rated items only, which is why the code needs `sq @ M.T`.'
-      - '`*` is element-wise and `@` is the matrix product. Swapping them gives arrays of a plausible shape with the wrong meaning.'
-      - Center first. Cosine of raw ratings is almost always positive because ratings are positive numbers.
-    examTip: 'Write the two centered vectors restricted to co-rated items side by side; then dot, norms, divide.'
+      - 'A length over **all** of a user''s ratings (`np.linalg.norm` of the whole row, ignoring the other user) is wrong. The lecture''s lengths run over the co-rated items only. `np.linalg.norm(a)` on the co-rated slice is right.'
+      - Center first. The cosine of raw ratings is almost always positive because ratings are positive numbers.
+      - '`*` is element-wise and `@` is the dot (or matrix) product. Swapping them gives arrays of a plausible shape with the wrong meaning.'
+    examTip: 'Write the two centered vectors restricted to co-rated items side by side; then dot, lengths, divide.'
+    tryIt: [sim-numeric, sim-hand, code-sim]
 
   - id: neighbors
     title: Choosing the neighbours
@@ -225,7 +221,7 @@ sections:
     summary: |
       Only peers who actually rated the target item can vote. Take the k most similar of them, then drop anyone with
       similarity ≤ 0. If nobody is left, leave the prediction blank. In numpy this is masking, sorting and indexing.
-    keyFormula: 'N_u(j) = \{ v \in \text{top-}k(P_u(j)) : \text{sim}(u,v) > 0 \}'
+    keyFormula: 'P_u(j) = \{ v \in \text{top-}k(R_j) : \text{sim}(u,v) > 0 \}'
     data: [ab5x6]
     state: { user: B, item: c, k: 3 }
     derive:
@@ -244,21 +240,21 @@ sections:
           showRowMeans: false
     steps:
       - tex: |
-          P_u(j) = \{\, v : \anchor{raters}{r_{vj} \text{ observed}},\ \anchor{self}{v \neq u} \,\} \;\to\; \anchor{idx}{\text{their row numbers}}
+          R_j = \{\, v : \anchor{raters}{r_{vj} \text{ observed}},\ \anchor{self}{v \neq u} \,\} \;\to\; \anchor{idx}{\text{their row numbers}}
         say: |
-          Candidates are the other users who rated item j. `S[:, j]` is column j (every user's centered rating of j);
+          $R_j$, the candidates, are the other users who rated item j. `S[:, j]` is column j (every user's centered rating of j);
           `np.flatnonzero` turns a True/False array into the positions of its Trues.
       - tex: |
-          \anchor{sort}{\text{sort } P_u(j) \text{ by sim}(u, v), \text{ largest first}} \;\Rightarrow\; \anchor{topk}{\text{top-}k}
+          \anchor{sort}{\text{sort } R_j \text{ by sim}(u, v), \text{ largest first}} \;\Rightarrow\; \anchor{topk}{\text{top-}k}
         say: |
           `sims[u, cands]` reads the candidates' similarities to u. `np.argsort` returns the order that would sort an array **ascending**, so sorting the negatives (`-sc`) puts the most similar first.
           `kind='stable'` keeps ties in row order (the lecture's tie-break). `order[:k]` keeps k, and `cands[order[:k]]` maps them back to rows.
       - tex: |
-          N_u(j) = \anchor{pos}{\{ v \in \text{top-}k : \text{sim}(u,v) > 0 \}}
-        say: '`sims[u, top] > 0` is a True/False array; `top[...]` with it keeps only the True positions (boolean indexing).'
+          P_u(j) = \anchor{pos}{\{ v \in \text{top-}k : \text{sim}(u,v) > 0 \}}
+        say: '$P_u(j)$ is the lecture''s name for the neighbours actually used: the top k, positive only. `sims[u, top] > 0` is a True/False array; `top[...]` with it keeps the True positions (boolean indexing).'
       - tex: |
-          \text{top-}{=k}: \text{ {=p.top|list} } \;\Rightarrow\; \anchor{pos}{N = \{\text{ {=p.used|list} }\}}
-        say: 'Slide 10 (k = 3, B·c): C 0.94, A 0.70, D −0.72 make the top 3; D is dropped for its negative similarity.'
+          \text{top-}{=k}: \text{ {=p.top|list} } \;\Rightarrow\; \anchor{pos}{P_u(j) = \{\text{ {=p.used|list} }\}}
+        say: 'At the default k = 3 for B·c: C 0.94, A 0.70 and D −0.72 make the top 3, and D is dropped for its negative similarity. Move k to see the sets change.'
     code:
       lang: python
       source: |
@@ -313,10 +309,11 @@ sections:
     trace: { fn: neighborsCode, in: { matrix: '@ab5x6', user: '@user', item: '@item', k: '@k' } }
     examples: [ub-b-c, ub-e-b, ib-hp-c-hp2-blank]
     pitfalls:
-      - Take the top-k **before** filtering; a negative neighbour still occupies a top-k slot (E·b on slide 13 uses only D).
+      - Take the top-k **before** filtering; a negative neighbour still occupies a top-k slot (in the lecture's E·b, only D is left).
       - Users who didn't rate the item can't be neighbours, however similar they are.
       - '`np.argsort(sims[u, cands])` without the minus sign sorts from least to most similar.'
     examTip: 'Circle the raters of the target column, sort them by similarity, cross out beyond k and any sim ≤ 0.'
+    tryIt: [neighbors-multi, positive-only]
 
   - id: ub-predict
     title: User-based prediction (and adding the mean back)
@@ -324,7 +321,7 @@ sections:
     summary: |
       The centered prediction is the similarity-weighted average of the neighbours' centered ratings for the item:
       in numpy, one dot product divided by one sum. The slides stop there; add the user's own mean to turn it back into a rating.
-    keyFormula: '\hat s_{uj} = \frac{\sum_{v \in N_u(j)} \text{sim}(u,v)\, s_{vj}}{\sum_{v \in N_u(j)} \text{sim}(u,v)}, \quad \hat r_{uj} = \hat s_{uj} + \mu_u'
+    keyFormula: '\hat s_{uj} = \frac{\sum_{v \in P_u(j)} \text{sim}(u,v)\, s_{vj}}{\sum_{v \in P_u(j)} \text{sim}(u,v)}, \quad \hat r_{uj} = \hat s_{uj} + \mu_u'
     data: [ab5x6]
     state: { user: B, item: c, k: 3 }
     derive:
@@ -344,22 +341,22 @@ sections:
           showRowMeans: false
     steps:
       - tex: |
-          \anchor{nbrs}{N = N_u(j)} \ (\text{previous section}), \qquad \anchor{blank}{N = \varnothing \;\Rightarrow\; \text{blank}}
-        say: '`N` is an array of row numbers. `N.size` is its length; 0 means nobody can vote, so the function returns `np.nan`.'
+          \anchor{nbrs}{N = P_u(j)} \ (\text{previous section}), \qquad \anchor{blank}{N = \varnothing \;\Rightarrow\; \text{blank}}
+        say: '`N` holds the row numbers of $P_u(j)$. `N.size` is its length; 0 means nobody can vote, so the function returns `np.nan`.'
       - tex: |
-          \anchor{w}{\mathbf{w} = \big(\text{sim}(u,v)\big)_{v \in N}}, \qquad \anchor{s}{\mathbf{s} = \big(s_{vj}\big)_{v \in N}}
+          \anchor{w}{\mathbf{w} = \big(\text{sim}(u,v)\big)_{v \in P_u(j)}}, \qquad \anchor{s}{\mathbf{s} = \big(s_{vj}\big)_{v \in P_u(j)}}
         say: |
           **Fancy indexing** (indexing with an array): `sims[u, N]` reads row u at the columns in N; `S[N, j]` reads the rows in N
           of column j. Both come out in the same neighbour order, so they line up.
       - tex: |
-          \anchor{pred}{\hat s_{uj}} = \frac{\anchor{num}{\mathbf{w} \cdot \mathbf{s}}}{\anchor{den}{\textstyle\sum_{v \in N} w_v}} = \frac{\sum_{v \in N} \text{sim}(u,v)\, s_{vj}}{\sum_{v \in N} \text{sim}(u,v)}
+          \anchor{pred}{\hat s_{uj}} = \frac{\anchor{num}{\mathbf{w} \cdot \mathbf{s}}}{\anchor{den}{\textstyle\sum_{v \in P_u(j)} w_v}} = \frac{\sum_{v \in P_u(j)} \text{sim}(u,v)\, s_{vj}}{\sum_{v \in P_u(j)} \text{sim}(u,v)}
         say: '`w @ s` on two 1-D arrays is their dot product (multiply pairwise, add); `w.sum()` adds the weights.'
       - tex: |
           \hat r_{uj} = \hat s_{uj} + \anchor{mean}{\mu_u}
-        say: Undo the centering with the **target user's** mean, `mu[u]`.
+        say: 'Undo the centering with the **target user''s** mean, `mu[u]`. $\hat r$ ("r-hat") is the predicted rating, just as $\hat s$ is the predicted centered rating.'
       - tex: |
           \anchor{pred}{ {=ps.predTex} }, \qquad \anchor{mean}{ {=ps.ratingTex} }
-        say: 'Slide 10: (0.94)(1) + (0.7)(1.5) over 0.94 + 0.7 = 1.2, so B would rate c about 1.2 + 4.8 = 6.0.'
+        say: 'At the default B·c with k = 3: (0.94)(1) + (0.7)(1.5) over 0.94 + 0.7 = 1.21 (the lecture shows 1.2), so B would rate c about 1.21 + 4.8 = 6.0. Change k or the cell to see other cases.'
     code:
       lang: python
       source: |
@@ -412,7 +409,7 @@ sections:
             return s_hat + mu[u]
             # @end
     links:
-      - { anchor: nbrs, label: 'neighbours N', say: 'The helper from the previous section.' }
+      - { anchor: nbrs, label: 'neighbours P_u(j)', say: 'The helper from the previous section.' }
       - { anchor: blank, label: 'nobody → blank', say: '`np.nan` marks a prediction we cannot make.' }
       - { anchor: w, label: 'weights sim(u, v)', say: 'Fancy indexing: row u, columns N.' }
       - { anchor: s, label: 'their centered ratings', say: 'Fancy indexing: rows N, column j.' }
@@ -426,17 +423,19 @@ sections:
       - Forgetting to add μᵤ back gives a centered value like 1.2, not a rating like 6.0.
       - 'The denominator is the sum of the **used** similarities (`w.sum()`), not k and not the number of users.'
       - '`sims[u, N]` and `S[N, j]` must use the same `N` in the same order, or the weights pair up with the wrong ratings.'
-    examTip: 'Show the arithmetic exactly like slide 10: (sim)(dev) + (sim)(dev) over sim + sim; then add μᵤ.'
+    examTip: 'Show the arithmetic like the lecture: (sim)(dev) + (sim)(dev) over sim + sim. The lecture''s tables report ŝ, so give ŝ unless the question asks for a rating; then add μᵤ.'
+    tryIt: [ub-predict-numeric, ub-predict-hand, code-predict]
     errata:
-      - 'Slides 11–12 plug in **0.87** for sim(C, A), but the table on slide 9 says **0.89**. With 0.89, C·a = 1.35 and C·f = −1.14; both still round to the slide''s 1.3 and −1.1.'
+      - 'If you''re reading the slides: the worked C·a and C·f plug in **0.87** for sim(C, A), but the similarity table says **0.89**. With 0.89, C·a = 1.35 and C·f = −1.14; both still round to the slides'' 1.3 and −1.1.'
 
   - id: item-similarity
     title: 'Item similarity: adjusted cosine'
     skills: [ibcf-similarity, similarity]
     summary: |
       Flip the matrix: compare two **items** by the users who rated both. The ratings are still centered by each
-      **user's** mean, which is why it's called adjusted cosine. The code is the user version with the transposes swapped.
-    keyFormula: '\text{sim}(i,j) = \frac{\sum_{u \in U_i \cap U_j} s_{ui} s_{uj}}{\sqrt{\sum_{u} s_{ui}^2}\sqrt{\sum_{u} s_{uj}^2}}'
+      **user's** mean, which is why it's called the [[adjusted-cosine|adjusted cosine]]. The code is the user version on
+      columns instead of rows.
+    keyFormula: '\text{sim}(i,j) = \frac{\sum_{u \in U_i \cap U_j} s_{ui} s_{uj}}{\sqrt{\sum_{u \in U_i \cap U_j} s_{ui}^2}\sqrt{\sum_{u \in U_i \cap U_j} s_{uj}^2}}'
     data: [ab5x6]
     state: { a: a, b: b }
     derive:
@@ -444,99 +443,96 @@ sections:
       - { fn: simSheet, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item }, out: ws }
     steps:
       - tex: |
-          \text{sim}(i,j) = \frac{\anchor{dot}{\sum_{u \in U_i \cap U_j} s_{ui}\, s_{uj}}}{\anchor{nu}{\sqrt{\textstyle\sum_{u \in U_i \cap U_j} s_{ui}^2}}\;\anchor{nv}{\sqrt{\textstyle\sum_{u \in U_i \cap U_j} s_{uj}^2}}}
-        say: Same cosine as before, on **columns** of the user-centered matrix, over the users who rated both items.
-      - tex: |
-          \anchor{mask}{M_{ui} \in \{0, 1\}}, \qquad \anchor{fill}{Z_{ui} = s_{ui} \text{ or } 0}
-        say: The same mask and zero-filled matrix as for users. Do not re-center by column means.
-      - tex: |
-          \anchor{dot}{\text{dot} = Z^{\top} Z}, \qquad \anchor{sq}{\text{sq} = Z \odot Z}, \qquad \anchor{ss}{\text{ss} = \text{sq}^{\top} M}
+          \anchor{corated}{U_i \cap U_j = \{\, u : u \text{ rated } i \text{ and } u \text{ rated } j \,\}}
         say: |
-          `Z.T @ Z` multiplies an (items × users) by a (users × items) array: entry (i, j) is column i · column j.
-          `sq.T @ M` adds item i's squares only for users who also rated j.
+          $U_i$ ("U sub i") is the set of users who rated item i; the intersection holds the co-raters. `S[:, i]` is
+          column i. Do **not** re-center by column means: $s_{ui}$ is still the rating minus **user** u's mean.
       - tex: |
-          \begin{gathered} \anchor{nu}{\text{ni} = \sqrt{\text{ss}}}, \quad \anchor{nv}{\text{nj} = \text{ni}^{\top}}, \quad \anchor{den}{\text{den} = \text{ni} \odot \text{nj}} \\ \anchor{sim}{\text{isims} = \text{dot} \oslash \text{den}}, \quad \anchor{zero}{0 \text{ where den} = 0} \end{gathered}
-        say: 'Items with no common rater get 0 (HP3 and TW on slide 18). The whole function equals `user_sims(S.T)`.'
+          \anchor{dot}{\sum_{u \in U_i \cap U_j} s_{ui}\, s_{uj}}
+        say: '`a @ b` multiplies the two columns'' centered values user by user and adds.'
+      - tex: |
+          \anchor{norm}{\sqrt{\textstyle\sum_{u \in U_i \cap U_j} s_{ui}^2}\;\sqrt{\textstyle\sum_{u \in U_i \cap U_j} s_{uj}^2}}
+        say: Both lengths run over the same co-raters, never over every rater of each item.
+      - tex: |
+          \anchor{sim}{\text{sim}(i,j) = \frac{\text{dot}}{\|a\|\,\|b\|}} \quad (0 \text{ if no common rater})
+        say: 'Items with no common rater get 0, like HP3 and TW in the HP data.'
       - tex: |
           \anchor{sim}{ {=ws.simTex} }
-        say: 'Slide 41 shows 0.74 for (a, b). Try TW and SW1 on the HP data to see the erratum below.'
+        say: 'At the default pair (a, b) the lecture''s item table shows 0.74. The HP pair TW, SW1, with the table''s erratum below, is worked in the item-based scene of the Intuition tab.'
     code:
       lang: python
       source: |
         import numpy as np
 
-        def item_sims(S):
-            """Pearson similarity of every pair of items, over co-rating users only.
+        def item_sim(S, i, j):
+            """Adjusted cosine of items i and j over the users who rated both.
 
-            Same computation as user_sims on the columns. S is centered by USER
-            (row) means, as in the lecture.
+            S is centered by USER (row) means, as in the lecture; only the
+            comparison runs down columns instead of along rows.
 
             Args:
                 S: users × items centered ratings, np.nan = blank.
+                i, j: the two columns to compare.
 
             Returns:
-                items × items array of similarities in [−1, 1]; 0 where a pair
-                shares no rater.
+                float in [−1, 1]; 0 when no user rated both.
+                Lecture: item_sim(S, a, b) == 0.74 on the 5 × 6 matrix.
             """
-            # @a mask
-            # 1 where rated, 0 where blank
-            M = (~np.isnan(S)).astype(float)
-            # @end
-            # @a fill
-            # blanks become 0, so they add nothing to any sum
-            Z = np.nan_to_num(S)
+            # @a corated
+            # users who rated both items; keep only those entries
+            both = ~np.isnan(S[:, i]) & ~np.isnan(S[:, j])
+            a, b = S[both, i], S[both, j]
             # @end
             # @a dot
-            # every column · column dot product (items × items)
-            dot = Z.T @ Z
+            # multiply user by user and add
+            dot = a @ b
             # @end
-            # @a sq
-            # square each entry (element-wise)
-            sq = Z ** 2
-            # @end
-            # @a ss
-            # i's squares, kept only for users who also rated j
-            ss = sq.T @ M
-            # @end
-            # @a nu
-            # ‖i‖ over the users who rated both
-            ni = np.sqrt(ss)
-            # @end
-            # @a nv
-            # ‖j‖ over the same users
-            nj = ni.T
-            # @end
-            # @a den
-            # the denominator, entry by entry
-            den = ni * nj
-            # @end
-            # @a zero
-            # put 1 where den is 0, so we never divide by 0
-            safe = np.where(den > 0, den, 1.0)
+            # @a norm
+            # lengths over the same co-raters
+            norm = np.linalg.norm(a) * np.linalg.norm(b)
             # @end
             # @a sim
-            # divide entry by entry; 0 where a norm was 0
-            return np.where(den > 0, dot / safe, 0.0)
+            # no common rater gives 0
+            return 0.0 if norm == 0 else dot / norm
             # @end
+    extraCode:
+      - lang: python
+        title: All pairs at once (numpy)
+        source: |
+          import numpy as np
+
+          def item_sims(S):
+              """Adjusted cosine of every pair of items, over co-raters only.
+
+              Args:
+                  S: users × items ratings centered by USER means, np.nan = blank.
+
+              Returns:
+                  items × items array of similarities; 0 where a pair shares no rater.
+              """
+              M = (~np.isnan(S)).astype(float)   # 1 = rated, 0 = blank
+              Z = np.nan_to_num(S)               # blanks become 0
+              dot = Z.T @ Z                      # every column · column at once
+              ss = (Z ** 2).T @ M                # i's squares, only for users who also rated j
+              ni = np.sqrt(ss)
+              den = ni * ni.T
+              safe = np.where(den > 0, den, 1.0)
+              return np.where(den > 0, dot / safe, 0.0)
     links:
-      - { anchor: mask, label: 'M: 1 = rated' }
-      - { anchor: fill, label: 'Z: blanks → 0' }
-      - { anchor: dot, label: 'dot = ZᵀZ', say: 'Column-by-column dot products in one product.' }
-      - { anchor: sq, label: squares }
-      - { anchor: ss, label: 'ss = sqᵀM', say: 'Masked sums of squares over co-raters.' }
-      - { anchor: nu, label: '‖i‖ (co-raters)' }
-      - { anchor: nv, label: '‖j‖ (co-raters)' }
-      - { anchor: den, label: denominator }
-      - { anchor: zero, label: 'zero norm → 0' }
+      - { anchor: corated, label: 'Uᵢ ∩ Uⱼ: co-raters', say: 'Column slices `S[:, i]`, a boolean "and", then boolean indexing.' }
+      - { anchor: dot, label: 'dot product', say: 'Column · column over the co-raters.' }
+      - { anchor: norm, label: 'lengths over the co-raters' }
       - { anchor: sim, label: item similarity }
-    trace: { fn: simCode, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item } }
+    trace: { fn: sim, in: { matrix: '@ab5x6', a: '@a', b: '@b', mode: item } }
     examples: [ab-isim-ab, ab-isim-ac, ab-isim-af, ab-isim-be, ab-isim-df, ib-sim-hp1-hp2, ib-sim-hp1-tw, ib-sim-hp3-tw, ib-sim-tw-sw1]
     pitfalls:
       - Center by the **user** (row) mean even though you compare columns. `np.nanmean(R, axis=0)` would be the wrong mean.
-      - Items with no common rater have similarity 0 (HP3 and TW on slide 18).
+      - 'Lengths over **every** rater of each item are wrong; a generic column-cosine routine run on centered data does exactly that. Use only the co-raters.'
+      - Items with no common rater have similarity 0.
     examTip: 'For each pair of columns, list the users who rated both, write their centered values, and cosine them.'
     errata:
-      - 'Slides 18–37 print sim(TW, SW1) = **−0.73**. Co-raters A and C give TW = (5/3, −5/3), SW1 = (−7/3, 1/3), so the cosine is −40/50 = **−0.80**. (−0.73 is sim(A, C) from slide 5.) No prediction changes, because it is negative either way.'
+      - 'If you''re reading the slides: the item table prints sim(TW, SW1) = **−0.73**. Co-raters A and C give TW = (5/3, −5/3), SW1 = (−7/3, 1/3), so the cosine is −40/50 = **−0.80**. (−0.73 is the user-based sim(A, C).) No prediction changes, because it is negative either way.'
+    tryIt: [isim-numeric, isim-hand, adjusted-cosine]
 
   - id: ib-predict
     title: Item-based prediction
@@ -544,7 +540,7 @@ sections:
     summary: |
       To predict user u's rating of item j, look at the items **u already rated**, take the k most similar to j,
       keep those with positive similarity, and average u's own centered ratings of them.
-    keyFormula: '\hat s_{uj} = \frac{\sum_{i \in N_j(u)} \text{sim}(j,i)\, s_{ui}}{\sum_{i \in N_j(u)} \text{sim}(j,i)}'
+    keyFormula: '\hat s_{uj} = \frac{\sum_{i \in N_j(u)} \text{sim}(j,i)\, s_{ui}}{\sum_{i \in N_j(u)} \text{sim}(j,i)}, \quad \hat r_{uj} = \hat s_{uj} + \mu_u'
     data: [hp4x7]
     state: { user: C, item: HP1, k: 2 }
     derive:
@@ -568,7 +564,7 @@ sections:
         say: '`S[u]` is row u, the user''s own centered ratings. The candidates are the items in that row that are not NaN.'
       - tex: |
           \begin{gathered} \anchor{sort}{\text{sort by sim}(j, i), \text{ largest first}} \;\Rightarrow\; \anchor{topk}{\text{top-}k} \;\Rightarrow\; \anchor{pos}{\text{sim} > 0} \\ \anchor{blank}{\text{none left} \Rightarrow \text{blank}} \end{gathered}
-        say: 'Same argsort, slice and boolean-index steps as user-based CF, reading row j of the item similarities.'
+        say: 'Same argsort, slice and boolean-index steps as user-based CF, reading row j of the item similarities. $N_j(u)$ names what is left: the items u rated that are among the k most similar to j, with sim > 0.'
       - tex: |
           \anchor{w}{\mathbf{w} = \big(\text{sim}(j,i)\big)_{i \in N}}, \qquad \anchor{s}{\mathbf{s} = \big(s_{ui}\big)_{i \in N}}
         say: '`isims[j, N]` gives the weights; `S[u, N]` gives the **user''s own** centered ratings of those items.'
@@ -577,7 +573,7 @@ sections:
         say: A dot product over a sum, then the user's mean added back.
       - tex: |
           \anchor{pred}{ {=ps.predTex} }
-        say: 'Slide 20: C rated TW (sim 1), SW1 (−1), SW2 (0); top-2 = TW, SW2; only TW is positive → (1)(−5/3)/1 = −1.7.'
+        say: 'At the default C·HP1 with k = 2: C rated TW (sim 1), SW1 (−1) and SW2 (0); the top 2 are TW and SW2, and only TW is positive, so ŝ = (1)(−5/3)/1 = −1.67 (the lecture shows −1.7). As a rating: −5/3 + 11/3 = 2.'
     code:
       lang: python
       source: |
@@ -668,9 +664,10 @@ sections:
     pitfalls:
       - In item-based CF, the weights come from item–item similarities and the values from the **target user's** row (`S[u, N]`, not `S[N, j]`).
       - Many HP cells stay blank because all candidate similarities are 0 or negative. That's sparsity, not an error.
-    examTip: 'Read the target item''s row of the item-similarity matrix, restricted to the items the user rated.'
+    examTip: 'Read the target item''s row of the item-similarity matrix, restricted to the items the user rated. The lecture''s tables report ŝ; give ŝ unless the question asks for a rating.'
+    tryIt: [ib-predict-numeric, ib-predict-hand, blank-when]
     errata:
-      - 'Slides 29–37 show B''s predicted TW as **0.7**, but slide 27 computes (1)(1/3)/1 = **0.3**, which is the correct value.'
+      - 'If you''re reading the slides: later slides show B''s predicted TW as **0.7**, but the worked step computes (1)(1/3)/1 = **0.3**, which is the correct value.'
 
   - id: dcg
     title: Discounted cumulative gain
@@ -696,7 +693,7 @@ sections:
       - tex: |
           \anchor{rel}{\mathbf{rel} = (rel_1, \dots, rel_k)}, \qquad \anchor{pos}{\mathbf{i} = (1, 2, \dots, k)}
         say: |
-          `rel` holds the true relevance (here, the true rating) of each recommended item, in ranked order.
+          `rel` holds the true [[relevance]] (here, the true rating) of each recommended item, in ranked order. DCG@k ("at k") scores only the top k positions.
           `rel[:k]` keeps the first k; `np.arange(1, k + 1)` builds the positions (the stop value is left out).
       - tex: |
           \anchor{gain}{\mathbf{g} = 2^{\mathbf{rel}} - 1}, \qquad \anchor{disc}{\mathbf{d} = \log_2(\mathbf{i} + 1)}
@@ -708,7 +705,7 @@ sections:
         say: '`gain / disc` divides position by position, and `.sum()` adds the terms.'
       - tex: |
           = \frac{7}{1} + \frac{511}{1.585} + \frac{127}{2} + \frac{255}{2.322} + \frac{31}{2.585} = 7 + 322.41 + 63.5 + 109.82 + 11.99 = \anchor{add}{ {=d.dcg|2} }
-        say: 'The list [B, A, C, F, E] with true ratings 3, 9, 7, 8, 5 gives the slide''s 514.72.'
+        say: 'The list [B, A, C, F, E] with true ratings 3, 9, 7, 8, 5 gives the lecture''s 514.72.'
     code:
       lang: python
       source: |
@@ -764,6 +761,7 @@ sections:
       - 'The top position divides by log₂2 = 1, not by log₂1 = 0: positions start at 1 (`np.arange(1, …)`), not 0.'
       - Use 2^rel − 1, not the rating itself.
     examTip: 'Build a small table: position, item, rel, 2^rel − 1, log₂(i+1), contribution; then add the last column.'
+    tryIt: [dcg-numeric, dcg-numeric-hard, code-dcg]
 
   - id: ndcg
     title: IDCG and NDCG
@@ -799,7 +797,7 @@ sections:
         say: The same function on the ideal order.
       - tex: |
           \anchor{ndcg}{\text{NDCG}} = \frac{\anchor{dcg}{ {=n.dcg|2} }}{\anchor{idcg}{ {=n.idcg|2} }} = {=n.ndcg|3}
-        say: The lecture's 0.685 (slides 52–53).
+        say: The lecture's 0.685.
     code:
       lang: python
       source: |
@@ -842,10 +840,10 @@ sections:
     pitfalls:
       - The ideal list is chosen from **all** rated items, not just the recommended ones.
       - '`np.sort(all_rel)` alone is ascending, the **worst** order. Forgetting `[::-1]` gives an "IDCG" smaller than the DCG.'
-      - Slide 53's formula says DCG / NDCG; it means DCG / IDCG.
     examTip: 'Compute IDCG with the same k and the same gain/discount as DCG; only the order changes.'
+    tryIt: [ndcg-numeric, ndcg-hand, ndcg-hand-hard]
     errata:
-      - 'Slide 53 writes "NDCG = DCG / **NDCG**"; the denominator is **IDCG** (514.72 / 751.45 = 0.685).'
+      - 'If you''re reading the slides: the formula is printed "NDCG = DCG / **NDCG**"; the denominator is **IDCG** (514.72 / 751.45 = 0.685).'
 
   - id: significance
     title: Significance weighting
@@ -879,13 +877,13 @@ sections:
           (its diagonal is how many items each user rated).
       - tex: |
           \anchor{w}{w = \frac{\min(|I_u \cap I_v|,\ \beta)}{\beta}}
-        say: '`np.minimum(both, beta)` caps every count at β, entry by entry; dividing by β gives a weight between 0 and 1.'
+        say: 'β ("beta") is the overlap at which a similarity is fully trusted. `np.minimum(both, beta)` caps every count at β, entry by entry; dividing by β gives a weight between 0 and 1.'
       - tex: |
           \anchor{shrunk}{\text{sim}^{*} = w \odot \text{sim}}
         say: '`w * sims` multiplies the two tables entry by entry.'
       - tex: |
           \text{sim}(B,A) = {=w.sim|2}, \ |I_B \cap I_A| = {=w.overlap} \;\Rightarrow\; \anchor{shrunk}{\text{sim}^{*} = {=w.shrunk|2}}
-        say: 'B and A share only HP1 (the one-overlap trap), so their "perfect" similarity is cut to a third.'
+        say: 'B and A share only HP1 (the one-overlap trap), so at β = {=beta} their "perfect" similarity is multiplied by {=w.weight|2}. Move β to see the weight change.'
     code:
       lang: python
       source: |
@@ -928,4 +926,5 @@ sections:
     trace: { fn: shrunkCode, in: { matrix: '@hp4x7', a: '@a', b: '@b', beta: '@beta' } }
     pitfalls:
       - Not in the lecture. On the exam, use plain similarities unless asked.
+    tryIt: [one-overlap, sig-hand, sparsity-statements]
     examTip: If a question asks why a similarity of 1 might be misleading, point to the size of the overlap.

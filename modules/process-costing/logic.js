@@ -6,7 +6,7 @@ export default function register(sdk) {
   const PCT = (x) => fmt(x, 'pct1').replace('.0%', '%');
   const CATS = ['ti', 'mat', 'conv'];
   const CAT_NAME = { ti: 'Transferred-in', mat: 'Materials', conv: 'Conversion' };
-  const CAT_SHORT = { ti: 'TI', mat: 'materials', conv: 'conversion' };
+  const CAT_SHORT = { ti: 'transferred-in', mat: 'materials', conv: 'conversion' };
 
   // ------------------------------------------------------------------ shared helpers
   function clean(o) {
@@ -19,16 +19,20 @@ export default function register(sdk) {
     return o;
   }
   function keysOf(s) { return s.reveal ?? (s.row ? [s.row] : []); }
+  // Rows may carry `plain`: the label without its arithmetic, shown until the row is revealed so a label like
+  // "320 × 12.7133" can't give away a number the scene is about to ask for.
+  const dropPlain = (r) => { const { plain, ...rest } = r; return rest; };
   function reveal(rows, steps, upTo) {
-    if (upTo === undefined || upTo === null) return rows;
+    if (upTo === undefined || upTo === null) return rows.map(dropPlain);
     const pending = new Set();
     steps.forEach((s, i) => { if (i >= upTo) keysOf(s).forEach((k) => pending.add(k)); });
     steps.slice(0, upTo).forEach((s) => keysOf(s).forEach((k) => pending.delete(k)));
     return rows.map((r) => {
-      if (!r.id) return r;
-      const out = { ...r };
+      if (!r.id) return dropPlain(r);
+      const out = dropPlain(r);
       if (Array.isArray(out.amounts)) out.amounts = out.amounts.map((v, j) => (pending.has(r.id) || pending.has(`${r.id}:${j}`) ? null : v));
       else if ('amount' in out && pending.has(r.id)) out.amount = null;
+      if (r.plain && pending.has(r.id)) out.label = r.plain;
       return out;
     });
   }
@@ -141,6 +145,9 @@ export default function register(sdk) {
     const finishCost = {};
     cats.forEach((k) => { finishCost[k] = toFinish[k] * unit[k]; });
     const completedCost = fifo ? begTotal + sum(cats.map((k) => finishCost[k])) + sc * combined : completedU * combined;
+    // labels print unit costs to 4 dp; say so when that rounding moves the peso amount
+    const r4 = (x) => Math.round(x * 1e4) / 1e4;
+    const roundNote = !fifo && Math.abs(completedU * r4(combined) - completedCost) >= 0.5 ? ' (unrounded unit cost)' : '';
     const endCost = {};
     cats.forEach((k) => { endCost[k] = endEu[k] * unit[k]; });
     const endWip = sum(cats.map((k) => endCost[k]));
@@ -178,14 +185,14 @@ export default function register(sdk) {
     if (fifo) {
       if (begU) {
         a.push({ id: 'a-beg', label: 'Beginning WIP cost carried in', amount: begTotal, indent: 1, anchor: 'completed' });
-        cats.filter((k) => toFinish[k] > 0).forEach((k) => a.push({ id: `a-fin-${k}`, label: `To finish beginning WIP, ${CAT_SHORT[k]}: ${C(toFinish[k])} × ${N4(unit[k])}`, amount: finishCost[k], indent: 1, anchor: 'completed' }));
+        cats.filter((k) => toFinish[k] > 0).forEach((k) => a.push({ id: `a-fin-${k}`, label: `To finish beginning WIP, ${CAT_SHORT[k]}: ${C(toFinish[k])} × ${N4(unit[k])}`, plain: `To finish beginning WIP, ${CAT_SHORT[k]}`, amount: finishCost[k], indent: 1, anchor: 'completed' }));
       }
-      a.push({ id: 'a-sc', label: `Started and completed: ${C(sc)} × ${N4(combined)}`, amount: sc * combined, indent: 1, anchor: 'completed' });
+      a.push({ id: 'a-sc', label: `Started and completed: ${C(sc)} × ${N4(combined)}`, plain: 'Started and completed', amount: sc * combined, indent: 1, anchor: 'completed' });
       a.push({ id: 'a-done', label: 'Total cost transferred out', amount: completedCost, style: 'subtotal', anchor: 'completed' });
     } else {
-      a.push({ id: 'a-done', label: `Completed and transferred out: ${C(completedU)} × ${N4(combined)}`, amount: completedCost, anchor: 'completed' });
+      a.push({ id: 'a-done', label: `Completed and transferred out: ${C(completedU)} × ${N4(combined)}${roundNote}`, plain: 'Completed and transferred out', amount: completedCost, anchor: 'completed' });
     }
-    cats.forEach((k) => a.push({ id: `a-end-${k}`, label: `Ending WIP, ${CAT_SHORT[k]}: ${C(endEu[k])} × ${N4(unit[k])}`, amount: endCost[k], indent: 1, anchor: 'end-wip' }));
+    cats.forEach((k) => a.push({ id: `a-end-${k}`, label: `Ending WIP, ${CAT_SHORT[k]}: ${C(endEu[k])} × ${N4(unit[k])}`, plain: `Ending WIP, ${CAT_SHORT[k]}`, amount: endCost[k], indent: 1, anchor: 'end-wip' }));
     a.push({ id: 'a-end', label: 'Total ending WIP', amount: endWip, style: 'subtotal', anchor: 'end-wip' });
     a.push({ id: 'a-check', label: 'Total costs accounted for', amount: completedCost + endWip, style: 'total', anchor: 'reconcile' });
 
@@ -212,21 +219,22 @@ export default function register(sdk) {
       }
       steps.push({ row: 'a-done', role: 'assign', reveal: ['a-sc', 'a-done'], math: 'completed', label: `Transferred out: ${P(completedCost)}`, vars: { completedCost }, tone: 'good' });
     } else {
-      steps.push({ row: 'a-done', role: 'assign', reveal: ['a-done'], math: 'completed', label: `Step 5: ${C(completedU)} × ${N4(combined)} = ${P(completedCost)} transferred out`, vars: { completedCost }, tone: 'good' });
+      steps.push({ row: 'a-done', role: 'assign', reveal: ['a-done'], math: 'completed', label: `Step 5: ${C(completedU)} × ${N4(combined)}${roundNote} = ${P(completedCost)} transferred out`, vars: { completedCost }, tone: 'good' });
     }
     steps.push({ row: 'a-end', role: 'assign', reveal: [...cats.map((k) => `a-end-${k}`), 'a-end'], math: 'end-wip', label: `Ending WIP: ${cats.map((k) => C(Math.round(endCost[k]))).join(' + ')} = ${P(endWip)} (each category at its own unit cost)`, vars: { endWip } });
     steps.push({ row: 'a-check', role: 'assign', reveal: ['a-check'], math: 'reconcile', label: `Check: ${C(Math.round(completedCost))} + ${C(Math.round(endWip))} = ${P(completedCost + endWip)} = costs to account for ✓`, vars: { accounted: completedCost + endWip }, tone: 'good' });
 
     const columns = ['Total', ...cats.map((k) => CAT_NAME[k])];
     const qColumns = ['Physical units', ...cats.map((k) => CAT_NAME[k])];
+    const finishTotal = sum(cats.map((k) => finishCost[k]));
     return { fifo, cats, begU, startedU, completedU, endU, sc, eu, waEu, endEu, toFinish, unit, combined, totalCost, begTotal, addedTotal, total,
-      completedCost, endWip, endCost, finishCost, q, k2, a, steps, columns, qColumns, ncols };
+      completedCost, endWip, endCost, finishCost, finishTotal, q, k2, a, steps, columns, qColumns, ncols };
   }
   function reportOut(r) {
     const o = { method: r.fifo ? 'FIFO' : 'weighted-average', completedCost: r.completedCost, endWip: r.endWip, total: r.total, combined: r.combined,
-      check: r.completedCost + r.endWip - r.total, units: { beg: r.begU, started: r.startedU, completed: r.completedU, end: r.endU, sc: r.sc },
-      qRows: r.q, costRows: r.k2, assignRows: r.a, columns: r.columns, qColumns: r.qColumns, steps: r.steps.length };
-    for (const k of r.cats) { o[`eu_${k}`] = r.eu[k]; o[`unit_${k}`] = r.unit[k]; o[`end_${k}`] = r.endCost[k]; o[`cost_${k}`] = r.totalCost[k]; }
+      check: r.completedCost + r.endWip - r.total, finishTotal: r.finishTotal, units: { beg: r.begU, started: r.startedU, completed: r.completedU, end: r.endU, sc: r.sc },
+      qRows: r.q, costRows: r.k2, assignRows: r.a.map(dropPlain), columns: r.columns, qColumns: r.qColumns, steps: r.steps.length };
+    for (const k of r.cats) { o[`eu_${k}`] = r.eu[k]; o[`unit_${k}`] = r.unit[k]; o[`tofinish_${k}`] = r.toFinish[k]; o[`finish_${k}`] = r.finishCost[k]; o[`end_${k}`] = r.endCost[k]; o[`cost_${k}`] = r.totalCost[k]; }
     return o;
   }
   // roles: journal, formula, code
@@ -354,11 +362,17 @@ export default function register(sdk) {
         given: ask === 'end' ? `${C(started)} units started and ${C(completed)} completed` : ask === 'started' ? `${C(completed)} units completed and ${C(end)} left in ending WIP` : `${C(started)} units started and ${C(end)} left in ending WIP`,
         askText: ask === 'end' ? 'How many units are in ending Work-in-Process?' : ask === 'started' ? 'How many units were started this period?' : 'How many units were completed and transferred out?',
         wrongNoBeg: { end: started - completed, started: completed + end, completed: started - end }[ask],
-        wrongSign: { end: started - completed - beg, started: completed + end + beg, completed: started - end - beg }[ask] },
-      misconceptions: [
-        { var: 'wrongNoBeg', feedback: 'You left out beginning WIP. Beginning + started = completed + ending.' },
-        { var: 'wrongSign', feedback: 'Beginning WIP sits on the same side as units started: it adds to the units to account for.' },
-      ],
+        wrongSign: { end: started - completed - beg, started: completed + end + beg, completed: started - end - beg }[ask],
+        wrongAdd: { end: beg + started + completed, started: beg + completed + 2 * end, completed: beg + started + end }[ask] },
+      misconceptions: beg
+        ? [
+            { var: 'wrongNoBeg', feedback: 'You left out beginning WIP. Beginning + started = completed + ending.' },
+            { var: 'wrongSign', feedback: 'Beginning WIP sits on the same side as units started: it adds to the units to account for.' },
+          ]
+        : [
+            { var: 'wrongAdd', feedback: 'Put each quantity on its own side (beginning + started = completed + ending), then subtract to find the missing one.' },
+            { value: started, feedback: 'Units started is only the left side: some of those units are finished, and the rest are still in process.' },
+          ],
     };
   }
 
@@ -369,13 +383,17 @@ export default function register(sdk) {
       const endUnits = nice(rng, 1000, 10000, 500);
       const conv = rng.pick(pctPool);
       const r = euSimple({ completed, endUnits, timing, conv });
-      if (r.euMat === r.euConv) continue;
+      // "evenly" makes the two counts equal on purpose: it is the case where one percent is right
+      if (timing !== 'evenly' && r.euMat === r.euConv) continue;
       return {
         vars: { timing, timingTxt: r.timingTxt, completed, endUnits, conv, matPct: r.matPct, euMat: r.euMat, euConv: r.euConv,
-          wrongSamePct: completed + endUnits * conv, wrongFull: completed + endUnits, wrongOnlyEnd: endUnits * conv },
+          wrongSamePct: completed + endUnits * conv, wrongFull: completed + endUnits, wrongOnlyEnd: endUnits * conv,
+          wrongOnlyEndMat: endUnits * r.matPct },
         misconceptions: [
-          { var: 'wrongFull', feedback: 'Ending WIP is only partly converted: count it at its percent complete.' },
-          { var: 'wrongOnlyEnd', feedback: 'Completed units count too, at 100%.' },
+          { var: 'wrongFull', feedback: 'Ending WIP is only partly converted: count it at its percent complete.', for: 'euConv' },
+          { var: 'wrongOnlyEnd', feedback: 'Completed units count too, at 100%.', for: 'euConv' },
+          { var: 'wrongOnlyEndMat', feedback: 'Completed units count too, at 100%.', for: 'euMat' },
+          ...(timing === 'evenly' ? [] : [{ var: 'wrongSamePct', feedback: 'You used the conversion percent for materials. Ask when the materials enter the process.', for: 'euMat' }]),
         ],
       };
     }
@@ -429,27 +447,49 @@ export default function register(sdk) {
     const ff = reportCore({ data, method: 'fifo' });
     return {
       vars: { ...deptVars(data, r), wrongFifoConv: ff.eu.conv, wrongAddedOnly: data.added.conv / r.eu.conv, wrongSamePct: r.completedU + r.endU * data.end.mat,
-        rows: [...r.q.filter((x) => x.id !== 'q-head-in' && x.id !== 'q-head-out').map((x) => clean({ label: x.label, amounts: x.amounts, format: x.format, style: x.style, blank: x.id === 'q-eu' || undefined }))],
+        wrongUnitUnits: (r.totalCost.mat + r.totalCost.conv) / (r.completedU + r.endU),
+        rows: [...r.q.filter((x) => x.id !== 'q-head-in' && x.id !== 'q-head-out').map((x) => clean({ label: x.label, amounts: x.amounts, format: x.format, style: x.style, blank: x.id === 'q-eu' || undefined, given: x.id === 'q-eu' ? [0] : undefined }))],
         accounts: rng.shuffle([wipAcct('Mixing'), wipAcct('Packaging'), FG, 'Cost of Goods Sold', 'Raw Materials Inventory']),
         entries: [{ lines: [{ account: wipAcct('Packaging'), debit: r.completedCost }, { account: wipAcct('Mixing'), credit: r.completedCost }] }] },
       misconceptions: [
-        { var: 'wrongFifoConv', feedback: 'That is the FIFO count. Weighted-average keeps beginning WIP\'s earlier work in the equivalent units.' },
-        { var: 'wrongAddedOnly', feedback: 'Weighted-average divides beginning WIP cost **plus** current cost by the equivalent units.' },
+        { var: 'wrongFifoConv', feedback: 'That is the FIFO count. Weighted-average keeps beginning WIP\'s earlier work in the equivalent units.', for: 'euConv' },
+        { value: r.completedU + r.endU, feedback: 'Ending WIP is only partly converted: count it at its conversion percent, not as whole units.', for: 'euConv' },
+        { var: 'wrongAddedOnly', feedback: 'Weighted-average divides beginning WIP cost **plus** current cost by the equivalent units.', for: 'unitConv' },
+        { var: 'wrongUnitUnits', feedback: 'Divide each category by its own equivalent units, not the total cost by physical units.', for: 'combined' },
+        { value: (r.totalCost.mat + r.totalCost.conv) / r.eu.mat, feedback: 'Conversion has its own, smaller equivalent-unit count: divide each category by its own EU, then add the unit costs.', for: 'combined' },
       ],
     };
   }
 
   function fifoQ({ rng, difficulty }) {
-    const data = makeDept(rng, 'fifo', { matEnd: difficulty === 3 && rng.bool(0.5) });
+    const matEnd = difficulty === 3 && rng.bool(0.5);
+    const data = makeDept(rng, 'fifo', { matEnd });
     const r = reportCore({ data, method: 'fifo' });
     const wa = reportCore({ data, method: 'wa' });
     return {
       vars: { ...deptVars(data, r), waEuMat: wa.eu.mat, waEuConv: wa.eu.conv, toFinishConv: r.toFinish.conv, toFinishMat: r.toFinish.mat,
+        matTxt: matEnd ? 'Materials are added at the end of the process' : 'Materials are added at the start of the process',
+        endMatTxt: matEnd ? 'no materials yet' : 'all materials',
+        finishCost: r.finishTotal, scCost: r.sc * r.combined,
         wrongWaUnitConv: (data.added.conv + data.beg.cost.conv) / r.eu.conv,
-        rows: [...r.q.filter((x) => x.id !== 'q-head-in' && x.id !== 'q-head-out').map((x) => clean({ label: x.label, amounts: x.amounts, format: x.format, style: x.style, blank: (x.id === 'q-eu' || x.id === 'q-finish') || undefined }))] },
+        wrongNoFinish: r.begTotal + r.sc * r.combined, wrongNoBegCost: r.finishTotal + r.sc * r.combined, wrongAllCurrent: r.completedU * r.combined,
+        wrongFinishFull: r.begU * r.unit.conv, wrongEndCombined: r.endU * r.combined,
+        wrongSubFull: wa.eu.conv - r.begU, wrongWaEuUnit: data.added.conv / wa.eu.conv, wrongEndWa: wa.endWip,
+        waCompletedCost: wa.completedCost, methodGap: r.completedCost - wa.completedCost, wrongGapSign: wa.completedCost - r.completedCost,
+        rows: [...r.q.filter((x) => x.id !== 'q-head-in' && x.id !== 'q-head-out').map((x) => clean({ label: x.label, amounts: x.amounts, format: x.format, style: x.style, blank: (x.id === 'q-eu' || x.id === 'q-finish') || undefined, given: (x.id === 'q-eu' || x.id === 'q-finish') ? [0] : undefined }))] },
       misconceptions: [
-        { var: 'waEuConv', feedback: 'That is the weighted-average count. FIFO subtracts the work done on beginning WIP last period.' },
-        { var: 'wrongWaUnitConv', feedback: 'Under FIFO only **this period\'s** cost is divided; beginning WIP cost is kept separate.' },
+        { var: 'waEuConv', feedback: 'That is the weighted-average count. FIFO subtracts the work done on beginning WIP last period.', for: 'euConv' },
+        { var: 'wrongWaUnitConv', feedback: 'Under FIFO only **this period\'s** cost is divided; beginning WIP cost is kept separate.', for: 'unitConv' },
+        { var: 'wrongWaEuUnit', feedback: 'Divide by the FIFO equivalent units: this period\'s work only, not the weighted-average count.', for: 'unitConv' },
+        { var: 'wrongSubFull', feedback: 'Subtract only the work already done on beginning WIP (units × percent done), not all its units.', for: 'euConv' },
+        { var: 'wrongEndWa', feedback: 'That is the weighted-average ending WIP. FIFO costs ending WIP at this period\'s own unit costs.', for: 'endWip' },
+        { var: 'wrongGapSign', feedback: 'Right size, wrong sign: subtract the weighted-average figure from the FIFO figure.', for: 'methodGap' },
+        { var: 'completedCost', feedback: 'That is the FIFO cost transferred out on its own. Subtract the weighted-average figure.', for: 'methodGap' },
+        { var: 'wrongFinishFull', feedback: 'Beginning WIP was already partly converted last period: only the remaining percent is done this period.', for: 'finishCost' },
+        { var: 'wrongNoFinish', feedback: 'Beginning WIP still had to be finished this period: add the cost to finish it.', for: 'completedCost' },
+        { var: 'wrongNoBegCost', feedback: 'Under FIFO the beginning WIP keeps its own cost from last period, and that cost leaves with it.', for: 'completedCost' },
+        { var: 'wrongAllCurrent', feedback: 'Under FIFO, beginning WIP keeps its own cost and only needs finishing: don\'t cost every completed unit at the current unit cost.', for: 'completedCost' },
+        { var: 'wrongEndCombined', feedback: 'Ending WIP is only partly converted: cost each category on its own equivalent units.', for: 'endWip' },
       ],
     };
   }
@@ -468,8 +508,9 @@ export default function register(sdk) {
           { label: 'Total costs accounted for', amount: r.completedCost + r.endWip, style: 'total' },
         ] },
       misconceptions: [
-        { var: 'wrongEndFull', feedback: 'Ending WIP is only partly converted: cost each category on its own equivalent units.' },
-        { var: 'wrongCompletedEu', feedback: 'Completed units are costed at the full combined unit cost, per physical unit.' },
+        { var: 'wrongEndFull', feedback: 'Ending WIP is only partly converted: cost each category on its own equivalent units.', for: 'endWip' },
+        { var: 'wrongCompletedEu', feedback: 'Completed units are costed at the full combined unit cost, per physical unit.', for: 'completedCost' },
+        ...(method === 'fifo' ? [{ value: r.completedU * r.combined, feedback: 'Under FIFO, beginning WIP keeps its own cost and only needs finishing: don\'t cost every completed unit at the current unit cost.', for: 'completedCost' }] : []),
       ],
     };
   }
@@ -492,19 +533,65 @@ export default function register(sdk) {
         vars: { tiUnits, endU, completed, conv, matEnd, matTxt: matEnd ? 'at the end of the process' : 'at the start of the process', tiCost: data.added.ti, addMat: data.added.mat, addConv: data.added.conv,
           euTi: r.eu.ti, euMat: r.eu.mat, euConv: r.eu.conv, unitTi: r.unit.ti, unitMat: r.unit.mat, unitConv: r.unit.conv, combined: r.combined,
           completedCost: r.completedCost, endWip: r.endWip, endMatPct: end.mat,
-          wrongTiPartial: completed + endU * conv, wrongNoTi: completed * (r.unit.mat + r.unit.conv),
+          wrongTiPartial: completed + endU * conv, wrongNoTi: completed * (r.unit.mat + r.unit.conv), wrongNoTiUnit: r.unit.mat + r.unit.conv,
+          wrongEndCombined: endU * r.combined, wrongEndTiPartial: endU * conv * r.unit.ti + endU * end.mat * r.unit.mat + endU * conv * r.unit.conv,
+          wrongEndMat: r.endWip + endU * r.unit.mat,
           accounts: rng.shuffle([FG, wipAcct('Blending'), wipAcct('Mixing'), 'Cost of Goods Sold', 'Raw Materials Inventory']),
           entries: [{ lines: [{ account: FG, debit: r.completedCost }, { account: wipAcct('Blending'), credit: r.completedCost }] }] },
         misconceptions: [
-          { var: 'wrongNoTi', feedback: 'Units carry their transferred-in cost with them: include the TI unit cost in the combined cost.' },
-          { value: completed * (r.unit.ti + r.unit.conv), feedback: 'Include the materials added in this department too.' },
+          { var: 'wrongNoTi', feedback: 'Units carry their transferred-in cost with them: include the transferred-in unit cost in the combined cost.', for: 'completedCost' },
+          { value: completed * (r.unit.ti + r.unit.conv), feedback: 'Include the materials added in this department too.', for: 'completedCost' },
+          { var: 'wrongEndCombined', feedback: 'Ending WIP is not finished: cost each category on its own equivalent units, not at the full combined cost.', for: 'endWip' },
+          { var: 'wrongEndTiPartial', feedback: 'Transferred-in cost is 100% complete in ending WIP: the units arrived whole, whatever their conversion.', for: 'endWip' },
+          ...(matEnd ? [{ var: 'wrongEndMat', feedback: 'This department adds its materials at the end, so ending WIP has none of them yet.', for: 'endWip' }] : []),
         ],
       };
     }
   }
 
+  // Two departments in a row: Department 1 (weighted-average, no beginning WIP) passes its completed units, and their
+  // cost, to Department 2, which adds its own materials at the end and converts evenly.
+  function chainQ({ rng }) {
+    for (;;) {
+      const d1 = makeDept(rng, 'wa', { noBeg: true });
+      const r1 = reportCore({ data: d1, method: 'wa' });
+      if (Math.abs(r1.completedCost - Math.round(r1.completedCost)) > 1e-6) continue;
+      const tiUnits = r1.completedU;
+      const endU = nice(rng, 500, Math.floor(tiUnits / 4), 100);
+      const completed = tiUnits - endU;
+      const conv = rng.pick([0.2, 0.4, 0.5, 0.6, 0.8]);
+      const uMat = rng.pick([1, 1.5, 2, 2.5, 3]);
+      const uConv = rng.pick([1.2, 2, 2.5, 3, 4]);
+      const end = { units: endU, ti: 1, mat: 0, conv };
+      const d2 = { beg: null, started: tiUnits, completed, end, added: { ti: r1.completedCost, mat: uMat * completed, conv: uConv * (completed + endU * conv) } };
+      if (Object.values(d2.added).some((x) => Math.abs(x - Math.round(x)) > 1e-6)) continue;
+      const r2 = reportCore({ data: d2, method: 'wa' });
+      return {
+        vars: {
+          d1Completed: r1.completedU, d1End: r1.endU, d1EndConv: d1.end.conv, d1Mat: d1.added.mat, d1Conv: d1.added.conv,
+          d1Combined: r1.combined, d1CompletedCost: r1.completedCost, d1EndWip: r1.endWip,
+          endU, completed, conv, addMat: d2.added.mat, addConv: d2.added.conv,
+          unitTi: r2.unit.ti, unitMat: r2.unit.mat, unitConv: r2.unit.conv, euConv: r2.eu.conv, euMat: r2.eu.mat,
+          combined: r2.combined, completedCost: r2.completedCost, endWip: r2.endWip,
+          wrongD1Total: r1.total, wrongTiAtCost: d1.added.mat / r1.completedU + d1.added.conv / r1.completedU,
+          wrongNoTi: r2.unit.mat + r2.unit.conv, wrongToFgAll: tiUnits * r2.combined,
+        },
+      };
+    }
+  }
+
+  // A report that doesn't reconcile because ending WIP was costed at the full combined unit cost.
+  function reconQ({ rng }) {
+    const data = makeDept(rng, 'wa', { noBeg: true });
+    const r = reportCore({ data, method: 'wa' });
+    const wrongEnd = r.endU * r.combined;
+    return {
+      vars: { ...deptVars(data, r), wrongEnd, studentTotal: r.completedCost + wrongEnd, gap: wrongEnd - r.endWip },
+    };
+  }
+
   return {
     fns: { physicalFlow, euSimple, report, reportSheet, reportWalk, compareMethods, methodPick, euBoth, transferEntries, deptWithEntry, reconcileGap },
-    generators: { flowQ, euQ, waQ, fifoQ, reportQ, tiQ },
+    generators: { flowQ, euQ, waQ, fifoQ, reportQ, tiQ, chainQ, reconQ },
   };
 }

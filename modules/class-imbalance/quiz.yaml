@@ -9,7 +9,7 @@ templates:
     prompt: |
       A dataset has **{=N}** rows, and **{=ratePct}%** of them belong to the minority class. A model predicts the majority
       class for every row. What is its accuracy, in percent?
-    answer: { var: accuracyPct, tol: 0.01 }
+    answer: { var: accuracyPct, tol: 0.01, percent: true }
     hints:
       - The model guesses the big group for everyone. Which rows does it get right?
       - Accuracy = rows it got right ÷ all rows. Here that is (majority rows) ÷ N.
@@ -26,15 +26,15 @@ templates:
     lessonRef: { tab: intuition, id: lazy-model }
     prompt: 'On a 99 : 1 dataset a model reports 99% accuracy. What can you conclude?'
     options:
-      - 'Nothing yet: always guessing the big group also gives 99%, with 0% recall on the small group'
-      - The model has learned the small group well
-      - 'The model''s recall on the small group must be at least 0.99'
-      - The model is overfitting
+      - 'Nothing yet: always guessing the big group also scores 99%, with 0% recall on the small group'
+      - 'It has learned the small group well, since it is right 99 times in 100'
+      - 'Its recall on the small group must also be about 99%'
+      - 'It is overfitting, because 99% is too high for real data'
     answer: 0
     hints:
       - 'What accuracy would a model get if it always guessed the big group on a 99 : 1 dataset?'
     explanation: |
-      An accuracy equal to the share of the big group is exactly what the lazy model gets (slides 17–18). Look at the
+      An accuracy equal to the share of the big group is exactly what the lazy model gets. Look at the
       confusion matrix and the recall on the small group before believing it.
 
   - id: why-hurts-multi
@@ -43,12 +43,12 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: intuition, id: lazy-model }
-    prompt: Which statements explain why uneven groups cause trouble (slide 24)? Select all that apply.
+    prompt: Which statements explain why uneven groups cause trouble? Select all that apply.
     options:
       - Mistakes on the rare group barely change the overall accuracy
       - The easiest way for a model to look good is to always guess the big group
       - 'A single accuracy number can hide 0% recall on the group that matters'
-      - The real cost of missing a rare case is not part of the score
+      - The usual score counts a missed rare case the same as any other wrong guess
       - Uneven data always contains labelling mistakes
       - Even groups guarantee a good model
     answer: [0, 1, 2, 3]
@@ -194,7 +194,7 @@ templates:
     generator: confusionQ
     lessonRef: { tab: math-code, id: four-metrics }
     prompt: |
-      Compute the four scores from slide 22 for this confusion matrix (rows = real answer, columns = guess).
+      Compute the four scores for this confusion matrix (rows = real answer, columns = guess).
     show:
       - { id: cm, widget: Matrix, props: { data: '@cm', format: int, rowHeader: actual } }
     steps:
@@ -416,7 +416,7 @@ templates:
     difficulty: 1
     tags: [term]
     lessonRef: { tab: intuition, id: resample-counts }
-    prompt: Match each technique to what it does to the training data (slide 25).
+    prompt: Match each technique to what it does to the training data.
     pairs:
       -   - Random undersampling
           - Removes some majority rows
@@ -578,11 +578,10 @@ templates:
     lessonRef: { tab: intuition, id: smote-nc-vote }
     prompt: Why does the notebook use SMOTE-NC rather than plain SMOTE on Adult Income's raw columns?
     options:
-      - |
-        Blending the codes for names creates values that do not exist, such as 0.5 between Married and Divorced
-      - SMOTE-NC makes more new points
-      - Plain SMOTE cannot handle more than two groups
-      - SMOTE-NC does not need nearest neighbours
+      - Blending name codes invents values that do not exist, like 0.5 between Married and Divorced
+      - Plain SMOTE cannot make new points when there are more than two groups
+      - SMOTE-NC copies rows instead of blending them, which is safer for mixed data
+      - Plain SMOTE ignores the number columns whenever name columns are present
     answer: 0
     hints:
       - 'What would "halfway between Married and Divorced" be?'
@@ -738,11 +737,10 @@ templates:
       A bank's fraud team can review only 50 alerts a day and is already overwhelmed by false alarms. Compared with the
       baseline, ADASYN raises recall but gives the lowest precision. What should guide the choice?
     options:
-      - |
-        The cost of a missed fraud versus a wasted check: with few reviewers, keeping precision up may matter more
-      - Always choose the method with the highest recall
-      - Always choose the method with the highest accuracy
-      - 'Always rebalance, because uneven data is bad'
+      - What a missed fraud costs versus a wasted check, and how many alerts the team can handle
+      - The method with the highest recall, since catching fraud is the whole point
+      - The method with the highest accuracy, since it makes the fewest mistakes overall
+      - Any rebalancing method, since uneven data should always be fixed first
     answer: 0
     hints:
       - 'What does each wrong guess cost this team, and how many alerts can they handle?'
@@ -756,7 +754,7 @@ templates:
     difficulty: 2
     tags: [application]
     lessonRef: { tab: intuition, id: choose-by-decision }
-    prompt: 'From the Session 3 comparison table, which statements are true? (Baseline recall 0.506, precision 0.683; resamplers recall 0.82–0.88, precision 0.50–0.52; ROC-AUC 0.875–0.876 throughout.)'
+    prompt: 'From the Session 3 lab comparison, which statements are true? (Baseline: accuracy 0.826, recall 0.506, precision 0.683. Resamplers: accuracy 0.76–0.78, recall 0.82–0.88, precision 0.50–0.52. ROC-AUC 0.875–0.876 throughout.)'
     options:
       - Every rebalancing method raised recall
       - Every rebalancing method lowered precision
@@ -779,10 +777,10 @@ templates:
     lessonRef: { tab: math-code, id: honest-pipeline }
     prompt: A student runs `SMOTE().fit_resample(X, y)` on the full data, then `train_test_split`. Recall jumps to 0.96. Why should you distrust it?
     options:
-      - 'New points built from test rows ended up in training, so the test set is no longer unseen'
-      - SMOTE cannot be used before a split because it is too slow
-      - The test set now has too few rows
-      - Recall above 0.95 is impossible
+      - 'Synthetic points built from test rows ended up in training, so the test set was not really unseen'
+      - 'The split was not stratified, so the test set has too few minority rows to measure recall'
+      - 'SMOTE only works with tree models, so logistic regression recall is unreliable'
+      - 'Recall is the wrong score for imbalanced data, so any recall value misleads'
     answer: 0
     hints:
       - Where could the new SMOTE points that were built from test rows end up?
@@ -866,4 +864,229 @@ templates:
       - 'Each miss (FN) costs one amount, each false alarm (FP) another.'
       - Total = misses × cost of a miss + false alarms × cost of a false alarm.
     explanation: |
-      Cost = {=cFN} × FN + {=cFP} × FP = {=cFN} × {=fnA} + {=fpA} = {=costA}. (Model B would cost {=costB}, so {=better} is cheaper.)
+      Cost = {=cFN} × FN + {=cFP} × FP = {=cFN} × {=fnA} + {=cFP} × {=fpA} = {=costA}. (Model B would cost {=costB}, so {=better} is cheaper.)
+
+  - id: threshold-hand
+    type: hand-calc
+    skills: [choosing, prf1]
+    difficulty: 2
+    tags: [math]
+    generator: thresholdQ
+    lessonRef: { tab: application, id: threshold }
+    prompt: |
+      Ten learners, sorted by risk score; {=nPos} of them really dropped out. The school flags every learner with a score
+      of **{=t|2} or more**.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 2, title: 'risk scores and what happened' } }
+    steps:
+      - prompt: How many learners are flagged?
+        answer: { var: flagged, tol: 0 }
+        hint: Count the scores at or above the threshold.
+      - prompt: How many of the flagged learners really dropped out (TP)?
+        answer: { var: tp, tol: 0 }
+      - prompt: Recall (2 decimals)
+        answer: { var: recall, tol: 0.01 }
+        hint: TP ÷ all real dropouts.
+      - prompt: Precision (2 decimals)
+        answer: { var: precision, tol: 0.01 }
+        hint: TP ÷ everyone flagged.
+    hints:
+      - Lowering the threshold flags more learners; raising it flags fewer.
+    explanation: |
+      {=flagged} learners score {=t|2} or more and {=tp} of them dropped out. Recall $= {=tp}/{=nPos} = {=recall|2}$;
+      precision $= {=tp}/{=flagged} = {=precision|2}$.
+
+  - id: threshold-mcq
+    type: mcq
+    skills: [choosing]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: application, id: threshold }
+    prompt: A dropout model flags everyone with a risk score of 0.5 or more. What usually happens if the school lowers the threshold to 0.3?
+    options:
+      - Recall goes up and precision goes down, because more learners are flagged
+      - Recall goes down and precision goes up, because fewer learners are flagged
+      - Both go up, because the model now sees more dropouts
+      - Neither changes, because the model itself was not retrained
+    answer: 0
+    hints: [Does a lower cut-off flag more learners or fewer?]
+    explanation: A lower cut-off flags more learners. More real dropouts are caught (recall rises), but more of the flagged learners are false alarms (precision falls). The model's scores did not change, only where we cut them.
+
+  - id: class-weights-mcq
+    type: mcq
+    skills: [choosing]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: choose-by-decision }
+    prompt: SAGIP used class weights (about 70 for dropouts) instead of resampling. What do class weights change?
+    options:
+      - How much each mistake counts while the model learns; no rows are added or removed
+      - The number of dropout rows, by copying each one 70 times
+      - The test set, so that it has as many dropouts as stayers
+      - The decision threshold, which is moved to 1 ÷ 70
+    answer: 0
+    hints: [Did SAGIP add or remove any rows?]
+    explanation: Class weights make each minority mistake count more while the model learns, which has a similar effect to rebalancing without touching the data. The test set and the threshold are left alone.
+
+  - id: tie-numeric
+    type: numeric
+    skills: [choosing]
+    difficulty: 3
+    tags: [math]
+    generator: tieQ
+    lessonRef: { tab: math-code, id: error-cost }
+    prompt: |
+      Model A misses {=fnA} cases and raises {=fpA} false alarms; model B misses {=fnB} and raises {=fpB}. A miss costs r
+      times as much as a false alarm. At what ratio r do the two models cost the same?
+    answer: { var: r, tol: 0.01 }
+    hints:
+      - Write each cost as r × misses + false alarms.
+      - Set the two costs equal and solve for r.
+    explanation: |
+      $r \cdot {=fnA} + {=fpA} = r \cdot {=fnB} + {=fpB}$, so $r = \frac{ {=fpB} - {=fpA} }{ {=fnA} - {=fnB} } = {=r|2}$. Above this
+      ratio, model {=fewerMisses} (fewer misses) is cheaper.
+
+  - id: eval-hand
+    type: hand-calc
+    skills: [confusion-matrix, prf1]
+    difficulty: 3
+    tags: [math]
+    generator: confusionQ
+    lessonRef: { tab: intuition, id: four-metrics }
+    prompt: 'A full evaluation. Sort the table into a confusion matrix (positive = `pos`), then score it.'
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', title: 'actual and predicted labels' } }
+    steps:
+      - prompt: TP
+        answer: { var: tp, tol: 0 }
+      - prompt: FN
+        answer: { var: fn, tol: 0 }
+      - prompt: FP
+        answer: { var: fp, tol: 0 }
+      - prompt: F1 (2 decimals)
+        answer: { var: f1, tol: 0.01 }
+        misconceptions:
+          - { var: wrongF1Arith, feedback: 'That is the plain average of precision and recall. F1 = 2PR ÷ (P + R).' }
+      - prompt: Balanced accuracy (2 decimals)
+        answer: { var: balanced, tol: 0.01 }
+        misconceptions:
+          - { var: wrongBalancedAcc, feedback: 'That is plain accuracy. Average the recall on positives and the recall on negatives.' }
+    hints:
+      - TN is whatever is left after TP, FN and FP.
+      - Precision and recall first, then F1; recall on each group, then balanced accuracy.
+    explanation: |
+      TP {=tp}, FN {=fn}, FP {=fp}, TN {=tn}. P = {=precision|3}, R = {=recall|3}, F1 = {=f1|3}; recall on negatives
+      {=specificity|3}, so balanced accuracy = {=balanced|3} (plain accuracy {=accuracy|3}).
+
+  - id: pipeline-hand
+    type: hand-calc
+    skills: [choosing, random-resampling]
+    difficulty: 3
+    tags: [math]
+    generator: splitQ
+    lessonRef: { tab: intuition, id: resample-counts }
+    prompt: |
+      {=majority} majority and {=minority} minority rows. A stratified split puts {=testPct}% of each group in the test
+      set; then random **oversampling** is applied the honest way.
+    steps:
+      - prompt: Minority rows in the test set
+        answer: { var: testMin, tol: 0 }
+      - prompt: Majority rows in the training set
+        answer: { var: trainMaj, tol: 0 }
+      - prompt: Training rows after oversampling
+        answer: { var: ros, tol: 0 }
+        misconceptions:
+          - { var: wrongRosAll, feedback: 'You oversampled before splitting. Split first: only the training majority sets the target size.' }
+        hint: The minority is copied up to the training majority's size.
+      - prompt: Minority share of the test set (3 decimals)
+        answer: { var: testShare, tol: 0.002 }
+        hint: The test set is never rebalanced, so it keeps the real-world share.
+    hints:
+      - Split first, then rebalance the training set only.
+    explanation: |
+      Test minority {=testMin}, so the training set keeps {=trainMin} minority and {=trainMaj} majority rows.
+      Oversampling copies {=added} minority rows: $2 \times {=trainMaj} = {=ros}$ training rows. The test set keeps its
+      real minority share, {=testShare|3}.
+
+  - id: perclass-hand
+    type: hand-calc
+    skills: [per-class, prf1]
+    difficulty: 3
+    tags: [math]
+    generator: perClassQ
+    lessonRef: { tab: math-code, id: per-class-recall }
+    prompt: |
+      Confusion matrix of counts (rows = real group, columns = guess) for A = Normal, B = Underweight,
+      C = Severely Underweight. Score group **{=cls}**, then the whole model fairly.
+    show:
+      - { id: m, widget: Matrix, props: { data: '@M', format: int, rowHeader: actual } }
+    steps:
+      - prompt: Recall for group {=cls} (3 decimals)
+        answer: { var: recall, tol: 0.005 }
+        misconceptions:
+          - { var: precision, feedback: 'That divides by the column: precision. Recall uses the row of real {=cls} cases.' }
+      - prompt: Precision for group {=cls} (3 decimals)
+        answer: { var: precision, tol: 0.005 }
+        misconceptions:
+          - { var: recall, feedback: 'That divides by the row: recall. Precision uses the column of cases guessed {=cls}.' }
+      - prompt: Macro recall (3 decimals)
+        answer: { var: macroRecall, tol: 0.005 }
+        misconceptions:
+          - { var: accuracy, feedback: 'That is overall accuracy, which weights groups by size. Average the three recalls.' }
+    hints:
+      - Recall reads along a row; precision reads down a column.
+    explanation: |
+      Group {=cls}: recall {=diag}/{=rowSum} = {=recall|3}, precision {=diag}/{=colSum} = {=precision|3}. Recalls
+      ({=recalls|list}) average to a macro recall of {=macroRecall|3}, against an accuracy of {=accuracy|3}.
+
+  - id: trap-hand
+    type: hand-calc
+    skills: [accuracy-trap, prf1]
+    difficulty: 3
+    tags: [math]
+    generator: trapQ
+    lessonRef: { tab: intuition, id: lazy-model }
+    prompt: |
+      {=N} learners, {=ratePct}% of whom drop out. A real model catches {=tp} dropouts and raises {=fp} false alarms.
+      Compare it with the lazy "everyone stays" model. Give decimals (3 places).
+    steps:
+      - prompt: Accuracy of the lazy model
+        answer: { var: lazy, tol: 0.001 }
+      - prompt: Accuracy of the real model
+        answer: { var: accuracy, tol: 0.001 }
+        hint: Right guesses are the caught dropouts plus the stayers it did not flag.
+      - prompt: Recall of the real model
+        answer: { var: recall, tol: 0.005 }
+    hints:
+      - First find the number of dropouts and stayers.
+    explanation: |
+      {=nMin} dropouts, {=nMaj} stayers. Lazy accuracy $= {=nMaj}/{=N} = {=lazy|3}$. The real model is right on {=tp}
+      dropouts and on the stayers it did not flag: accuracy {=accuracy|3}, {=beatsLazy} than the lazy model, yet its recall
+      is {=recall|3} instead of 0.
+
+  - id: cost-compare-hand
+    type: hand-calc
+    skills: [choosing]
+    difficulty: 3
+    tags: [application]
+    generator: costQ
+    lessonRef: { tab: math-code, id: error-cost }
+    prompt: |
+      Model A misses {=fnA} cases and raises {=fpA} false alarms; model B misses {=fnB} and raises {=fpB}. A miss costs
+      {=cFN} units and a false alarm {=cFP}.
+    steps:
+      - prompt: Total cost of model A
+        answer: { var: costA, tol: 0 }
+        misconceptions:
+          - { var: swapA, feedback: 'You swapped the prices: misses carry the higher cost.' }
+      - prompt: Total cost of model B
+        answer: { var: costB, tol: 0 }
+        misconceptions:
+          - { var: swapB, feedback: 'You swapped the prices: misses carry the higher cost.' }
+      - prompt: How much does choosing the cheaper model save?
+        answer: { var: saving, tol: 0 }
+    hints:
+      - Cost = misses × cost of a miss + false alarms × cost of a false alarm.
+    explanation: |
+      A: {=cFN} × {=fnA} + {=cFP} × {=fpA} = {=costA}. B: {=cFN} × {=fnB} + {=cFP} × {=fpB} = {=costB}. Model
+      {=better} is cheaper, saving {=saving}.

@@ -21,7 +21,7 @@ sections:
     steps:
       - tex: |
           \text{AbsSup}(X) = \anchor{ret}{\left|\{\, \anchor{loop}{T \in D} : \anchor{test}{X \subseteq T} \,\}\right|}
-        say: The number of transactions that contain the whole itemset.
+        say: 'The number of transactions T in D for which X ⊆ T, read "X is a subset of T": every item of X is in T. The bars |…| mean "how many".'
       - tex: |
           \anchor{init}{\text{count} = 0}, \quad \text{for each } \anchor{loop}{T \in D}: \ \anchor{test}{X \subseteq T} \Rightarrow \anchor{inc}{\text{count} \mathrel{+}= 1}
         say: The same definition written as a loop. Each basket adds 1 or 0.
@@ -30,7 +30,7 @@ sections:
         say: Divide by the number of transactions to get a fraction between 0 and 1.
       - tex: |
           \text{AbsSup}({=X|set}) = \anchor{ret}{ {=s.tallyTex} = {=s.abs} }, \qquad \text{RelSup} = \anchor{rel}{\frac{ {=s.abs} }{ {=s.n} } = {=s.rel|2}}
-        say: 'Lecture example (slides 8–9): one term per basket. Press **Step through** to run the loop line by line; change X in the live inputs, e.g. `milk`.'
+        say: 'The lecture''s example: one term per basket. Press **Step through** to run the loop line by line; change X in the live inputs, e.g. `milk`.'
     code:
       lang: python
       source: |
@@ -72,6 +72,7 @@ sections:
       - A basket supports {bread, milk} only if it has **both**, not either one.
       - Relative support divides by the number of **transactions**, not by the number of items.
     examTip: Write one 1 or 0 per basket, add them (AbsSup), then divide by |D| only if the question asks for relative support.
+    tryIt: [support-abs, support-rel, code-support]
 
   - id: frequent-itemsets
     title: Frequent itemsets and minsup
@@ -99,16 +100,16 @@ sections:
         say: Compare the support with the threshold. Use the same kind of support (count or fraction) on both sides.
       - tex: |
           \text{minsup} < 1 \;\Rightarrow\; \text{compare } \anchor{rel}{\text{RelSup}(X) = \tfrac{\text{AbsSup}(X)}{|D|}} \text{ instead}
-        say: A fraction means a relative threshold, so convert the count first (slides 12–13).
+        say: A fraction means a relative threshold, so convert the count first. On |D| baskets, a relative minsup m needs at least m × |D| baskets, rounded up.
       - tex: |
           \anchor{init}{F = \emptyset}; \quad \anchor{loop}{\forall X \in C}: \ \anchor{minsup}{\text{Sup}(X) \ge \text{minsup}} \Rightarrow \anchor{keep}{F \leftarrow F \cup \{X\}}; \quad \anchor{ret}{\text{return } F}
-        say: Filtering a list of candidates is a single loop.
+        say: 'Filtering a list of candidates is a single loop. C is the list of candidates, F the frequent ones kept so far, and ∀ is read "for every".'
       - tex: |
           \text{Sup}(Y) \le \text{Sup}(X) \quad \text{whenever } X \subseteq Y
         say: Adding items can only shrink the set of baskets that contain them. This is why raising minsup never adds itemsets.
       - tex: |
-          \anchor{minsup}{\text{minsup} = {=minsup}}: \ {=fa.count} \text{ of the 7 slide-8 itemsets}, \ {=f.count} \text{ of all 63}
-        say: 'Step through checks the seven slide-8 itemsets. Set minsup to 3, 0.5 or 0.4 in the live inputs to replay slides 10–13. Over all itemsets at minsup 2: {=f.labels}.'
+          \anchor{minsup}{\text{minsup} = {=minsup}}: \ {=fa.count} \text{ of the 7 table itemsets}, \ {=f.count} \text{ of all 63}
+        say: 'Step through checks the seven itemsets of the lecture''s first table. Set minsup to 3, 0.5 or 0.4 in the live inputs to replay the lecture''s settings. Over all itemsets at minsup 2: {=f.labels}.'
     code:
       lang: python
       source: |
@@ -148,13 +149,14 @@ sections:
       - Frequent means support **≥** minsup, not strictly greater.
       - Don't compare a count with a fraction; convert one of them first.
     examTip: 'List supports level by level (singletons, then pairs …) and tick the ones ≥ minsup; count ticks at the end.'
+    tryIt: [count-frequent, rel-minsup-frequent, minsup-monotone]
 
   - id: brute-force
     title: Brute force
     skills: [brute-force]
     summary: |
       The simplest method: evaluate the support of every non-empty itemset. With n items there are 2ⁿ − 1 of them,
-      which explodes quickly (slide 41: simple but computationally expensive).
+      which explodes quickly: simple but computationally expensive, in the lecture's words.
     keyFormula: '\#\text{candidates} = 2^n - 1'
     data: [grocery5]
     state: { n: 6 }
@@ -168,11 +170,11 @@ sections:
           title: Lecture grocery database
     steps:
       - tex: |
-          \anchor{size}{k = 1, \dots, n}: \quad \anchor{loop}{X \in \tbinom{I}{k}} \;\Rightarrow\; \anchor{count}{\text{Sup}(X)} \;\Rightarrow\; \anchor{test}{\ge \text{minsup}?} \;\Rightarrow\; \anchor{keep}{\text{store } X}
-        say: Every subset of the item set I is a candidate, from single items up to all items at once.
+          \anchor{size}{k = 1, \dots, n}: \quad \anchor{loop}{X \subseteq \mathcal{I},\ |X| = k} \;\Rightarrow\; \anchor{count}{\text{Sup}(X)} \;\Rightarrow\; \anchor{test}{\ge \text{minsup}?} \;\Rightarrow\; \anchor{keep}{\text{store } X}
+        say: '𝓘 (curly I) is the set of all n items. For each size k, every k-item subset X of 𝓘 is a candidate, from single items up to all items at once.'
       - tex: |
           \#\text{candidates} = \sum_{k=1}^{n} \tbinom{n}{k} = 2^{\anchor{n}{n}} - 1
-        say: Each item is either in or out of X (2ⁿ choices); drop the empty set.
+        say: 'The bracket (n over k), read "n choose k", is how many k-item subsets there are. Adding them up is the same as letting each item be in or out of X (2ⁿ choices), minus the empty set.'
       - tex: |
           \anchor{n}{n = {=n}} \;\Rightarrow\; 2^{ {=n} } - 1 = {=ex.count} \text{ counts before } \anchor{ret}{\text{returning}}
         say: The lecture's 6 items already give 63 itemsets. Step through all 63 counts; 38 of them come back 0.
@@ -212,6 +214,7 @@ sections:
     pitfalls:
       - 2ⁿ includes the empty set; brute force checks 2ⁿ − 1.
     examTip: Quote the count 2ⁿ − 1 when asked why brute force does not scale.
+    tryIt: [brute-count, code-brute]
 
   - id: apriori
     title: Apriori (as taught)
@@ -238,26 +241,26 @@ sections:
     steps:
       - tex: |
           \text{Sup}(X) < \text{minsup} \;\Rightarrow\; \text{Sup}(Y) < \text{minsup} \quad \forall\, Y \supseteq X
-        say: The Apriori principle. Once an itemset is infrequent, none of its supersets can be frequent.
+        say: 'The Apriori principle. Read: if X is below minsup, then so is every Y ⊇ X ("Y is a superset of X"). ⇒ means "implies".'
       - tex: |
-          C_1 = \anchor{level}{\{\{i\} : i \in I\}}, \qquad \anchor{while}{\text{repeat while } C_k \neq \emptyset}
-        say: Level 1 counts every single item; the loop runs as long as there are candidates.
+          C_1 = \anchor{level}{\{\{i\} : i \in \mathcal{I}\}}, \qquad \anchor{while}{\text{repeat while } C_k \neq \emptyset}
+        say: 'C_k is the list of k-item candidates to count, and L_k the frequent ones among them. C₁ holds every single item of 𝓘; the loop runs as long as there are candidates.'
       - tex: |
           L_k = \anchor{keep}{\{\, \anchor{loop}{X \in C_k} : \anchor{count}{\text{Sup}(X)} \anchor{test}{\ge \text{minsup}} \,\}}
         say: Count every candidate once and keep the ones that reach minsup.
       - tex: |
           C_{k+1} = \anchor{extend}{\{\, X \cup \{i\} : X \in L_k,\ i \in \anchor{items1}{L_1},\ i \text{ after } \max(X) \,\}}
-        say: Extend each frequent itemset by a later frequent item (order bread, butter, milk, eggs, yogurt, cheese on slide 19).
+        say: 'Extend each frequent itemset X by a frequent single item i that comes after max(X), the last item of X in the lecture''s order: bread, butter, milk, eggs, yogurt, cheese.'
       - tex: |
           |C_2| = {=ap.level2}, \qquad \text{counted } {=ap.evaluated} \text{ candidates instead of } {=ap.bruteForce} \;\Rightarrow\; \anchor{ret}{ {=ap.count} \text{ frequent}}
         say: 'Same {=ap.count} frequent itemsets as brute force, with {=ap.saved} fewer support counts.'
     code:
       lang: python
       source: |
-        ORDER = ["bread", "butter", "milk", "eggs", "yogurt", "cheese"]  # slide 19
+        ORDER = ["bread", "butter", "milk", "eggs", "yogurt", "cheese"]  # the lecture's order
 
         def apriori(transactions, minsup, order=ORDER):
-            """Apriori as taught on slide 19: grow only from frequent itemsets.
+            """Apriori as taught in the lecture: grow only from frequent itemsets.
 
             Level 1 is every single item. Each later level extends every frequent
             itemset by one frequent single item (items1) that comes later in
@@ -266,7 +269,7 @@ sections:
             Args:
                 transactions: the database.
                 minsup: absolute support threshold.
-                order: the item order used to extend itemsets (slide 19's listing).
+                order: the item order used to extend itemsets (the lecture's listing).
 
             Returns:
                 dict: {itemset tuple: absolute support} for every frequent itemset.
@@ -331,7 +334,9 @@ sections:
     pitfalls:
       - Only frequent itemsets are extended; butter (support 1) never appears in a 2-item candidate.
       - The lecture's version still counts {bread, milk, eggs} even though {bread, eggs} is infrequent. The classic prune (extra code tab) would skip it.
-    examTip: 'Write the candidates level by level in the slide-19 order, strike the infrequent ones, and extend only what survives.'
+      - 'Checking against the lecture''s printed list? It stops at 22 counts. The same scheme also counts {eggs, yogurt, cheese} and {milk, eggs, yogurt, cheese} (both 0), so a full run makes 24.'
+    examTip: 'Write the candidates level by level in the lecture''s order, strike the infrequent ones, and extend only what survives.'
+    tryIt: [apriori-candidates, apriori-count-hand, code-apriori-extend]
 
   - id: fp-growth
     title: FP-growth (projected databases)
@@ -358,16 +363,16 @@ sections:
     steps:
       - tex: |
           \anchor{items}{I(D_P)} = \text{items present in } D_P, \qquad \anchor{loop}{\text{for each } i \in I(D_P)}
-        say: Start from the whole database (P = ∅) and try every item that still appears in it, alphabetically.
+        say: 'D_P is the database restricted to prefix P: the rows that contain P, keeping only the items after it. I(D_P) is the set of items still present. Start from the whole database (P = ∅, the empty prefix) and try each item alphabetically.'
       - tex: |
           D_{\anchor{prefix}{P \cup \{i\}}} = \anchor{filter}{\{\, T \setminus \{x \le i\} : T \in D_P,\ i \in T \,\}}
-        say: Filter to the rows containing the new item, then keep only items after it (so each itemset is found once).
+        say: 'Filter to the rows containing the new item, then keep only items after it. T ∖ {x ≤ i} reads "T minus every item at or before i". Itemsets with an earlier item are found under that earlier prefix, so each one is counted once.'
       - tex: |
           \text{Sup}(P \cup \{i\}) = |D_{P \cup \{i\}}|, \qquad \anchor{test}{|D_{P \cup \{i\}}| \ge \text{minsup}} \Rightarrow \anchor{keep}{\text{record it}},\ \anchor{recurse}{\text{mine } D_{P \cup \{i\}}}
         say: The support of the grown prefix is simply the number of rows left. Infrequent prefixes stop the recursion (Apriori principle again).
       - tex: |
           {=fp.explored} \text{ prefixes explored} \;\Rightarrow\; \anchor{ret}{ {=fp.count} \text{ frequent itemsets}}
-        say: The lecture walks all 18 prefixes on slides 22–39 and ends with the same 11 itemsets (slide 40). Step through the recursion call by call.
+        say: The lecture walks all 18 prefixes and ends with the same 11 itemsets as brute force and Apriori. Step through the recursion call by call.
     code:
       lang: python
       source: |
@@ -415,8 +420,9 @@ sections:
       - Drop items that come **before or equal to** the prefix's last item; otherwise itemsets get counted twice.
       - An empty projected row still counts toward the prefix's support.
     examTip: Keep the alphabetical order fixed; draw each projected table and write its row count as the prefix support.
+    tryIt: [fp-projected, fp-enum-hand, fp-steps]
     errata:
-      - 'Slide 25 shows the {bread, eggs}-projected database as transaction **1** with {milk}; it should be transaction **3**. T1 has no eggs. The support (1) is unaffected.'
+      - 'If you''re reading the slides: the {bread, eggs}-projected database is shown as transaction **1** with {milk}; it should be transaction **3**. T1 has no eggs. The support (1) is unaffected.'
 
   - id: confidence
     title: Confidence
@@ -439,16 +445,16 @@ sections:
     steps:
       - tex: |
           \text{Conf}(A \rightarrow B) = P(B \mid A)
-        say: Among baskets with A, how often is B there too?
+        say: 'Among baskets with A, how often is B there too? P(B | A) reads "the probability of B given A".'
       - tex: |
           = \frac{\anchor{sup-ab}{\text{Sup}(A \cup B)}}{\anchor{sup-a}{\text{Sup}(A)}}
         say: Count baskets with both, divide by baskets with the antecedent.
       - tex: |
           \anchor{init}{\text{both counts} = 0}; \ \anchor{loop}{\forall T}: \ \anchor{has-a}{A \subseteq T} \Rightarrow \anchor{sup-a}{\text{Sup}(A) + 1}, \text{ then } \anchor{has-b}{B \subseteq T} \Rightarrow \anchor{sup-ab}{\text{Sup}(A \cup B) + 1}
-        say: Both counts in one pass. A basket without A is skipped entirely; it says nothing about the rule.
+        say: 'Both counts in one pass; ∀T reads "for every basket T". A basket without A is skipped entirely; it says nothing about the rule.'
       - tex: |
           \text{Conf}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{sup-ab}{ {=c.supAB} }}{\anchor{sup-a}{ {=c.supA} }} = \anchor{ratio}{ {=c.conf|2} }
-        say: 'Lecture example (slide 43). |D| cancels, so counts work as well as fractions.'
+        say: 'The lecture''s example. Sup here means the count; dividing both counts by |D| would cancel, so counts work as well as shares.'
     code:
       lang: python
       source: |
@@ -486,12 +492,13 @@ sections:
       - Conf(A → B) ≠ Conf(B → A); the denominator changes.
     examTip: |
       Use absolute counts: $|D|$ cancels, so the ratio of counts equals the ratio of relative supports.
+    tryIt: [conf-numeric, conf-venn, code-confidence]
 
   - id: rule-generation
     title: Generating rules from frequent itemsets
     skills: [rules, confidence]
     summary: |
-      Two phases (slide 44): find all frequent itemsets, then split each one of size ≥ 2 into every antecedent/consequent
+      Two phases: find all frequent itemsets, then split each one of size ≥ 2 into every antecedent/consequent
       pair and keep the rules whose confidence reaches minconf.
     keyFormula: 'A \rightarrow I \setminus A \text{ kept if } \frac{\text{Sup}(I)}{\text{Sup}(A)} \ge \text{minconf}'
     data: [grocery5]
@@ -515,14 +522,14 @@ sections:
           \anchor{init}{R = \emptyset}; \quad \anchor{itemset}{\text{for each frequent } I}, \quad \anchor{skip}{|I| < 2 \Rightarrow \text{skip}}
         say: Single items can't be split into two non-empty sides.
       - tex: |
-          \anchor{size}{k = |I|-1, \dots, 1}: \quad \anchor{split}{A \in \tbinom{I}{k},\ B = I \setminus A}
-        say: 'An itemset of size k gives 2^k − 2 candidate rules; bigger antecedents first, as on slide 51.'
+          \anchor{size}{k = |I|-1, \dots, 1}: \quad \anchor{split}{A \subseteq I,\ |A| = k,\ B = I \setminus A}
+        say: 'Here I is one frequent itemset and k the size of the antecedent A. B = I ∖ A, read "I minus A", is the rest. An itemset with m items gives 2^m − 2 candidate rules; bigger antecedents first, as in the lecture.'
       - tex: |
           \anchor{conf}{\frac{\text{Sup}(I)}{\text{Sup}(A)}} \anchor{test}{\ge \text{minconf}} \;\Rightarrow\; \anchor{keep}{R \leftarrow R \cup \{A \rightarrow B\}}; \qquad \anchor{ret}{\text{return } R}
         say: The numerator is the same for every split of I; only the antecedent's support changes.
       - tex: |
           {=r.count} \text{ rules pass at minsup } 2, \ \text{minconf } {=minconf} \quad (\text{from } {=r.considered} \text{ candidates})
-        say: 'The lecture gets 13 rules (slide 60). {=I|set} alone yields {=one.count} of its {=one.candidates} splits. Step through all 11 frequent itemsets of slide 45.'
+        say: 'The lecture gets 13 rules. {=I|set} alone yields {=one.count} of its {=one.candidates} splits. Step through all 11 frequent itemsets.'
     code:
       lang: python
       source: |
@@ -573,14 +580,15 @@ sections:
     pitfalls:
       - Every antecedent is a subset of a frequent itemset, so its support is already known; no new counting is needed.
       - Don't forget multi-item antecedents such as {eggs, yogurt} → {milk}.
-    examTip: For each frequent itemset, list its 2^k − 2 splits in a column, write Sup(I)/Sup(A) next to each, and cross out the ones below minconf.
+    examTip: For each frequent itemset of m items, list its 2^m − 2 splits in a column, write Sup(I)/Sup(A) next to each, and cross out the ones below minconf.
+    tryIt: [rule-count, rules-pass, hand-mine-all]
 
   - id: lift
     title: Lift
     skills: [lift, interpretation]
     summary: |
       Confidence alone can mislead when the consequent is popular. Lift divides confidence by how common the
-      consequent already is: above 1 means A makes B more likely.
+      consequent already is: above 1 means baskets with A hold B more often than baskets in general.
     keyFormula: '\text{Lift}(A \rightarrow B) = \frac{\text{Conf}(A \rightarrow B)}{\text{RelSup}(B)}'
     data: [grocery5]
     state: { A: [bread], B: [butter] }
@@ -597,16 +605,16 @@ sections:
     steps:
       - tex: |
           \text{Lift}(A \rightarrow B) = \frac{\anchor{conf}{\text{Conf}(A \rightarrow B)}}{\anchor{relb}{\text{RelSup}(B)}} = \frac{P(B \mid A)}{P(B)}
-        say: How much more likely B is when A is present, compared with B's usual rate.
+        say: How much more often B shows up in baskets with A than in baskets in general (its base rate).
       - tex: |
           = \frac{\anchor{sup-ab}{\text{Sup}(A \cup B)} \,/\, \anchor{sup-a}{\text{Sup}(A)}}{\anchor{sup-b}{\text{Sup}(B)} \,/\, \anchor{n}{|D|}}
         say: Four counts are all you need.
       - tex: |
           \anchor{lift}{\text{Lift}} > 1: \text{positive}, \quad = 1: \text{no association}, \quad < 1: \text{negative}
-        say: The interpretation from slide 61.
+        say: 'How to read it. Lift describes co-occurrence, not cause: it never says that A makes anyone buy B. A value just above 1 is a weak positive association.'
       - tex: |
           \text{Lift}({=A|set} \rightarrow {=B|set}) = \frac{\anchor{conf}{ {=l.supAB}/{=l.supA} }}{\anchor{relb}{ {=l.supB}/{=l.n} }} = \frac{ {=l.conf|2} }{ {=l.relB|2} } = \anchor{lift}{ {=l.lift|2} }
-        say: 'Lecture examples: bread → butter gives 2.5 (slide 61); try B = eggs for 0.83 (slide 62) or B = milk for exactly 1.'
+        say: 'The lecture''s examples: bread → butter gives 2.5; try B = eggs for 0.83 or B = milk for exactly 1. {bread, butter} is in one basket only: a big lift on tiny support is noise.'
     code:
       lang: python
       source: |
@@ -619,7 +627,7 @@ sections:
 
             Returns:
                 float: conf(A → B) / RelSup(B). Above 1 = positive association,
-                1 = independent, below 1 = negative.
+                1 = no association, below 1 = negative.
                 Lecture: lift({"bread"}, {"butter"}, D) == 0.5 / 0.2 == 2.5.
             """
             n = len(transactions)                        # @a:n
@@ -643,15 +651,16 @@ sections:
       - Divide by the relative support of the **consequent** B, not of A.
       - A rule into an item that is in every basket has confidence 1 but lift 1. It tells you nothing.
     examTip: 'Lift is symmetric: Lift(A → B) = Lift(B → A) = Sup(A∪B)·|D| / (Sup(A)·Sup(B)).'
+    tryIt: [lift-numeric, lift-symmetry, code-lift]
     errata:
-      - 'Slide 62''s lift legend is garbled ("Lift = 1: more likely …"). Use slide 61: **> 1** positive association, **= 1** no association, **< 1** negative association.'
+      - 'If you''re reading the slides: one lift legend is garbled ("Lift = 1: more likely …"). Read lift as **> 1** positive association, **= 1** no association, **< 1** negative association.'
 
   - id: leverage-conviction
     title: Leverage and conviction
     skills: [interpretation]
     summary: |
       Two more metrics that libraries such as mlxtend report. Leverage is an additive version of lift;
-      conviction measures how often the rule would fail if A and B were independent.
+      conviction divides how often the rule would fail if A and B were unrelated by how often it actually fails.
     keyFormula: '\text{Lev} = \text{RelSup}(A \cup B) - \text{RelSup}(A)\text{RelSup}(B), \quad \text{Conv} = \frac{1 - \text{RelSup}(B)}{1 - \text{Conf}}'
     beyondSlides: true
     data: [grocery5]
@@ -702,3 +711,4 @@ sections:
     pitfalls:
       - These are not on the slides; the exam will ask for support, confidence and lift.
     examTip: If an exam asks which rule is interesting, lift is the lecture's answer; leverage and conviction are for real projects.
+    tryIt: [lift-verdict, act-on-rule, milk-trap]

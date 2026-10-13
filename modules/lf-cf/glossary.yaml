@@ -1,8 +1,16 @@
 terms:
   - id: latent-factor
     term: Latent factor
+    aka: [factor]
     short: A hidden taste dimension learned from ratings, such as how much a film is "action" versus "romance".
     related: [factorization, rank]
+    lessonRef: { tab: intuition, id: hidden-tastes }
+    skills: [latent-model]
+  - id: dot-product
+    term: Dot product
+    short: Multiply two lists of numbers entry by entry and add the products; (2, 1)·(1, 2) = 2 + 2 = 4.
+    formula: '\mathbf{u}\cdot\mathbf{v} = \sum_s u_s v_s'
+    related: [predicted-rating]
     lessonRef: { tab: intuition, id: hidden-tastes }
     skills: [latent-model]
   - id: factorization
@@ -14,83 +22,135 @@ terms:
     skills: [latent-model]
   - id: rank
     term: Rank d
+    aka: [rank]
     short: The number of latent factors; U is m×d and V is d×n.
     related: [factorization, regularization]
-    lessonRef: { tab: math-code, id: latent-model }
+    lessonRef: { tab: intuition, id: matrix-is-a-product }
     skills: [rank-choice]
   - id: predicted-rating
     term: Predicted rating
     short: The dot product of a user's factor row and an item's factor column.
     formula: 'p_{ij} = \sum_{s=1}^{d} u_{is} v_{sj}'
-    related: [factorization]
-    lessonRef: { tab: math-code, id: latent-model }
+    long: We write V's entries v_sj (factor s, item j), matching V as a d × n matrix. The lecture's general formula writes v_js; the numbers are the same.
+    related: [factorization, dot-product]
+    lessonRef: { tab: intuition, id: hidden-tastes }
     skills: [latent-model, prediction]
   - id: sse
     term: Sum of squared errors (SSE)
+    aka: [SSE, sum of squared errors]
     short: The total of (actual − predicted)² over the observed ratings only; the quantity being minimized.
     formula: '\sum_{(i,j)\ \text{observed}} (r_{ij} - p_{ij})^2'
     related: [als, coordinate-descent]
-    lessonRef: { tab: math-code, id: sse-observed }
+    lessonRef: { tab: intuition, id: only-observed-cells }
     skills: [sse-observed]
   - id: observed-entry
     term: Observed entry
+    aka: [observed entries, observed cell, observed cells]
     short: A cell of the rating matrix that has an actual rating; missing cells never enter the SSE.
     related: [sse]
     lessonRef: { tab: intuition, id: only-observed-cells }
     skills: [sse-observed]
   - id: als
     term: Alternating least squares (ALS)
+    aka: [ALS, alternating least squares]
     short: Repeatedly freezing U to solve V by least squares, then freezing V to solve U.
     related: [least-squares, coordinate-descent]
     lessonRef: { tab: intuition, id: als-dance }
     skills: [als-step]
   - id: least-squares
     term: Least squares
-    short: Choosing parameters that minimize the sum of squared errors; with one factor matrix frozen it is a linear regression.
+    short: Choosing the numbers that make the sum of squared errors smallest; with one factor matrix frozen, each row or column is such a fit.
     related: [als]
-    lessonRef: { tab: math-code, id: als-update }
+    lessonRef: { tab: intuition, id: als-dance }
     skills: [als-step]
+  - id: minimum-norm
+    term: Minimum-norm solution
+    aka: [minimum-norm, even split]
+    short: When many answers fit equally well, the one whose squared values add up least; from all-ones U it splits each sum evenly.
+    related: [least-squares, symmetry-trap]
+    lessonRef: { tab: intuition, id: als-dance }
+    skills: [als-step, als-symmetry]
   - id: symmetry-trap
     term: Symmetry trap
     short: Starting ALS from identical columns keeps them identical forever, so a rank-2 model acts like rank 1.
-    related: [als, random-init]
+    related: [als, random-init, minimum-norm]
     lessonRef: { tab: intuition, id: symmetry-trap }
     skills: [als-symmetry]
   - id: random-init
     term: Random initialization
-    short: Starting U and V at small random values to break symmetry so each factor can learn something different.
+    short: Starting U (and V) at random values, 0.5 to 1.5 in the code here, so the factors start different and can learn different tastes.
+    long: This is the fix for the symmetry trap. Regularization does not fix it.
     related: [symmetry-trap]
     lessonRef: { tab: intuition, id: symmetry-trap }
     skills: [als-symmetry]
   - id: coordinate-descent
     term: Coordinate (gradient) descent
-    short: Minimizing the SSE by updating one entry at a time to the exact minimum of its parabola.
-    related: [closed-form-update, als]
+    aka: [coordinate descent, CGD, coordinate gradient descent]
+    short: Minimizing the SSE by updating one entry at a time, jumping exactly to the bottom of its parabola.
+    long: |
+      Ordinary gradient descent takes a step downhill whose size is set by a learning rate. Here each step is solved
+      exactly, so there is no step size, and the SSE can never go up.
+    related: [closed-form-update, als, sweep]
     lessonRef: { tab: intuition, id: one-knob }
     skills: [cgd-update]
   - id: closed-form-update
     term: Closed-form entry update
+    aka: [closed form, closed-form update]
     short: Setting the derivative of the SSE with respect to one entry to zero and solving it directly.
     formula: 'u_{is} = \frac{\sum_j v_{sj}\,(r_{ij} - \sum_{t \ne s} u_{it} v_{tj})}{\sum_j v_{sj}^2}'
-    related: [coordinate-descent]
+    related: [coordinate-descent, residual]
     lessonRef: { tab: math-code, id: cgd-derivation }
     skills: [cgd-derivation]
   - id: residual
     term: Residual (partial)
-    short: What is left of a rating after subtracting the contribution of every other factor, r − Σₜ≠ₛ uᵢₜvₜⱼ.
+    aka: [residual]
+    short: What is left of a rating after subtracting what every other factor predicts, r − rest.
+    formula: 'r_{ij} - \sum_{t \ne s} u_{it} v_{tj}'
     related: [closed-form-update]
-    lessonRef: { tab: math-code, id: cgd-derivation }
+    lessonRef: { tab: intuition, id: one-knob }
     skills: [cgd-derivation]
+  - id: sweep
+    term: Sweep
+    short: One pass of coordinate descent that updates every entry of U and V once.
+    related: [coordinate-descent]
+    lessonRef: { tab: intuition, id: full-sweep }
+    skills: [cgd-update]
   - id: overfitting
     term: Overfitting
+    aka: [over-fitting]
     short: Fitting the observed ratings too closely with too many parameters, so predictions for missing cells get wild.
-    related: [regularization, rank]
+    related: [regularization, rank, validation-set]
     lessonRef: { tab: intuition, id: filling-the-blanks }
     skills: [prediction, rank-choice]
   - id: regularization
     term: Regularization (λ)
-    short: Adding λ times the squared size of the factors to the SSE, which keeps factors small and makes the minimizer unique.
+    aka: [regularization, ridge]
+    short: Adding λ(‖U‖² + ‖V‖²) to the SSE, which keeps the factors small and gives each ALS step a single answer.
+    long: |
+      It does not break the symmetry trap: from a symmetric start the penalized problem is still symmetric, and the
+      whole objective stays non-convex. Only a random start breaks the tie. Spark's ALS calls λ `regParam`.
     formula: '\text{SSE} + \lambda\left(\|U\|^2 + \|V\|^2\right)'
     related: [overfitting, symmetry-trap]
     lessonRef: { tab: math-code, id: regularization }
     skills: [rank-choice]
+  - id: validation-set
+    term: Validation set
+    aka: [held-out ratings]
+    short: Known ratings hidden during training and used only to score how well each choice of d and λ predicts unseen ratings.
+    related: [overfitting, ndcg]
+    lessonRef: { tab: intuition, id: filling-the-blanks }
+    skills: [rank-choice]
+  - id: ndcg
+    term: NDCG
+    aka: [normalized discounted cumulative gain]
+    short: A 0-to-1 score of a ranked list that rewards putting the highest-rated items first (taught in the neighbourhood CF module).
+    related: [validation-set]
+    lessonRef: { tab: application, id: versus-neighbours }
+    skills: [prediction]
+  - id: fold-in
+    term: Folding in
+    aka: [fold-in, fold in]
+    short: Getting a new user's factors by keeping V fixed and solving one least-squares problem for their row of U.
+    related: [als]
+    lessonRef: { tab: intuition, id: filling-the-blanks }
+    skills: [prediction, als-step]

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, HelpCircle, MessageSquareText, X } from 'lucide-react';
-import { parseNumber, type Gate } from '@kodigo/schema';
+import { checkPredict, optionOrder, type Gate } from '@kodigo/schema';
 import { Markdown } from '../lib/md';
 import { cn } from '../lib/util';
 import type { LoadedModule } from '../modules/store';
@@ -18,10 +18,12 @@ export function gateSatisfied(g: Gate | undefined, s: GateState, whenTrue: boole
   return true;
 }
 
-export function GateView({ gate, state, setState, whenTrue, onAnswer, mod, noteAnchor }: {
+export function GateView({ gate, state, setState, whenTrue, onAnswer, mod, noteAnchor, seedKey }: {
   gate: Gate; state: GateState; setState: (s: GateState) => void; whenTrue: boolean; onAnswer?: (correct: boolean, response: unknown) => void;
   /** needed by practice gates (to build the question) and reflect gates (to save the note) */
   mod?: LoadedModule; noteAnchor?: string;
+  /** stable key (module:scene:beat) that fixes the shuffled option order */
+  seedKey?: string;
 }) {
   const [input, setInput] = useState('');
   const [hint, setHint] = useState(false);
@@ -40,28 +42,28 @@ export function GateView({ gate, state, setState, whenTrue, onAnswer, mod, noteA
   }
   if (gate.type === 'reflect') return <ReflectGate gate={gate} state={state} setState={setState} mod={mod} noteAnchor={noteAnchor} />;
   if (gate.type === 'predict') {
-    const ans = typeof gate.answer === 'number' ? { value: gate.answer, tol: 0.01 } : { value: gate.answer.value, tol: gate.answer.tol ?? 0.01 };
+    const ans = typeof gate.answer === 'number' ? { value: gate.answer } : gate.answer;
     const submit = (choice: number | string) => {
       if (state.answered) return;
-      const v = typeof choice === 'number' ? choice : parseNumber(choice, ['decimal', 'fraction', 'percent']);
-      if (v === null) return;
-      const correct = gate.options ? v === ans.value : Math.abs(v - ans.value) <= ans.tol + 1e-9;
+      const correct = typeof choice === 'number' ? choice === ans.value : checkPredict(choice, ans);
+      if (correct === null) return;
       setState({ ...state, answered: true, correct, choice });
       onAnswer?.(correct, choice);
     };
+    const order = gate.options ? optionOrder(gate.options.length, seedKey ?? gate.question, gate.shuffle !== false) : [];
     return (
       <div className="rounded-xl border border-accent/40 bg-accent/5 p-3" data-testid="gate-predict">
         <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent"><HelpCircle size={14} /> Predict before we reveal it</div>
         <Markdown text={gate.question} className="text-sm font-medium" />
         {gate.options ? (
           <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-            {gate.options.map((o, i) => {
+            {order.map((i) => {
               const picked = state.answered && state.choice === i;
               const right = state.answered && i === ans.value;
               return (
                 <button key={i} data-testid="predict-option" disabled={state.answered} onClick={() => submit(i)}
                   className={cn('rounded-lg border px-3 py-2 text-left text-sm transition', right ? 'tone-good mark-bg' : picked ? 'tone-bad mark-bg' : 'border-line bg-panel hover:border-accent/50', state.answered && !right && !picked && 'opacity-60')}>
-                  <Markdown text={o} inline />
+                  <Markdown text={gate.options![i]} inline />
                 </button>
               );
             })}
@@ -75,6 +77,7 @@ export function GateView({ gate, state, setState, whenTrue, onAnswer, mod, noteA
         {state.answered && (
           <div className={cn('mt-2 rounded-lg px-3 py-2 text-sm', state.correct ? 'bg-good/10' : 'bg-warn/10')}>
             <div className="mb-0.5 flex items-center gap-1 font-semibold">{state.correct ? <><Check size={14} className="text-good" /> Nice.</> : <><X size={14} className="text-warn" /> Not quite. That's fine, now watch.</>}</div>
+            {typeof state.choice === 'number' && gate.optionFeedback?.[String(state.choice)] && !state.correct && <Markdown text={gate.optionFeedback[String(state.choice)]} className="mb-1" />}
             <Markdown text={gate.explain} />
           </div>
         )}

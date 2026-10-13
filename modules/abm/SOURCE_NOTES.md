@@ -43,16 +43,32 @@
 - Customer and supplier schedules show costs as negative amounts below gross margin, as in slide 48.
 - "Queue" (slides 67–68) and "waiting" (slides 61–63) are the same element of cycle time.
 - Velocity is shown per hour for Marikina and per day for the 100-unit order, following each slide's unit.
+- Non-value-added list (1.1.0): the lesson, glossary and quiz now use the textbook's five classic examples (scheduling, moving, waiting, inspecting, storing; Hansen & Mowen, Cornerstones). 1.0.0 taught four (moving, waiting, inspecting, storing) while `nva-multi` cited "slide 26's four" including scheduling. **Check slide 26's exact list**; if it omits storing or scheduling, drop that item from intuition beat 2, the glossary short and `nva-multi`.
+- Share (slide 31): written as "one common component used in several products, so one setup serves all of them" (the textbook's activity-sharing example). The 1.0.0 pair "run a necessary setup for a larger batch → Share" was ambiguous with Reduce (audit, uncertain item). **Check slide 31's own Share example.**
+- Quality costs (slide 28): the standard four categories (prevention, appraisal, internal failure, external failure) and the value lens (prevention largely value-added, failure entirely non-value-added, appraisal non-value-added once prevention works), as the 1.0.0 quiz already stated. Check against slide 28's wording.
+- Customer tiers (slide 51) and responses (slide 49) are taught with the wording of the 1.0.0 quiz items (Tier 1 protect and grow, Tier 2 serve more efficiently, Tier 3 renegotiate / price by activity / change behavior; change the activity before the relationship). The order of the first three responses is not in these notes, so `respond-order` was replaced by `respond-mcq` (change behavior first, drop last).
+- Benefits (slide 20) and the five-tool toolkit (slide 19) are taught in the closing scene `kaizen-loop`, using the 1.0.0 quiz wording.
+- Scene 1 shows ABC's setup cost by product (₱800,000 vs ₱100,000, from slide 36) as the diagnosis; it deliberately does not show the per-unit ₱40 / ₱1.25, which scene 3 asks the learner to compute.
+- Whale curve (Davao, synthetic): cumulative profit passes 100% after three customers (110.4%) and peaks after five (131.25%, ₱1,995,000 of ₱1,520,000); the three loss-makers lose ₱475,000.
+- The ₱195,000 consolidation swing is an ABC cost reduction; the module adds (beyond the slides) that it becomes a cash saving only when the order-desk and delivery capacity is cut or redeployed.
+- Five whys for Custom Bracket: the chain is module-authored from Example 3; 1.1.0 adds a fifth why ("setup cost was buried in one plantwide rate until ABC traced it").
+- MCE is the same ratio the cost-flows module calls the "value-added share" of manufacturing time; the glossary and scene 6 say so.
+- Percent convention: every predict and quiz answer asked "in percent" is stored in percent units with `percent: true` (35, 35% and 0.35 all accepted); quiz prompts state "to one decimal place" with tol 0.06.
+- Learner-facing text no longer cites slide, session or example numbers; they stay in `source` fields, examples.yaml and these notes.
+- Scene 1 must not pre-teach scene 3's root-cause answer (minimum order size). Its Kepner-Tregoe example uses quick-change dies, its sort chip is "running similar custom orders back to back", and its reflect model mentions a small-order charge instead.
+- Generators whose answer is an MCE redraw when MCE is 50%, because the non-value-added-share misconception would equal the answer (mceQ, velocityQ).
 
 ## Errata / inconsistencies found
-- Slide 36 says Custom Bracket needs "four times more" setups than Standard Bracket; 800 vs 100 is eight times.
+- Slide 36 says Custom Bracket needs "four times more" setups than Standard Bracket; 800 vs 100 is eight times. Shown in math-code `setups` as an `errata` entry.
 - Slide 57 refers to "Example 6" and "₱24,600/year" of defect cost; there is no Example 6 in the deck (the numbering jumps from 5 to 7) and the ₱24,600 is not derived anywhere. The nearest figure, slide 56's hidden-cost gap, is ₱26,000.
-- Slide 74 calls the cut from 10 to 7 hours "30% faster throughput". Cycle time is 30% shorter; velocity rises by 10 ÷ 7 − 1 ≈ 43%.
+- Slide 74 calls the cut from 10 to 7 hours "30% faster throughput". Cycle time is 30% shorter; velocity rises by 10 ÷ 7 − 1 ≈ 43%. Scene `cycle-clock` asks for the rise first, then shows an errata Callout; math-code `mce` lists it under `errata`.
 - Slides 64 and 74 attribute manufacturing cells to "Part E"; cells are covered in Part B (slides 32–33).
 - Slides 12–14 spell "METHODOLODY".
 - Slide 47's Rizal Wholesale total is a ₱40,000 operating loss before consolidation; a whale curve of these three customers is not meaningful, so the module illustrates the whale curve with the synthetic application case.
 
 ## What I added beyond the slides
 - Setup cost per unit and batch size for Example 3, and the "explained by volume" split for Example 9 — derived from the slide's numbers to make the root-cause argument quantitative.
-- A fishbone sorting exercise using Example 9's candidate causes plus the deck's six categories.
+- A fishbone sorting exercise using Example 9's candidate causes plus the deck's six categories (1.1.0 replaced the chip "failed parts go through rework and re-inspection", a consequence, with a process cause).
+- Not covered: the Kepner-Tregoe problem-solving plan on slides 16–17 (images only in the extracted deck). Check the slides and add a beat if they carry content beyond the four K-T steps.
+- 1.1.0 level-3 quiz items (synthetic numbers): velocity % rise, a full cycle-improvement hand-calc, TCO "which supplier and by how much", a whale-curve hand-calc, the percent rise in a supplier's TCO, and when a cost-to-serve saving is real.
 - Application case (Davao Fruit Snacks Co.) — synthetic: a batch at 15 → 7 hours (MCE 20% → 43%, velocity 40 → 85.7 bags an hour), eight customers whose top five earn 131% of profit, and a pouch supplier choice (TCO ₱2,388,000 vs ₱2,292,700).

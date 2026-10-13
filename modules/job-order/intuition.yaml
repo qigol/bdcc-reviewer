@@ -18,7 +18,7 @@ scenes:
             |---|---|---|
             | Cost unit | a job, order, contract | a physical unit |
             | Costs collected | by job | by department |
-            | Key record | job cost sheet | cost-of-production report |
+            | Key record | job cost sheet (one per job) | cost-of-production report (one per department per month) |
             | Used by | custom makers, services | continuous processes |
     beats:
       - say: |
@@ -28,16 +28,19 @@ scenes:
         define: [cost-accumulation-system, cost-object]
       - say: |
           There are two basic approaches. **Job-order costing** traces costs to one specific, identifiable job.
-          **Process costing** pools costs by department and averages them over a flow of identical units.
+          **Process costing** pools costs by department and averages them over a flow of identical units. A third,
+          activity-based costing, refines how overhead is spread; it has its own module.
         define: [job-order-costing, process-costing]
-        show: [compare]
         gate:
           type: predict
-          question: A shipyard builds a fishing vessel to one buyer's specification. Which system fits?
-          options: [Job-order costing, Process costing]
+          question: A shoe company makes 50,000 pairs of the same school shoe every month, all identical. Which system fits?
+          options: [Process costing, Job-order costing]
           answer: 0
-          explain: The vessel is unique and identifiable, so its own costs can and should be traced to it.
-      - say: Now sort the four Philippine businesses from slide 15.
+          explain: The shoes are identical and made continuously, so the department's cost is averaged over them. The industry doesn't decide; the output does.
+      - say: |
+          Side by side: job-order costing keeps a job cost sheet for each job, while process costing keeps a
+          cost-of-production report, one summary per department per month. Now sort four Philippine businesses.
+        show: [compare]
         gate:
           type: event
           prompt: Drop each business into the system that fits it.
@@ -49,10 +52,10 @@ scenes:
           engagement is a job too, with partner hours as labor. The **output** decides, not the industry.
         gate:
           type: predict
-          question: An interior designer renovates homes, each to the owner's plans. Which system?
+          question: A print shop prints 2,000 copies of one couple's wedding invitation, then a restaurant's menus the next day. Which system fits?
           options: [Job-order costing, Process costing]
           answer: 0
-          explain: Every renovation is a unique contract, so each one is its own job.
+          explain: The copies within one order are alike, but each order differs from the next and is quoted on its own, so each order is a job.
       - say: Why not track every bottle individually, just to be precise?
         gate:
           type: reflect
@@ -91,7 +94,7 @@ scenes:
         widget: Slider
         region: side
         hidden: true
-        props: { label: Markup on cost, min: 0, max: 1, step: 0.05, format: 2 }
+        props: { label: Markup on cost, min: 0, max: 1, step: 0.05, format: pct }
         bind: { value: markup }
       - id: player
         widget: StepPlayer
@@ -107,29 +110,46 @@ scenes:
           peso spent on this job, its cost object, while it moves through the shop.
         define: [job-cost-sheet]
       - say: |
-          Materials reach the job on a **materials requisition** form. Labor reaches it on **time tickets** that log each
-          worker's hours on this job and the wage for them.
-        define: [materials-requisition, time-ticket]
+          Three kinds of cost go on the sheet. **Direct materials** become part of the job and can be traced to it, like
+          the steel in a part. **Direct labor** is the pay of the workers who build it, also traced. Everything else is
+          overhead, which comes third.
+        define: [direct-materials, direct-labor]
+      - say: |
+          Materials reach the job on a **materials requisition** form, one for each issue from the storeroom.
+        define: [materials-requisition]
         gate:
           type: predict
           question: Requisitions on 7/14, 7/20 and 7/25 issued ₱1,200, ₱650 and ₱350. What is Job 123's direct materials cost?
           answer: { value: 2200, tol: 0.5 }
           explain: '$1{,}200 + 650 + 350 = ₱2{,}200$.'
-      - say: The time tickets show 180 hours at ₱6.50 in the week of 7/20, then 140 hours at ₱7.25 in the week of 7/26.
+      - say: |
+          Labor reaches the job on **time tickets** that log each worker's hours on this job and the wage for them. Job
+          123's tickets: 180 hours at ₱6.50 in the week of 7/20, then 140 hours at ₱7.25 in the week of 7/26.
+        define: [time-ticket]
         gate:
           type: predict
           question: What is Job 123's direct labor cost?
           answer: { value: 2185, tol: 0.5 }
           explain: '$180 \times 6.50 + 140 \times 7.25 = 1{,}170 + 1{,}015 = ₱2{,}185$. Each ticket keeps its own wage.'
       - say: |
-          Rent, power and supervision can't be traced to one job. That **factory overhead** is applied instead, at
-          ₱4.50 for every direct labor hour the job used.
+          Rent, power and supervision can't be traced to one job. That **factory overhead** is applied instead, at a rate
+          Chiphard set in advance: ₱4.50 for every direct labor hour (DLH) the job used. The next scene shows where such a
+          rate comes from.
         define: [factory-overhead]
         gate:
           type: predict
           question: How much overhead is applied to Job 123?
           answer: { value: 1440, tol: 0.5 }
           explain: 'The job used $180 + 140 = 320$ hours, and $320 \times 4.50 = ₱1{,}440$.'
+      - say: |
+          Add the three: ₱2,200 + ₱2,185 + ₱1,440 = ₱5,825. Chiphard prices with a 40% **markup on cost**: the price is
+          the cost times one plus the markup.
+        define: [markup]
+        gate:
+          type: predict
+          question: What price does Chiphard quote?
+          answer: { value: 8155, tol: 0.5 }
+          explain: '$5{,}825 \times 1.40 = 5{,}825 + 2{,}330 = ₱8{,}155$.'
       - say: Now watch the sheet fill in, one source document at a time.
         show: [player]
         gate:
@@ -137,15 +157,6 @@ scenes:
           prompt: Play the cost sheet to the end.
           target: player
           event: done
-      - say: |
-          Job 123 costs ₱5,825. Chiphard prices with a 40% **markup on cost**: the price is the cost times one plus the
-          markup.
-        define: [markup]
-        gate:
-          type: predict
-          question: What price does Chiphard quote?
-          answer: { value: 8155, tol: 0.5 }
-          explain: '$5{,}825 \times 1.40 = 5{,}825 + 2{,}330 = ₱8{,}155$.'
       - say: Slide the markup and watch the quote move with it.
         show: [mk, out]
         gate:
@@ -189,21 +200,11 @@ scenes:
         hidden: true
         props:
           items:
-            - { label: POHR per DLH, value: '{=ro.rate|money2}', tone: accent }
+            - { label: Rate per direct labor hour, value: '{=ro.rate|money2}', tone: accent }
       - id: job
         widget: Schedule
         hidden: true
         props: { title: 'POHR and Job #302', rows: '@ps.rows' }
-      - id: evpi
-        widget: Callout
-        region: side
-        hidden: true
-        props:
-          kind: note
-          title: 'Side note from slide 38: the price of certainty'
-          body: |
-            Slide 38 adds a decision-analysis aside: EVPI = EPPI − EMV, the most you should pay to remove uncertainty.
-            Normal costing makes that bet: knowing the exact overhead is worth less than a job cost in time to quote.
       - id: player
         widget: StepPlayer
         region: bottom
@@ -228,7 +229,7 @@ scenes:
         show: [plan, rate]
       - say: |
           The denominator is the **activity base**, direct labor hours here. It should be whatever really drives
-          overhead; a highly automated line would use machine hours instead.
+          overhead: labor hours where people do the work, machine hours (MH) where machines do it.
         define: [activity-base]
         show: [hrs]
         gate:
@@ -238,12 +239,20 @@ scenes:
           hint: Drag the slider left.
       - say: The same overhead over fewer hours makes each hour dearer, ₱75 instead of ₱60. Back to the real plan.
         set: { budgetBase: 45000 }
+        hide: [hrs]
         gate:
           type: predict
-          question: If budgeted hours rise while budgeted overhead stays the same, the POHR…
-          options: [falls, rises, stays the same]
-          answer: 0
-          explain: The same pesos are spread over more hours, so each hour carries less.
+          question: Suppose instead Quezon expected 54,000 hours, with the same ₱2,700,000 of overhead. What would the POHR be?
+          answer: { value: 50, tol: 0.01 }
+          explain: '$2{,}700{,}000 \div 54{,}000 = ₱50$. More hours share the same pesos, so each hour carries less.'
+      - say: |
+          A base can also be in pesos. Overhead budgeted as a percent of **direct labor cost** charges each job a fixed
+          share of every labor peso it uses, which suits shops where better-paid work also uses costlier support.
+        gate:
+          type: predict
+          question: A shop budgets ₱180,000 of overhead and ₱120,000 of direct labor cost. What is its rate, as a percent of direct labor cost?
+          answer: { value: 150, tol: 0.5, percent: true }
+          explain: '$180{,}000 \div 120{,}000 = 1.5$, so 150%: a job with ₱2,000 of labor carries ₱3,000 of overhead.'
       - say: |
           Job #302 used ₱62,000 of materials and 180 direct labor hours at ₱90. Overhead reaches it as
           **applied overhead**: the POHR times the hours the job actually used.
@@ -265,7 +274,6 @@ scenes:
           Actual materials and labor with a budgeted overhead rate is **normal costing**, what almost every company uses.
           Waiting for December's actual overhead is **actual costing**: precise, but too late to price anything.
         define: [normal-costing, actual-costing]
-        show: [evpi]
         gate:
           type: predict
           question: A customer wants a quote on Monday for a job that starts Tuesday. Which system can give one?
@@ -286,18 +294,107 @@ scenes:
             which is the gap the company settles at year end.
     takeaway: POHR = budgeted overhead ÷ budgeted activity, set in advance. Each job gets POHR × the activity it actually used.
 
+  - id: follow-the-job
+    title: Following one job through the accounts
+    goal: Where does a job's cost sit while it is made, finished and sold?
+    skills: [cost-flow]
+    data: [bulacan]
+    state: { flowUpTo: 0 }
+    derive:
+      - { fn: flowSheet, in: { dm: '@bulacan.dm', dl: '@bulacan.dl', oh: '@bulacan.oh', price: '@bulacan.price', upTo: '@flowUpTo' }, out: fs }
+    stage:
+      - id: jr
+        widget: Journal
+        props: { title: General journal, entries: '@fs.entries', posted: 0 }
+      - id: ta
+        widget: TAccounts
+        props: { accounts: '@fs.accounts' }
+      - id: where
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: The job's cost now sits in, value: '{=fs.where}', tone: accent }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: flowWalk
+          in: { dm: '@bulacan.dm', dl: '@bulacan.dl', oh: '@bulacan.oh', price: '@bulacan.price' }
+          roles: { jr: jr, ta: ta }
+    beats:
+      - say: |
+          Bulacan Prints & Fab finished a fiesta tarpaulin and steel-frame job: ₱75,500 of materials, ₱10,400 of labor
+          and ₱6,500 of applied overhead.
+        gate:
+          type: predict
+          question: What is the total cost of the job?
+          answer: { value: 92400, tol: 0.5 }
+          explain: '$75{,}500 + 10{,}400 + 6{,}500 = ₱92{,}400$.'
+      - say: |
+          Bought materials wait in the storeroom, recorded in **Raw Materials Inventory**. Once work starts, the job's cost
+          sits in **Work in Process**, an asset; the open job cost sheets list what it holds, job by job. These are
+          **product costs**: they wait on the balance sheet until the goods are sold.
+        define: [raw-materials-inventory, work-in-process, product-cost]
+      - say: |
+          Each move is a journal entry with two sides. A **debit** is an account's left side; for an asset such as Work
+          in Process it adds. A **credit** is the right side; for an asset it takes away. In every entry the debits equal
+          the credits.
+        define: [debit, credit]
+        gate:
+          type: predict
+          question: ₱75,500 of materials leave the storeroom for the job. Which account is debited?
+          options: [Work in Process, Raw Materials Inventory, Accounts Payable]
+          answer: 0
+          explain: The cost moves into Work in Process, so WIP is debited (it grows) and Raw Materials Inventory is credited (it shrinks).
+      - say: |
+          Finished, the cost moves to **Finished Goods**. Sold, it moves to **Cost of Goods Sold**, the expense matched
+          against the ₱185,000 sale.
+        define: [finished-goods, cost-of-goods-sold]
+        gate:
+          type: predict
+          question: The job was finished on the 20th and delivered on the 28th. Where is its cost on the 25th?
+          options: [Finished Goods, Work in Process, Cost of Goods Sold]
+          answer: 0
+          explain: It is complete but not yet sold, so it waits in Finished Goods, still an asset.
+      - say: |
+          Post the six entries, from buying the materials to the sale, and watch the cost move from account to account.
+          Entry (4) applies overhead with a credit to [[factory-overhead|Factory Overhead]]; the next scene shows what
+          that account collects.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play all six entries.
+          target: player
+          event: done
+      - say: |
+          Only at the sale does the ₱92,400 become an expense. The price minus that cost is the job's **gross margin**.
+        define: [gross-margin]
+        gate:
+          type: predict
+          question: What gross margin did the job earn?
+          answer: { value: 92600, tol: 0.5 }
+          explain: '$185{,}000 - 92{,}400 = ₱92{,}600$, about 50.1% of the price.'
+      - say: Record one step of the flow yourself.
+        gate:
+          type: practice
+          template: flow-je
+    takeaway: Cost follows the job from Raw Materials Inventory to WIP to Finished Goods, and becomes an expense, Cost of Goods Sold, only when sold.
+
   - id: two-companies
     title: When the estimate misses
     goal: What happens when applied overhead doesn't match the overhead actually incurred?
     skills: [over-under]
     data: [twoco, pampanga]
-    state: { which: x }
+    state: { which: x, closed: false }
     derive:
-      - { fn: pickCompany, in: { twoco: '@twoco', pampanga: '@pampanga', which: '@which' }, out: co }
+      - { fn: pickCompany, in: { twoco: '@twoco', pampanga: '@pampanga', which: '@which', closed: '@closed' }, out: co }
     stage:
       - id: pick
         widget: Choice
         region: top
+        hidden: true
         props:
           label: Company
           options:
@@ -305,10 +402,25 @@ scenes:
             - { value: y, label: Company Y (DL cost) }
             - { value: p, label: Pampanga Metal Works }
         bind: { value: which }
+      - id: pick-xy
+        widget: Choice
+        region: top
+        hidden: true
+        props:
+          label: Company
+          options:
+            - { value: x, label: Company X (machine hours) }
+            - { value: y, label: Company Y (DL cost) }
+        bind: { value: which }
       - id: cmp
         widget: Schedule
         hidden: true
         props: { title: Actual vs applied overhead, rows: '@co.rows' }
+      - id: foh-t
+        widget: TAccounts
+        region: side
+        hidden: true
+        props: { title: Factory Overhead, accounts: '@co.fohAccounts' }
       - id: jr
         widget: Journal
         hidden: true
@@ -319,7 +431,7 @@ scenes:
         hidden: true
         props:
           kind: errata
-          body: 'Slide 34 gives Company Y ₱160,000 of overhead on ₱160,000 of DL cost (100%) but uses 150%. We follow the solution: 150%.'
+          body: 'If you''re reading the slide: Company Y''s budget is printed as ₱160,000 of overhead on ₱160,000 of direct labor cost, which is 100%, but the solution uses 150%. We follow the solution.'
     beats:
       - say: |
           A predetermined rate is an estimate, so at year end it almost never matches. Company X applied ₱2 per machine
@@ -330,35 +442,42 @@ scenes:
           answer: { value: 192000, tol: 0.5 }
           explain: '$96{,}000 \times 2 = ₱192{,}000$. Applied overhead uses the **actual** base.'
       - say: |
-          Company X actually incurred ₱198,000. Its jobs were charged less than was spent: that shortfall is
-          **underapplied overhead**.
+          Actual overhead bills are debited to the [[factory-overhead|Factory Overhead]] account as they arrive; applied
+          overhead is credited to it as jobs are charged. Company X's bills came to ₱198,000. When jobs are charged less
+          than was spent, the shortfall is **underapplied overhead**.
         define: [underapplied-overhead]
-        show: [cmp]
         gate:
           type: predict
           question: How much overhead is underapplied at Company X?
           answer: { value: 6000, tol: 0.5 }
           explain: '$198{,}000 - 192{,}000 = ₱6{,}000$.'
-      - say: Company Y applies overhead at 150% of direct labor cost instead. Switch to Company Y.
-        show: [err]
+      - say: |
+          The schedule and the Factory Overhead T-account agree: ₱198,000 of debits against ₱192,000 of credits leaves a
+          ₱6,000 debit balance. That leftover debit is the underapplied overhead.
+        show: [cmp, foh-t]
+      - say: |
+          Company Y applies overhead at 150% of direct labor cost instead. Its labor cost was ₱176,000, against ₱256,000
+          of overhead actually incurred. When jobs carry more overhead than was spent, the excess is
+          **overapplied overhead**.
+        define: [overapplied-overhead]
+        gate:
+          type: predict
+          question: What happened at Company Y?
+          options: ['Overapplied by ₱8,000', 'Underapplied by ₱8,000', 'Overapplied by ₱80,000']
+          answer: 0
+          explain: '$176{,}000 \times 150\% = ₱264{,}000$ applied vs ₱256,000 actual: ₱8,000 too much.'
+      - say: Switch to Company Y and check the schedule and its T-account.
+        show: [pick-xy, err]
         gate:
           type: when
           prompt: Choose Company Y.
           when: "which == 'y'"
       - say: |
-          Y's labor cost was ₱176,000, so it applied 150% of that, against ₱256,000 actually incurred. When jobs carry
-          more overhead than was spent, the excess is **overapplied overhead**.
-        define: [overapplied-overhead]
-        gate:
-          type: predict
-          question: What happened at Company Y?
-          options: ['Overapplied by ₱8,000', 'Underapplied by ₱8,000', 'Overapplied by ₱264,000']
-          answer: 0
-          explain: '$176{,}000 \times 150\% = ₱264{,}000$ applied vs ₱256,000 actual: ₱8,000 too much.'
-      - say: |
-          Neither company did anything wrong; the gap is normal. If it is small, close it to Cost of Goods Sold. That
-          entry also brings Factory Overhead to zero.
-        show: [jr]
+          Neither company did anything wrong; the gap is normal. If it is **immaterial**, too small to change any
+          reader's decision, it is closed to Cost of Goods Sold in one entry that empties Factory Overhead.
+        define: [materiality]
+        set: { which: y }
+        hide: [pick-xy]
         gate:
           type: predict
           question: For Company Y, is Cost of Goods Sold debited or credited when the gap is closed?
@@ -366,19 +485,25 @@ scenes:
           answer: 0
           explain: Too much overhead flowed into COGS during the year, so the excess is taken back out with a credit.
       - say: |
-          Pampanga Metal Works: POHR ₱150 per DLH, 29,500 actual hours, ₱4,650,000 of actual overhead. Work it out
+          Y's entry, now on stage, debits Factory Overhead ₱8,000 and empties it. Next, Pampanga Metal Works: its January
+          rate was ₱4,500,000 ÷ 30,000 DLH = ₱150 per hour. Job #556 used ₱85,000 of materials and 220 hours at ₱95.
+        show: [jr]
+        set: { closed: true }
+        gate:
+          type: predict
+          question: What did Job #556 cost?
+          answer: { value: 138900, tol: 0.5 }
+          explain: 'Labor $= 220 \times 95 = ₱20{,}900$; overhead $= 220 \times 150 = ₱33{,}000$; total $= 85{,}000 + 20{,}900 + 33{,}000 = ₱138{,}900$.'
+      - say: |
+          By December Pampanga had worked 29,500 direct labor hours and spent ₱4,650,000 on overhead. Work out the gap
           before you look.
         gate:
           type: predict
           question: By how much is Pampanga's overhead under- or overapplied?
           answer: { value: 225000, tol: 0.5 }
-          explain: 'Applied $= 29{,}500 \times 150 = ₱4{,}425{,}000$; $4{,}650{,}000 - 4{,}425{,}000 = ₱225{,}000$ underapplied.'
-      - say: Now check it on the schedule.
-        gate:
-          type: when
-          prompt: Choose Pampanga Metal Works.
-          when: "which == 'p'"
-      - say: Close one out yourself.
+          explain: 'Applied $= 29{,}500 \times 150 = ₱4{,}425{,}000$; $4{,}650{,}000 - 4{,}425{,}000 = ₱225{,}000$ underapplied, so COGS rises.'
+      - say: Switch to Pampanga to check your answer, then close one out yourself.
+        show: [pick]
         gate:
           type: practice
           template: close-je
@@ -386,7 +511,7 @@ scenes:
 
   - id: prorate-it
     title: Spreading a big miss fairly
-    goal: When the gap is too big to dump into COGS, where should it go?
+    goal: When the gap is too big to put into one account, where should it go?
     skills: [proration, over-under]
     data: [cavite]
     state: { sheetUpTo: 0 }
@@ -411,8 +536,8 @@ scenes:
           roles: { sheet: sheet }
     beats:
       - say: |
-          Cavite Precision Parts overapplied ₱60,000, large enough to distort the statements. The overapplied overhead
-          is not only in COGS: some jobs are still in Work in Process or unsold in Finished Goods.
+          Cavite Precision Parts overapplied ₱60,000, large enough to be [[materiality|material]]. The overapplied
+          overhead is not only in COGS: some of the year's jobs are still in Work in Process or unsold in Finished Goods.
         gate:
           type: predict
           question: ₱600,000 of the ₱1,200,000 applied overhead sits in COGS. What share is that?
@@ -421,8 +546,14 @@ scenes:
           explain: '$600{,}000 \div 1{,}200{,}000 = 50\%$. COGS should absorb half of the correction, not all of it.'
       - say: |
           Spreading the difference over WIP, Finished Goods and COGS by each one's share of applied overhead is
-          **proration**. Watch the three shares come out.
+          **proration**. Work in Process holds ₱240,000 of the ₱1,200,000.
         define: [proration]
+        gate:
+          type: predict
+          question: Before playing, how much of the ₱60,000 does Work in Process absorb?
+          answer: { value: 12000, tol: 0.5 }
+          explain: 'WIP holds $240{,}000 \div 1{,}200{,}000 = 20\%$ of applied overhead: $60{,}000 \times 20\% = ₱12{,}000$.'
+      - say: Now watch all three shares come out.
         show: [player]
         gate:
           type: event
@@ -436,13 +567,19 @@ scenes:
           options: ['Increases by ₱18,000', 'Decreases by ₱18,000', 'Unchanged']
           answer: 0
           explain: Underapplied means too little overhead went everywhere, so each account is increased by its share.
-      - say: One entry records it all and empties Factory Overhead.
-        show: [jr]
+      - say: |
+          One entry records it all. Before it, Factory Overhead holds a ₱60,000 credit balance, because more overhead was
+          applied (credited) than was spent (debited).
         gate:
           type: predict
-          question: How much is credited to Work in Process?
-          answer: { value: 12000, tol: 0.5 }
-          explain: 'WIP holds 20% of applied overhead: $60{,}000 \times 20\% = ₱12{,}000$.'
+          question: To bring Factory Overhead to zero, the proration entry…
+          options: ['debits Factory Overhead ₱60,000', 'credits Factory Overhead ₱60,000', 'debits Cost of Goods Sold ₱60,000']
+          answer: 0
+          explain: A credit balance is removed with a debit. The other side credits WIP, Finished Goods and COGS by their shares.
+      - say: |
+          Here it is: Factory Overhead is debited ₱60,000, and WIP, Finished Goods and COGS are credited ₱12,000, ₱18,000
+          and ₱30,000. Factory Overhead is back to zero.
+        show: [jr]
       - say: Prorate one yourself.
         gate:
           type: practice
@@ -498,7 +635,7 @@ scenes:
         hidden: true
         props:
           kind: note
-          body: 'The plantwide rate is (72,000 + 75,000) ÷ (64,000 + 17,500) = 180.4% of DL cost; slide 53 rounds it to 180%.'
+          body: 'The exact plantwide rate is (72,000 + 75,000) ÷ (64,000 + 17,500) = 180.4% of direct labor cost; the worked example rounds it to 180%.'
       - id: player
         widget: StepPlayer
         region: bottom
@@ -514,11 +651,11 @@ scenes:
         define: [plantwide-rate]
         gate:
           type: predict
-          question: Department A budgets ₱72,000 of overhead on ₱64,000 of direct labor cost. What is its rate, as a percent of DL cost?
-          answer: { value: 112.5, tol: 0.1 }
+          question: Department A budgets ₱72,000 of overhead on ₱64,000 of direct labor cost. What is its rate, as a percent of direct labor cost?
+          answer: { value: 112.5, tol: 0.1, percent: true }
           explain: '$72{,}000 \div 64{,}000 = 1.125$, so 112.5% of direct labor cost.'
       - say: |
-          Department B budgets ₱75,000 over 10,000 machine hours. Giving each department its own rate on its own
+          Department B budgets ₱75,000 over 10,000 machine hours (MH). Giving each department its own rate on its own
           base is a **departmental rate**.
         define: [departmental-rate]
         gate:
@@ -532,7 +669,15 @@ scenes:
           question: How much overhead do the departmental rates apply to Job 105?
           answer: { value: 153, tol: 0.01 }
           explain: '$36 \times 112.5\% + 15 \times 7.50 = 40.50 + 112.50 = ₱153.00$.'
-      - say: A single plantwide rate would be 180% of direct labor cost, on the job's ₱61 of labor.
+      - say: |
+          One plantwide rate pools both budgets: ₱72,000 + ₱75,000 of overhead over all the plant's budgeted labor cost,
+          ₱64,000 in A plus ₱17,500 in B.
+        gate:
+          type: predict
+          question: What is the plantwide rate, as a percent of direct labor cost, to the nearest percent?
+          answer: { value: 180.37, tol: 0.5, percent: true }
+          explain: '$147{,}000 \div 81{,}500 = 1.8037$, about 180%. The worked example uses 180%.'
+      - say: At 180%, the plantwide rate charges the job on its ₱61 of labor (₱36 in A plus ₱25 in B).
         gate:
           type: predict
           question: How much overhead would the plantwide rate apply?
@@ -545,7 +690,9 @@ scenes:
           prompt: Play the walk-through to the end.
           target: player
           event: done
-      - say: Compare the two answers side by side.
+      - say: |
+          Compare the two answers side by side. Departmental rates pay off when departments have different overhead
+          drivers and jobs use them in different mixes.
         show: [pick, view, note]
         gate:
           type: when
@@ -556,89 +703,19 @@ scenes:
           type: reflect
           prompt: Why does the plantwide rate undercost Job 105 in particular?
           model: |
-            Job 105 spends most of its time in machine-heavy Department B, whose overhead follows machine hours. The
-            plantwide rate spreads all overhead on labor cost, and the job has little labor, so it picks up far less
-            overhead than the machines it actually used.
+            Department B's overhead is about ₱4.29 per peso of B labor (₱75,000 ÷ ₱17,500), but the plantwide rate
+            charges ₱1.80. Job 105 has 41% of its labor in B, against 21% for the plant, so much of its labor sits where
+            the blended rate undercharges most: ₱45 of overhead instead of ₱112.50. The overcharge on its A labor
+            (₱64.80 instead of ₱40.50) recovers only part of that.
       - say: Cost one across two departments yourself.
         gate:
           type: practice
           template: dept-handcalc
     takeaway: Departmental rates apply each department's overhead on its own driver; a plantwide rate blends them and can misprice jobs that lean on one department.
 
-  - id: follow-the-job
-    title: Following one job through the accounts
-    goal: Where does a job's cost sit while it is made, finished and sold?
-    skills: [cost-flow]
-    data: [bulacan]
-    state: { flowUpTo: 0 }
-    derive:
-      - { fn: flowSheet, in: { dm: '@bulacan.dm', dl: '@bulacan.dl', oh: '@bulacan.oh', price: '@bulacan.price', upTo: '@flowUpTo' }, out: fs }
-    stage:
-      - id: jr
-        widget: Journal
-        props: { title: General journal, entries: '@fs.entries', posted: 0 }
-      - id: ta
-        widget: TAccounts
-        props: { accounts: '@fs.accounts' }
-      - id: where
-        widget: Readout
-        region: side
-        props:
-          items:
-            - { label: The job's cost now sits in, value: '{=fs.where}', tone: accent }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props:
-          fn: flowWalk
-          in: { dm: '@bulacan.dm', dl: '@bulacan.dl', oh: '@bulacan.oh', price: '@bulacan.price' }
-          roles: { jr: jr, ta: ta }
-    beats:
-      - say: |
-          Bulacan Prints & Fab finished a fiesta tarpaulin and steel-frame job: ₱75,500 of materials, ₱10,400 of labor
-          and ₱6,500 of applied overhead.
-        gate:
-          type: predict
-          question: What is the total cost of the job?
-          answer: { value: 92400, tol: 0.5 }
-          explain: '$75{,}500 + 10{,}400 + 6{,}500 = ₱92{,}400$.'
-      - say: |
-          While the frames are being welded, that cost sits in **Work in Process**, an asset. Manufacturing costs are
-          **product costs**: they wait on the balance sheet until the goods are sold.
-        define: [work-in-process, product-cost]
-      - say: Post the five entries and watch the cost move from account to account.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play all five entries.
-          target: player
-          event: done
-      - say: |
-          Finished, the cost moves to **Finished Goods**. Sold, it moves to **Cost of Goods Sold**, the expense matched
-          against the ₱185,000 sale.
-        define: [finished-goods, cost-of-goods-sold]
-        gate:
-          type: predict
-          question: The job was finished on the 20th and delivered on the 28th. Where is its cost on the 25th?
-          options: [Finished Goods, Work in Process, Cost of Goods Sold]
-          answer: 0
-          explain: It is complete but not yet sold, so it waits in Finished Goods, still an asset.
-      - say: Only at the sale does the ₱92,400 become an expense.
-        gate:
-          type: predict
-          question: What gross margin did the job earn?
-          answer: { value: 92600, tol: 0.5 }
-          explain: '$185{,}000 - 92{,}400 = ₱92{,}600$, about 50.1% of the price.'
-      - say: Record one step of the flow yourself.
-        gate:
-          type: practice
-          template: flow-je
-    takeaway: Cost follows the job from Raw Materials to WIP to Finished Goods, and becomes an expense, Cost of Goods Sold, only when sold.
-
   - id: march-jobs
     title: Three jobs, one month
-    goal: Which jobs belong in cost of goods manufactured, which in cost of goods sold, and which in neither?
+    goal: Which jobs count as this month's finished output, which as this month's sales, and which as neither?
     skills: [cogm]
     data: [cabinetry]
     state: { sheetUpTo: 0 }
@@ -706,7 +783,7 @@ scenes:
   - id: beyond-the-floor
     title: Law firms, automated lines, and jobs that lost their margin
     goal: Does job costing work outside the factory, and what does it tell us after the job is done?
-    skills: [job-cost-sheet, pohr]
+    skills: [service-jobs, pohr]
     data: [allenby, marikina]
     derive:
       - { fn: engagement, in: { staff: '@allenby.staff', direct: '@allenby.direct', ohPct: '@allenby.ohPct' }, out: eg }
@@ -726,23 +803,25 @@ scenes:
         hidden: true
         props:
           kind: errata
-          body: 'Slide 73''s "25% margin" is a 25% markup on the ₱120,000 estimate. On price the quote planned 20%, so the margin fell from 20.0% to 18.7%.'
+          body: 'If you''re reading the slide: its "25% margin" is a 25% markup on the ₱120,000 estimate. On price the quote planned 20%, so the margin fell from 20.0% to 18.7%.'
     beats:
       - say: |
-          Allenby Baldridge Perkins costs each client engagement: 40 partner hours at ₱8,000, 120 associate hours at
-          ₱2,500, ₱15,000 of filing fees, and firm overhead at 60% of professional labor.
+          Job costing works outside the factory too. A law firm treats each client engagement as a job: professional
+          hours are its direct labor, fees paid for the client are traced like direct materials, and rent and IT are
+          applied as [[factory-overhead|overhead]].
+      - say: |
+          Allenby Baldridge Perkins' engagement used 40 partner hours at ₱8,000 and 120 associate hours at ₱2,500, plus
+          ₱15,000 of filing fees. Firm overhead is applied at 60% of professional labor.
         gate:
           type: predict
-          question: What does Engagement #2026-014 cost?
+          question: What does the engagement cost?
           answer: { value: 1007000, tol: 0.5 }
           explain: 'Labor $= 320{,}000 + 300{,}000 = 620{,}000$; overhead $= 60\% \times 620{,}000 = 372{,}000$; total $= 620{,}000 + 15{,}000 + 372{,}000 = ₱1{,}007{,}000$.'
       - say: |
-          Professional hours are the direct labor, fees paid for the client are traced like materials, and rent and IT
-          are applied as [[factory-overhead|overhead]]. The job cost sheet works unchanged.
+          The engagement's cost sheet, now on stage, works just like a factory job's. Back in a factory, Cavite Precision
+          Parts is choosing an [[activity-base|activity base]] for a new automated line where power, maintenance and
+          depreciation all follow machine use.
         show: [eng]
-      - say: |
-          Cavite Precision Parts is choosing an [[activity-base|activity base]] for a new automated line where power, maintenance
-          and depreciation all follow machine use.
         gate:
           type: predict
           question: Which base should it choose?
@@ -757,13 +836,16 @@ scenes:
           question: What profit did the job actually earn?
           answer: { value: 28000, tol: 0.5 }
           explain: 'Actual cost $= 58{,}000 + 42{,}000 + 22{,}000 = ₱122{,}000$; profit $= 150{,}000 - 122{,}000 = ₱28{,}000$.'
-      - say: Compare the estimate with what happened.
-        show: [prof, err]
+      - say: A margin compares profit with the price the customer paid.
         gate:
           type: predict
-          question: What percent of the price is the actual profit?
-          answer: { value: 18.67, tol: 0.05 }
+          question: What percent of the price is the actual profit, to one decimal place?
+          answer: { value: 18.67, tol: 0.05, percent: true }
           explain: '$28{,}000 \div 150{,}000 = 18.7\%$ of the price.'
+      - say: |
+          Compare the estimate with what happened. Materials ran ₱8,000 over and labor ₱2,000 over, while applied overhead
+          came in ₱8,000 under. On price, the quote had planned a 20% margin.
+        show: [prof, err]
       - say: The finished cost sheet is feedback for the next quote.
         gate:
           type: reflect
@@ -772,4 +854,16 @@ scenes:
             Find out why materials ran over (a price increase or a bad quantity estimate) and update the materials
             estimate before the next quote. Comparing each finished job cost sheet with its quote is how job costing
             keeps pricing honest.
+      - say: |
+          Job costing's strengths: it shows each job's cost and profit, gives evidence for the next quote, and flags jobs
+          that ran over. It has limits too.
+        gate:
+          type: predict
+          question: Which of these is a real limitation of job-order costing?
+          options:
+            - Every job needs its own requisitions, time tickets and cost sheet
+            - It cannot show whether an individual job made money
+            - Service firms such as law firms cannot use it
+          answer: 0
+          explain: Tracking each job takes clerical work, and its overhead is still applied with an estimated rate. The other two are strengths it has, as Allenby and Marikina just showed.
     takeaway: Job-order costing works for services too, and a finished cost sheet compared with its quote shows whether the job really made money.

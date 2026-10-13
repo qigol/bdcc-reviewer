@@ -60,7 +60,9 @@
 - Example 6 rounds each unit cost to 4 dp (1.1889, 13.9156, combined 15.1046) and marks the dollar amounts "≈". The module computes unrounded (604,182.06 completed; 26,817.94 ending WIP) and checks the slide's figures within ₱2.50; labels show 4 dp.
 - FIFO completed cost = beginning WIP cost + cost to finish beginning WIP (its remaining % × current unit cost) + started-and-completed units × combined current unit cost; reproduces 607,235.
 - Transferred-in cost is a third category, always 100% complete (slide 24); Batangas' 10,000 transferred units are entered as "started".
-- Example 4.5 gives no June costs, so it is used only for the "why beginning WIP changes everything" discussion.
+- Example 4.5 gives no June costs, so it is used only for the "why beginning WIP changes everything" discussion; the scene says so and moves to Department A.
+- Reconciliation (Example 10, slide 68): when Step 5 uses Step 4's equivalent units and unit costs, completed + ending WIP equals Step 3's total by construction (Σ_c (completed + endEU_c) × cost_c / EU_c = Σ_c cost_c). A unit-count or percent error used consistently therefore still reconciles; a gap comes from Step 5 not matching Step 4 (ending WIP at the combined rate, an arithmetic slip, different EU, FIFO dropping beginning-WIP cost) or rounding. The module keeps "re-check Step 1 first" only as the lecture's checklist habit, with this nuance.
+- Operation costing (slide 16): taught with the standard textbook definition, materials traced to each batch and conversion averaged per operation. Check against slide 16's wording if it differs.
 
 ## Errata
 - None that change a result. Slide 52's amounts are approximate by design (marked ≈); the module notes this where they appear.

@@ -44,7 +44,18 @@
 - Impurity importance of a split = (N_t / N)·(Gini(t) − N_L/N_t·Gini(L) − N_R/N_t·Gini(R)); importances are normalized to sum to 1; a forest averages its trees' normalized importances (sklearn).
 - Toy permutation importance uses accuracy (hand-countable) and two fixed permutations ("reverse" and "shift by one"); the notebook uses ROC-AUC and 10 random repeats. The mechanics are identical.
 - Toy LIME is 1-D with a Gaussian kernel exp(−d²/σ²) and weighted least squares; real tabular LIME also discretizes features into quartile bins and samples from training statistics.
-- Toy counterfactual model: logit = 8 − 0.3·radius − 0.004·area, benign when logit > 0. Patient-like start: radius 17.77, area 989.5 (patient 205's worst radius and worst area).
+- Toy counterfactual model: logit = 8 − 0.3·radius − 0.004·area, benign when logit > 0 (strictly; used everywhere, including the quiz). Patient-like start: radius 17.77, area 989.5 (patient 205's worst radius and worst area).
+- Notation (v1.2.0): v(S) is the model's answer with only the features in S known; the notebook writes f(S), and the module keeps f(x) for the prediction. An ordering of features is o (σ is only the LIME kernel width; π is the LIME kernel π_x and 3.14159 in area = πr²), and permutation-importance shuffles are indexed k rather than π_k.
+- Chart abbreviations (v1.2.1): the full key for logic.js shortName lives in the feature-prefixes glossary long; each importance chart title lists only the short forms its computed top 10 actually shows (the Application chart covers both rankings, since `by` is selectable).
+- Patient 205 is dataset row 205 and position 94 (0-based) of the 143-row test set (shap_values[94, :, 1] in the notebook).
+- The notebook's per-feature SHAP values for patient 205 (its waterfall bars) are **not recorded here**. The module therefore teaches waterfall reading on the three-feature table (baseline 0.60, bars B +0.03, C −0.09, A −0.24, top 0.30), uses only the baseline, the sum and P(benign) for the patient, and never quotes a per-feature SHAP value for her. The quiz's waterfall item is phrased as a hypothetical. If the bars are added later (row 205, class 1, top 9 + other features), the waterfall scene and the Application one-patient cell should show them.
+- shap.plots.waterfall(max_display=10) draws the largest contributions one by one and groups the rest into an "other features" bar (library behaviour); the module says this without giving counts.
+- LIME on patient 205, read by sign: worst perimeter (−0.019) and worst area (−0.015) push towards malignant; worst concave points (+0.015) and mean radius (+0.022) push towards benign. So LIME only partly supports a "size and dent features mean malignant" reading; the Application no longer claims SHAP and LIME agree on those features.
+- DiCE: the notebook's first run was unconstrained (every feature could vary); its second allowed only the four features in features_to_vary (the rows in dice.yaml). method="random"; DiCE also aims for diversity among the counterfactuals. All eight second-run rows fail the geometry check (ratio more than 0.25 from the original 1.06); cf5 is 0.68.
+- Feature prefixes (dataset documentation, not the notebook): each of 10 measurements is computed over the cell nuclei in a scan as mean, standard error ("error") and "worst" (mean of the three largest values).
+- Quartile bins: tabular LIME's default discretizer (discretize_continuous=True, quartile) cuts each feature at its training quartiles, which is why its conditions are ranges.
+- High-cardinality bias of impurity importance (concept 4) is taught as: many distinct values offer many split points, so trees can fit training noise with them; built-in importance credits that, permutation importance on test data does not.
+- Toy LIME in the Math & Code live example uses seven copies (δ = −3..3) so the kernel width changes the slope (σ 0.5 → −0.2263, σ 2 → −0.1948, σ 3 → −0.1837); with three evenly spaced copies and symmetric weights σ cancels (−0.2016 for every σ), which the earlier version wrongly presented as "shrink σ and the slope approaches the model's". The scene's "too narrow is unstable" beat uses the total kernel weight (about 1.04 at σ 0.5, 4.81 at σ 3) as the stand-in for "few effective copies", since the toy has no sampling noise.
 
 ## Errata
 - None in the numbers. Note only that the Session 7 file's title says "Students' Copy" while the filename says Instructor (Full); content is complete.
@@ -54,6 +65,9 @@
 - The impurity-decrease formula (the notebook describes it in words only).
 - The geometry check on DiCE rows (radius implied by perimeter vs by area) — makes the notebook's "no such tumour exists" measurable.
 - The closed-form one-feature counterfactual for a linear score.
+- Judgment call: the 1-D weighted-least-squares arithmetic (lime-surrogate) and the derivation of the Shapley factorial weights (shapley-formula) go beyond the notebook. Both sections are mostly lecture content (the objective and the formula are verbatim), so instead of a section-level beyondSlides flag the over-taught step's narration says it goes beyond the notebook.
+- The waterfall reading on the three-feature table, and the loan-model transfer items in the quiz (waterfall, twins, counterfactuals, high-cardinality ID column, flat PDP).
+- The plain-words readings of the LIME objective (G, L, π_x, Ω, arg min) and the Wachter counterfactual objective (loss, d, λ).
 
 ## Skill map
 - global-local: concepts 1, 8, 13
@@ -61,7 +75,8 @@
 - permutation-importance: concept 5
 - correlation-trap: concepts 4–5 (twins), 10 (SHAP splits credit), 12 (DiCE breaks geometry)
 - pdp: concept 6
-- shapley: concept 10
+- shapley: concept 10 (Shapley values, the three-feature table)
+- shap-reading: concept 10 (baseline + contributions, waterfall reading, (rows, features, classes) slicing, class flip, TreeExplainer)
 - lime: concept 11
 - counterfactuals: concept 12
 - honest-reading: concepts 2, 3, 6, 7, 10, 13

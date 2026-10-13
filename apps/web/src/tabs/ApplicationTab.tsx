@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Link2, Server, Scale, X } from 'lucide-react';
-import type { Cell } from '@kodigo/schema';
+import { optionOrder, type Cell } from '@kodigo/schema';
 import { useModuleCtx } from './ModulePage';
 import { StageProvider, Stage } from '../engine/Stage';
 import { Markdown } from '../lib/md';
@@ -38,7 +38,7 @@ export function ApplicationTab() {
             <Markdown text={c.story} />
           </div>
           {c.cells.map((cell, i) => (
-            <CellView key={cell.id} cell={cell} index={i} answered={answered.has(cell.id)} onAnswered={() => !mod.preview && markProgress(mod.id, 'application', cell.id, { status: 'done', moduleVersion: mod.version })} />
+            <CellView key={cell.id} cell={cell} index={i} seedKey={`${mod.id}:${cell.id}`} answered={answered.has(cell.id)} onAnswered={() => !mod.preview && markProgress(mod.id, 'application', cell.id, { status: 'done', moduleVersion: mod.version })} />
           ))}
         </div>
       </StageProvider>
@@ -108,7 +108,7 @@ export function ApplicationTab() {
   );
 }
 
-function CellView({ cell, index, answered, onAnswered }: { cell: Cell; index: number; answered: boolean; onAnswered: () => void }) {
+function CellView({ cell, index, seedKey, answered, onAnswered }: { cell: Cell; index: number; seedKey: string; answered: boolean; onAnswered: () => void }) {
   const [choice, setChoice] = useState<number | null>(null);
   const [open, setOpen] = useState('');
   const [revealed, setRevealed] = useState(false);
@@ -121,14 +121,16 @@ function CellView({ cell, index, answered, onAnswered }: { cell: Cell; index: nu
         {answered && <Check size={15} className="text-good" />}
       </div>
       <Markdown text={cell.say} className="mb-3" />
-      {cell.stage && <Stage widgets={cell.stage} />}
+      {/* widgets marked hidden: true appear once the cell's decision is answered (they may show the answer) */}
+      {cell.stage && <Stage widgets={cell.stage} hidden={revealed || !d ? undefined : new Set(cell.stage.filter((w) => w.hidden).map((w) => w.id))} />}
       {d && (
         <div className="mt-3 rounded-xl border border-accent/40 bg-accent/5 p-3">
           <div className="label mb-1 text-accent">Your call</div>
           <Markdown text={d.prompt} className="font-medium" />
           {d.type === 'mcq' ? (
             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-              {(d.options ?? []).map((o, i) => {
+              {optionOrder(d.options?.length ?? 0, seedKey, d.shuffle !== false).map((i) => {
+                const o = d.options![i];
                 const picked = choice === i;
                 const right = revealed && d.answer === i;
                 return (
@@ -148,6 +150,7 @@ function CellView({ cell, index, answered, onAnswered }: { cell: Cell; index: nu
           {revealed && (
             <div className="mt-2 rounded-lg bg-panel p-3 text-sm">
               {d.type === 'mcq' && d.answer !== undefined && <div className="mb-1 flex items-center gap-1 font-semibold">{choice === d.answer ? <><Check size={14} className="text-good" /> Good call.</> : <><X size={14} className="text-warn" /> Here's the reasoning.</>}</div>}
+              {d.type === 'mcq' && choice !== null && choice !== d.answer && d.optionFeedback?.[String(choice)] && <Markdown text={d.optionFeedback[String(choice)]} className="mb-1" />}
               <Markdown text={d.model} />
             </div>
           )}

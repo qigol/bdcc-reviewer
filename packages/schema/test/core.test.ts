@@ -4,7 +4,7 @@ import {
   parseExpr, evalExpr, varsOf,
   texAnchors, parseCodeAnchors,
   parseBundle, formatBundle, readZip, writeZip,
-  parseNumber, checkNumeric, checkMulti, checkBlank, checkOrder, checkMatch, valuesEqual,
+  parseNumber, checkNumeric, checkMulti, checkBlank, checkOrder, checkMatch, valuesEqual, optionOrder, checkPredict,
   WIDGETS, widgetsMarkdown,
   liveRoleTarget, defaultLiveWidgets, codeLineCount,
 } from '../src/index';
@@ -111,6 +111,44 @@ describe('quiz checkers', () => {
     expect(checkMatch([2, 1, 0, 3], pairs)).toBe(1); // the two Controller cards swapped: still all right
     expect(checkMatch([2, 1, 0, 3])).toBe(0.5); // without labels, graded by position
     expect(checkMatch([1, 0, 2, 3], pairs)).toBe(0.5); // a Treasurer next to a Controller task is still wrong
+  });
+  it('number parsing edge cases (audit G1/G2)', () => {
+    expect(parseNumber('(2/3)')).toBeCloseTo(2 / 3, 10); // a fraction in parentheses is grouping
+    expect(parseNumber('(1,200)')).toBe(-1200); // accounting negative by default
+    expect(parseNumber('(0.5)', ['decimal'], { parenNegative: false })).toBe(0.5);
+    expect(parseNumber('2,5')).toBeNull(); // not a thousands separator
+    expect(parseNumber('12,500.5')).toBe(12500.5);
+    expect(parseNumber('%', ['decimal', 'percent'])).toBeNull();
+    expect(parseNumber('0.5', ['percent'])).toBeNull(); // percent only: a % must be typed
+    expect(parseNumber('50%', ['percent'])).toBe(0.5);
+    // numeric questions read parentheses as negative only when the answer is negative
+    expect(checkNumeric('(0.5)', { value: 0.5, tol: 0.01, accept: ['decimal'] }).correct).toBe(true);
+    expect(checkNumeric('(140,000)', { value: -140000, tol: 0.01, accept: ['decimal'] }).correct).toBe(true);
+    expect(checkMulti([0, 0], [0, 1])).toBe(0.5); // duplicates count once
+    // percent-unit answers accept 98.59, 98.59% and 0.9859
+    const pctSpec = { value: 98.59, tol: 0.01, accept: ['decimal', 'fraction'] as ('decimal' | 'fraction' | 'percent')[], percent: true };
+    expect(checkNumeric('98.59%', pctSpec).correct).toBe(true);
+    expect(checkNumeric('98.59', pctSpec).correct).toBe(true);
+    expect(checkNumeric('0.9859', pctSpec).correct).toBe(true);
+    expect(checkNumeric('1.41', pctSpec, [{ value: 1.41, feedback: 'minority rate' }]).feedback).toBe('minority rate');
+  });
+  it('lesson options get a fixed shuffled order', () => {
+    const a = optionOrder(4, 'm:s:3');
+    expect([...a].sort()).toEqual([0, 1, 2, 3]);
+    expect(optionOrder(4, 'm:s:3')).toEqual(a); // same key, same order (survives reloads)
+    expect(optionOrder(4, 'm:s:3', false)).toEqual([0, 1, 2, 3]);
+    // over many gates the right answer (authored first) lands in every slot
+    const firstSlots = new Set(Array.from({ length: 40 }, (_, i) => optionOrder(4, `m:s:${i}`).indexOf(0)));
+    expect(firstSlots.size).toBe(4);
+  });
+  it('predict gates read typed percents either way', () => {
+    expect(checkPredict('98.59%', { value: 98.59 })).toBe(true); // answer in percent units
+    expect(checkPredict('18.7%', { value: 0.187, tol: 0.001 })).toBe(true); // answer as a decimal
+    expect(checkPredict('98.59', { value: 98.59 })).toBe(true);
+    expect(checkPredict('0.9859', { value: 98.59 })).toBe(false);
+    expect(checkPredict('0.9859', { value: 98.59, percent: true })).toBe(true);
+    expect(checkPredict('2/3', { value: 0.667, tol: 0.001 })).toBe(true);
+    expect(checkPredict('abc', { value: 1 })).toBe(null);
   });
   it('code blanks ignore whitespace and quote style', () => {
     expect(checkBlank('support( "milk" )', { accept: ["support('milk')"] })).toBe(true);

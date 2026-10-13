@@ -57,26 +57,36 @@ terms:
   - id: random-forest
     term: Random forest
     aka: [forest]
-    short: A model made of many decision trees whose answers are averaged. It can only predict values like those it has seen.
+    short: A model that averages the answers of many simple yes/no rule sets (decision trees). It cannot predict beyond the values it has seen.
     skills: [chrono-split]
   - id: stationarity
     term: Stationarity
     aka: [stationary]
     short: The series behaves the same way throughout. Its typical level, its amount of wiggle and its link to its own past stay steady.
-    long: Stationary means consistent, not flat. A swinging sunspot series can be stationary; a quiet random walk is not.
+    long: Stationary means consistent, not flat. A swinging sunspot series can be stationary; a random walk is not, even when it looks calm.
     skills: [stationarity]
   - id: random-walk
     term: Random walk
     short: Each value is the previous one plus a random jump, so jumps never fade and there is no level to return to.
     formula: 'y_t = y_{t-1} + \varepsilon_t'
     skills: [stationarity]
+  - id: null-hypothesis
+    term: Null hypothesis (H₀)
+    aka: [null hypothesis, 'H₀', H0, hypothesis test]
+    short: The default assumption a test starts from, such as "this series wanders like a random walk". A test can reject it, never prove it.
+    long: |
+      Read H₀ as "H-nought". A hypothesis test asks whether the data are surprising enough to give up this default.
+      Not rejecting it is not proof that it is true.
+    related: [p-value, adf-test]
+    skills: [stationarity]
   - id: p-value
     term: p-value
-    aka: [hypothesis test, null hypothesis, 'H₀']
-    short: How surprising the data would be if the "nothing special" assumption (H₀) were true. Below 0.05 usually means reject H₀.
+    aka: [p value]
+    short: How surprising the data would be if the null hypothesis were true. Below 0.05 usually means reject it.
     long: |
-      A hypothesis test starts from a default assumption, H₀ ("H-nought"). If the data would be very unlikely under H₀
-      (small p-value), we reject H₀. A large p-value does **not** prove H₀; it only means the data are not surprising under it.
+      If the data would be very unlikely under H₀ (small p-value), we reject H₀. A large p-value does **not** prove H₀; it
+      only means the data are not surprising under it.
+    related: [null-hypothesis]
     skills: [stationarity]
   - id: adf-test
     term: Augmented Dickey–Fuller (ADF) test
@@ -145,17 +155,30 @@ terms:
     term: Seasonal naive forecast
     aka: [seasonal naive]
     short: Each future value copies the value from the same season one period earlier, such as the same month last year.
-    formula: '\hat y_{t+h \mid t} = y_{t+h-m}'
+    formula: '\hat y_{t+h \mid t} = y_{t+h-m(k+1)}, \quad k = \lfloor (h-1)/m \rfloor'
+    long: |
+      For a horizon h of up to one season (h ≤ m) this is $y_{t+h-m}$, the same month last year. Further ahead it keeps
+      repeating the last season: month i of the forecast copies month (i mod 12) of the last training year.
+    related: [naive-forecast]
     skills: [baselines]
   - id: arima
     term: ARIMA(p, d, q)
     aka: [ARIMA]
     short: A forecasting model that works on changes (d), using p recent values (AR) and q recent surprises (MA).
-    formula: 'w_t = c + \sum_{i=1}^{p}\phi_i w_{t-i} + \varepsilon_t + \sum_{j=1}^{q}\theta_j \varepsilon_{t-j}, \quad w_t = \Delta^d y_t'
+    formula: 'w_t - c = \sum_{i=1}^{p}\phi_i\,(w_{t-i} - c) + \varepsilon_t + \sum_{j=1}^{q}\theta_j\,\varepsilon_{t-j}, \quad w_t = \Delta^d y_t'
+    long: |
+      AR = **autoregressive** (the series regressed on its own past values), I = **integrated** (forecast changes are
+      added back up into values), MA = **moving average** of past shocks, which is not the rolling mean of past values.
+      In the formula, c is the average change (the drift). The lecture notebook writes c as a plain constant, which would
+      forecast 365.71 instead of its own 365.64 for January 1998.
+    related: [drift, sarima]
     skills: [arima]
   - id: drift
     term: Drift
-    short: A steady average change built into the forecast; here about 0.116 ppm per month.
+    short: The average change per step that a model builds into its forecasts. The CO₂ model estimates 0.1156 ppm per month.
+    long: |
+      The plain average of the 467 monthly training changes is 0.104. The fitted model estimates the average change
+      together with how changes carry over from month to month, so its estimate (0.1156) comes out a little higher.
     skills: [arima]
   - id: residual
     term: Residual
@@ -183,3 +206,28 @@ terms:
     aka: [leak, leaky, leaks]
     short: Information from the month being predicted, or from the future, sneaking into the inputs. Scores look excellent and mean nothing.
     skills: [lag-features, chrono-split]
+  - id: rolling-mean
+    term: Rolling mean
+    aka: [rolling average, roll_mean_3]
+    short: The average of the last few values, recomputed at every step. For forecasting it must use only months before the one predicted.
+    formula: '\tfrac13(y_{t-1} + y_{t-2} + y_{t-3})'
+    related: [lag-feature, leakage]
+    skills: [lag-features]
+  - id: month-columns
+    term: Month columns
+    aka: [month column, one-hot month, month dummies]
+    short: Eleven 0/1 input columns that say which calendar month a row is, so a regression can learn a separate effect for each month.
+    related: [lag-feature, seasonality]
+    skills: [lag-features]
+  - id: multi-step-forecast
+    term: Multi-step forecast
+    aka: [multi-step]
+    short: Forecasts made once, from one point in time, for many steps ahead. Later steps cannot use the real values in between.
+    related: [one-step-forecast]
+    skills: [baselines]
+  - id: one-step-forecast
+    term: One-step forecast
+    aka: [one-step, one step ahead, one-step-ahead]
+    short: A forecast of only the next step, made with the real values up to the step before. Much easier than forecasting far ahead.
+    related: [multi-step-forecast]
+    skills: [lag-features]

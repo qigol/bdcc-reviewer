@@ -11,11 +11,11 @@ scenes:
         widget: Text
         props:
           body: |
-            **Cavite Precision Parts** (Example 1)
+            **Cavite Precision Parts**
 
             - Competitors keep underpricing its simplest, highest-volume part.
             - Its premium custom part sells at a large markup yet barely breaks even.
-            - Both are costed with one plantwide machine-hour rate.
+            - Both are costed with one overhead rate per machine hour for the whole plant.
       - id: bins
         widget: DropBins
         hidden: true
@@ -27,28 +27,58 @@ scenes:
         props:
           items:
             - { label: 'Job 107, one machine-hour rate', value: '{=pw.plantOH|money}' }
-            - { label: 'Job 107, ABC', value: '{=pw.abcTotal|money}', tone: accent }
-            - { label: Missed by the single rate, value: '{=pw.gap|money}', tone: bad }
+            - { label: 'Job 107, costed activity by activity', value: '{=pw.abcTotal|money}', tone: accent }
+            - { label: Undercosted by the single rate, value: '{=pw.gap|money}', tone: bad }
     beats:
       - say: |
-          Sessions 5 and 6 applied overhead with a **plantwide overhead rate**: one rate for the whole plant, on direct
-          labor or machine hours.
-        define: [plantwide-rate]
+          A factory's costs come in three kinds. **Direct materials** become the product, like the steel in a tool.
+          **Direct labor** is the pay of the people who make it. **Factory overhead** is everything else: rent, power,
+          machine repairs, inspections. Overhead can't be traced to one product, so it has to be spread.
+        define: [direct-materials, direct-labor, factory-overhead]
+        gate:
+          type: predict
+          question: Which of these is factory overhead for a tool maker?
+          options: [The plant supervisor's salary, The wooden handle fitted to each tool, The welder's pay for each tool]
+          answer: 0
+          optionFeedback:
+            1: 'The handle becomes part of each tool and can be traced to it, so it is direct materials.'
+            2: 'The welder works on each tool, so that pay is traced to it as direct labor.'
+          explain: The supervisor oversees every tool at once, so that pay can't be traced to one tool and is part of overhead. The handle is direct materials and the welder's pay is direct labor.
+      - say: |
+          Before the year starts, a company divides its budgeted overhead by a measure of activity, such as machine
+          hours (the hours its machines run). That **predetermined overhead rate** charges overhead all year. One rate
+          for the whole plant is a **plantwide overhead rate**: traditional costing.
+        define: [predetermined-overhead-rate, plantwide-rate]
         gate:
           type: predict
           question: What does one machine-hour rate assume about every product?
-          options: [It uses overhead in proportion to its machine hours, It uses the same overhead per unit, It uses no overhead beyond direct labor]
+          options: [It uses overhead in proportion to its machine hours, It uses the same overhead per unit as every other product, It uses overhead in proportion to its direct materials]
           answer: 0
-          explain: That one measure is assumed to drive all of the overhead.
+          optionFeedback:
+            1: 'Only products with the same machine hours per unit get the same overhead per unit. A product that runs longer on the machines gets more.'
+            2: 'Direct materials play no part in a machine-hour rate; overhead follows machine hours alone.'
+          explain: That one measure is assumed to drive all of the overhead, whatever the product actually needs.
       - say: |
-          Machine hours are a **volume-based driver**: they rise with units made. Setups, inspections and handling don't;
-          they rise with batches and complexity.
-        define: [volume-based-driver]
+          Automation makes this worse. Robots replace line workers, so direct labor shrinks while overhead (machine
+          depreciation, power, maintenance) grows. A rate per direct labor hour then piles more overhead onto fewer hours.
+        gate:
+          type: predict
+          question: 'A plant has ₱1,000,000 of overhead and 100,000 direct labor hours: ₱10 an hour. After automating, overhead is ₱2,000,000 and labor is 50,000 hours. What is the new rate per direct labor hour?'
+          answer: { value: 40, tol: 0.005 }
+          explain: '$2{,}000{,}000 \div 50{,}000 = ₱40$, four times the old rate. Each labor hour now carries overhead that labor no longer causes.'
+      - say: |
+          Machine hours are a **volume-based driver**: they rise with every unit made. A **setup**, getting a machine
+          ready for a new production run, doesn't. It happens once per batch, however many units the batch holds.
+          Inspections and material handling often behave the same way.
+        define: [volume-based-driver, setup]
         gate:
           type: predict
           question: Cavite Precision's simple part is underpriced by competitors. What does that suggest about its reported cost?
-          options: [It is probably overcosted, It is probably undercosted, It is probably accurate]
+          options: [It is probably overcosted, It is probably undercosted, It is probably costed about right]
           answer: 0
+          optionFeedback:
+            1: 'An undercosted part would look cheap to make, and the company could easily match lower prices. Being undercut again and again points the other way.'
+            2: 'If the reported cost were right, competitors would have little room to charge less and still profit. Repeated undercutting suggests it is too high.'
           explain: Competitors can profitably charge less, so its true cost is likely lower than reported.
       - say: |
           That systematic over- and undercosting is **cost distortion**. Sort the products by the direction a single
@@ -61,17 +91,22 @@ scenes:
           target: bins
           event: solved
           hint: High volume, few setups → overcosted. Low volume, many setups → undercosted.
-      - say: Global Metals' Job 107, 2,000 special tools with setups, hazardous waste and inspections, shows the size of it.
-        show: [gap]
+      - say: |
+          Global Metals' Job 107 is 2,000 special tools that need setups, hazardous-waste handling and inspections. Its
+          plant spreads ₱525,000 of overhead over 20,000 machine hours: ₱26.25 an hour.
         gate:
           type: predict
-          question: One rate of ₱26.25 per machine hour assigns ₱13,125 to Job 107. ABC assigns ₱37,750. By how much does the single rate undercost the job?
-          answer: { value: 24625, tol: 0.5 }
-          explain: '$37{,}750 - 13{,}125 = ₱24{,}625$; the single rate sees only the 500 machine hours.'
-      - say: The total overhead is the same either way.
+          question: Job 107 ran 500 machine hours. How much overhead does the single rate charge it?
+          answer: { value: 13125, tol: 0.5 }
+          explain: '$500 \times 26.25 = ₱13{,}125$, or ₱6.56 per tool.'
+      - say: |
+          A more detailed costing that follows each job's setups, waste and inspections charges Job 107 ₱37,750, almost
+          three times as much. The single rate sees only the 500 machine hours. The plant's total, ₱525,000, is the same
+          either way.
+        show: [gap]
         gate:
           type: reflect
-          prompt: If ABC and the plantwide rate spread the same ₱525,000, why does it matter which one a company uses?
+          prompt: If both methods spread the same ₱525,000, why does it matter which one a company uses?
           model: |
             Because the split decides each job's cost, and costs drive prices, bids and product-mix decisions. Undercosted
             jobs get quoted too low and lose money; overcosted ones get priced out of the market.
@@ -93,7 +128,19 @@ scenes:
     stage:
       - id: rates
         widget: Schedule
+        hidden: true
         props: { title: 'Activity rates', columns: [Budgeted cost, Predicted driver, Rate], rows: '@rt.rows' }
+      - id: stages
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            | Stage 1: overhead gathered into | Stage 2: charged to jobs by |
+            |---|---|
+            | one plantwide pool | one rate, e.g. per machine hour |
+            | one pool per department | each department's own rate |
+            | one pool per activity (ABC) | each activity's own driver |
       - id: sheet
         widget: Schedule
         hidden: true
@@ -109,42 +156,68 @@ scenes:
         hidden: true
         props:
           fn: jobWalk
-          in: { pools: '@globalmetals.pools', job: '@globalmetals.jobs.j107', totalMH: '@globalmetals.totalMH' }
+          in: { pools: '@globalmetals.pools', job: '@globalmetals.jobs.j107', totalMH: '@globalmetals.totalMH', stop: 6 }
           roles: { sheet: sheet, plant: plant }
     beats:
       - say: |
-          **Activity-based costing** assigns overhead by each product's use of activities, not by its volume. Step 1:
-          identify the activities.
+          **Activity-based costing** assigns overhead by each product's use of activities, not by its volume. It is the
+          detailed costing that charged Job 107 ₱37,750. Let's build it.
         define: [activity-based-costing]
         gate:
           type: predict
           question: Is ABC a replacement for job-order and process costing?
-          options: [No; it is a finer way to assign overhead within either one, 'Yes; it replaces both', It replaces only process costing]
+          options: ['No; it changes only how overhead is assigned within them', 'Yes; it replaces both with one new system', 'No; it only swaps the plantwide rate for one rate per product']
           answer: 0
-          explain: The principal difference is the number of cost drivers; jobs and processes are still costed as before.
+          optionFeedback:
+            1: 'Jobs are still costed on job cost sheets and processes by department. ABC changes only how overhead reaches them.'
+            2: 'ABC rates belong to activities, not products: one rate per activity pool, charged to every product that uses that activity.'
+          explain: The difference is the number of overhead rates and drivers; jobs and processes are still costed as before.
       - say: |
-          An **activity** is any task that consumes resources. Overhead accounts are regrouped into an **activity cost pool**
-          per activity, each with a **cost driver** that causes it.
+          An **activity** is any task that consumes resources. Overhead is regrouped into an **activity cost pool** per
+          activity, each with a **cost driver** that causes it. Global Metals has five pools: machine setups, material
+          handling, waste control, inspection and other overhead.
         define: [activity, activity-cost-pool, cost-driver]
         gate:
           type: predict
-          question: Global Metals' machine-setup pool is ₱100,000 for 100 setups. What is the rate per setup?
-          answer: { value: 1000, tol: 0.5 }
-          explain: '$100{,}000 \div 100 = ₱1{,}000$ per setup.'
+          question: Which driver best explains the cost of getting machines ready between jobs?
+          options: [The number of production runs started, The machine hours run in the year, The number of units made in the year]
+          answer: 0
+          optionFeedback:
+            1: 'Getting a machine ready costs the same whether the run then lasts one hour or a hundred, so machine hours don''t cause it.'
+            2: 'One setup serves a whole run however many units it makes, so the unit count doesn''t cause it.'
+          explain: Getting a machine ready (a setup) costs the same whether the run is long or short, so the count of runs, that is, setups, causes the cost.
       - say: |
-          Step 2: each pool's **activity rate** is budgeted cost over predicted driver level, the POHR formula applied many
-          times.
+          Naming the activities is Step 1. Step 2 gives each pool an **activity rate**: its budgeted cost ÷ its predicted
+          driver level. It is a predetermined overhead rate, computed once per pool.
         define: [activity-rate]
         gate:
           type: predict
-          question: Waste control is ₱50,000 for 10,000 lb of hazardous chemical. What is the rate?
+          question: The machine-setup pool is budgeted at ₱100,000 for 100 setups. What is the rate per setup?
+          answer: { value: 1000, tol: 0.5 }
+          explain: '$100{,}000 \div 100 = ₱1{,}000$ per setup.'
+      - say: Each rate has its own unit, pesos per setup, per pound or per inspection, which tells you what to multiply it by.
+        gate:
+          type: predict
+          question: Waste control is budgeted at ₱50,000 for 10,000 lb of hazardous chemical. What is its rate?
           answer: { value: 5, tol: 0.005 }
           explain: '$50{,}000 \div 10{,}000 = ₱5.00$ per lb.'
+      - say: Before costing Job 107, recall a job from the job-order module. That module costed its Job 105 two ways.
+        gate:
+          type: predict
+          question: In the job-order module, Job 105 cost ₱245.80 with one plantwide rate and ₱289.00 after the plant changed how it sets its overhead rates. What made the difference?
+          options: ['Overhead was split into separate pools, each with its own rate', 'The single rate switched from labor cost to machine hours', 'The plant''s budgeted overhead was raised for the second costing']
+          answer: 0
+          optionFeedback:
+            1: 'Changing the base of one rate still leaves one pool and one rate for the whole plant. The second costing gave each department its own rate.'
+            2: 'The plant''s overhead was the same both times; only the way it was spread over jobs changed.'
+          explain: Same job and same plant overhead; only stage 1 changed. One pool per department, each with its own base (labor cost in A, machine hours in B), followed the job's real use of each department. Activity pools go further still.
       - say: |
-          Step 3: sum what the job consumed. Traditional costing and ABC share this **two-stage cost assignment**; ABC
-          refines stage 1, tracing costs to activities rather than departments.
-        define: [two-stage-assignment]
-        show: [sheet, plant, player]
+          Overhead systems have **two stages**: pool the overhead, then charge each pool to jobs. **Departmental rates**
+          (a pool per department) sharpen one plantwide pool; activity pools sharpen it most. Step 3: charge Job 107
+          rate × driver used for each pool: 2 setups, 10,000 lb of material, 2,000 lb of chemical, 10 inspections, 500
+          machine hours.
+        define: [two-stage-assignment, departmental-rate]
+        show: [rates, stages, sheet, player]
         gate:
           type: event
           prompt: Play Job 107's costing to the end.
@@ -156,6 +229,22 @@ scenes:
           question: What is Job 107's ABC overhead per tool?
           answer: { value: 18.875, tol: 0.006 }
           explain: '$37{,}750 \div 2{,}000 = ₱18.88$ per tool, almost three times the plantwide ₱6.56.'
+      - say: |
+          Beside it, the single plantwide rate: the same job and the same ₱525,000 of plant overhead, but only ₱13,125
+          charged to Job 107.
+        hide: [player]
+        show: [plant]
+        set: { sheetUpTo: 10 }
+        gate:
+          type: predict
+          question: Which pool explains most of the ₱24,625 the single rate misses?
+          options: [Material handling, Waste control, Machine setups, Other overhead]
+          answer: 0
+          optionFeedback:
+            1: 'Second largest: ₱10,000 against ₱1,250, an ₱8,750 gap. Material handling''s gap is twice that.'
+            2: 'Setups charge Job 107 ₱2,000, less than the ₱2,500 the single rate gives it, so they explain none of the gap.'
+            3: 'Other overhead is charged per machine hour under both methods: ₱5,000 either way, so no gap.'
+          explain: 'Compare each pool''s ABC charge with the 2.5% share the single rate gives it (500 of 20,000 machine hours). Material handling: ₱20,000 against $2.5\% \times 100{,}000 = ₱2{,}500$, a ₱17,500 gap. Waste control is next: ₱10,000 against ₱1,250. Setups (₱2,000 against ₱2,500) and other overhead (₱5,000 both ways) explain none of it.'
       - say: The arithmetic is the easy part.
         gate:
           type: reflect
@@ -182,10 +271,12 @@ scenes:
     stage:
       - id: view
         widget: Schedule
-        props: { title: 'Laguna Plastics: overhead per unit', columns: [Overhead per unit, Full cost per unit], rows: '@cv.rows' }
+        hidden: true
+        props: { title: 'Laguna Plastics: overhead per unit (no direct costs given)', columns: '@cv.columns', rows: '@cv.rows' }
       - id: pick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: Overhead assigned with
           options:
@@ -213,6 +304,14 @@ scenes:
           fn: compareWalk
           in: { products: '@laguna.products', pools: '@laguna.pools', baseLabel: '@laguna.baseLabel' }
           roles: { rates: rates, assign: assign, cost: cost }
+      - id: slide36
+        widget: Callout
+        region: side
+        hidden: true
+        props:
+          kind: errata
+          title: If you're reading the slide
+          body: The slide says Basic Bins subsidize Custom Containers by "₱33 per unit". That is per container. Per bin the overpayment is ₱6.60; both come to the same ₱330,000.
     beats:
       - say: |
           Laguna Plastics makes 50,000 Basic Bins and 10,000 Custom Containers. ₱1,800,000 of overhead is spread on 60,000
@@ -222,7 +321,22 @@ scenes:
           question: Custom Containers use 15,000 machine hours. What overhead per container does the single rate give?
           answer: { value: 45, tol: 0.005 }
           explain: '$15{,}000 \times 30 \div 10{,}000 = ₱45.00$.'
-      - say: But Custom Containers run 1,200 of the plant's 1,500 setups. Switch to the two activity pools.
+      - say: |
+          The single rate gives a bin ₱27.00 and a container ₱45.00. But containers run 1,200 of the plant's 1,500 setups
+          on a sixth of the volume, and setups are a third of the overhead.
+        show: [view]
+        gate:
+          type: predict
+          question: Containers use 25% of the machine hours but 80% of the setups. If setups are charged per setup instead, what happens to a container's overhead per unit?
+          options: [It falls, It stays about the same, It rises sharply]
+          shuffle: false
+          answer: 2
+          optionFeedback:
+            0: 'Containers run 80% of the setups but now carry only 25% of the overhead. Charging per setup moves more overhead onto them, not less.'
+            1: 'Their share of the ₱600,000 setup pool would jump from 25% to 80%. A shift that size in a third of all overhead changes their cost a lot.'
+          explain: The ₱600,000 setup pool is a third of all overhead, and containers would carry 80% of it instead of 25%.
+      - say: Check your prediction. Switch to the two activity pools.
+        show: [pick]
         gate:
           type: when
           prompt: Show the ABC costs.
@@ -244,6 +358,19 @@ scenes:
           question: How much overhead in total did Basic Bins carry for Custom Containers under the single rate?
           answer: { value: 330000, tol: 0.5 }
           explain: '$6.60 \times 50{,}000 = 33.00 \times 10{,}000 = ₱330{,}000$; the over- and undercosting cancel.'
+      - say: |
+          With three products the distortion is a spectrum. Pangasinan Furniture's overhead per unit, single rate vs ABC:
+          chair ₱60 vs ₱35, table ₱90 vs ₱87.50, cabinet ₱240 vs ₱500.
+        show: [slide36]
+        gate:
+          type: predict
+          question: Which product does the single rate cost most accurately?
+          options: ['The table, made in medium volume', 'The chair, made in the highest volume', 'The cabinet, made in the lowest volume']
+          answer: 0
+          optionFeedback:
+            1: 'The chair is overcosted ₱25 (₱60 against ₱35), an error of 42% of its traditional cost. High volume puts it at one extreme.'
+            2: 'The cabinet is undercosted ₱260 (₱240 against ₱500), the largest error of the three.'
+          explain: 'The table is off by only ₱2.50 (2.8% of its traditional cost). The chair is overcosted ₱25 and the cabinet undercosted ₱260: the extremes are distorted most.'
       - say: Think about the price list.
         gate:
           type: reflect
@@ -262,20 +389,29 @@ scenes:
     title: Units, batches, products, the plant
     goal: Which overhead really moves with volume?
     skills: [cost-hierarchy]
-    data: [hierarchy]
+    data: [hierarchy, gmlevels]
     stage:
       - id: bins
         widget: DropBins
         props: { chips: '@hierarchy.chips', bins: '@hierarchy.bins', solution: '@hierarchy.solution' }
+      - id: gm
+        widget: DropBins
+        hidden: true
+        props: { chips: '@gmlevels.chips', bins: '@gmlevels.bins', solution: '@gmlevels.solution' }
     beats:
       - say: |
-          A **unit-level activity** is done for every unit, so volume drives it: machining a part, power per machine hour.
+          A **unit-level activity** is done for every unit, so volume drives it: drilling each part, or the machine time
+          each part needs.
         define: [unit-level]
         gate:
           type: predict
-          question: Doubling units, same batch sizes. What happens to unit-level cost?
-          options: [About doubles, Stays the same, Halves]
-          answer: 0
+          question: Units double, batch sizes stay the same. What happens to unit-level cost?
+          options: [It halves, It stays the same, It about doubles]
+          shuffle: false
+          answer: 2
+          optionFeedback:
+            0: 'Total unit-level cost doesn''t fall when output rises: each extra unit needs the activity too.'
+            1: 'A cost that stays put as volume doubles behaves like rent, a facility-level cost. Unit-level work is done for every unit.'
           explain: Every unit needs the activity, so the cost follows volume.
       - say: |
           A **batch-level activity** is done once per batch whatever its size: one setup per production run.
@@ -283,8 +419,11 @@ scenes:
         gate:
           type: predict
           question: A run of 50 units and a run of 5,000 units each need one setup. Which run's units carry more setup cost each?
-          options: [The 50-unit run, 'The 5,000-unit run', They are the same]
+          options: [The 50-unit run, 'The 5,000-unit run', They carry the same]
           answer: 0
+          optionFeedback:
+            1: 'The 5,000-unit run spreads its one setup over 100 times as many units, so each unit carries far less.'
+            2: 'Each run''s total setup cost is the same, but per unit it is divided by 50 in one run and by 5,000 in the other.'
           explain: The same setup cost is spread over fewer units, so small batches cost more per unit.
       - say: |
           A **product-level activity** supports a product line: engineering changes, formulas, regulatory filings. A
@@ -296,6 +435,14 @@ scenes:
           target: bins
           event: solved
           hint: Ask what would make the cost double.
+      - say: Now the pools you have already costed. Each sits at one level, and its driver should come from that level.
+        show: [gm]
+        gate:
+          type: event
+          prompt: Sort the five pools from Global Metals and Laguna.
+          target: gm
+          event: solved
+          hint: Does the cost rise with each unit made, or with each batch run?
       - say: Facility-level costs are the awkward ones.
         gate:
           type: reflect
@@ -303,59 +450,164 @@ scenes:
           model: |
             No driver links rent to how much any product uses; any allocation would be arbitrary and could distort
             product costs again. Reporting it separately keeps product costs to what products actually cause.
-      - say: Practice the levels.
+      - say: Match each level to a driver.
         gate:
           type: practice
-          template: hierarchy-match
+          template: level-driver-match
     takeaway: Match each pool to a driver from its own level; only unit-level costs should ride on volume.
 
   - id: beyond-factory
-    title: Clinics, registrars and customers
+    title: Clinics and registrars
     goal: Does ABC work where there is nothing to manufacture?
     skills: [abc-services]
-    data: [cavitedx, rizal]
+    data: [cavitedx, registrar]
+    state: { sheetUpTo: 0 }
     derive:
-      - { fn: compare, in: { products: '@cavitedx.products', pools: '@cavitedx.pools', unitLabel: '@cavitedx.unitLabel' }, out: dx }
-      - { fn: customers, in: { pools: '@rizal.pools', customers: '@rizal.customers' }, out: cu }
+      - { fn: compareSheet, in: { products: '@cavitedx.products', pools: '@cavitedx.pools', unitLabel: '@cavitedx.unitLabel', upTo: '@sheetUpTo' }, out: dx }
+      - { fn: compare, in: { products: '@registrar.products', pools: '@registrar.pools', unitLabel: '@registrar.unitLabel' }, out: rg }
     stage:
+      - id: rates
+        widget: Schedule
+        hidden: true
+        props: { title: 'Cavite Medical Diagnostic Center: rates', columns: '@dx.rateColumns', rows: '@dx.rateRows' }
       - id: lines
         widget: Schedule
-        props: { title: 'Cavite Medical Diagnostic Center', columns: '@dx.columns', rows: '@dx.assignRows' }
+        hidden: true
+        props: { title: 'Cavite Medical Diagnostic Center: cost by service line', columns: '@dx.columns', rows: '@dx.assignRows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: compareWalk
+          in: { products: '@cavitedx.products', pools: '@cavitedx.pools', unitLabel: '@cavitedx.unitLabel', stop: 5 }
+          roles: { rates: rates, assign: lines }
+      - id: reg
+        widget: Schedule
+        hidden: true
+        props: { title: "University registrar's office", columns: '@rg.columns', rows: '@rg.assignTotalRows' }
+      - id: drivers
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            | Industry | Activity | Driver |
+            |---|---|---|
+            | Bank | Loan origination | Loan applications processed |
+            | Hotel | Housekeeping | Room turns |
+            | Airline | Ground handling | Takeoffs and landings |
+            | Hospital | Laboratory | Tests or procedures |
+    beats:
+      - say: |
+          A diagnostic center makes nothing, but it has activities: scheduling visits, processing lab procedures, and
+          doctors' consultation time. Scheduling costs ₱480,000 a year for 24,000 visits.
+        gate:
+          type: predict
+          question: What is the scheduling rate per visit?
+          answer: { value: 20, tol: 0.005 }
+          explain: '$480{,}000 \div 24{,}000 = ₱20$ per visit.'
+      - say: Lab processing costs ₱900,000 for 30,000 procedures (₱30 each); consultation ₱270,000 for 4,500 hours (₱60 an hour).
+        gate:
+          type: predict
+          question: 'The Executive Health Package has 3,000 visits, 6,000 procedures and 1,500 consultation hours. What does it cost per visit?'
+          answer: { value: 110, tol: 0.005 }
+          explain: '$(3{,}000 \times 20 + 6{,}000 \times 30 + 1{,}500 \times 60) \div 3{,}000 = 330{,}000 \div 3{,}000 = ₱110$ per visit.'
+      - say: Now all three service lines, rate by rate.
+        show: [rates, lines, player]
+        gate:
+          type: event
+          prompt: Play the diagnostic center's costing to the end.
+          target: player
+          event: done
+      - say: |
+          A university registrar's office has no patients either. Transcript processing costs ₱400,000 for 8,000
+          transcripts; enrollment verification costs ₱300,000 for 12,000 verifications.
+        gate:
+          type: predict
+          question: Undergraduates request 6,000 transcripts and 10,000 verifications. What does serving them cost?
+          answer: { value: 550000, tol: 0.5 }
+          explain: 'Rates are ₱50 per transcript and ₱25 per verification: $6{,}000 \times 50 + 10{,}000 \times 25 = ₱550{,}000$. Graduate students cost $2{,}000 \times 50 + 2{,}000 \times 25 = ₱150{,}000$.'
+      - say: |
+          Every service industry has its own drivers. Banks count loan applications, hotels count room turns, airlines
+          count takeoffs and landings, hospitals count tests.
+        show: [reg, drivers]
+        gate:
+          type: predict
+          question: A courier's hub scans and routes every package that passes through it. Which driver best explains the hub's cost?
+          options: [Items handled at the hub, Kilometers its trucks drive, The hub's floor area]
+          answer: 0
+          optionFeedback:
+            1: 'Kilometers drive the trucks'' fuel and upkeep, not the scanning and routing done inside the hub.'
+            2: 'Floor area doesn''t change when more packages pass through; it is a facility-level measure.'
+          explain: The hub's work rises with every item it handles. Kilometers drive the trucks' cost, not the hub's, and floor area is a facility-level measure.
+      - say: Try a service line.
+        gate:
+          type: practice
+          template: service-numeric
+    takeaway: Services consume activities too; rate each activity, then charge each service line for the drivers it uses.
+
+  - id: cost-to-serve
+    title: Which customers really pay?
+    goal: Can a customer with a healthy margin still lose money?
+    skills: [customer-profit]
+    data: [rizal]
+    state: { custUpTo: 0 }
+    derive:
+      - { fn: customerSheet, in: { pools: '@rizal.pools', customers: '@rizal.customers', upTo: '@custUpTo' }, out: cs }
+    stage:
       - id: cust
         widget: Schedule
         hidden: true
-        props: { title: 'Rizal Wholesale Distributors', columns: '@cu.columns', rows: '@cu.rows' }
+        props: { title: 'Rizal Wholesale Distributors', columns: '@cs.columns', rows: '@cs.rows' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props:
+          fn: customerWalk
+          in: { pools: '@rizal.pools', customers: '@rizal.customers' }
+          roles: { cust: cust }
     beats:
       - say: |
-          A diagnostic center has activities too: scheduling (₱20 a visit), lab processing (₱30 a procedure), consultation
-          (₱60 an hour).
+          Rizal Wholesale Distributors sells to three store chains. A customer's **gross margin** is its sales minus the
+          cost of the goods it bought: A ₱200,000, B ₱140,000, C ₱120,000. Order processing costs ₱200,000 for 2,000
+          orders.
+        define: [gross-margin]
         gate:
           type: predict
-          question: 'The Executive Health Package: 3,000 visits, 6,000 procedures, 1,500 consultation hours. What does it cost per visit?'
-          answer: { value: 110, tol: 0.005 }
-          explain: '$(60{,}000 + 180{,}000 + 90{,}000) \div 3{,}000 = ₱110$ per visit.'
+          question: What is the order-processing rate per order?
+          answer: { value: 100, tol: 0.005 }
+          explain: '$200{,}000 \div 2{,}000 = ₱100$ per order.'
       - say: |
-          Customers consume activities as well. **Customer profitability analysis** subtracts each customer's cost to serve
-          from its gross margin.
-        define: [customer-profitability]
-        show: [cust]
+          Taking a customer's orders and delivering them is its **cost to serve**. Delivery costs ₱300,000 for 1,500
+          deliveries: ₱200 each. Gross margin minus cost to serve is the customer's **operating profit**.
+        define: [cost-to-serve, operating-profit]
         gate:
           type: predict
-          question: 'Customer B: gross margin ₱140,000; 1,000 orders at ₱100 and 900 deliveries at ₱200. Operating profit?'
+          question: 'Customer B placed 1,000 orders and took 900 deliveries. What is its operating profit? (A loss is negative.)'
           answer: { value: -140000, tol: 0.5 }
-          explain: '$140{,}000 - (100{,}000 + 180{,}000) = -₱140{,}000$.'
-      - say: B ranked second on gross margin.
+          explain: '$140{,}000 - (1{,}000 \times 100 + 900 \times 200) = 140{,}000 - 280{,}000 = -₱140{,}000$.'
+      - say: Doing this for every customer is **customer profitability analysis**.
+        define: [customer-profitability]
+        show: [cust, player]
+        gate:
+          type: event
+          prompt: Play the analysis for all three customers.
+          target: player
+          event: done
+      - say: B ranked second on gross margin and last on operating profit.
         gate:
           type: reflect
           prompt: What should Rizal Wholesale do about Customer B, other than dropping it?
           model: |
             Change what drives B's cost to serve: set a minimum order size, consolidate deliveries, charge for rush or
             small orders, or move B to scheduled routes. The aim is fewer, larger orders, not losing the gross margin.
-      - say: Try a service line.
+      - say: Find the losing customer yourself.
         gate:
           type: practice
-          template: service-numeric
-    takeaway: Services and customers consume activities too; cost to serve can turn a high-margin customer into a loss.
+          template: customer-numeric
+    takeaway: Cost to serve can turn a high-margin customer into a loss; rank customers by operating profit, not gross margin.
 
   - id: worth-it
     title: Is ABC worth it here?
@@ -371,29 +623,48 @@ scenes:
         region: side
         props:
           kind: tip
-          title: Four conditions (slide 62)
+          title: Four conditions
           body: High overhead relative to direct costs; diverse products; big non-volume activities; high-stakes pricing or mix decisions.
     beats:
-      - say: ABC is more accurate but costs more to design, collect data for and maintain.
+      - say: ABC is more accurate but costs more to design, collect data for and maintain. Who should pay for it?
         gate:
           type: event
           prompt: Sort the six businesses.
           target: bins
           event: solved
           hint: Look for diversity and batch-level activity, not size.
-      - say: A manager proposes direct labor hours as the driver for a new material-inspection pool, because payroll already has the data.
+      - say: A shoe manufacturer has just switched to ABC, and its new product costs differ sharply from the old ones.
+        gate:
+          type: predict
+          question: 'A manager says: "Now our product costs are exact." What is wrong with that?'
+          options: [The rates still rest on budgeted costs and predicted driver levels, 'ABC raises the plant''s total overhead, so every cost is overstated', ABC still charges facility-level costs to products by volume]
+          answer: 0
+          optionFeedback:
+            1: 'Total overhead is the same under both systems; ABC only moves it between products.'
+            2: 'ABC usually reports facility-level costs separately instead of spreading them by volume.'
+          explain: ABC is more accurate, not exact. Its rates are set before the year from budgets, like any predetermined overhead rate. Total overhead is the same under both systems, and facility-level costs are reported separately.
+      - say: |
+          So ABC brings costs closer to what products cause and improves pricing and mix decisions, but it is costly to
+          run and its rates are still estimates. Now a manager proposes direct labor hours as the driver for a new
+          material-inspection pool, because payroll already has the data.
         gate:
           type: predict
           question: Inspections are triggered by incoming shipments. Accept the proposal?
-          options: ['No; choose the driver that causes the cost (shipments)', 'Yes; convenient data keeps ABC cheap', 'Yes; labor hours are always a valid driver']
+          options: ['No; use shipments, the activity that causes the cost', 'Yes; data that payroll already has keeps ABC cheap', 'No; use machine hours, the plant''s main volume driver']
           answer: 0
-          explain: A convenient-but-wrong driver makes it "ABC in name, traditional costing in substance".
+          optionFeedback:
+            1: 'Cheap data doesn''t help if it doesn''t move with the cost. Labor hours don''t rise with shipments, so the pool would be spread like a volume rate again.'
+            2: 'Machine hours are a volume measure too. Inspections follow incoming shipments, not machine time.'
+          explain: Shipments trigger the inspections; labor hours and machine hours are volume measures that don't. A convenient-but-wrong driver makes it "ABC in name, traditional costing in substance".
       - say: Iloilo Precision Tools makes one product in identical batches.
         gate:
           type: predict
           question: Would ABC change its unit cost much?
-          options: ['No; with one product there is nothing to cross-subsidize', 'Yes; ABC always changes costs', 'Yes; batch costs would be removed']
+          options: ['No; with one product there is nothing to cross-subsidize', 'Yes; ABC counts the setups the old rate ignored', 'No; identical batches leave no setups for ABC to track']
           answer: 0
+          optionFeedback:
+            1: 'ABC would count the setups, but with one product every setup is charged to that product anyway, so its unit cost barely moves.'
+            2: 'Identical batches still need setups. ABC changes little because they all belong to the one product, not because there are none.'
           explain: Every unit uses every activity in the same proportion, so ABC and a plantwide rate converge.
       - say: ABC does not have to be all-or-nothing.
         gate:
@@ -401,7 +672,8 @@ scenes:
           prompt: How could a mid-sized manufacturer try ABC without committing to a 20-pool system?
           model: |
             Pilot it on one product line or department where distortion is most likely, with four to six well-chosen
-            pools, using data already in the ERP. Expand only if the pilot changes decisions.
+            pools, using counts its accounting and production software already records. Expand only if the pilot changes
+            decisions.
       - say: Make a recommendation.
         gate:
           type: practice

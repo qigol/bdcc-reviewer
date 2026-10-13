@@ -8,7 +8,7 @@ scenes:
     stage:
       - id: plot
         widget: Chart
-        props: { kind: line, series: '@fc.series', xLabel: month, yLabel: value, title: 'Monthly data, five years, last 12 months hidden' }
+        props: { kind: line, series: '@fc.series', xLabel: month, yLabel: value, title: 'Monthly data, five years; the box marks the 12 hidden months' }
       - id: pick
         widget: Choice
         region: side
@@ -46,14 +46,14 @@ scenes:
     beats:
       - say: |
           A **time series** is a list of values recorded one after another in time, like monthly sales or daily rainfall.
-          Guessing its future values is making a **forecast**. The chart shows five years of monthly data with the last 12
-          months hidden (slide 7).
+          Guessing its future values is making a **forecast**. The chart shows five years of monthly data. The box marks
+          the last 12 months, which are hidden.
         define: [time-series, forecast]
       - say: Picture in your head what comes next, then name what you used to guess.
         gate:
           type: predict
           question: 'Series A: what is the most useful thing to carry forward?'
-          options: ['Its typical level', 'Its direction', 'Last year''s up-and-down shape', 'Nothing: it cannot be guessed']
+          options: ['Its usual level', 'The direction it is heading', 'Its repeating yearly shape', 'Its very first value']
           answer: 0
           explain: A wobbles around the same height, with no climb and no repeating shape. The best guess is that usual height.
       - say: Look at series B.
@@ -65,7 +65,7 @@ scenes:
         gate:
           type: predict
           question: 'Series B: what did you use?'
-          options: ['The typical level only', 'The direction it is heading', 'Last year''s shape', 'The first value']
+          options: ['Its usual level', 'The direction it is heading', 'Its repeating yearly shape', 'Its very first value']
           answer: 1
           explain: B climbs steadily. A flat line at its average would be far too low, so you continue the climb.
       - say: Now series C.
@@ -73,6 +73,13 @@ scenes:
           type: when
           prompt: Switch to **C**.
           when: 'which == ''C'''
+      - say: C does two things at once.
+        gate:
+          type: predict
+          question: 'Series C: what did you use?'
+          options: ['Its usual level only', 'Its direction only', 'Its direction and its yearly shape', 'Its very first value only']
+          answer: 2
+          explain: C climbs and repeats a yearly up-and-down. You continue the climb and copy last year's shape on top of it.
       - say: Sort all three by what you used.
         show: [bins]
         gate:
@@ -80,24 +87,32 @@ scenes:
           prompt: Match each series to what you used.
           target: bins
           event: solved
-      - say: |
-          **Nobody used a formula. Everybody used patterns.** By eye you used the usual level, the direction, and a shape
-          that repeats. Every method in this module does the same thing, just with arithmetic.
+      - say: Now see what really happened. Switch between A, B and C with the hidden months revealed.
         show: [show]
         set: { reveal: show }
+        gate:
+          type: predict
+          question: For which series would a flat line at its usual level have been a good forecast?
+          options: ['A only', 'A and B', 'B and C', 'All three']
+          answer: 0
+          explain: Only A stays at its level. B and C keep climbing, so a flat line falls further behind every month.
+      - say: |
+          **Nobody used a formula. Everybody used patterns:** the usual level, the direction, a repeating shape. Methods
+          grew from exponential smoothing (1950s) and Box–Jenkins ARIMA (1970s) to machine learning and large pretrained
+          "foundation" models. Each one writes these same patterns down as arithmetic.
     takeaway: Guessing by eye already uses patterns in the past (level, direction, repeating shape). Every forecasting method writes those down as arithmetic.
 
   - id: name-the-parts
     title: Trend, season, remainder
     goal: What pieces is a series made of, and how do they fit together?
     skills: [ts-structure]
-    state: { slope: 0.5, amp: 5 }
+    state: { slope: 0.5, amp: 5, mode: add }
     derive:
-      - { fn: decompose, in: { slope: '@slope', amp: '@amp' }, out: dc }
+      - { fn: decompose, in: { slope: '@slope', amp: '@amp', mode: '@mode' }, out: dc }
     stage:
       - id: plot
         widget: Chart
-        props: { kind: line, series: '@dc.series', xLabel: month, title: 'y = T + S + R (made-up data)' }
+        props: { kind: line, series: '@dc.series', xLabel: month, title: 'A made-up series and its pieces' }
       - id: rem
         widget: Chart
         region: bottom
@@ -116,6 +131,16 @@ scenes:
         region: side
         props: { label: size of the yearly swing, min: 0, max: 10, step: 0.5, format: 1 }
         bind: { value: amp }
+      - id: md
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: how the pieces combine
+          options:
+            - { value: add, label: 'pieces add up' }
+            - { value: multiply, label: 'swing grows with the level' }
+        bind: { value: mode }
       - id: bins
         widget: DropBins
         region: bottom
@@ -134,7 +159,7 @@ scenes:
           solution: { e1: seasonal, e2: cyclic, e3: cyclic, e4: seasonal, e5: seasonal, e6: cyclic }
     beats:
       - say: |
-          Slide 13 splits a series into three pieces. $y_t$ ("y at time t") is the value we see. The first piece is the
+          A series can be split into three pieces. $y_t$ ("y at time t") is the value we see. The first piece is the
           **trend**, $T_t$: the long-run direction, up or down.
         define: [trend]
         do:
@@ -145,25 +170,40 @@ scenes:
         define: [seasonality, remainder]
         do:
           - { target: f, cmd: highlight, args: { sel: 'term:s', tone: accent } }
-      - say: The trend need not be a straight line, and it can change direction. Move the sliders.
+      - say: Here the trend is a straight line; in real data it can bend or change direction. Move the sliders.
         gate:
           type: when
           prompt: Make a series with a clear yearly swing but **no trend**.
           when: 'abs(slope) < 0.06 and amp >= 3'
           hint: Set the slope to 0 and the swing size up.
-      - say: Now remove the yearly swing too.
+      - say: Before you touch the swing again, picture it removed too.
+        hide: [am]
         gate:
           type: predict
           question: 'With slope 0 and swing size 0, what is left of y?'
-          options: ['Only the remainder around a flat level', 'Nothing', 'A straight line', 'A smooth wave']
+          options: ['Only the remainder, around a flat level', 'Nothing at all: a perfectly flat line', 'A straight line that keeps rising', 'A smooth wave with no wiggle']
           answer: 0
           explain: Without trend and season, y is just its usual level plus the remainder.
+      - say: Now check it on the chart.
+        show: [am]
+        gate:
+          type: when
+          prompt: Keep the slope at 0 and drag the **swing size** down to 0.
+          when: 'abs(slope) < 0.06 and amp < 0.25'
+          hint: The swing slider goes all the way down to 0.
       - say: |
-          Note the "≈" (roughly equal), not "=". This is a way of looking at data, not a law. Some series **multiply** their
-          pieces (the swings grow as the level grows), some have **several** repeating patterns, some have none.
+          Note the "≈" (roughly equal), not "=". This is a way of looking at data, not a law. In some series the pieces
+          **multiply**: the swings grow as the level grows. Others have several repeating patterns at once (daily and
+          weekly), or none.
+        show: [md]
+        set: { slope: 0.5, amp: 5 }
+        gate:
+          type: when
+          prompt: Switch to **swing grows with the level** and compare the early and late swings.
+          when: 'mode == ''multiply'''
       - say: |
-          One more thing to tell apart. Seasonal patterns have a **fixed** length tied to the calendar. A **cyclic pattern** also rises
-          and falls, but with **no fixed length**, like business booms and recessions.
+          One more thing to tell apart. Seasonal patterns have a **fixed** length tied to the calendar. A **cyclic pattern**
+          also rises and falls, but with **no fixed length**, like business booms and recessions.
         define: [cyclic]
         show: [bins]
         gate:
@@ -177,11 +217,11 @@ scenes:
     title: Lags
     goal: What does "y at time t − k" mean, and which k matters for monthly data?
     skills: [lags]
-    data: [co2, lagrows]
-    state: { k: 1 }
+    data: [co2]
+    state: { k: 1, lagReveal: false }
     derive:
       - { fn: lagView, in: { co2: '@co2', k: '@k' }, out: lv }
-      - { fn: tableMatrix, in: { table: '@lagrows' }, out: lm }
+      - { fn: lagLookup, in: { co2: '@co2', reveal: '@lagReveal' }, out: lk }
     stage:
       - id: plot
         widget: Chart
@@ -189,7 +229,7 @@ scenes:
       - id: tbl
         widget: Matrix
         region: side
-        props: { data: '@lm', format: 1, title: 'Slide 16', rowHeader: month }
+        props: { rows: '@lk.rows', cols: '@lk.cols', values: '@lk.values', format: 1, title: 'Monthly CO₂ (ppm), April 1998 to June 1999', rowHeader: month }
       - id: ks
         widget: Slider
         region: side
@@ -204,25 +244,28 @@ scenes:
         define: [lag]
         gate:
           type: predict
-          question: 'Slide 16: t = June 1999, monthly data. What is y at t − 1?'
+          question: 't = June 1999, monthly data. Using the table, what is y at t − 1?'
           answer: { value: 370.8, tol: 0.05 }
-          explain: 'One month earlier, May 1999, which was 370.8.'
-      - say: The same table has a lag-12 column.
+          explain: 'One row up: May 1999, 370.8.'
+      - say: Now count further back.
         gate:
           type: predict
-          question: 'For April 1999, what is y at t − 12?'
+          question: 'For t = April 1999, what is y at t − 12?'
           answer: { value: 368.5, tol: 0.05 }
-          explain: 'Twelve months back: the same month one year ago, April 1998 = 368.5.'
-      - say: Slide the whole series k months to the right and lay it over itself.
+          explain: 'Twelve rows up: April 1998, the same month one year earlier, 368.5.'
+      - say: |
+          The table now also shows each month's lag_1 and lag_12 columns. Next, slide the whole series k months to the right
+          and lay it over itself.
+        set: { lagReveal: true }
         show: [ks]
         gate:
           type: when
-          prompt: Find the lag at which the yearly peaks line up again.
-          when: 'k == 12'
+          prompt: Find a lag at which the yearly peaks line up again.
+          when: 'k % 12 == 0'
           hint: How many months are in a year?
       - say: |
-          At k = 12 the shifted copy has the right yearly **shape**, but sits lower because it misses a year of growth. Lag 1
-          has the right **height**. Together they give both.
+          At k = 12 (or 24) the shifted copy has the right yearly **shape**, but sits lower because it misses a year of
+          growth. Lag 1 has the right **height**. Together they give both.
       - say: k always counts steps of the data, whatever a step is.
         gate:
           type: predict
@@ -268,7 +311,7 @@ scenes:
       - id: rf
         widget: Callout
         hidden: true
-        props: { kind: warn, title: 'Session 12: a random forest, two ways of splitting', body: 'Shuffled split: average miss (MAE) **0.515**. Split by date: **3.174**, nearly 3× worse than just repeating the last value. A forest can only predict averages of values it has seen, so it can never go above **366.68**, the highest training value; 38 of the 48 test months are above it.' }
+        props: { kind: warn, title: 'A random forest, two ways of splitting', body: 'Shuffled split: average miss **0.515** ppm. Split by date: **3.174** ppm, six times worse. A forest predicts averages of values it has seen, so it can never go above **366.68**, the highest training value; 38 of the 48 test months are above it.' }
     beats:
       - say: |
           Shuffle the rows of a customer list and nothing is lost: customer 400 was never "after" customer 399. Now shuffle
@@ -288,14 +331,14 @@ scenes:
           For a time series, use a **chronological split**: cut at a date. The past trains, the future tests.
         define: [training-set, test-set, chronological-split]
       - say: |
-          A random split lets the model learn from next year to "predict" last year. Session 12 tried both splits on a
-          **random forest**, a model made of many decision trees averaged together, with the same inputs.
+          A random split lets the model learn from next year to "predict" last year. The lecture notebook tried both splits
+          on a **random forest**, a model that averages the answers of many simple yes/no rule sets, with the same inputs.
         define: [random-forest]
         show: [rf]
         gate:
           type: predict
-          question: Which test score is the honest one?
-          options: ['The split by date, 3.174', 'The shuffled split, 0.515', 'Both equally', 'Neither']
+          question: Which of the two scores should you report?
+          options: ['The split by date: it only ever looks ahead', 'The shuffled split: it is the lower miss', 'Their average: each split has its own bias', 'Neither: forests can never forecast']
           answer: 0
           explain: 'With a shuffled split, each test month had training months on both sides, so the forest only had to fill gaps, not look ahead.'
       - say: |
@@ -319,11 +362,11 @@ scenes:
     state: { which: noise }
     derive:
       - { fn: gallery, in: { co2: '@co2', which: '@which' }, out: g }
-      - { fn: adfView, in: { adf: '@adf' }, out: av }
+      - { fn: adfView, in: { adf: '@adf', runs: [level-c] }, out: av }
     stage:
       - id: plot
         widget: Chart
-        props: { kind: line, series: '@g.series', title: 'One panel of slide 18''s gallery (made-up, except CO₂)' }
+        props: { kind: line, series: '@g.series', title: 'Six kinds of series (made-up, except CO₂)' }
       - id: pick
         widget: Choice
         region: side
@@ -366,7 +409,7 @@ scenes:
       - id: adf-t
         widget: Matrix
         hidden: true
-        props: { data: '@av.table', format: 4, title: 'Session 11: ADF on the CO₂ training months', rowHeader: run }
+        props: { data: '@av.table', format: 4, title: 'ADF test on the CO₂ training values', rowHeader: run }
     beats:
       - say: |
           Many forecasting methods assume a series has **stationarity**: across its whole length, its usual level stays the
@@ -377,7 +420,7 @@ scenes:
         gate:
           type: predict
           question: 'They swing from about 0 to 150. Stationary?'
-          options: ['Yes: they keep coming back to the same level with similar swings', 'No: they swing too much', 'No: they have a season', 'Only the first half']
+          options: ['Yes: it keeps returning to one level with similar swings', 'No: its swings are far too large to count', 'No: its ups and downs make it seasonal', 'Only the first half: the swings change later']
           answer: 0
           explain: Big swings are fine if the behaviour stays the same. And because the cycles have no fixed length, they are not seasonal either.
       - say: Compare the two halves of each series in the side panel.
@@ -388,36 +431,50 @@ scenes:
           target: bins
           event: solved
       - say: |
-          The **random walk** hardly moves, yet it is **not** stationary. Each value is the last one plus a random jump, so it
-          drifts with no level to return to. Judging by eye does not scale, so Session 11 uses a test.
+          The **random walk** looks calm, yet it is **not** stationary. Each value is the last one plus a random jump, so it
+          drifts with no level to return to. Its two half-averages are far apart.
         define: [random-walk]
-        show: [adf-t]
+        set: { which: noise }
+        gate:
+          type: when
+          prompt: Choose the **random walk** and compare its two half-averages.
+          when: 'which == ''walk'''
       - say: |
-          A test starts from a default assumption, called H₀. The **p-value** says how surprising the data would be if H₀
-          were true; below 0.05 we reject H₀. The **ADF test**'s H₀ is "this series wanders like a random walk".
-        define: [p-value, adf-test]
-      - say: 'On the CO₂ level the ADF test gives p = 0.9989 (its statistic +2.287 is also above the 5% cut-off of −2.868).'
+          Judging by eye does not scale, so we use a test. A test starts from a default assumption, the **null hypothesis**
+          H₀ ("H-nought"). The **p-value** says how surprising the data would be if H₀ were true; below 0.05 we reject H₀.
+        define: [null-hypothesis, p-value]
+      - say: |
+          The **Augmented Dickey–Fuller (ADF) test** takes H₀ = "this series wanders like a random walk". It turns the data
+          into one number, the statistic. A statistic **below** the cut-off (the critical value, here −2.868), which is the
+          same as p < 0.05, rejects H₀.
+        define: [adf-test]
+      - say: 'On the CO₂ values the ADF test gives a statistic of +2.287 and p = 0.9989.'
         gate:
           type: predict
           question: What do we conclude?
-          options: ['We cannot reject H₀: no evidence it is anything but a random walk', 'Reject H₀: the series is stationary', 'The series is proven to be non-stationary', 'The test is invalid']
+          options: ['Cannot reject H₀: no evidence it is anything but a random walk', 'Reject H₀: the statistic shows that it is stationary', 'Cannot reject H₀: this proves the series is non-stationary', 'Reject H₀: the test does not work on a rising series']
           answer: 0
-          explain: 'p is nowhere near 0.05. Not rejecting is not proof; it just means the data are not surprising under H₀.'
+          explain: 'p is nowhere near 0.05, and the statistic is far above the cut-off. Not rejecting is not proof; it just means the data are not surprising under H₀.'
+      - say: |
+          The table records this run. "level-c" means the CO₂ values themselves, tested with version "c" of the test, which
+          allows the series to sit at any constant level.
+        show: [adf-t]
     takeaway: Stationary means the level, the wiggle and the link to the past stay steady. Big swings can be stationary; a random walk is not.
 
   - id: difference-by-hand
     title: Differencing, by hand
     goal: How do we turn a climbing series into one that behaves the same throughout?
     skills: [differencing, stationarity]
-    data: [annual, co2]
-    state: { diffUpTo: 0 }
+    data: [annual, co2, adf]
+    state: { diffUpTo: 0, dlag: 1 }
     derive:
       - { fn: annualDiff, in: { annual: '@annual', upTo: '@diffUpTo' }, out: ad }
-      - { fn: trainDiff, in: { co2: '@co2' }, out: td }
+      - { fn: trainDiff, in: { co2: '@co2', lag: '@dlag' }, out: td }
+      - { fn: adfView, in: { adf: '@adf', runs: [level-c, diff-c] }, out: av }
     stage:
       - id: sheet
         widget: Matrix
-        props: { rows: '@ad.rows', cols: '@ad.cols', values: '@ad.values', format: 1, title: 'Slide 19: yearly average CO₂ at Mauna Loa (ppm)', rowHeader: year }
+        props: { rows: '@ad.rows', cols: '@ad.cols', values: '@ad.values', format: 1, title: 'Yearly average CO₂ at Mauna Loa (ppm)', rowHeader: year }
       - id: player
         widget: StepPlayer
         region: bottom
@@ -435,10 +492,15 @@ scenes:
             - '\Delta y_t = y_t - y_{t-1}'
             - '\Delta_{12}\, y_t = y_t - y_{t-12}'
           step: 0
+      - id: adf-t
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { data: '@av.table', format: 4, title: 'ADF test: values and changes', rowHeader: run }
       - id: monthly
         widget: Chart
         hidden: true
-        props: { kind: line, series: '@td.series', xLabel: year, yLabel: 'Δy (ppm)', title: 'Monthly changes, 1959–1997: centred, but still a yearly wiggle' }
+        props: { kind: line, series: '@td.series', xLabel: year, yLabel: 'change (ppm)', title: 'Monthly CO₂ training years, differenced' }
     beats:
       - say: |
           Yearly CO₂ climbs every year, so it is not stationary. The fix is **differencing**: next to each value, write how
@@ -457,6 +519,7 @@ scenes:
           target: player
           event: done
       - say: The left column climbs forever. The right column stays around one steady value.
+        hide: [player]
         set: { diffUpTo: 5 }
         gate:
           type: predict
@@ -466,9 +529,9 @@ scenes:
       - say: Notice what it cost.
         gate:
           type: predict
-          question: 'Six values went in. How many changes came out?'
-          answer: { value: 5 }
-          explain: 1959 has no year before it. You lose one value and never get it back.
+          question: 'With 40 yearly values instead of 6, how many changes would you get?'
+          answer: { value: 39 }
+          explain: 'The first year has no year before it, so you always lose one value (here 6 values gave 5 changes).'
       - say: Why does this matter for forecasting?
         gate:
           type: reflect
@@ -476,37 +539,41 @@ scenes:
           model: |
             You are now forecasting the change from one step to the next, not the value itself. To get a real forecast you
             add each predicted change to the last known value, step by step.
-      - say: Here are the monthly training values, differenced once (467 changes, average 0.104 ppm).
-        show: [monthly]
-        do:
-          - { target: f, cmd: step, args: { n: 1 } }
       - say: |
-          It is centred and steady, but the **yearly wiggle survives**: one difference removes the trend, not the season.
-          For that you take a **seasonal difference**: this month minus the same month last year, $\Delta_{12}$.
-        define: [seasonal-difference]
-      - say: The ADF test on the differenced series gives p = 0.0006.
+          Now the monthly training values, differenced once: 467 changes, averaging 0.104 ppm a month. The climb is gone. But
+          look closely: a yearly wiggle survives.
+        show: [monthly]
+      - say: 'The ADF test on these changes gives a statistic of −4.237 and p = 0.0006.'
         gate:
           type: predict
-          question: 'ADF on the changes: p = 0.0006. What next?'
-          options: ['Reject H₀: one difference was enough, so stop', 'Difference again', 'We cannot reject H₀', 'Go back to the original values']
+          question: What next?
+          options: ['Reject H₀: the changes do not wander, so d = 1 is enough', 'Difference again at lag 1: the yearly wiggle is still there', 'Cannot reject H₀: the changes still wander like a walk', 'Go back to the values: differencing lost the information']
           answer: 0
-          explain: 'p is far below 0.05, so reject H₀. Do not difference again: differencing too much creates patterns that were never there.'
+          explain: 'p is far below 0.05, so reject H₀: one difference took out the wandering. The ADF test looks for wandering, not for a season. Differencing again at lag 1 would create patterns that were never there; the yearly wiggle is a separate job.'
+      - say: |
+          The table now holds both runs. The yearly wiggle needs its own tool: a **seasonal difference**, $\Delta_{12}$, this
+          month minus the same month last year. The chart now shows it: the yearly shape is gone too.
+        define: [seasonal-difference]
+        show: [adf-t]
+        set: { dlag: 12 }
+        do:
+          - { target: f, cmd: step, args: { n: 1 } }
       - say: Difference a short series yourself.
         gate:
           type: practice
           template: diff-numeric
-    takeaway: Differencing turns values into changes. It costs one value, changes the question, and leaves the yearly pattern for a seasonal difference.
+    takeaway: 'Differencing turns values into changes and costs one value. The trend needs Δ; a yearly pattern needs the seasonal difference Δ₁₂, not a second Δ.'
 
   - id: autocorrelation
     title: A series against its own past
     goal: How much does this month look like the months before it?
     skills: [autocorrelation]
     data: [nino, co2]
-    state: { k: 1 }
+    state: { k: 1, sigKind: acf }
     derive:
       - { fn: lagScatter, in: { y: '@nino', k: '@k' }, out: sc }
-      - { fn: acfDiff, in: { co2: '@co2', nlags: 24 }, out: ac }
-      - { fn: arMaAcf, in: { phi: 0.8, theta: 0.8 }, out: am }
+      - { fn: acfDiff, in: { co2: '@co2', nlags: 36 }, out: ac }
+      - { fn: arMaAcf, in: { phi: 0.8, theta: 0.8, kind: '@sigKind' }, out: am }
     stage:
       - id: scatter
         widget: Chart
@@ -514,6 +581,7 @@ scenes:
       - id: r
         widget: Readout
         region: side
+        hidden: true
         props:
           items:
             - { label: 'lag k', value: '@k' }
@@ -521,17 +589,18 @@ scenes:
       - id: ks
         widget: Slider
         region: side
+        hidden: true
         props: { label: 'lag k (months)', min: 1, max: 24, step: 1 }
         bind: { value: k }
       - id: acfbars
         widget: Chart
         hidden: true
-        props: { kind: bar, series: '@ac.bars', xLabel: lag, yLabel: r_k, title: 'ACF of the differenced CO₂ training series' }
+        props: { kind: bar, series: '@ac.bars', xLabel: lag, yLabel: r_k, title: 'ACF of the differenced CO₂ training series, lags 1–36' }
       - id: sig
         widget: Chart
         region: bottom
         hidden: true
-        props: { kind: bar, series: '@am.bars', xLabel: lag, title: 'Built from past values (AR) vs past surprises (MA)' }
+        props: { kind: bar, series: '@am.bars', xLabel: lag, title: 'Built from past values vs built from past shocks' }
     beats:
       - say: |
           **Correlation** is a number from −1 to +1 for how closely two things move together. +1: they rise and fall
@@ -544,40 +613,65 @@ scenes:
         gate:
           type: predict
           question: 'Lag 1: this month vs last month. Roughly what correlation?'
-          options: ['+0.87', '0', '−0.66', '+0.10']
+          options: ['About +0.9', 'About +0.4', 'About 0', 'About −0.7']
           answer: 0
-          explain: 'Sea temperature changes slowly, so back-to-back months are very similar: r = +0.87 (slide 24).'
-      - say: Half a year apart, warm months face cool ones.
+          explain: 'Sea temperature changes slowly, so back-to-back months are very similar: r = +0.87.'
+      - say: |
+          r = +0.87. These waters have El Niño episodes every 2–7 years (cyclic), and on top of that a yearly season.
+        show: [r]
+        gate:
+          type: predict
+          question: 'Before you slide: lag 12, this month against the same month last year. Which r do you expect?'
+          options: ['About +0.8', 'About +0.4', 'About 0', 'About −0.7']
+          answer: 0
+          explain: 'r = +0.75. The yearly season brings the same pattern back every 12 months.'
+      - say: Now slide k yourself.
+        show: [ks]
         gate:
           type: when
           prompt: Find a lag where the correlation is below **−0.6**.
           when: 'sc.r < -0.6'
-          hint: Half a year.
-      - say: 'Lag 6 gives r = −0.66. Now try a full year.'
+          hint: Think of the months half a year apart.
+      - say: |
+          The **ACF** is r at every lag, computed one fixed way: one overall average and one shared bottom number, so it
+          differs a little from the scatter's r. Series 2, 4, 6, 8, 5: average 5, gaps −3, −1, 1, 3, 0. Bottom
+          9+1+1+9+0 = 20. Top (−1)(−3) + (1)(−1) + (3)(1) + (0)(3) = 5. r₁ = 0.25.
+        gate:
+          type: practice
+          template: acf-hand
+      - say: Next, the ACF of the CO₂ changes from the differencing scene. Remember the yearly wiggle that survived.
         gate:
           type: predict
-          question: 'Lag 12: same month last year. r?'
-          answer: { value: 0.75, tol: 0.02 }
-          explain: '+0.75. The yearly cycle brings the pattern back.'
+          question: Which lag will have the tallest bar?
+          options: ['1', '6', '12', '30']
+          shuffle: false
+          answer: 2
+          explain: '12: r = 0.916, taller than lag 1 (0.708). The yearly wiggle survived the first difference.'
       - say: |
-          The **ACF** puts all of these in one chart: one bar per lag. Here it is for the CO₂ changes from the last scene.
+          Lags 24 and 36 are almost as tall (0.884 and 0.864): the bars fade slowly, but **only at multiples of 12**. That
+          calls for a seasonal difference. Slow fading from lags 1, 2, 3 onward would instead mean "difference again".
         show: [acfbars]
-        gate:
-          type: predict
-          question: 'Which lag has the tallest bar?'
-          options: ['12', '1', '6', '24']
-          answer: 0
-          explain: 'r at lag 12 is 0.916 (lag 1 is 0.708). The yearly cycle survives differencing; lag 24 is almost as tall.'
       - say: |
-          Part of every value is a **shock**: a surprise nothing in the past could predict. A series built from past
-          **values** has an ACF that fades slowly. One built from past **shocks** has an ACF that stops suddenly (beyond the slides).
+          Part of every value is a **shock**: a surprise nothing in the past could predict. In the bottom chart, a series
+          built from past **values** has an ACF that fades; one built from past **shocks** has an ACF that stops after lag 1.
         define: [shock]
         show: [sig]
       - say: |
           The **PACF** (partial autocorrelation) asks what lag k adds **directly**, once the months in between are accounted
-          for. Its shape, next to the ACF's, will help us set up a forecasting model two scenes from now.
+          for.
         define: [pacf]
-    takeaway: Autocorrelation correlates a series with its own shifted copy. How it fades or stops across lags hints at how to build a model.
+        gate:
+          type: predict
+          question: 'A series built only from last month''s value: what does lag 2 add directly, once lag 1 is known?'
+          options: ['Nothing: lag 2 only echoes lag 1', 'About as much as lag 1 itself adds', 'More than lag 1, since it reaches further', 'Exactly its ACF value at lag 2']
+          answer: 0
+          explain: 'Lag 2 matters only through lag 1, so its direct part is 0. The PACF of such a series stops after lag 1.'
+      - say: |
+          The PACF is the mirror image: past **values** give a PACF that stops after lag 1, past **shocks** a PACF that
+          fades. The rule: a PACF that stops after lag k suggests p = k past values; an ACF that stops after lag k suggests
+          q = k past shocks.
+        set: { sigKind: pacf }
+    takeaway: Autocorrelation correlates a series with its own shifted copy. Where the ACF and PACF fade or stop hints at how to build a model.
 
   - id: baselines
     title: The bar to beat
@@ -644,8 +738,9 @@ scenes:
           target: player
           event: done
       - say: |
-          MAE = 217.30 ÷ 48 = 4.527 ppm. Two other scores: **RMSE** squares each miss first, so big misses count more (5.103).
-          **MAPE** turns each miss into a percentage of the real value (1.224%).
+          MAE = 217.30 ÷ 48 = 4.527 ppm. January 1998 missed by 365.34 − 364.25 = 1.09. **RMSE** squares each miss
+          (1.09² = 1.19), averages, then takes the root: 5.103, so big misses count more. **MAPE** divides each miss by the
+          real value (1.09 ÷ 365.34 = 0.30%), then averages: 1.224%.
         define: [rmse, mape]
         set: { maeUpTo: 48 }
       - say: The **seasonal naive forecast** copies the same month from 1997 instead.
@@ -654,13 +749,13 @@ scenes:
           type: when
           prompt: Switch to **seasonal naive**.
           when: 'method == ''seasonal'''
-      - say: It uses more information. Look at its score.
+      - say: It uses more information, yet its MAE is 5.063, worse than naive.
         gate:
           type: predict
-          question: 'Seasonal naive MAE is 5.063, worse than naive. Why?'
-          options: ['It has the right shape but forgets that every year sits higher than 1997', 'It uses less information', 'Its forecasts are random', 'MAE cannot score seasonal forecasts']
+          question: 'Why does the seasonal naive forecast score worse here?'
+          options: ['It starts from 1997''s average level, below December''s', 'It copies the yearly shape, which MAE punishes', 'It uses less information than the naive one', 'Its forecast changes every month, so misses add up']
           answer: 0
-          explain: 'Every bump is in the right month, but about 2 ppm too low and sinking further each year. Naive got the level, seasonal naive the shape; neither got both.'
+          explain: 'Seasonal naive sits below every real month, naive below 47 of 48. When nearly every miss has the same sign, MAE is about the gap between the average real value and the average forecast. Seasonal naive averages 1997''s level, 363.70; naive sits 0.55 higher, at 364.25. The right shape does not shrink same-sign misses; a higher level does.'
       - say: |
           Now a real model: **ARIMA**, a classic method that forecasts from recent values, recent changes and recent
           surprises. The next scene opens it up.
@@ -670,8 +765,9 @@ scenes:
           prompt: Switch to **ARIMA(1,1,1)**.
           when: 'method == ''arima'''
       - say: |
-          MAE 1.900, MAPE 0.517%: less than half the naive error. It climbs at the right rate but is smooth, because it has no
-          yearly term. Beating naive does not make a model great; it only makes it worth a closer look.
+          MAE 1.900, MAPE 0.517%: less than half the naive error. All three forecasts here are **multi-step**: made once, in
+          December 1997, for all 48 months ahead. ARIMA climbs at the right rate but is smooth: it has no yearly term.
+        define: [multi-step-forecast]
       - say: Try a seasonal naive forecast yourself.
         gate:
           type: practice
@@ -686,6 +782,8 @@ scenes:
     state: { arUpTo: 0 }
     derive:
       - { fn: arimaScene, in: { co2: '@co2', arima: '@arima', upTo: '@arUpTo' }, out: ar }
+      - { fn: pacfDiff, in: { co2: '@co2', nlags: 12 }, out: pd }
+      - { fn: residualAcf, in: { co2: '@co2', arima: '@arima' }, out: ra }
     stage:
       - id: f
         widget: Formula
@@ -716,48 +814,71 @@ scenes:
         hidden: true
         props:
           chips:
-            - { id: d, label: 'd = 1' }
-            - { id: p, label: 'p = 1' }
-            - { id: q, label: 'q = 1' }
+            - { id: adfe, label: 'ADF: values p = 0.9989, changes p = 0.0006' }
+            - { id: pcut, label: 'PACF: one clear bar, then nothing; ACF fades' }
+            - { id: acut, label: 'ACF: one clear bar, then nothing; PACF fades' }
+            - { id: both, label: 'Neither ACF nor PACF stops cleanly after a lag or two' }
           bins:
-            - { id: adf, label: 'the ADF test on the values and on the changes' }
-            - { id: pacf, label: 'the PACF / ACF (past values)' }
-            - { id: acf, label: 'the ACF / PACF (past surprises)' }
-          solution: { d: adf, p: pacf, q: acf }
+            - { id: d1, label: 'd = 1' }
+            - { id: p1, label: 'p = 1, q = 0' }
+            - { id: q1, label: 'p = 0, q = 1' }
+            - { id: small, label: 'start small (p = 1, q = 1), then check' }
+          solution: { adfe: d1, pcut: p1, acut: q1, both: small }
+      - id: ev
+        widget: Chart
+        region: bottom
+        hidden: true
+        props: { kind: bar, series: '@pd.bars', xLabel: lag, title: 'ACF and PACF of the CO₂ changes, lags 1–12' }
+      - id: resid
+        widget: Chart
+        region: bottom
+        hidden: true
+        props: { kind: bar, series: '@ra.bars', xLabel: lag, yLabel: r_k, title: 'ACF of the fitted model''s residuals' }
       - id: errata
         widget: Callout
         region: side
         hidden: true
-        props: { kind: errata, body: 'Session 11 writes 0.1156 as the equation''s constant. In statsmodels it is the **average** change, so the constant is 0.1156 × (1 − 0.5744) = 0.049. Read literally, the notebook''s equation would forecast 365.71, not its own 365.64.' }
+        props: { kind: errata, body: 'If you''re reading the notebook: it writes 0.1156 as the equation''s constant. In statsmodels it is the **average** change, so the constant is 0.1156 × (1 − 0.5744) = 0.049. Read literally, the written equation would forecast 365.71, not the notebook''s own 365.64.' }
     beats:
       - say: |
-          How would you guess next month by hand? Work with **changes**, not levels, if the series keeps climbing: that is d,
-          the number of differences. Follow the last few changes: p of them (AR). Correct for your last few surprises:
-          q of them (MA). [[arima|ARIMA(1,1,1)]] uses one of each.
+          How would you guess next month by hand? If the series keeps climbing, work with **changes**: that is d, the number
+          of differences. Follow the last few changes: p of them. Correct for your last few surprises: q of them.
+          [[arima|ARIMA(1,1,1)]] uses one of each.
       - say: |
-          Each number has its evidence. d comes from the ADF test. For p and q, read the ACF and PACF: a PACF that stops after
-          lag k suggests p = k; an ACF that stops after lag k suggests q = k. If both fade slowly, try small p and q.
+          The letters: AR = autoregressive, the series regressed on its own past. I = integrated, forecast changes are added
+          back up into values. MA = moving average, but of past **shocks**, not the rolling mean of past values you will
+          meet in the next scene.
+      - say: Each number needs its own evidence.
         show: [letters]
         gate:
           type: event
-          prompt: Match each number to its evidence.
+          prompt: Match each piece of evidence to the choice it supports.
           target: letters
           event: solved
+      - say: Here are the real ACF and PACF of the CO₂ changes.
+        show: [ev]
+        gate:
+          type: predict
+          question: Which reading fits these two plots?
+          options: ['Neither plot stops cleanly: start small, then check', 'The PACF stops after lag 1: p = 1, q = 0', 'The ACF stops after lag 1: p = 0, q = 1', 'Neither plot matters once d = 1 is set']
+          answer: 0
+          explain: 'Neither stops cleanly: the PACF is −0.50 at lag 2, and the yearly pattern keeps both busy. So a small model, ARIMA(1,1,1), is a sensible start, as long as its residuals are checked afterwards.'
       - say: |
-          Fitted on the training years: the **drift** c = 0.1156 (the average monthly change), φ ("phi") = 0.5744 and θ
-          ("theta") = 0.3733. The last training change was 364.25 − 362.38 = 1.87 and the last surprise 0.725.
+          Fitted on the training years: the **drift** c = 0.1156, the model's estimate of the average monthly change (the
+          plain average was 0.104); φ ("phi") = 0.5744 and θ ("theta") = 0.3733. ε ("epsilon") is the shock. Last change:
+          364.25 − 362.38 = 1.87; last shock 0.725.
         define: [drift]
-        show: [errata]
+        hide: [ev]
         do:
           - { target: f, cmd: step, args: { n: 1 } }
           - { target: f, cmd: highlight, args: { sel: 'term:ar', tone: accent } }
         gate:
           type: predict
-          question: 'Forecast for January 1998: 364.25 + 0.1156 + 0.5744 × (1.87 − 0.1156) + 0.3733 × 0.725 = ?'
+          question: 'Forecast for January 1998 (2 decimal places): 364.25 + 0.1156 + 0.5744 × (1.87 − 0.1156) + 0.3733 × 0.725 = ?'
           answer: { value: 365.64, tol: 0.02 }
           explain: '0.1156 + 1.0077 + 0.2706 = 1.394, so 364.25 + 1.394 = 365.64.'
-      - say: Step forward. After the first month the next surprise is unknown, so it is set to 0 and the MA part drops out.
-        show: [player]
+      - say: Step forward. After the first month the next shock is unknown, so it is set to 0 and the MA part drops out.
+        show: [player, errata]
         gate:
           type: event
           prompt: Play the three forecasts.
@@ -768,21 +889,31 @@ scenes:
           type: practice
           template: arima-numeric
       - say: |
-          For four years the forecast climbs at almost exactly the real rate, but it is smooth while the real series wiggles.
-          Check the **residuals**, the model's misses on its training data: their ACF spikes at lag 12 (about 0.58).
+          For four years the forecast climbs at almost the real rate, but stays smooth while the real series wiggles. Check
+          the **residuals**, the model's misses on its training data. The bottom chart shows their ACF.
         define: [residual]
+        show: [resid]
         set: { arUpTo: 3 }
         gate:
           type: predict
-          question: What does the lag-12 spike in the residuals call for?
-          options: ['Yearly (seasonal) terms in the model', 'More differencing', 'A larger p', 'Nothing: residuals always spike']
+          question: What does the residual ACF's spike at lag 12 call for?
+          options: ['Yearly (seasonal) terms in the model', 'A second ordinary difference', 'A larger p: more past changes', 'Nothing: residuals always spike']
           answer: 0
-          explain: 'The model makes the same kind of mistake every January. ARIMA has no yearly part, so we add one.'
+          explain: 'The bar at lag 12 is 0.58: the model makes the same kind of mistake every year. ARIMA(p,d,q) has no yearly part, so we add one.'
+      - say: Look at the four-year forecast line again.
+        gate:
+          type: reflect
+          prompt: 'From the second month on, each forecast change is c + φ × (previous forecast change − c). Why does the forecast become a smooth, straight climb?'
+          model: |
+            With no new shocks, each forecast change is pulled towards c: its gap to c shrinks by the factor φ = 0.57 every
+            month. After a few months every change is about 0.1156, so the forecast rises by the same amount each month,
+            a straight line. Nothing in the model knows about the yearly up-and-down.
       - say: |
-          **SARIMA** is ARIMA with extra terms at lag 12, written ARIMA(p,d,q)(P,D,Q)₁₂. SARIMAX also lets outside inputs in,
-          such as temperature.
+          **SARIMA** adds a yearly copy of the three numbers, written ARIMA(p,d,q)(P,D,Q)₁₂: P past values, D seasonal
+          differences and Q past shocks, each 12 months back. Relatives: ARIMAX and SARIMAX take outside inputs such as
+          temperature; VAR forecasts several series together; GARCH models a wiggle whose size changes.
         define: [sarima]
-    takeaway: d comes from the ADF test; p and q from the ACF and PACF. ARIMA forecasts each change from the last change and surprise.
+    takeaway: d comes from the ADF test, p and q from the ACF and PACF. ARIMA forecasts each change from the last change and shock.
 
   - id: lag-features
     title: A series becomes a table
@@ -809,6 +940,7 @@ scenes:
       - id: pick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: input columns
           style: dropdown
@@ -822,6 +954,7 @@ scenes:
       - id: score
         widget: Readout
         region: side
+        hidden: true
         props:
           items:
             - { label: 'one-step MAE', value: '@sv.mae', format: 3, tone: accent }
@@ -832,48 +965,66 @@ scenes:
         props: { kind: line, series: '@sv.series', xLabel: year, yLabel: 'CO₂ (ppm)', title: One-step forecasts on the 48 test months }
     beats:
       - say: |
-          **Linear regression** predicts a number by adding up input columns, each times a learned weight. It needs a table
-          of inputs, but a series is just one column. The only inputs we could know before this month are **earlier months**.
-        define: [linear-regression]
+          **Linear regression** predicts a number by adding up input columns, each times a learned weight. A series has one
+          column, so we build inputs from earlier months. Each lag becomes a column, a **lag feature**: lag_1 holds last
+          month, lag_12 the same month last year. Pandas makes them with `shift(k)`.
+        define: [linear-regression, lag-feature]
       - say: |
-          So each lag becomes a column: a **lag feature**. lag_1 holds last month's value, lag_12 the same month last year.
-          In pandas, `shift(k)` makes it.
-        define: [lag-feature]
-      - say: |
-          Another useful column is a **rolling mean**: the average of the last three months. Careful: pandas' `rolling(3)`
-          includes the current month by default, so **shift first**, then average.
+          Another column: a **rolling mean**, the average of the last three months. Careful: pandas' `rolling(3)` includes
+          the current month, so **shift first**, then average.
+        define: [rolling-mean]
+        gate:
+          type: predict
+          question: 'Before building: the safe roll_mean_3 for April 1959 averages Jan, Feb and Mar (315.50, 316.56, 316.74). Its value?'
+          answer: { value: 316.267, tol: 0.005 }
+          explain: '(315.5 + 316.5625 + 316.7375) ÷ 3 = 316.267. The unsafe version averages Feb to **Apr**, including the month being predicted.'
+      - say: Now build the first six rows and check your value in April.
         show: [player]
         gate:
           type: event
           prompt: Build the first six rows.
           target: player
           event: done
-      - say: Check one value.
-        set: { featUpTo: 8 }
+      - say: |
+          Train on 1960–1997 (1959 is dropped: its lag_12 would come from before the data starts). Each test month then uses
+          the **real** value of the month before: a **one-step** forecast. Every forecast so far was multi-step, made once
+          from December 1997.
+        define: [one-step-forecast]
         gate:
           type: predict
-          question: 'The safe roll_mean_3 for April 1959 = the average of Jan, Feb, Mar (315.50, 316.56, 316.74)?'
-          answer: { value: 316.267, tol: 0.005 }
-          explain: '(315.5 + 316.5625 + 316.7375) ÷ 3 = 316.267. The unsafe version averages Feb to **Apr**, including the month being predicted.'
-      - say: |
-          Train on 1960–1997, then forecast each 1998–2001 month one step ahead. With **lag_1 only**, MAE is 1.067, about the
-          same as repeating last month (1.080).
-        show: [plot]
+          question: 'The multi-step naive forecast missed by 4.527 on average. Repeating each month''s real predecessor instead (one-step naive) misses by about…'
+          options: ['0', '1', '4.5', '9']
+          shuffle: false
+          answer: 1
+          explain: '1.080. Each forecast only has to bridge one month, not up to four years. ARIMA improves the same way, from 1.900 multi-step to 0.600 one-step. Compare one-step scores only with one-step scores.'
+      - say: With **lag_1 only**, the regression's one-step MAE is 1.067, about the same as repeating last month (1.080).
+        show: [plot, score, pick]
         gate:
           type: predict
           question: 'The lag_1-only regression learns a weight of about…'
-          options: ['1: it learned to copy last month', '0', '12', '0.5']
+          options: ['1: it learned to copy last month', '0: it learned to ignore last month', '12: one unit for every month', '0.5: half of last month''s value']
           answer: 0
           explain: '0.9978. A fancier model with no new information gains nothing.'
-      - say: Add more of the past, and the month of the year.
+      - say: |
+          Add more of the past, and the month of the year as **month columns**: eleven 0/1 flags for February to December
+          (January is the baseline).
+        define: [month-columns]
         gate:
           type: when
           prompt: Choose **B** (past + month columns).
           when: 'scenario == ''B'''
       - say: |
-          MAE **0.222**, about a fifth of the naive error and well below ARIMA's 0.600. The gain came from the month columns:
-          yearly information that ARIMA(p,d,q) has no part for.
+          MAE **0.222**, about a fifth of the one-step naive error and well below ARIMA's one-step 0.600. The month columns
+          carry the yearly shape that ARIMA(p,d,q) has no part for.
+        hide: [pick, score]
+        gate:
+          type: predict
+          question: 'Scenario C keeps B''s month columns and adds lag_3 to lag_11. What happens to the MAE?'
+          options: ['About the same: the extra lags repeat what lag_1 knows', 'It halves: more of the past means more signal', 'It drops to 0: the model can now see the answer', 'It rises above naive: too many columns to fit']
+          answer: 0
+          explain: '0.232, slightly worse than B. More past did not help; the calendar did. The menu comes back next, so you can pick C to see it.'
       - say: Now swap in the unsafe rolling mean and change nothing else.
+        show: [pick, score]
         gate:
           type: when
           prompt: Choose **B with the unsafe rolling mean**.
@@ -885,7 +1036,7 @@ scenes:
         gate:
           type: predict
           question: 'Why those weights?'
-          options: ['y_t = 3·roll_leaky − y_(t−1) − y_(t−2): it worked out the answer from the input', 'The model is perfect', 'The month columns cancel out', 'Rounding error']
+          options: ['y_t = 3·roll_leaky − y_(t−1) − y_(t−2): it solved for the answer', 'The month columns cancel every error out exactly', 'With 15 columns a regression always fits perfectly', 'The test months happen to be very smooth ones']
           answer: 0
           explain: 'roll_leaky = (y_t + y_(t−1) + y_(t−2)) ÷ 3 contains the answer itself. Leakage gives excellent scores that mean nothing.'
       - say: Build a safe rolling mean yourself.

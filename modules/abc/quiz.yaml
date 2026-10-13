@@ -8,13 +8,17 @@ templates:
     lessonRef: { tab: intuition, id: blurry-average }
     prompt: A manufacturer's high-volume standard product keeps getting underpriced by competitors, while its low-volume custom product barely breaks even despite a large markup. Both are costed with one machine-hour rate. What is the likely cause?
     options:
-      - The single rate overcosts the standard product and undercosts the custom one; investigate ABC
-      - Competitors are selling below cost and will soon stop
-      - The custom product's markup is too high
+      - The single rate overcosts the standard product and undercosts the custom one
+      - Competitors are selling the standard product below their own cost
+      - The custom product's markup is set too high for its market
       - Direct materials are being traced to the wrong product
     answer: 0
+    optionFeedback:
+      1: 'If competitors could only win by losing money, the pattern would not repeat across products. A cost system that overcosts the simple product explains it.'
+      2: 'The markup is large, yet the product barely breaks even: the problem is the cost, not the markup.'
+      3: 'Direct materials are traced, not spread; the symptoms point at the overhead rate.'
     hints: [What does a single volume rate ignore?]
-    explanation: These are the classic cross-subsidization symptoms of Example 1. The single rate misses the setups and inspections the custom product drives.
+    explanation: These are the warning signs from the Cavite Precision story. The single rate misses the setups and inspections the custom product drives, so the standard product carries part of the custom product's overhead.
 
   - id: plant-numeric
     type: numeric
@@ -41,7 +45,7 @@ templates:
   - id: plant-handcalc
     type: hand-calc
     skills: [distortion, apply-abc]
-    difficulty: 2
+    difficulty: 3
     tags: [math]
     generator: plantQ
     lessonRef: { tab: math-code, id: single-rate }
@@ -60,11 +64,12 @@ templates:
         hint: Total overhead ÷ total machine hours.
       - prompt: Overhead assigned under the plantwide rate (₱)
         answer: { var: plantOH, tol: 0.5 }
-      - prompt: Difference, ABC minus plantwide (₱)
+      - prompt: By how much does the single plantwide rate undercost the job? (₱, as a positive amount)
         answer: { var: gap, tol: 0.5 }
+        hint: ABC overhead minus plantwide overhead.
     hints:
       - The two systems spread the same total; only the job's share differs.
-    explanation: 'ABC {=abcTotal|money}; plantwide {=plantOH|money} at ₱{=plantRate|2f} per MH; the single rate {=dirTxt} the job by {=absGap|money}.'
+    explanation: 'ABC {=abcTotal|money}; plantwide {=plantOH|money} at ₱{=plantRate|2f} per machine hour; the single rate {=dirTxt} the job by {=absGap|money}.'
 
   - id: pattern-multi
     type: multi
@@ -77,7 +82,7 @@ templates:
       - High-volume, simple products are overcosted
       - Low-volume, complex products are undercosted
       - Total overhead assigned is higher than under ABC
-      - Batch-level costs are spread evenly over all volume
+      - Batch-level costs are spread over units in proportion to volume, as if every unit caused them
     answer: [0, 1, 3]
     hints: [ABC changes the split, not the total.]
     explanation: Volume rates spread batch- and product-level costs over all units. The total overhead is the same in both systems.
@@ -91,10 +96,10 @@ templates:
     lessonRef: { tab: math-code, id: abc-rates }
     prompt: Put the three steps of activity-based costing in order.
     items:
-      - Identify the activities that cause costs (the cost drivers)
-      - Compute a predetermined activity rate for each driver
+      - Identify the activities and choose a cost driver for each
+      - Compute a predetermined activity rate for each activity cost pool
       - Sum the activity costs each product or job consumes
-    explanation: Identify, rate, assign (slide 21).
+    explanation: Identify, rate, assign.
 
   - id: design-order
     type: order
@@ -109,7 +114,7 @@ templates:
       - Choose a cause-and-effect driver for each pool
       - Divide each pool by its predicted driver level
       - Multiply each rate by the driver quantity a product uses
-    explanation: The design work (interviews, pools, drivers) comes first and is the hardest part; the arithmetic follows (slide 23).
+    explanation: The design work (interviews, pools, drivers) comes first and is the hardest part; the arithmetic follows.
 
   - id: rate-numeric
     type: numeric
@@ -130,14 +135,14 @@ templates:
     difficulty: 1
     tags: [term]
     lessonRef: { tab: math-code, id: abc-rates }
-    prompt: Match each term to its meaning (slide 79).
+    prompt: Match each term to its meaning.
     pairs:
       - ['Cost driver', 'What causes an activity''s cost to be incurred']
       - ['Activity cost pool', 'Overhead grouped by activity, not by account']
       - ['Activity rate', 'Budgeted pool cost ÷ predicted driver level']
       - ['Cost distortion', 'Systematic over- and undercosting from one rate']
       - ['Cross-subsidization', 'Simple products carrying complex products'' overhead']
-    explanation: These five terms carry the whole session.
+    explanation: These five terms carry the whole topic.
 
   - id: pool-mcq
     type: mcq
@@ -152,8 +157,12 @@ templates:
       - It is left out of ABC because it is not traceable
       - It is added to direct labor
     answer: 0
+    optionFeedback:
+      1: 'Direct labor hours would make it a volume-based pool again. ABC splits the account by the activities that use it.'
+      2: 'Overhead is never dropped: ABC regroups it by activity.'
+      3: 'Indirect labor is overhead by definition; it does not become direct labor.'
     hints: [Pools follow activities, not account titles.]
-    explanation: Overhead accounts are analyzed and regrouped by the activity that consumes them (slide 23).
+    explanation: Overhead accounts are analyzed and regrouped by the activity that consumes them.
 
   # ------------------------------------------------------------------ applying rates to a job
   - id: job-numeric
@@ -235,7 +244,7 @@ templates:
     hints:
       - Rate for each pool = cost ÷ total driver (both products).
       - Custom's overhead = Σ rate × Custom's use, then ÷ Custom's units.
-    explanation: 'Custom uses {=ohLo|money} of overhead: ${=ohLo|comma} \div {=unitsLo|comma} = ₱{=abcLo|2f}$, against ₱{=tradLo|2f} under the single ₱{=tradRate|2f} per-MH rate.'
+    explanation: 'Custom uses {=ohLo|money} of overhead: ${=ohLo|comma} \div {=unitsLo|comma} = ₱{=abcLo|2f}$, against ₱{=tradLo|2f} under the single rate of ₱{=tradRate|2f} per machine hour.'
 
   - id: compare-handcalc
     type: hand-calc
@@ -258,13 +267,11 @@ templates:
         answer: { var: tradLo, tol: 0.005 }
       - prompt: ABC overhead per Custom unit (₱)
         answer: { var: abcLo, tol: 0.005 }
-        misconceptions:
-          - { var: wrongTotalLo, feedback: 'Divide Custom''s total overhead by its units.' }
       - prompt: By how much per unit does the single rate undercost Custom (₱)?
         answer: { var: diffLo, tol: 0.005 }
     hints:
       - Work out both systems before comparing.
-    explanation: 'Plantwide ₱{=tradRate|2f}/MH gives Custom ₱{=tradLo|2f}; ABC gives ₱{=abcLo|2f}; undercosted by ₱{=diffLo|2f} per unit.'
+    explanation: 'Plantwide ₱{=tradRate|2f} per machine hour gives Custom ₱{=tradLo|2f}; ABC gives ₱{=abcLo|2f}; undercosted by ₱{=diffLo|2f} per unit.'
 
   - id: compare-fill
     type: schedule-fill
@@ -274,7 +281,7 @@ templates:
     generator: compareQ
     lessonRef: { tab: math-code, id: cross-subsidy }
     prompt: |
-      Standard: {=unitsHi|comma} units, {=mhHi|comma} MH. Custom: {=unitsLo|comma} units, {=mhLo|comma} MH. Overhead
+      Standard: {=unitsHi|comma} units, {=mhHi|comma} machine hours. Custom: {=unitsLo|comma} units, {=mhLo|comma} machine hours. Overhead
       {=totalOH|money}, traditionally applied per machine hour.
 
       | Pool | Cost | Driver | Standard | Custom |
@@ -297,7 +304,7 @@ templates:
     generator: distortQ
     lessonRef: { tab: math-code, id: spectrum }
     prompt: A product's overhead is ₱{=trad} per unit under the plantwide rate and ₱{=abc} under ABC. By what percent of its traditional cost is it distorted? (Answer in percent, e.g. 25 for 25%.)
-    answer: { var: pctTrad, tol: 0.1 }
+    answer: { var: pctTrad, tol: 0.1, percent: true }
     hints:
       - Difference ÷ traditional cost.
     explanation: 'It is {=dirTxt} by ₱{=absDiff}, which is ${=absDiff} \div {=trad} = {=pctTrad|1}\%$ of its traditional cost.'
@@ -315,6 +322,10 @@ templates:
       - The table is the most distorted because it sits in the middle
       - The cabinet is overcosted by ₱260
     answer: 0
+    optionFeedback:
+      1: 'The cabinet is undercosted: its ABC cost (₱500) is above its traditional ₱240.'
+      2: 'The table moves least, ₱2.50; the extremes move most.'
+      3: 'Traditional − ABC = 240 − 500 = −260, so the cabinet is undercosted, not overcosted.'
     hints: [Compute traditional − ABC for each.]
     explanation: Chair +₱25, Table +₱2.50, Cabinet −₱260 (undercosted). Distortion grows with distance from the average volume and complexity.
 
@@ -346,6 +357,10 @@ templates:
       - Low-volume products use more machine hours per unit
       - Setups are facility-level costs that cannot be assigned
     answer: 0
+    optionFeedback:
+      1: 'A setup happens once per batch, so it is batch-level; machine hours miss it.'
+      2: 'Low-volume products use fewer machine hours in total, which is why a machine-hour rate gives them so little overhead.'
+      3: 'Setups have a clear driver, the number of setups; they are batch-level.'
     hints: [What level does a setup belong to?]
     explanation: A setup happens once per batch. Spreading it by machine hours gives most of it to high-volume products.
 
@@ -362,8 +377,12 @@ templates:
       - Assign them all to the highest-volume product
       - Remove them from the income statement
     answer: 0
+    optionFeedback:
+      1: 'Labor hours are no more linked to rent than any other base; the allocation would be arbitrary.'
+      2: 'That would distort the highest-volume product, the opposite of what ABC is for.'
+      3: 'They are real costs and stay in the income statement, just outside product costs.'
     hints: [Arbitrary allocations reintroduce distortion.]
-    explanation: Facility-level costs often have no meaningful product driver; reporting them separately keeps product costs clean (slide 42).
+    explanation: Facility-level costs often have no meaningful product driver; reporting them separately keeps product costs clean.
 
   - id: level-multi
     type: multi
@@ -406,7 +425,7 @@ templates:
 
   - id: customer-numeric
     type: numeric
-    skills: [abc-services]
+    skills: [customer-profit]
     difficulty: 2
     tags: [math]
     generator: customerQ
@@ -423,13 +442,13 @@ templates:
       negative number.)
     answer: { var: loserProfit, tol: 0.5 }
     hints:
-      - Rates are ₱ per order and ₱ per delivery.
-      - Profit = gross margin − orders × rate − deliveries × rate.
+      - Order rate = order-processing cost ÷ total orders of all three customers; the delivery rate works the same way.
+      - Profit = gross margin − orders × order rate − deliveries × delivery rate.
     explanation: '{=loserName}: ${=loserGm|comma} - {=loserCost|comma} = {=loserProfit|money}$. By gross margin the order is {=rankGm}; by operating profit, {=rankProfit}.'
 
   - id: customer-fill
     type: schedule-fill
-    skills: [abc-services]
+    skills: [customer-profit]
     difficulty: 2
     tags: [journal]
     generator: customerQ
@@ -455,7 +474,7 @@ templates:
     difficulty: 1
     tags: [term]
     lessonRef: { tab: math-code, id: services }
-    prompt: Match each service activity to a sensible cost driver (slides 50–54).
+    prompt: Match each service activity to a sensible cost driver.
     pairs:
       - ['Bank loan origination', 'Number of loan applications processed']
       - ['Hotel housekeeping', 'Number of room turns']
@@ -470,15 +489,19 @@ templates:
     difficulty: 1
     tags: [application]
     lessonRef: { tab: intuition, id: worth-it }
-    prompt: Which company should adopt ABC?
+    prompt: Which company is most likely to benefit from ABC?
     options:
-      - A custom electronics assembler with 40+ variants, frequent changeovers and heavy inspection costs
-      - A single-product bottled-water plant with minimal overhead
-      - A two-person tailoring shop making one kind of shirt
-      - A plant that makes one product in identical batches
+      - A furniture maker with 60 made-to-order designs, frequent retooling and a large design team
+      - A rice mill that sells one grade of rice in 50-kg sacks
+      - A two-person bakery that bakes one kind of bread roll every morning
+      - An ice plant that makes one size of block in identical batches
     answer: 0
+    optionFeedback:
+      1: 'One grade sold one way leaves nothing to cross-subsidize.'
+      2: 'A single product made the same way each day gains nothing from more pools.'
+      3: 'Identical batches of one product mean every unit uses every activity alike.'
     hints: [Look for diversity and non-volume overhead.]
-    explanation: Example 8. Diversity and significant batch- and product-level overhead are what make ABC pay.
+    explanation: Diversity and significant batch- and product-level overhead (retooling, design work) are what make ABC pay. The other three make one product in the same way every time.
 
   - id: driver-mcq
     type: mcq
@@ -486,15 +509,19 @@ templates:
     difficulty: 2
     tags: [application]
     lessonRef: { tab: intuition, id: worth-it }
-    prompt: Material inspections are triggered by incoming shipments. Labor-hour data is already in payroll; shipment counts would need a new tracking process. Which driver should the inspection pool use?
+    prompt: A warehouse's receiving-dock cost rises with every truck that arrives to be unloaded. Machine-hour data is already in the system; truck counts would need a new log at the gate. Which driver should the receiving pool use?
     options:
-      - Number of shipments, because it causes the cost
-      - Direct labor hours, because the data is free
-      - Machine hours, as a compromise
-      - No driver; leave inspection unallocated
+      - Number of truck arrivals, because they cause the cost
+      - Machine hours, because the data is already collected
+      - Direct labor hours, as a compromise between the two
+      - No driver; leave receiving cost unallocated
     answer: 0
+    optionFeedback:
+      1: 'Convenient data that does not cause the cost brings back the distortion ABC was meant to remove.'
+      2: 'Labor hours don''t cause truck arrivals either; a compromise driver is still the wrong driver.'
+      3: 'The cost has a clear cause, so it can be assigned.'
     hints: [Cause and effect, or convenience?]
-    explanation: Example 11. A convenient but unrelated driver is "ABC in name, traditional costing in substance."
+    explanation: A convenient but unrelated driver is "ABC in name, traditional costing in substance." The cost of a gate log is small next to the distortion it prevents.
 
   - id: converge-mcq
     type: mcq
@@ -502,15 +529,19 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: math-code, id: adoption }
-    prompt: Iloilo Precision Tools makes one product in a continuous process with nearly constant batch sizes. What would ABC do to its unit cost?
+    prompt: A sugar refinery makes one grade of white sugar in a continuous process with nearly constant batch sizes. What would ABC do to its unit cost?
     options:
-      - Little; with one product there is nothing to cross-subsidize, so both methods converge
+      - Change it little, because every unit uses every activity alike
       - Raise it sharply, because setups would finally be counted
       - Lower it sharply, because batch costs would be removed
-      - Make it impossible to compute
+      - Make it impossible to compute without several products
     answer: 0
+    optionFeedback:
+      1: 'With one product, there is no other product for setups to be shifted from.'
+      2: 'Batch costs are still in the cost; with one product they simply all land on it.'
+      3: 'ABC works for one product; it just gives the same answer as the plantwide rate.'
     hints: [Cross-subsidization needs at least two products used differently.]
-    explanation: Example 13. ABC's value comes from diversity in overhead consumption, not from the technique itself.
+    explanation: With one product there is nothing to cross-subsidize, so ABC and a plantwide rate converge. ABC's value comes from diversity in overhead consumption, not from the technique itself.
 
   - id: limits-multi
     type: multi
@@ -518,7 +549,7 @@ templates:
     difficulty: 1
     tags: [term]
     lessonRef: { tab: math-code, id: adoption }
-    prompt: Which are genuine limitations of ABC (slide 61)? Select all that apply.
+    prompt: Which are genuine limitations of ABC? Select all that apply.
     options:
       - It is more expensive to design and maintain than a single rate
       - It needs data from interviews, time studies or activity logs
@@ -527,3 +558,251 @@ templates:
     answer: [0, 1, 2]
     hints: [ABC changes how overhead is split, not how much there is.]
     explanation: ABC costs more and still relies on estimates, but total overhead is the same under both systems.
+
+  # ------------------------------------------------------------------ level 3: integrative and transfer
+  - id: level-driver-match
+    type: match
+    skills: [cost-hierarchy]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: cost-hierarchy }
+    prompt: Match each pool's level in the cost hierarchy to a driver from that level.
+    pairs:
+      - ['Unit-level pool', 'Machine hours run']
+      - ['Batch-level pool', 'Number of setups']
+      - ['Product-level pool', 'Number of engineering change orders']
+      - ['Facility-level pool', 'No product driver; often left unallocated']
+    explanation: A good driver rises with the same thing the cost does, so it comes from the pool's own level. Facility-level costs usually have none.
+
+  - id: compare3-numeric
+    type: numeric
+    skills: [trad-vs-abc]
+    difficulty: 3
+    tags: [math]
+    generator: compareQ
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: |
+      A plant makes {=unitsHi|comma} Standard units ({=mhHi|comma} machine hours) and {=unitsLo|comma} Custom units
+      ({=mhLo|comma} machine hours). It has always applied overhead with one rate per machine hour. Overhead pools and
+      driver use:
+
+      | Pool | Cost | Driver | Standard | Custom |
+      |---|---|---|---|---|
+      {=table}
+
+      By how much **per Standard unit** does the single machine-hour rate overcost Standard?
+    answer: { var: diffHi, tol: 0.005 }
+    hints:
+      - Single rate = total overhead ÷ total machine hours; Standard's share = its machine hours × the rate ÷ its units.
+      - ABC = Σ (pool cost ÷ total driver) × Standard's use, ÷ Standard's units.
+      - Overcosting = single-rate overhead per unit − ABC overhead per unit.
+    explanation: 'The single ₱{=tradRate|2f} per machine hour gives Standard ₱{=tradHi|2f} a unit. ABC gives ${=ohHi|comma} \div {=unitsHi|comma} = ₱{=abcHi|2f}$. Standard is overcosted by ₱{=diffHi|2f} a unit, and Custom undercosted by ₱{=diffLo|2f}.'
+
+  - id: margin-handcalc
+    type: hand-calc
+    skills: [trad-vs-abc]
+    difficulty: 3
+    tags: [math]
+    generator: marginQ
+    lessonRef: { tab: math-code, id: caselets }
+    prompt: |
+      Standard: {=unitsHi|comma} units, {=mhHi|comma} machine hours. Custom: {=unitsLo|comma} units, {=mhLo|comma} machine
+      hours, direct costs ₱{=directLo} a unit, price ₱{=priceLo} a unit. Overhead ({=totalOH|money}) has been applied with
+      one rate per machine hour.
+
+      | Pool | Cost | Driver | Standard | Custom |
+      |---|---|---|---|---|
+      {=table}
+    steps:
+      - prompt: Plantwide rate per machine hour (₱)
+        answer: { var: tradRate, tol: 0.005 }
+      - prompt: Custom's full cost per unit under the single rate (₱)
+        answer: { var: tradFullLo, tol: 0.005 }
+        hint: Direct costs + machine hours × rate ÷ units.
+      - prompt: Custom's full cost per unit under ABC (₱)
+        answer: { var: abcFullLo, tol: 0.005 }
+        hint: Direct costs + Custom's ABC overhead ÷ its units.
+      - prompt: Custom's margin under ABC, as a percent of price, to one decimal place (%)
+        answer: { var: abcPct, tol: 0.06, percent: true }
+        hint: (Price − ABC full cost) ÷ price.
+    hints:
+      - Work out both full costs before the margin.
+    explanation: 'Single rate: full cost ₱{=tradFullLo|2f}, margin {=tradPct|1}%. ABC: full cost ₱{=abcFullLo|2f}, margin $({=priceLo} - {=abcFullLo|2f}) \div {=priceLo} = {=abcPct|1}\%$, {=dirTxt} than the single rate showed.'
+
+  - id: bid-numeric
+    type: numeric
+    skills: [apply-abc, trad-vs-abc]
+    difficulty: 3
+    tags: [application]
+    generator: bidQ
+    lessonRef: { tab: application, id: bid }
+    prompt: |
+      A plant has these overhead pools. The last column is what one customer's order would use.
+
+      | Pool | Budgeted cost | Predicted driver | The order uses |
+      |---|---|---|---|
+      {=table}
+
+      The order is for {=units|comma} units at ₱{=price|comma} each; direct materials and labor are ₱{=direct|comma} a unit.
+      Assume the order's setups and inspections are extra work it causes. Using ABC full cost, what is the order's profit
+      or loss **per unit**? (Enter a loss as a negative number.)
+    answer: { var: profitAbc, tol: 0.005 }
+    hints:
+      - Rate for each pool = budgeted cost ÷ predicted driver.
+      - Order overhead = Σ rate × the order's use; divide by its units and add the direct cost.
+      - Profit per unit = price − full cost per unit.
+    explanation: 'ABC overhead {=ohOrder|money} ÷ {=units|comma} units, plus ₱{=direct|comma} direct, gives a full cost of ₱{=abcFull|2f}: ₱{=price|comma} − ₱{=abcFull|2f} = ₱{=profitAbc|2f} a unit. The single ₱{=plantRate|2f} per machine hour would give a full cost of ₱{=tradFull|2f}. {=verdictTxt}'
+
+  - id: bid-handcalc
+    type: hand-calc
+    skills: [apply-abc, trad-vs-abc]
+    difficulty: 3
+    tags: [application]
+    generator: bidQ
+    lessonRef: { tab: application, id: bid }
+    prompt: |
+      Overhead pools, with what one customer's order would use:
+
+      | Pool | Budgeted cost | Predicted driver | The order uses |
+      |---|---|---|---|
+      {=table}
+
+      The order: {=units|comma} units at ₱{=price|comma} each, direct materials and labor ₱{=direct|comma} a unit. Its
+      setups and inspections are extra work it causes.
+    steps:
+      - prompt: ABC overhead for the whole order (₱)
+        answer: { var: ohOrder, tol: 0.5 }
+      - prompt: ABC full cost per unit (₱)
+        answer: { var: abcFull, tol: 0.005 }
+      - prompt: Full cost per unit with one plantwide rate per machine hour (₱)
+        answer: { var: tradFull, tol: 0.005 }
+        hint: Plantwide rate = total overhead ÷ total machine hours.
+      - prompt: Profit or loss on the whole order at the asked price, using ABC full cost (₱; a loss is negative)
+        answer: { var: totalProfit, tol: 0.5 }
+    hints:
+      - Cost the order both ways before deciding.
+    explanation: 'ABC overhead {=ohOrder|money} gives a full cost of ₱{=abcFull|2f} a unit, against ₱{=tradFull|2f} with the single rate. At ₱{=price|comma}: {=verdictTxt}'
+
+  - id: customer-handcalc
+    type: hand-calc
+    skills: [customer-profit]
+    difficulty: 3
+    tags: [math]
+    generator: customerQ
+    lessonRef: { tab: math-code, id: customers }
+    prompt: |
+      A distributor's order processing costs {=orderCost|money} for {=totalOrders|comma} orders and delivery
+      {=delCost|money} for {=totalDels|comma} deliveries.
+
+      | Customer | Gross margin | Orders | Deliveries |
+      |---|---|---|---|
+      {=table}
+    steps:
+      - prompt: Order-processing rate per order (₱)
+        answer: { var: oRate, tol: 0.005 }
+      - prompt: Delivery rate per delivery (₱)
+        answer: { var: dRate, tol: 0.005 }
+      - prompt: Cost to serve the one customer that loses money (₱)
+        answer: { var: loserCost, tol: 0.5 }
+        hint: Compute every customer's operating profit to find it.
+      - prompt: That customer's operating profit (₱; a loss is negative)
+        answer: { var: loserProfit, tol: 0.5 }
+    hints:
+      - Rates use the totals of all three customers.
+    explanation: '₱{=oRate} per order and ₱{=dRate} per delivery. {=loserName} costs ${=loserOrders|comma} \times {=oRate} + {=loserDels|comma} \times {=dRate} = {=loserCost|comma}$ to serve, so its operating profit is {=loserProfit|money}. By gross margin the order is {=rankGm}; by operating profit, {=rankProfit}.'
+
+  # ------------------------------------------------------------------ the workbook caselets, one per level
+  - id: caselet-simple-numeric
+    type: numeric
+    skills: [trad-vs-abc]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: caselets }
+    prompt: |
+      CleanWave Soap Works makes 500,000 bars of Regular Soap (10,000 direct labor hours) and 100,000 bars of Herbal
+      Premium Soap (3,000 direct labor hours). It has always applied overhead at one rate per direct labor hour. Its
+      overhead pools and driver use:
+
+      | Pool | Cost | Driver | Regular | Herbal |
+      |---|---|---|---|---|
+      | Machine setup | ₱300,000 | setups | 10 | 20 |
+      | Quality inspection | ₱350,000 | inspections | 10 | 40 |
+
+      Is the herbal bar as cheap to make as the labor-hour rate says? Find its **ABC overhead per bar**.
+    answer: { value: 4.8, tol: 0.005 }
+    misconceptions:
+      - { value: 1.5, feedback: 'That is the labor-hour rate''s figure: ₱650,000 ÷ 13,000 hours = ₱50 an hour, × 3,000 hours ÷ 100,000 bars. ABC charges Herbal for its setups and inspections.' }
+      - { value: 2, feedback: 'That is the setup pool alone (20 × ₱10,000 ÷ 100,000). Add Herbal''s share of the inspection pool.' }
+      - { value: 2.8, feedback: 'That is the inspection pool alone (40 × ₱7,000 ÷ 100,000). Add Herbal''s share of the setup pool.' }
+    hints:
+      - Each pool's rate = its cost ÷ the total driver of both products.
+      - Herbal's overhead = Σ rate × Herbal's use; divide by its 100,000 bars.
+    explanation: 'Rates: ₱300,000 ÷ 30 = ₱10,000 per setup and ₱350,000 ÷ 50 = ₱7,000 per inspection. Herbal uses $20 \times 10{,}000 + 40 \times 7{,}000 = ₱480{,}000$, or ₱4.80 a bar. The labor-hour rate gives it only ₱1.50, so the herbal bar is far dearer than it looked, and Regular is overcosted (₱1.00 a bar against ₱0.34 under ABC).'
+
+  - id: caselet-moderate-numeric
+    type: numeric
+    skills: [trad-vs-abc]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: caselets }
+    prompt: |
+      GoldenCrisp Biscuits has always applied overhead at one rate per machine hour.
+
+      | | Plain | Cream | Assorted Gift Pack |
+      |---|---|---|---|
+      | Units | 2,000,000 | 800,000 | 200,000 |
+      | Direct materials per unit | ₱2.00 | ₱2.80 | ₱5.50 |
+      | Direct labor per unit | ₱0.50 | ₱0.70 | ₱1.20 |
+      | Price per unit | ₱3.50 | ₱5.00 | ₱9.00 |
+
+      | Pool | Cost | Driver | Plain | Cream | Assorted |
+      |---|---|---|---|---|---|
+      | Machine running | ₱1,140,000 | machine hours | 2,000 | 1,200 | 600 |
+      | Setups | ₱480,000 | setups | 20 | 40 | 100 |
+      | Material handling | ₱320,000 | material moves | 40 | 80 | 200 |
+      | Packaging changeovers | ₱570,000 | changeovers | 10 | 30 | 150 |
+
+      Is the Assorted Gift Pack really profitable? Find its **full cost per unit under ABC** (direct materials and
+      labor plus ABC overhead).
+    answer: { value: 12.35, tol: 0.005 }
+    misconceptions:
+      - { value: 8.6816, feedback: 'That is the full cost with one machine-hour rate (₱2,510,000 ÷ 3,800 hours = ₱660.53 an hour). Use the four activity rates.' }
+      - { value: 5.65, feedback: 'That is the ABC overhead per pack only; add the ₱6.70 of direct materials and labor.' }
+      - { value: 6.7, feedback: 'That is direct materials and labor only; the pack''s ABC overhead is missing.' }
+    hints:
+      - Each pool's rate = its cost ÷ the total driver of all three products.
+      - The pack's overhead = Σ rate × its use, ÷ its 200,000 units.
+      - Full cost = direct materials + direct labor + overhead per unit.
+    explanation: 'Rates: ₱300 per machine hour, ₱3,000 per setup, ₱1,000 per move, ₱3,000 per changeover. The pack uses $600 \times 300 + 100 \times 3{,}000 + 200 \times 1{,}000 + 150 \times 3{,}000 = ₱1{,}130{,}000$, or ₱5.65 a unit. Full cost $= 5.50 + 1.20 + 5.65 = ₱12.35$ against a ₱9.00 price: it loses ₱3.35 a pack. The single machine-hour rate showed a full cost of ₱8.68 and a thin profit.'
+
+  - id: caselet-complex-numeric
+    type: numeric
+    skills: [trad-vs-abc]
+    difficulty: 3
+    tags: [math]
+    lessonRef: { tab: math-code, id: caselets }
+    prompt: |
+      Radiance Personal Care makes 1,000,000 units of Mass Shampoo, 300,000 of Premium Shampoo, 150,000 of Herbal
+      Conditioner and 5,000,000 Travel Sachets. It has always applied overhead at one rate per machine hour; the machine
+      hours are the filling-and-capping driver below.
+
+      | Pool | Cost | Driver | Mass | Premium | Conditioner | Sachets |
+      |---|---|---|---|---|---|---|
+      | Filling and capping | ₱1,175,000 | machine hours | 2,000 | 750 | 450 | 1,500 |
+      | Setup and changeover | ₱900,000 | batches | 20 | 30 | 30 | 10 |
+      | Quality testing | ₱450,000 | tests | 20 | 60 | 60 | 10 |
+      | Formula sustaining | ₱700,000 | formulas | 1 | 3 | 2 | 1 |
+      | Regulatory filing | ₱260,000 | filings | 2 | 4 | 6 | 1 |
+
+      Which product does the machine-hour rate flatter most, that is, undercost by the most per unit? Enter **that
+      product's undercosting per unit** as a positive amount (ABC overhead per unit − single-rate overhead per unit).
+    answer: { value: 3.8589, tol: 0.006 }
+    misconceptions:
+      - { value: 1.6379, feedback: 'That is Premium Shampoo''s undercosting. Another product is undercosted by more per unit.' }
+      - { value: -3.8589, feedback: 'Right product and size; enter the undercosting as a positive amount.' }
+      - { value: 0.583, feedback: 'That is Mass Shampoo''s gap, but the single rate overcosts it. Look for a product whose ABC cost is higher.' }
+    hints:
+      - Single rate = total overhead ÷ total machine hours; each product's share = its machine hours × the rate ÷ its units.
+      - ABC per unit = Σ (pool cost ÷ total driver) × the product's use, ÷ its units.
+      - Compare the two for every product; the undercosted ones have ABC above the single rate.
+    explanation: 'Single rate $= 3{,}485{,}000 \div 4{,}700 = ₱741.49$ per machine hour. Herbal Conditioner gets $450 \times 741.49 \div 150{,}000 = ₱2.22$ a unit; under ABC it uses $450 \times 250 + 30 \times 10{,}000 + 60 \times 3{,}000 + 2 \times 100{,}000 + 6 \times 20{,}000 = ₱912{,}500$, or ₱6.08 a unit. It is undercosted by ₱3.86, more than Premium Shampoo (₱1.64); Mass Shampoo and Travel Sachets are overcosted.'

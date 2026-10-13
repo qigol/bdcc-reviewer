@@ -1,13 +1,13 @@
 intro: |
   A model that is often right is not yet a model we can trust. Before it affects decisions about people, someone must
   check that it is right for reasons we would accept, explain single decisions to the people affected, and say plainly
-  what those explanations cannot claim. This case runs the whole Session 6–7 toolkit on one forest as a review before use.
+  what those explanations cannot claim. This case runs the whole toolkit of this module on one forest as a review before use.
 case:
   id: hospital-review
   title: Reviewing the tumour classifier before a pilot
   story: |
-    A provincial hospital wants to try the Session 6–7 random forest (300 trees, Breast Cancer Wisconsin, 1 = benign) as a
-    second opinion on biopsy measurements. You are asked for a short review: what does the model rely on, which way do its
+    A provincial hospital wants to try the lab notebooks' random forest (300 trees, Breast Cancer Wisconsin, 1 = benign) as
+    a second opinion on biopsy measurements. You are asked for a short review: what does the model rely on, which way do its
     features push, and how would we explain one patient's result to her doctor?
   data: [patient, bcimp, tumors, trees, lime, dice]
   state: { by: builtin, cls: 1 }
@@ -17,7 +17,7 @@ case:
     - { fn: pdpBoth, in: { tumors: '@tumors', trees: '@trees' }, out: pb }
     - { fn: additivity, in: { patient: '@patient', cls: '@cls' }, out: ad }
     - { fn: limeRank, in: { lime: '@lime' }, out: lr }
-    - { fn: diceCheck, in: { dice: '@dice' }, out: dc }
+    - { fn: diceCheck, in: { dice: '@dice', upTo: 4 }, out: dc }
   cells:
     - id: worth-it
       title: Is it worth interpreting?
@@ -36,13 +36,13 @@ case:
         prompt: The model is accurate. What is the review's central question now?
         type: mcq
         options:
-          - 'Is it accurate for reasons we would accept, or has it found a shortcut we would never accept?'
-          - 'Can we make it even more accurate?'
-          - 'Which explanation method gives the nicest plot?'
-          - 'None: accurate models need no review'
+          - 'Is it accurate for reasons we would accept, or did it find a shortcut?'
+          - 'Can we squeeze a little more accuracy out of it before the pilot?'
+          - 'Which explanation method draws the clearest plots for the report?'
+          - 'None: a model this accurate needs no further review'
         answer: 0
         model: |
-          That is the guiding question of this block (Session 10 deck). Accuracy says the model works on this test set.
+          That is the guiding question of this part of the course. Accuracy says the model works on this test set.
           Interpretation checks whether it works for reasons that will hold up and that we can defend.
     - id: what-it-relies-on
       title: What does it rely on?
@@ -61,7 +61,7 @@ case:
           bind: { value: by }
         - id: chart
           widget: Chart
-          props: { kind: bar, series: '@rk.series', title: 'Top 10 features · w. = worst, m. = mean, c.pts = concave points' }
+          props: { kind: bar, series: '@rk.series', title: 'Top 10 features · w. worst, m. mean; per perimeter, rad radius, tex texture, conc concavity, c.pts concave points, smo smoothness, fd fractal dimension' }
       decision:
         prompt: A colleague writes "worst perimeter increases benign probability by 14.6%". Correct it.
         type: open
@@ -81,10 +81,10 @@ case:
         prompt: Should we drop worst radius from the model because its permutation importance is about zero?
         type: mcq
         options:
-          - 'Not on that evidence: its twins cover for it when it alone is shuffled; shuffle the size group together first'
-          - 'Yes: permutation importance proves it is useless'
-          - 'Yes: a negative importance means it hurts the model'
-          - 'No: built-in importance is always right'
+          - 'Not on that evidence: its twins cover for it, so shuffle the size group together'
+          - 'Yes: an importance near zero proves it adds nothing to the model'
+          - 'Yes: a negative importance means it is hurting the model'
+          - 'No: its built-in rank of 5th settles the question for good'
         answer: 0
         model: |
           Built-in importance shares credit among twins; permutation importance can wipe it out, because the model still
@@ -92,8 +92,9 @@ case:
     - id: direction
       title: Which way does size push?
       say: |
-        A [[pdp|PDP]] gives every case the same value of one feature and averages P(benign). On the toy trees, setting
-        radius above the 14.5 question drops the average from 0.6 to 0.25; in the twin forest the step is half as tall.
+        A [[pdp|PDP]] gives every case the same value of one feature and averages P(benign). The notebook drew PDPs for
+        worst radius and worst concave points on the real forest. The forest cannot run here, so the toy trees stand in:
+        setting radius above the 14.5 question drops the average from 0.6 to 0.25; in the twin forest the step is half as tall.
       stage:
         - id: pdpc
           widget: Chart
@@ -102,10 +103,10 @@ case:
         prompt: 'The hospital''s quality officer reads the PDP as "shrinking a tumour makes it benign". Your reply?'
         type: mcq
         options:
-          - 'A PDP describes this model''s average output for forced inputs, some impossible; it is not a causal claim about tumours'
-          - 'Correct, that is what a downward slope means'
-          - 'Correct, but only for radii above 14.5'
-          - 'The PDP is wrong because it has a step'
+          - 'It shows this model''s average output for forced inputs, not a cause'
+          - 'Correct: a downward slope means that shrinking it helps'
+          - 'Correct, but only for tumours with a radius above 14.5'
+          - 'The PDP must be wrong, because real biology has no steps'
         answer: 0
         model: |
           The curve says "when this model sees a larger radius it gives a lower benign probability". It cannot support
@@ -113,8 +114,10 @@ case:
     - id: one-patient
       title: Explaining one patient
       say: |
-        Patient 205 is really malignant and predicted malignant, the least clear-cut such case: P(benign) {=patient.pBenign}.
-        For class {=cls}, baseline {=ad.base|4} plus contributions {=ad.sum|4} gives {=ad.fx|4}.
+        Patient 205 is really malignant and predicted malignant, the least clear-cut such case. For class {=cls}, baseline
+        {=ad.base|4} plus contributions {=ad.sum|4} gives {=ad.fx|4}. Her per-feature SHAP bars are not reproduced here, so
+        work with what is: her measurements and LIME's eight conditions (positive weight = towards benign). Her worst
+        texture is 20.24, so "worst texture ≤ 21.06" holds for her.
       stage:
         - id: cls
           widget: Choice
@@ -127,22 +130,33 @@ case:
         - id: add
           widget: Chart
           props: { kind: bar, series: '@ad.bars', yLabel: probability }
+        - id: feats
+          widget: Matrix
+          props: { data: '@patient.features', format: 4, title: 'Some of her measurements', rowHeader: feature }
         - id: lime-t
           widget: Matrix
           props: { data: '@lr.table', format: 4, title: 'LIME for the same patient (towards benign)' }
       decision:
-        prompt: SHAP and LIME rank this patient's features differently. What do you report?
-        type: open
+        prompt: 'Her doctor asks: "Do the explanations agree that her size and dent features point to cancer?" Using LIME''s table, what do you report?'
+        type: mcq
+        options:
+          - 'Only partly: perimeter and area point to malignant, concave points and mean radius to benign'
+          - 'Yes: every size and dent condition in LIME''s table points towards malignant'
+          - 'Yes: adding LIME''s weights to SHAP''s total gives her full explanation'
+          - 'No: LIME''s top condition, worst texture, proves the case is benign'
+          - 'Only partly: area points to benign, perimeter and concave points to malignant'
+        answer: 0
         model: |
-          Report both, with what each can claim. SHAP splits this prediction exactly (it adds up, but twins share credit).
-          LIME is a straight-line stand-in on ranges, on a different scale, and changes without a fixed seed. Where they agree
-          (size and dent features pushing towards malignant) we can speak with more confidence; where they disagree, that
-          disagreement itself tells us how much confidence the explanation deserves.
+          Read LIME by sign. Worst perimeter and worst area push towards malignant (−0.019, −0.015), but worst concave
+          points (+0.015) and mean radius (+0.022) push towards benign. SHAP's total (−0.2893) says the forest leans towards
+          malignant overall, but without her per-feature SHAP bars you cannot claim a feature-by-feature agreement. Compare
+          the two by order and sign only, report where they differ, and say confidence is limited there.
     - id: what-would-change
       title: What would have flipped it?
       say: |
-        DiCE found nearby cases the forest calls benign. Checking each one's geometry, {=dc.implausible|list} give two
-        different radii, one from perimeter and one from area.
+        DiCE found nearby cases the forest calls benign. Here are the first four, checked for geometry: {=dc.implausible|list}
+        each give two different radii, one from perimeter (P ÷ 2π) and one from area (√(A ÷ π)). The original's ratio is
+        {=dc.baseRatio|2}.
       stage:
         - id: dc-t
           widget: Matrix
@@ -154,19 +168,38 @@ case:
         prompt: Pick the sentence you could say to the clinician about cf2 (worst area 989.5 → 535.9).
         type: mcq
         options:
-          - '"Holding everything else fixed, this model would output benign if worst area were 536; that describes the model, not the tumour."'
-          - '"If the tumour shrank to an area of 536 it would be benign."'
-          - '"Reducing worst area to 536 is the recommended treatment target."'
-          - '"The patient is almost benign."'
+          - '"With everything else fixed, this model would say benign at an area of 536."'
+          - '"If the tumour shrank to an area of 536, it would become benign."'
+          - '"Reducing worst area to 536 is the treatment target we recommend."'
+          - '"The patient is almost benign, since a small change would flip her."'
         answer: 0
         model: |
           Valid is not plausible (area changed while perimeter did not), plausible is not actionable (nobody can set an
           area), and a counterfactual is never a cause. Say what the model would do, and nothing about the patient's body.
+    - id: check-cf5
+      title: Check one more counterfactual
+      say: |
+        The same DiCE run also returned cf5: worst perimeter 117.7 → 76.0, worst area unchanged at 989.5. The forest calls
+        it benign. Before anyone quotes it, check it the same way as the four above.
+      decision:
+        prompt: 'Using r = P ÷ 2π and r = √(A ÷ π), what is cf5''s perimeter-to-area radius ratio, and what follows?'
+        type: mcq
+        options:
+          - 'About 0.68, far from the original 1.06: valid but not plausible'
+          - 'About 1.47, far from the original 1.06: valid but not plausible'
+          - 'About 1.06, the same as the original: valid and plausible'
+          - 'About 0.68, close enough to 1: valid and plausible'
+        answer: 0
+        model: |
+          76.0 ÷ 2π = 12.10 and √(989.5 ÷ π) = 17.75, so the ratio is 12.10 ÷ 17.75 = 0.68 (1.47 is the ratio upside down).
+          The original tumour gives 1.06, so cf5 asks for a perimeter that no tumour of that area could have. It flips the
+          model, but it describes no real patient.
 atScale:
   title: Interpretability on real systems
   body: |
     **SHAP on big data.** TreeExplainer is exact and fast for tree models, so it runs on millions of rows; LightGBM and
-    XGBoost can return SHAP values themselves (`pred_contrib=True`). For models that are not trees (KernelSHAP), use a
+    XGBoost can return SHAP values themselves (`pred_contrib=True`). Theirs are on the **log-odds** scale, log(P ÷ (1 − P)),
+    so they add up to the model's raw score before it is turned into a probability, not to P itself. For models that are not trees (KernelSHAP), use a
     small background set (100–1,000 rows), because the cost grows with background size × rows explained.
 
     **Permutation importance** retrains nothing but re-scores the whole test set (number of features × repeats) times.

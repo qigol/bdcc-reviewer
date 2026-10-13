@@ -40,7 +40,8 @@ export default function Matrix({ props, cmds, marks, ctx, bind, emit, isBound }:
   const means = values0.map((r) => { const o = (r ?? []).filter(isNum); return o.length ? o.reduce((a, b) => a + b, 0) / o.length : NaN; });
   // cell value after fills and centering (in original orientation)
   const valueAt = (i: number, j: number): { v: Cell; filled: boolean } => {
-    const k = `${rowsL[i]},${colsL[j]}`;
+    // fill keys are stored without whitespace, so look them up the same way
+    const k = `${rowsL[i]},${colsL[j]}`.replace(/\s/g, '');
     if (k in fills) return { v: centered && isNum(fills[k]) ? fills[k] - (Number.isFinite(means[i]) ? means[i] : 0) : fills[k], filled: true };
     const raw = values0[i]?.[j] ?? null;
     if (centered && isNum(raw) && Number.isFinite(means[i])) return { v: raw - means[i], filled: false };
