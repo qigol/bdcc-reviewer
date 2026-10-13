@@ -3,7 +3,7 @@ sections:
     title: Job-order or process costing, side by side
     skills: [cost-systems]
     summary: |
-      Both systems assign the same three costs (DM, DL, overhead). [[job-order-costing|Job-order costing]] accumulates them by
+      Both systems assign the same three costs (materials, labor and overhead). [[job-order-costing|Job-order costing]] accumulates them by
       job and divides by the units in that job; [[process-costing|process costing]] accumulates them by department and
       divides by the department's output for the period.
     keyFormula: '\text{Unit cost}_{\text{job}} = \frac{\text{cost of the job}}{\text{units in the job}} \quad \text{vs} \quad \text{Unit cost}_{\text{process}} = \frac{\text{department cost for the period}}{\text{units produced}}'
@@ -13,7 +13,7 @@ sections:
         say: The division is the same in both systems. What differs is where the cost is collected.
       - tex: |
           \begin{aligned}
-          \text{Job-order} &: \tfrac{\text{Job 105's ₱289.00}}{30 \text{ units}} = \text{₱}9.63 \\
+          \text{Job-order} &: \tfrac{\text{one fishing vessel's cost}}{1 \text{ vessel}} \\
           \text{Process} &: \tfrac{\text{a department's month}}{\text{all units it made}}
           \end{aligned}
         say: A job's own cost sheet gives its own unit cost; a process gives an average for every identical unit.
@@ -25,7 +25,7 @@ sections:
           \end{aligned}
         say: The key document follows from the cost unit.
     journal:
-      title: The fundamental choice (slides 11–12)
+      title: The fundamental choice
       blocks:
         - kind: schedule
           title: Job-order vs process costing
@@ -46,11 +46,11 @@ sections:
 
   - id: job-cost-sheet
     title: The job cost sheet, from source documents to a price
-    skills: [job-cost-sheet]
+    skills: [job-cost-sheet, pohr, cost-flow]
     summary: |
-      A [[job-cost-sheet|job cost sheet]] adds three costs for one job: direct materials from requisitions, direct labor from time
-      tickets, and [[applied-overhead|overhead applied]] at the predetermined rate. Each piece is a debit to Work in Process.
-      A markup on the total gives the quote.
+      A [[job-cost-sheet|job cost sheet]] adds three costs for one job: [[direct-materials|direct materials]] from requisitions,
+      [[direct-labor|direct labor]] from time tickets, and [[applied-overhead|overhead applied]] at the predetermined rate.
+      Each piece is a [[debit]] to [[work-in-process|Work in Process]]. A markup on the total gives the quote.
     keyFormula: '\text{Job cost} = \text{DM} + \text{DL} + \text{POHR} \times \text{DLH}_{\text{job}}, \quad \text{Price} = \text{Job cost} \times (1 + m)'
     data: [chiphard]
     state: { markup: 0.4 }
@@ -65,7 +65,7 @@ sections:
             - { label: Quoted price, value: '{=js.price|money}', tone: good }
       - id: markup-in
         widget: Slider
-        props: { label: Markup on cost, min: 0, max: 1, step: 0.05, format: 2 }
+        props: { label: Markup on cost, min: 0, max: 1, step: 0.05, format: pct }
         bind: { value: markup }
     steps:
       - tex: |
@@ -111,7 +111,7 @@ sections:
 
   - id: pohr
     title: The predetermined overhead rate and applied overhead
-    skills: [pohr]
+    skills: [pohr, cost-flow]
     summary: |
       The [[predetermined-overhead-rate|predetermined overhead rate]] is budgeted overhead ÷ budgeted activity, set before the year begins. A job
       receives [[applied-overhead|applied overhead]] equal to that rate times the activity it actually used. This is
@@ -157,13 +157,56 @@ sections:
       - Writing the rate upside down (hours ÷ pesos). Keep the unit with the number, e.g. ₱60 per DLH.
     examTip: Write the base next to the rate (₱60/DLH, 150% of DL cost, ₱7.50/MH); it tells you what to multiply.
 
+  - id: cost-flow
+    title: The full cost flow, from raw materials to Cost of Goods Sold
+    skills: [cost-flow]
+    summary: |
+      Materials are bought into [[raw-materials-inventory]]. A job's DM, DL and applied overhead are debited to
+      [[work-in-process]]. When it is finished its cost moves to [[finished-goods]], and when it is sold to
+      [[cost-of-goods-sold]]. Until the sale the cost is an asset, a [[product-cost|product cost]].
+    keyFormula: '\text{Raw Materials} \rightarrow \text{WIP} \rightarrow \text{Finished Goods} \rightarrow \text{COGS}'
+    state: { dm: 75500, dl: 10400, oh: 6500, price: 185000 }
+    derive:
+      - { fn: costFlow, in: { dm: '@dm', dl: '@dl', oh: '@oh', price: '@price' }, out: cf }
+    steps:
+      - tex: |
+          \anchor{total}{\text{Job cost}} = \anchor{dm}{\text{DM}} + \anchor{dl}{\text{DL}} + \anchor{oh}{\text{Applied OH}}
+        say: Three debits to Work in Process build the job's cost.
+      - tex: |
+          \anchor{total}{ {=cf.total|comma} } = \anchor{dm}{ {=dm|comma} } + \anchor{dl}{ {=dl|comma} } + \anchor{oh}{ {=oh|comma} }
+        say: 'Bulacan Prints & Fab, fiesta tarpaulin and steel-frame job.'
+      - tex: |
+          \anchor{gm}{\text{Gross margin}} = {=price|comma} - {=cf.total|comma} = {=cf.gm|comma}
+        say: 'Completed and sold this month: {=cf.margin|pct1} of the price is margin.'
+    journal:
+      title: Bulacan Prints & Fab
+      blocks:
+        - { kind: schedule, title: The job, rows: '@cf.rows' }
+        - { kind: entries, title: Journal entries across the cost flow, entries: '@cf.entries' }
+        - { kind: taccounts, title: Where the cost sits, accounts: '@cf.accounts' }
+    links:
+      - { anchor: dm, label: Direct materials }
+      - { anchor: dl, label: Direct labor }
+      - { anchor: oh, label: Applied overhead }
+      - { anchor: total, label: Job cost moved along the flow }
+      - { anchor: gm, label: Gross margin }
+    trace: { fn: costFlow, in: { dm: '@dm', dl: '@dl', oh: '@oh', price: '@price' } }
+    examples: [bulacan-flow, bulacan-walk]
+    tryIt: [flow-je, flow-numeric, flow-chain-handcalc]
+    pitfalls:
+      - Expensing the job when it is finished. Cost stays an asset in Finished Goods until the job is **sold**.
+      - Crediting Cash for applied overhead. Applied overhead is credited to Factory Overhead.
+      - 'Expecting a different account name. The lecture''s entry table credits "Factory Overhead Applied" for applied overhead; this module uses the single Factory Overhead account, which is cleared at year end. The cost-flows module calls it Manufacturing Overhead. All three describe the same mechanics.'
+    examTip: 'Every entry debits the account the cost moves into and credits where it came from: the supplier, the storeroom, wages owed, Factory Overhead, then the previous inventory account.'
+
   - id: under-over
     title: Under- and overapplied overhead and the closing entry
     skills: [over-under]
     summary: |
       At year end compare actual overhead with applied overhead. If applied is less, overhead is
-      [[underapplied-overhead|underapplied]]; if more, [[overapplied-overhead|overapplied]]. An immaterial difference is closed
-      to Cost of Goods Sold, which brings Factory Overhead to zero.
+      [[underapplied-overhead|underapplied]]; if more, [[overapplied-overhead|overapplied]]. The gap is the balance left in
+      the [[factory-overhead|Factory Overhead]] account. An [[materiality|immaterial]] gap is closed to Cost of Goods Sold,
+      which brings that account to zero.
     keyFormula: '\text{Under}(\text{over})\text{applied} = \text{Actual OH} - \text{POHR} \times \text{actual activity}'
     state: { actualOH: 4650000, rate: 150, actualBase: 29500 }
     derive:
@@ -178,11 +221,16 @@ sections:
       - tex: |
           \anchor{diff}{ {=oc.diff|comma} } = \anchor{actual}{ {=actualOH|comma} } - \anchor{applied}{ {=oc.applied|comma} }
         say: 'Pampanga Metal Works: {=oc.kind} by {=oc.amt|money}, so COGS {=oc.cogsEffect}.'
+      - tex: |
+          \text{Factory Overhead} = \underbrace{\anchor{actual}{ {=actualOH|comma} }}_{\text{debits: actual}} - \underbrace{\anchor{applied}{ {=oc.applied|comma} }}_{\text{credits: applied}}
+        say: In the ledger the gap is the account's leftover balance. The closing entry posts it to the other side, so Factory Overhead ends at zero.
     journal:
       title: Pampanga Metal Works, year end
       blocks:
+        - { kind: entries, title: Actual overhead during the year (summarized), entries: '@oc.actualEntries' }
         - { kind: schedule, title: Actual vs applied overhead, rows: '@oc.rows' }
         - { kind: entries, title: Closing entry (immaterial case), entries: '@oc.entries' }
+        - { kind: taccounts, title: Factory Overhead after the close, accounts: '@oc.closedAccounts' }
     links:
       - { anchor: actual, label: Actual overhead, say: The debits that piled up in Factory Overhead during the year. }
       - { anchor: applied, label: Applied overhead, say: The credits to Factory Overhead as jobs were charged. }
@@ -195,7 +243,7 @@ sections:
       - Using budgeted activity to compute applied overhead. Applied = rate × **actual** activity.
     examTip: Think from the jobs' side. Underapplied means the jobs were undercharged, so COGS must go up.
     errata:
-      - 'Slide 34 lists Company Y''s budget as ₱160,000 of overhead on ₱160,000 of direct labor cost, which is 100%, yet states and uses a rate of 150%. The module follows the solution''s 150%.'
+      - 'If you''re reading the slides: Company Y''s budget is printed as ₱160,000 of overhead on ₱160,000 of direct labor cost, which is 100%, yet the rate stated and used is 150%. The module follows the solution''s 150%.'
 
   - id: proration
     title: Prorating a material amount across WIP, Finished Goods and COGS
@@ -243,6 +291,7 @@ sections:
     pitfalls:
       - Splitting the amount equally. The weights are each account's applied overhead.
       - Getting the direction backwards. Overapplied means every account carries too much, so all three decrease.
+      - 'Mixing up bases. The cost-flows module spreads over- or underapplied overhead by ending balances; this module prorates by the applied overhead in each account, which is more precise. Both are accepted methods: use the one the problem gives.'
     examTip: Check that the three adjustments add back to the full difference before you write the entry.
 
   - id: dept-rates
@@ -275,7 +324,7 @@ sections:
         say: 'Job 105 costs {=dj.total|money2}, or {=dj.unit|money2} for each of its 30 units.'
       - tex: |
           \anchor{plant-oh}{ {=dj.plantOH|2f} } = 61 \times 180\%, \quad \anchor{plant-total}{ {=dj.plantTotal|2f} } = 75 + 61 + {=dj.plantOH|2f}
-        say: 'One plantwide rate: (72,000 + 75,000) ÷ (64,000 + 17,500) ≈ 180% of DL cost, as the slide rounds it.'
+        say: 'One plantwide rate pools both budgets: (72,000 + 75,000) ÷ (64,000 + 17,500) = 180.4% of DL cost, rounded to 180% in the worked example.'
       - tex: |
           \anchor{gap}{ {=dj.gap|2f} } = {=dj.total|2f} - {=dj.plantTotal|2f}
         say: The plantwide rate understates this machine-heavy job.
@@ -294,52 +343,11 @@ sections:
       - { anchor: gap, label: The distortion }
     trace: { fn: deptJob, in: { budget: '@job105.budget', a: '@job105.a', b: '@job105.b', units: '@job105.units', plantRate: '@job105.plantRate' } }
     examples: [dept-rates, job-105-dept, job-105-walk]
-    tryIt: [dept-handcalc, dept-numeric]
+    tryIt: [dept-handcalc, dept-rates-handcalc, dept-numeric]
     pitfalls:
       - Applying Department B's per-machine-hour rate to labor pesos. Each department keeps its own base.
       - Forgetting the unit cost. Divide the job's total by its units (₱289.00 ÷ 30 = ₱9.63).
     examTip: Build a three-column table (Dept. A, Dept. B, Total); totals across and down must agree.
-
-  - id: cost-flow
-    title: The full cost flow, from raw materials to Cost of Goods Sold
-    skills: [cost-flow]
-    summary: |
-      A job's DM, DL and applied overhead are debited to [[work-in-process]]. When it is finished its cost moves to
-      [[finished-goods]], and when it is sold to [[cost-of-goods-sold]]. Until the sale the cost is an asset, a
-      [[product-cost|product cost]].
-    keyFormula: '\text{Raw Materials} \rightarrow \text{WIP} \rightarrow \text{Finished Goods} \rightarrow \text{COGS}'
-    state: { dm: 75500, dl: 10400, oh: 6500, price: 185000 }
-    derive:
-      - { fn: costFlow, in: { dm: '@dm', dl: '@dl', oh: '@oh', price: '@price' }, out: cf }
-    steps:
-      - tex: |
-          \anchor{total}{\text{Job cost}} = \anchor{dm}{\text{DM}} + \anchor{dl}{\text{DL}} + \anchor{oh}{\text{Applied OH}}
-        say: Three debits to Work in Process build the job's cost.
-      - tex: |
-          \anchor{total}{ {=cf.total|comma} } = \anchor{dm}{ {=dm|comma} } + \anchor{dl}{ {=dl|comma} } + \anchor{oh}{ {=oh|comma} }
-        say: 'Bulacan Prints & Fab, fiesta tarpaulin and steel-frame job.'
-      - tex: |
-          \anchor{gm}{\text{Gross margin}} = {=price|comma} - {=cf.total|comma} = {=cf.gm|comma}
-        say: 'Completed and sold this month: {=cf.margin|pct1} of the price is margin.'
-    journal:
-      title: Bulacan Prints & Fab
-      blocks:
-        - { kind: schedule, title: The job, rows: '@cf.rows' }
-        - { kind: entries, title: Journal entries across the cost flow, entries: '@cf.entries' }
-        - { kind: taccounts, title: Where the cost sits, accounts: '@cf.accounts' }
-    links:
-      - { anchor: dm, label: Direct materials }
-      - { anchor: dl, label: Direct labor }
-      - { anchor: oh, label: Applied overhead }
-      - { anchor: total, label: Job cost moved along the flow }
-      - { anchor: gm, label: Gross margin }
-    trace: { fn: costFlow, in: { dm: '@dm', dl: '@dl', oh: '@oh', price: '@price' } }
-    examples: [bulacan-flow, bulacan-walk]
-    tryIt: [flow-je, flow-numeric]
-    pitfalls:
-      - Expensing the job when it is finished. Cost stays an asset in Finished Goods until the job is **sold**.
-      - Crediting Cash for applied overhead. Applied overhead is credited to Factory Overhead.
-    examTip: Every entry in the flow debits the next account and credits the previous one, for the same amount.
 
   - id: cogm
     title: Several jobs at once, COGM, ending WIP, COGS and ending Finished Goods
@@ -383,7 +391,7 @@ sections:
       - { anchor: cogs, label: COGS }
     trace: { fn: jobsCogm, in: { jobs: '@cabinetry.jobs', begFG: '@cabinetry.begFG' } }
     examples: [cabinetry-cogm, cabinetry-walk]
-    tryIt: [cogm-fill, cogm-numeric]
+    tryIt: [cogm-fill, cogm-numeric, cogs-close-handcalc]
     pitfalls:
       - Putting the in-process job into COGM. Only completed jobs count.
       - Leaving beginning Finished Goods out of COGS when it was sold this period.
@@ -391,12 +399,12 @@ sections:
 
   - id: engagement
     title: Service jobs and job profitability after the fact
-    skills: [job-cost-sheet]
+    skills: [service-jobs]
     summary: |
       Job-order costing works the same for services: professional hours are direct labor, fees paid for the client are
-      direct costs, and firm overhead is applied with a rate. Comparing the finished cost sheet with the quote shows
-      whether the job really made money.
-    keyFormula: '\text{Engagement cost} = \textstyle\sum \text{hours} \times \text{rate} + \text{direct costs} + r \times \text{professional labor}'
+      direct costs, and firm overhead is applied with a rate (a percentage of professional labor). Comparing the
+      finished cost sheet with the quote shows whether the job really made money.
+    keyFormula: '\text{Engagement cost} = \textstyle\sum \text{hours} \times \text{hourly rate} + \text{direct costs} + \text{OH\%} \times \text{professional labor}'
     data: [allenby, marikina]
     derive:
       - { fn: engagement, in: { staff: '@allenby.staff', direct: '@allenby.direct', ohPct: '@allenby.ohPct' }, out: eg }
@@ -438,5 +446,5 @@ sections:
       - Comparing a markup on cost with a margin on price. Put both on the same base before you compare.
     examTip: Profit margin = profit ÷ price; markup = profit ÷ cost. Say which one you are reporting.
     errata:
-      - 'Slide 73 compares an actual 18.7% margin on price with a "25% margin" that is really a 25% markup on the ₱120,000 estimated cost. On price, the quote planned ₱30,000 ÷ ₱150,000 = 20%, so the margin fell from 20.0% to 18.7%.'
-      - 'Slide 73 also implies estimated overhead of ₱30,000 (₱120,000 − ₱50,000 − ₱40,000) against ₱22,000 applied, so the net overrun is only ₱2,000 (+₱8,000 DM, +₱2,000 DL, −₱8,000 OH), not "almost entirely" materials.'
+      - 'If you''re reading the slides: the Marikina example compares an actual 18.7% margin on price with a "25% margin" that is really a 25% markup on the ₱120,000 estimated cost. On price, the quote planned ₱30,000 ÷ ₱150,000 = 20%, so the margin fell from 20.0% to 18.7%.'
+      - 'The same example implies estimated overhead of ₱30,000 (₱120,000 − ₱50,000 − ₱40,000) against ₱22,000 applied, so the net overrun is only ₱2,000 (+₱8,000 DM, +₱2,000 DL, −₱8,000 OH), not "almost entirely" materials.'

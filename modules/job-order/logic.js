@@ -49,17 +49,23 @@ export default function register(sdk) {
     });
   }
   function keysOf(s) { return s.reveal ?? (s.row ? [s.row] : []); }
+  // Rows may carry `plain`: the label without its arithmetic or rates, shown until the row is fully revealed, so a
+  // label like "Applied overhead: 320 DLH × ₱4.50" can't give away a number a predict gate is about to ask for.
+  const dropPlain = (r) => { const { plain, ...rest } = r; return rest; };
+  const dropPlainAll = (rows) => rows.map(dropPlain);
   // Blank out the cells that later steps compute; null cells stay empty in a Schedule.
   function reveal(rows, steps, upTo) {
-    if (upTo === undefined || upTo === null) return rows;
+    if (upTo === undefined || upTo === null) return dropPlainAll(rows);
     const pending = new Set();
     steps.forEach((s, i) => { if (i >= upTo) keysOf(s).forEach((k) => pending.add(k)); });
     steps.slice(0, upTo).forEach((s) => keysOf(s).forEach((k) => pending.delete(k)));
+    const rowPending = (id) => pending.has(id) || [...pending].some((k) => k.startsWith(`${id}:`));
     return rows.map((r) => {
-      if (!r.id) return r;
-      const out = { ...r };
+      if (!r.id) return dropPlain(r);
+      const out = dropPlain(r);
       if (Array.isArray(out.amounts)) out.amounts = out.amounts.map((v, j) => (pending.has(r.id) || pending.has(`${r.id}:${j}`) ? null : v));
       else if ('amount' in out && pending.has(r.id)) out.amount = null;
+      if (r.plain && rowPending(r.id)) out.label = r.plain;
       return out;
     });
   }
@@ -84,9 +90,9 @@ export default function register(sdk) {
       { id: 'dl-head', label: 'Direct labor (time tickets)', style: 'heading' },
       ...labor.map((t, i) => ({ id: `tt-${i + 1}`, label: `${t.week}: ${C(t.hours)} h × ${P2(t.wage)}`, amount: dlParts[i], indent: 1, anchor: 'dl' })),
       { id: 'dl', label: 'Total direct labor', amount: dl, style: 'subtotal', anchor: 'dl' },
-      { id: 'oh', label: `Applied overhead: ${C(hours)} DLH × ${P2(rate)}`, amount: oh, anchor: 'oh' },
+      { id: 'oh', label: `Applied overhead: ${C(hours)} DLH × ${P2(rate)}`, plain: 'Applied overhead', amount: oh, anchor: 'oh' },
       { id: 'total', label: 'Total job cost', amount: total, style: 'total', anchor: 'total' },
-      { id: 'markup', label: `Markup: ${PCT(markup)} of cost`, amount: markupAmt, indent: 1, anchor: 'price' },
+      { id: 'markup', label: `Markup: ${PCT(markup)} of cost`, plain: 'Markup on cost', amount: markupAmt, indent: 1, anchor: 'price' },
       { id: 'price', label: 'Sales price', amount: price, style: 'total', anchor: 'price' },
     ];
     const steps = [
@@ -109,7 +115,7 @@ export default function register(sdk) {
   function jobSheet(args) {
     const r = jobSheetCore(args);
     return clean({ dm: r.dm, dl: r.dl, hours: r.hours, oh: r.oh, total: r.total, markupAmt: r.markupAmt, price: r.price,
-      rows: r.rows, entries: r.entries, steps: r.steps.length, trace: toTrace(r.steps) });
+      rows: dropPlainAll(r.rows), entries: r.entries, steps: r.steps.length, trace: toTrace(r.steps) });
   }
   function jobSheetSheet(args) {
     const r = jobSheetCore(args);
@@ -134,8 +140,8 @@ export default function register(sdk) {
       { id: 'rate', label: '= POHR per direct labor hour', amount: rate, style: 'total', anchor: 'rate' },
       { id: 'job-head', label: 'The job', style: 'heading' },
       { id: 'dm', label: 'Direct materials', amount: dm, indent: 1, anchor: 'dm' },
-      { id: 'dl', label: `Direct labor: ${C(hours)} h × ${P(wage)}`, amount: dl, indent: 1, anchor: 'dl' },
-      { id: 'oh', label: `Applied overhead: ${C(hours)} h × ${P2(rate)}`, amount: oh, indent: 1, anchor: 'applied' },
+      { id: 'dl', label: `Direct labor: ${C(hours)} h × ${P(wage)}`, plain: 'Direct labor', amount: dl, indent: 1, anchor: 'dl' },
+      { id: 'oh', label: `Applied overhead: ${C(hours)} h × ${P2(rate)}`, plain: 'Applied overhead', amount: oh, indent: 1, anchor: 'applied' },
       { id: 'total', label: 'Total job cost', amount: total, style: 'total', anchor: 'total' },
     ];
     const steps = [
@@ -152,7 +158,7 @@ export default function register(sdk) {
   }
   function pohr(args) {
     const r = pohrCore(args);
-    return clean({ rate: r.rate, dl: r.dl, oh: r.oh, total: r.total, rows: r.rows, entries: r.entries, trace: toTrace(r.steps) });
+    return clean({ rate: r.rate, dl: r.dl, oh: r.oh, total: r.total, rows: dropPlainAll(r.rows), entries: r.entries, trace: toTrace(r.steps) });
   }
   // Just the rate, for sliders (no job).
   function rateOnly({ budgetOH, budgetBase }) {
@@ -200,10 +206,20 @@ export default function register(sdk) {
       { row: 'diff', math: 'diff', label: `${C(actualOH)} − ${C(applied)}: ${kindTxt} by ${P(amt)}`, vars: { diff }, tone: under ? 'bad' : 'good' },
       { entry: 'close', code: 'diff', math: 'diff', label: under ? 'Underapplied → debit COGS, credit Factory Overhead' : 'Overapplied → debit Factory Overhead, credit COGS', vars: { cogsChange: under ? amt : -amt }, tone: 'good' },
     ];
+    // The Factory Overhead control account: actual bills are debited as they arrive, applied overhead is credited as
+    // jobs are charged, and the closing entry posts the difference to the opposite side so the balance ends at zero.
+    const fohAccount = (closed) => ({
+      id: 'foh', name: AC.foh,
+      debits: [{ amount: actualOH, ref: 'actual' }, ...(closed && !under && amt ? [{ amount: amt, ref: 'close' }] : [])],
+      credits: [{ amount: applied, ref: 'applied' }, ...(closed && under && amt ? [{ amount: amt, ref: 'close' }] : [])],
+    });
     return clean({
       applied, actualOH, diff, amt, under, kind: kindTxt,
       cogsEffect: under ? 'increases' : 'decreases',
       rows,
+      actualEntries: [{ id: 'actual', date: 'Jan–Dec', memo: 'Actual overhead bills (rent, power, supervision), summarized as one entry', lines: [line(AC.foh, 'dr', actualOH, 'actual'), line(AC.ap, 'cr', actualOH, 'actual')] }],
+      accounts: [fohAccount(false)],
+      closedAccounts: [fohAccount(true)],
       entries: [{ id: 'close', date: 'Dec 31', memo: under ? 'Close the shortfall: COGS goes up.' : 'Remove the excess: COGS goes down.', lines }],
       trace: toTrace(steps),
     });
@@ -225,10 +241,12 @@ export default function register(sdk) {
   }
 
   // Scene view: one company at a time (x, y or Pampanga p).
-  function pickCompany({ twoco, pampanga, which }) {
-    if (which === 'p') return overheadClose({ actualOH: pampanga.actualOH, rate: pampanga.budgetOH / pampanga.budgetDLH, actualBase: pampanga.actualDLH, baseName: 'actual DLH' });
-    const c = which === 'y' ? twoco.y : twoco.x;
-    return overheadClose({ actualOH: c.actualOH, rate: c.rate, actualBase: c.actualBase, kind: c.kind, baseName: 'machine hours' });
+  // `closed` shows the Factory Overhead T-account after the closing posting.
+  function pickCompany({ twoco, pampanga, which, closed = false }) {
+    const r = which === 'p'
+      ? overheadClose({ actualOH: pampanga.actualOH, rate: pampanga.budgetOH / pampanga.budgetDLH, actualBase: pampanga.actualDLH, baseName: 'actual DLH' })
+      : (() => { const c = which === 'y' ? twoco.y : twoco.x; return overheadClose({ actualOH: c.actualOH, rate: c.rate, actualBase: c.actualBase, kind: c.kind, baseName: 'machine hours' }); })();
+    return clean({ ...r, fohAccounts: closed ? r.closedAccounts : r.accounts });
   }
 
   // ------------------------------------------------------------------ proration (Cavite, slide 44)
@@ -243,7 +261,7 @@ export default function register(sdk) {
     const over = kind === 'over';
     const dir = over ? 'Decrease' : 'Increase';
     const rows = [
-      ...accts.map((a) => ({ id: a.id, label: `${a.name} (${PCT(a.share)} of total)`, amounts: [a.bal, a.adj], anchor: 'share' })),
+      ...accts.map((a) => ({ id: a.id, label: `${a.name} (${PCT(a.share)} of total)`, plain: a.name, amounts: [a.bal, a.adj], anchor: 'share' })),
       { id: 'total', label: 'Total', amounts: [total, amount], style: 'total', anchor: 'total' },
     ];
     const lines = over
@@ -265,7 +283,7 @@ export default function register(sdk) {
       wipShare: byId.wip.share, fgShare: byId.fg.share, cogsShare: byId.cogs.share,
       wipAdj: byId.wip.adj, fgAdj: byId.fg.adj, cogsAdj: byId.cogs.adj,
       direction: r.over ? 'decrease' : 'increase',
-      rows: r.rows, entries: r.entries, trace: toTrace(r.steps),
+      rows: dropPlainAll(r.rows), entries: r.entries, trace: toTrace(r.steps),
     });
   }
   function prorateSheet(args) {
@@ -316,12 +334,12 @@ export default function register(sdk) {
     const rows = [
       { id: 'dm', label: 'Direct materials', amounts: [a.dm, b.dm, dm], anchor: 'dm' },
       { id: 'dl', label: 'Direct labor', amounts: [a.dl, b.dl, dl], anchor: 'dl' },
-      { id: 'oh', label: `Applied overhead (A: ${rateTxt(budget.a.kind, ra)}; B: ${rateTxt(budget.b.kind, rb)})`, amounts: [ohA, ohB, oh], anchor: 'dept-oh' },
+      { id: 'oh', label: `Applied overhead (A: ${rateTxt(budget.a.kind, ra)}; B: ${rateTxt(budget.b.kind, rb)})`, plain: 'Applied overhead', amounts: [ohA, ohB, oh], anchor: 'dept-oh' },
       { id: 'total', label: 'Total job cost', amounts: [a.dm + a.dl + ohA, b.dm + b.dl + ohB, total], style: 'total', anchor: 'dept-total' },
     ];
     const plantRows = [
-      { id: 'p-oh', label: `Plantwide: ${C(dl)} DL cost × ${PCT(plantRate)}`, amount: plantOH, anchor: 'plant-oh' },
-      { id: 'p-total', label: `Plantwide job cost: ${C(dm)} + ${C(dl)} + ${C(plantOH)}`, amount: plantTotal, style: 'subtotal', anchor: 'plant-total' },
+      { id: 'p-oh', label: `Plantwide: ${C(dl)} DL cost × ${PCT(plantRate)}`, plain: 'Plantwide overhead', amount: plantOH, anchor: 'plant-oh' },
+      { id: 'p-total', label: `Plantwide job cost: ${C(dm)} + ${C(dl)} + ${C(plantOH)}`, plain: 'Plantwide job cost', amount: plantTotal, style: 'subtotal', anchor: 'plant-total' },
       { id: 'gap', label: 'Departmental − plantwide (undercosting)', amount: gap, style: 'total', anchor: 'gap' },
     ];
     const steps = [
@@ -342,7 +360,7 @@ export default function register(sdk) {
     const r = deptJobCore(args);
     return clean({ rateA: r.ra, rateB: r.rb, ohA: r.ohA, ohB: r.ohB, oh: r.oh, total: r.total, unit: r.unit,
       plantOH: r.plantOH, plantTotal: r.plantTotal, plantUnit: r.plantUnit, gap: r.gap,
-      rows: r.rows.slice(0, 4), plantRows: r.rows.slice(4), trace: toTrace(r.steps) });
+      rows: dropPlainAll(r.rows.slice(0, 4)), plantRows: dropPlainAll(r.rows.slice(4)), trace: toTrace(r.steps) });
   }
   function deptJobSheet(args) {
     const r = deptJobCore(args);
@@ -377,7 +395,11 @@ export default function register(sdk) {
   }
 
   // ------------------------------------------------------------------ the full cost flow of one job (Bulacan Prints, slides 57–61)
+  // Slide 61's table has six entries, starting with the purchase. The slide gives no purchase amount; we assume the
+  // materials were bought for this job, so the purchase equals the materials issued (see SOURCE_NOTES).
+  const FLOW_ACCTS = ['rm', 'wip', 'fg', 'cogs'];
   const FLOW = [
+    { id: 'e0', dr: 'rm', cr: 'ap', key: 'dm', what: 'Buy the materials on account', anchor: 'dm' },
     { id: 'e1', dr: 'wip', cr: 'rm', key: 'dm', what: 'Issue materials to the job', anchor: 'dm' },
     { id: 'e2', dr: 'wip', cr: 'wages', key: 'dl', what: 'Direct labor on the job', anchor: 'dl' },
     { id: 'e3', dr: 'wip', cr: 'foh', key: 'oh', what: 'Apply overhead to the job', anchor: 'oh' },
@@ -395,12 +417,13 @@ export default function register(sdk) {
   function costFlow({ dm, dl, oh, price }) {
     const r = flowCore({ dm, dl, oh, price });
     const steps = [
-      { entry: 'e1', math: 'dm', label: `(1) Debit WIP, credit Raw Materials Inventory ${P(dm)}`, vars: { dm } },
-      { entry: 'e2', math: 'dl', label: `(2) Debit WIP, credit Wages Payable ${P(dl)}`, vars: { dl } },
-      { entry: 'e3', math: 'oh', label: `(3) Debit WIP, credit Factory Overhead ${P(oh)}`, vars: { oh } },
+      { entry: 'e0', math: 'dm', label: `(1) Bought: debit Raw Materials Inventory, credit Accounts Payable ${P(dm)}`, vars: { rawMaterials: dm } },
+      { entry: 'e1', math: 'dm', label: `(2) Issued: debit WIP, credit Raw Materials Inventory ${P(dm)}`, vars: { dm } },
+      { entry: 'e2', math: 'dl', label: `(3) Debit WIP, credit Wages Payable ${P(dl)}`, vars: { dl } },
+      { entry: 'e3', math: 'oh', label: `(4) Debit WIP, credit Factory Overhead ${P(oh)}`, vars: { oh } },
       { row: 'total', math: 'total', label: `WIP now holds ${C(dm)} + ${C(dl)} + ${C(oh)} = ${P(r.total)}, an asset`, vars: { total: r.total } },
-      { entry: 'e4', math: 'total', label: `(4) Finished: debit Finished Goods, credit WIP ${P(r.total)}`, vars: { wip: 0, fg: r.total } },
-      { entry: 'e5', math: 'total', label: `(5) Sold: debit COGS, credit Finished Goods ${P(r.total)}; now an expense`, vars: { fg: 0, cogs: r.total } },
+      { entry: 'e4', math: 'total', label: `(5) Finished: debit Finished Goods, credit WIP ${P(r.total)}`, vars: { wip: 0, fg: r.total } },
+      { entry: 'e5', math: 'total', label: `(6) Sold: debit COGS, credit Finished Goods ${P(r.total)}; now an expense`, vars: { fg: 0, cogs: r.total } },
       { row: 'gm', math: 'gm', label: `Gross margin: ${C(price)} − ${C(r.total)} = ${P(r.gm)} (${fmt(r.margin, 'pct1')})`, vars: { gm: r.gm }, tone: 'good' },
     ];
     return clean({
@@ -414,24 +437,27 @@ export default function register(sdk) {
         { id: 'gm', label: 'Gross margin on the job', amount: r.gm, style: 'total', anchor: 'gm' },
       ],
       entries: r.entries,
-      accounts: flowAccounts(r, 5),
+      accounts: flowAccounts(r, FLOW.length),
       trace: toTrace(steps),
     });
   }
   function flowAccounts(r, upTo) {
     const acc = {};
-    for (const k of ['wip', 'fg', 'cogs']) acc[k] = { id: k, name: AC[k], debits: [], credits: [] };
+    for (const k of FLOW_ACCTS) acc[k] = { id: k, name: AC[k], debits: [], credits: [] };
     FLOW.slice(0, upTo).forEach((f, i) => {
       if (acc[f.dr]) acc[f.dr].debits.push({ amount: r.v[f.key], ref: `(${i + 1})` });
       if (acc[f.cr]) acc[f.cr].credits.push({ amount: r.v[f.key], ref: `(${i + 1})` });
     });
-    return ['wip', 'fg', 'cogs'].map((k) => acc[k]);
+    return FLOW_ACCTS.map((k) => acc[k]);
   }
   function flowSheet({ dm, dl, oh, price, upTo }) {
     const r = flowCore({ dm, dl, oh, price });
-    const n = upTo ?? 5;
-    const where = n <= 3 ? 'Work in Process (asset)' : n === 4 ? 'Finished Goods (asset)' : 'Cost of Goods Sold (expense)';
-    return clean({ accounts: flowAccounts(r, n), posted: n, where: n === 0 ? 'not started' : where, total: r.total, gm: r.gm, entries: r.entries });
+    const n = upTo ?? FLOW.length;
+    const where = n === 0 ? 'nowhere yet: press play'
+      : n === 1 ? 'Raw Materials Inventory (asset, not yet on the job)'
+        : n <= 4 ? 'Work in Process (asset)'
+          : n === 5 ? 'Finished Goods (asset)' : 'Cost of Goods Sold (expense)';
+    return clean({ accounts: flowAccounts(r, n), posted: n, where, total: r.total, gm: r.gm, entries: r.entries });
   }
   // roles: jr (Journal), ta (TAccounts)
   function flowWalk({ dm, dl, oh, price }) {
@@ -445,8 +471,8 @@ export default function register(sdk) {
         ops: [
           { role: 'jr', cmd: 'post', args: { id: f.id } },
           { role: 'jr', cmd: 'highlight', args: { sel: `entry:${f.id}` } },
-          ...(['wip', 'fg', 'cogs'].includes(f.dr) || ['wip', 'fg', 'cogs'].includes(f.cr)
-            ? [{ role: 'ta', cmd: 'highlight', args: { sel: [f.dr, f.cr].filter((k) => ['wip', 'fg', 'cogs'].includes(k)).map((k) => `account:${k}`) } }]
+          ...(FLOW_ACCTS.includes(f.dr) || FLOW_ACCTS.includes(f.cr)
+            ? [{ role: 'ta', cmd: 'highlight', args: { sel: [f.dr, f.cr].filter((k) => FLOW_ACCTS.includes(k)).map((k) => `account:${k}`) } }]
             : []),
         ],
       })),
@@ -467,13 +493,13 @@ export default function register(sdk) {
     const names = (st) => jt.filter((j) => j.status === st).map((j) => `Job ${j.id}`).join(', ');
     const rows = [
       { id: 'beg-wip', label: 'Beginning Work in Process', amount: begWip, anchor: 'beg-wip' },
-      { id: 'added', label: `Costs added this month (${jt.map((j) => C(j.added)).join(' + ')})`, amount: added, anchor: 'added' },
+      { id: 'added', label: `Costs added this month (${jt.map((j) => C(j.added)).join(' + ')})`, plain: 'Costs added this month', amount: added, anchor: 'added' },
       { id: 'to-account', label: 'Total manufacturing costs to account for', amount: toAccount, style: 'subtotal' },
-      { id: 'end-wip', label: `Less ending Work in Process (${names('wip') || 'none'})`, amount: endWip, indent: 1, anchor: 'end-wip' },
+      { id: 'end-wip', label: `Less ending Work in Process (${names('wip') || 'none'})`, plain: 'Less ending Work in Process', amount: endWip, indent: 1, anchor: 'end-wip' },
       { id: 'cogm', label: 'Cost of goods manufactured', amount: cogm, style: 'total', anchor: 'cogm' },
       { id: 'beg-fg', label: 'Beginning Finished Goods', amount: begFG, anchor: 'beg-fg' },
       { id: 'available', label: 'Goods available for sale', amount: available, style: 'subtotal' },
-      { id: 'end-fg', label: `Less ending Finished Goods (${names('finished') || 'none'})`, amount: endFG, indent: 1, anchor: 'end-fg' },
+      { id: 'end-fg', label: `Less ending Finished Goods (${names('finished') || 'none'})`, plain: 'Less ending Finished Goods', amount: endFG, indent: 1, anchor: 'end-fg' },
       { id: 'cogs', label: 'Cost of goods sold', amount: cogs, style: 'total', anchor: 'cogs' },
     ];
     const steps = [
@@ -494,11 +520,13 @@ export default function register(sdk) {
   function jobsCogm(args) {
     const r = cogmCore(args);
     return clean({ begWip: r.begWip, added: r.added, toAccount: r.toAccount, endWip: r.endWip, cogm: r.cogm, available: r.available, endFG: r.endFG, cogs: r.cogs,
-      rows: r.rows, jobRows: r.jobRows, trace: toTrace(r.steps) });
+      rows: dropPlainAll(r.rows), jobRows: r.jobRows, trace: toTrace(r.steps) });
   }
   function cogmSheet(args) {
     const r = cogmCore(args);
-    return clean({ rows: reveal(r.rows, r.steps, args.upTo), jobRows: r.jobRows, cogm: r.cogm, cogs: r.cogs, endFG: r.endFG, endWip: r.endWip });
+    // Job totals stay blank until the walk starts, so the COGM and COGS predicts need beginning + added.
+    const jobRows = r.jobRows.map((j) => ({ ...j, amounts: j.amounts.map((v, i) => (i === 2 && !(args.upTo > 0) ? null : v)) }));
+    return clean({ rows: reveal(r.rows, r.steps, args.upTo), jobRows, cogm: r.cogm, cogs: r.cogs, endFG: r.endFG, endWip: r.endWip });
   }
   // roles: sheet
   function cogmWalk(args) {
@@ -575,6 +603,16 @@ export default function register(sdk) {
     return clean({
       rateFab: rf, ratePaint: rp, ohFab: ohF, ohPaint: ohP, oh: ohF + ohP, dm, dl, total, unit: total / job.units,
       price: total * (1 + markup), plantRate, plantOH, plantTotal, plantPrice: plantTotal * (1 + markup),
+      // computed distractors for "how much overhead does Fabrication apply?"
+      ohFabAllMH: rf * (job.fab.mh + job.paint.mh), ohFabPaintRate: rp * job.fab.dl, ohFabPlant: plantRate * job.fab.dl,
+      // the cost sheet with the inputs only: the learner computes the overhead
+      sheetInputs: [
+        { id: 'dm', label: 'Direct materials', amounts: [job.fab.dm, job.paint.dm, dm] },
+        { id: 'dl', label: 'Direct labor', amounts: [job.fab.dl, job.paint.dl, dl] },
+        { id: 'mh', label: 'Machine hours', amounts: [job.fab.mh, job.paint.mh, job.fab.mh + job.paint.mh], format: 'number' },
+        { id: 'oh', label: 'Applied overhead', amounts: [null, null, null] },
+        { id: 'total', label: 'Job cost', amounts: [null, null, null], style: 'total' },
+      ],
       rateRows: [
         { id: 'fab', label: `${budget.fab.name}: ${C(budget.fab.budgetOH)} ÷ ${C(budget.fab.budgetBase)} MH`, amount: rf },
         { id: 'paint', label: `${budget.paint.name}: ${C(budget.paint.budgetOH)} ÷ ${C(budget.paint.budgetBase)} DL cost`, amount: rp, format: 'pct' },
@@ -597,8 +635,18 @@ export default function register(sdk) {
     const applied = rf * year.fabMH + rp * year.paintDL;
     const close = overheadClose({ actualOH: year.actualOH, rate: 1, actualBase: applied });
     const pr = prorate({ amount: close.amt, kind: close.under ? 'under' : 'over', wip: year.wip, fg: year.fg, cogs: year.cogs });
+    const held = year.wip + year.fg + year.cogs;
     return clean({
       applied, actualOH: year.actualOH, amt: close.amt, kind: close.kind, pctOfOH: close.amt / year.actualOH,
+      inventoryShare: (year.wip + year.fg) / held,
+      cogsProrate: pr.cogsAdj, equalSplit: close.amt / 3,
+      // applied overhead held in each account, without the adjustment column (the learner computes it)
+      heldRows: [
+        { id: 'wip', label: 'Work in Process', amount: year.wip },
+        { id: 'fg', label: 'Finished Goods', amount: year.fg },
+        { id: 'cogs', label: 'Cost of Goods Sold', amount: year.cogs },
+        { id: 'total', label: 'Applied overhead held at year end', amount: held, style: 'total' },
+      ],
       rows: [
         { id: 'fab', label: `Fabrication applied: ${C(year.fabMH)} MH × ${P(rf)}`, amount: rf * year.fabMH },
         { id: 'paint', label: `Painting applied: ${PCT(rp)} × ${C(year.paintDL)}`, amount: rp * year.paintDL },
@@ -631,10 +679,14 @@ export default function register(sdk) {
       const r = pohrCore({ budgetOH, budgetBase, dm, hours, wage });
       return {
         vars: { budgetOH, budgetBase, actualBase, rate, dm, hours, wage, dl: r.dl, oh: r.oh, total: r.total,
-          wrongActual: budgetOH / actualBase, wrongInverse: budgetBase / budgetOH, wrongOhWage: rate * r.dl, wrongNoOh: dm + r.dl },
+          wrongActual: budgetOH / actualBase, wrongInverse: budgetBase / budgetOH, wrongOhWage: rate * r.dl, wrongNoOh: dm + r.dl,
+          wrongTotalOhWage: dm + r.dl + rate * r.dl, wrongTotalActual: dm + r.dl + hours * (budgetOH / actualBase) },
         misconceptions: [
-          { var: 'wrongActual', feedback: 'You divided by **actual** hours. The predetermined rate is set before the year starts, from **budgeted** hours.' },
-          { var: 'wrongInverse', feedback: 'That is hours per peso. The rate is budgeted overhead **÷** budgeted activity.' },
+          { var: 'wrongActual', for: 'rate', feedback: 'You divided by **actual** hours. The predetermined rate is set before the year starts, from **budgeted** hours.' },
+          { var: 'wrongInverse', for: 'rate', feedback: 'That is hours per peso. The rate is budgeted overhead **÷** budgeted activity.' },
+          { var: 'wrongNoOh', for: 'total', feedback: 'You left out applied overhead. A job\'s cost is materials + labor + **applied overhead**.' },
+          { var: 'wrongTotalOhWage', for: 'total', feedback: 'You applied the rate to labor **pesos**; it is per direct labor **hour**.' },
+          { var: 'wrongTotalActual', for: 'total', feedback: 'Your rate used **actual** hours. The rate comes from budgeted hours; actual hours only decide how much is applied.' },
         ],
       };
     }
@@ -658,10 +710,13 @@ export default function register(sdk) {
         vars: { issues, labor, rate, markup, dm: r.dm, dl: r.dl, hours: r.hours, oh: r.oh, total: r.total, price: r.price, markupAmt: r.markupAmt,
           i1: issues[0].amount, i2: issues[1].amount, i3: issues[2]?.amount ?? 0, issueText: issues.map((x) => `${P(x.amount)} on ${x.date}`).join(', '),
           h1: labor[0].hours, w1: labor[0].wage, h2: labor[1].hours, w2: labor[1].wage,
-          wrongOhPeso, wrongNoOh: r.dm + r.dl, wrongMarkupOnPrice, wrongOneWage: r.hours * labor[0].wage },
+          wrongOhPeso, wrongNoOh: r.dm + r.dl, wrongMarkupOnPrice, wrongOneWage: r.hours * labor[0].wage,
+          wrongTotalOhPeso: r.dm + r.dl + wrongOhPeso },
         misconceptions: [
-          { var: 'wrongNoOh', feedback: 'You left out applied overhead. Every job cost sheet carries DM + DL + **applied overhead**.' },
-          { var: 'wrongOhPeso', feedback: 'You applied the rate to labor **pesos**. This rate is per direct labor **hour**.' },
+          { var: 'wrongOneWage', for: 'dl', feedback: 'Each time ticket has its own wage rate. Price each ticket separately, then add.' },
+          { var: 'wrongOhPeso', for: 'oh', feedback: 'You applied the rate to labor **pesos**. This rate is per direct labor **hour**.' },
+          { var: 'wrongNoOh', for: 'total', feedback: 'You left out applied overhead. Every job cost sheet carries direct materials + direct labor + **applied overhead**.' },
+          { var: 'wrongTotalOhPeso', for: 'total', feedback: 'Your overhead used labor **pesos**. The rate is per direct labor **hour**.' },
         ],
       };
     }
@@ -681,14 +736,21 @@ export default function register(sdk) {
           rateText: kind === 'pct' ? `${PCT(rate)} of direct labor cost` : `${P2(rate)} per machine hour`,
           baseText: kind === 'pct' ? `${P(actualBase)} of direct labor cost` : `${C(actualBase)} machine hours`,
           accounts: shuffleAccounts(rng), entries: [{ lines: quizLines(r.entries[0].lines) }],
-          signedDiff: r.diff, wrongBudget: Math.abs(actualOH - rate * actualBase * 1.05) },
+          signedDiff: r.diff },
         options: [
           `${r.under ? 'Underapplied' : 'Overapplied'} by ${P(r.amt)}; Cost of Goods Sold ${r.under ? 'increases' : 'decreases'}`,
           `${r.under ? 'Overapplied' : 'Underapplied'} by ${P(r.amt)}; Cost of Goods Sold ${r.under ? 'decreases' : 'increases'}`,
           `${r.under ? 'Underapplied' : 'Overapplied'} by ${P(r.amt)}; Cost of Goods Sold ${r.under ? 'decreases' : 'increases'}`,
-          `No adjustment: a predetermined rate always applies exactly the actual overhead`,
+          // mistaking the applied total for the gap
+          `${r.under ? 'Underapplied' : 'Overapplied'} by ${P(r.applied)}; Cost of Goods Sold ${r.under ? 'increases' : 'decreases'}`,
         ],
         answer: 0,
+        misconceptions: [
+          { value: actualOH, for: 'applied', feedback: 'That is actual overhead. Applied overhead is the predetermined rate × the **actual** base.' },
+          { value: -r.diff, for: 'signedDiff', feedback: r.under
+            ? 'You took applied − actual. Use actual − applied: it is **positive** when overhead is underapplied.'
+            : 'Keep the sign: actual − applied is **negative** when overhead is overapplied.' },
+        ],
       };
     }
   }
@@ -701,6 +763,7 @@ export default function register(sdk) {
       const wip = (total * sh[0]) / 100, fg = (total * sh[1]) / 100, cogs = (total * sh[2]) / 100;
       const amount = nice(rng, 10000, 120000, 5000);
       const kind = rng.bool(0.5) ? 'over' : 'under';
+      const sign = kind === 'over' ? -1 : 1;
       const r = prorate({ amount, kind, wip, fg, cogs });
       const pc = prorateCore({ amount, kind, wip, fg, cogs });
       if ([r.wipAdj, r.fgAdj, r.cogsAdj].some((x) => Math.abs(x - Math.round(x)) > 1e-9)) continue;
@@ -710,10 +773,17 @@ export default function register(sdk) {
           wipAdj: r.wipAdj, fgAdj: r.fgAdj, cogsAdj: r.cogsAdj, wipPct: sh[0] / 100, fgPct: sh[1] / 100, cogsPct: sh[2] / 100,
           direction: r.direction,
           accounts: shuffleAccounts(rng), entries: [{ lines: quizLines(pc.entries[0].lines) }],
-          wrongEqual: amount / 3, wrongAll: amount },
+          wrongEqual: amount / 3, wrongAll: amount,
+          // the "infer the direction" variant: actual overhead against the applied overhead held in the three accounts
+          actualOH: kind === 'over' ? r.total - amount : r.total + amount, signedCogsAdj: sign * r.cogsAdj },
         misconceptions: [
-          { var: 'wrongEqual', feedback: 'You split the amount equally. Proration follows each account\'s **share of applied overhead**.' },
-          { var: 'wrongAll', feedback: 'That is the whole amount, the immaterial treatment (all to COGS). A material amount is **prorated**.' },
+          { var: 'wrongEqual', for: 'fgAdj', feedback: 'You split the amount equally. Proration follows each account\'s **share of applied overhead**.' },
+          { var: 'wrongAll', for: 'fgAdj', feedback: 'That is the whole amount, the immaterial treatment (all to COGS). A material amount is **prorated**.' },
+          { value: -sign * r.cogsAdj, for: 'signedCogsAdj', feedback: kind === 'over'
+            ? 'Wrong direction. Actual overhead is **below** applied, so overhead is overapplied and every account, COGS included, goes **down**.'
+            : 'Wrong direction. Actual overhead is **above** applied, so overhead is underapplied and every account, COGS included, goes **up**.' },
+          { value: sign * amount, for: 'signedCogsAdj', feedback: 'That is the whole difference, the immaterial treatment. Prorated, COGS takes only its **share** of applied overhead.' },
+          { value: (sign * amount) / 3, for: 'signedCogsAdj', feedback: 'You split the amount equally. COGS takes its **share of applied overhead**, not a third.' },
         ],
       };
     }
@@ -731,14 +801,26 @@ export default function register(sdk) {
       const r = deptJobCore({ budget, a, b, units, plantRate });
       if (Math.abs(r.gap) < 1) continue;
       const ohAWrong = aPct * a.mh;
+      const wrongBothDL = aPct * a.dl + bRate * b.dl;   // Department B's rate applied to its labor pesos
+      const absGap = Math.abs(r.gap);
+      const wrongGapBothDL = Math.abs(wrongBothDL - r.plantOH);
+      const wrongGapPlantMH = Math.abs(r.oh - plantRate * (a.mh + b.mh));
+      // keep each wrong method at least 3× the tolerance away from the right answer
+      if ([wrongGapBothDL, wrongGapPlantMH].some((w) => Math.abs(w - absGap) < 0.05)) continue;
+      if (Math.abs(wrongBothDL - r.oh) < 0.05) continue;
       return {
         vars: { aPct, bRate, a, b, units, plantRate, ohA: r.ohA, ohB: r.ohB, oh: r.oh, total: r.total, unit: r.unit,
-          plantOH: r.plantOH, plantTotal: r.plantTotal, gap: r.gap, absGap: Math.abs(r.gap), gapDir: r.gap > 0 ? 'undercosts' : 'overcosts',
+          plantOH: r.plantOH, plantTotal: r.plantTotal, gap: r.gap, absGap, gapDir: r.gap > 0 ? 'undercosts' : 'overcosts',
           aDm: a.dm, aDl: a.dl, aMh: a.mh, bDm: b.dm, bDl: b.dl, bMh: b.mh, dl: a.dl + b.dl, dm: a.dm + b.dm,
-          wrongBothDL: aPct * a.dl + bRate * b.dl, wrongNoUnits: r.total, wrongPlantMH: plantRate * (a.mh + b.mh) },
+          ohAWrong, wrongBothDL, wrongBothDLTotal: a.dm + b.dm + a.dl + b.dl + wrongBothDL, wrongNoUnits: r.total,
+          wrongGapBothDL, wrongGapPlantMH },
         misconceptions: [
-          { var: 'wrongBothDL', feedback: 'Department B applies overhead per **machine hour**, not on labor pesos. Each department uses its own base.' },
-          { value: r.ohA + bRate * b.dl, feedback: 'Department B\'s base is machine hours; you multiplied its rate by direct labor cost.' },
+          { var: 'ohAWrong', for: 'ohA', feedback: 'Department A\'s base is direct labor **cost**: multiply its percentage by A\'s labor pesos, not by machine hours.' },
+          { value: bRate * b.dl, for: 'ohB', feedback: 'Department B\'s base is machine hours; you multiplied its rate by direct labor cost.' },
+          { var: 'wrongBothDLTotal', for: 'total', feedback: 'Department B applies overhead per **machine hour**, not on labor pesos. Each department uses its own base.' },
+          { var: 'wrongNoUnits', for: 'unit', feedback: 'That is the whole job. Divide the job\'s total by its number of units.' },
+          { var: 'wrongGapBothDL', for: 'absGap', feedback: 'Your departmental overhead put Department B\'s rate on labor pesos. B\'s base is machine hours.' },
+          { var: 'wrongGapPlantMH', for: 'absGap', feedback: 'The plantwide rate here is on direct labor **cost**, not machine hours.' },
         ],
       };
     }
@@ -750,19 +832,59 @@ export default function register(sdk) {
     const oh = nice(rng, 3000, 20000, 100);
     const price = Math.round(((dm + dl + oh) * rng.pick([1.4, 1.6, 1.8, 2])) / 1000) * 1000;
     const r = flowCore({ dm, dl, oh, price });
-    const pick = rng.pick([0, 2, 3, 4]);
+    const pick = rng.int(0, FLOW.length - 1);   // all six entries, purchase and labor included
     const e = r.entries[pick];
     return {
       vars: { dm, dl, oh, price, total: r.total, gm: r.gm, margin: r.margin,
-        event: ['The materials were issued to the job.', '', 'Overhead was applied to the job.', 'The job was completed.', 'The job was delivered to the customer and sold.'][pick],
+        event: [
+          'The materials for the job were bought on account.',
+          'The materials were issued to the job.',
+          'The direct labor on the job was recorded; the workers will be paid later.',
+          'Overhead was applied to the job.',
+          'The job was completed.',
+          'The job was delivered to the customer and sold.',
+        ][pick],
         accounts: rng.shuffle([AC.wip, AC.rm, AC.wages, AC.foh, AC.fg, AC.cogs, AC.ap]),
         entries: [{ lines: quizLines(e.lines) }],
-        wrongCogsDm: dm, wrongGmNoOh: price - dm - dl },
+        wrongGmNoOh: price - dm - dl },
       misconceptions: [
-        { var: 'wrongGmNoOh', feedback: 'Gross margin subtracts the **full** job cost, including applied overhead.' },
-        { value: price, feedback: 'That is the price. Gross margin is price minus the job cost that moved to COGS.' },
+        { var: 'wrongGmNoOh', for: 'gm', feedback: 'Gross margin subtracts the **full** job cost, including applied overhead.' },
+        { value: price, for: 'gm', feedback: 'That is the price. Gross margin is price minus the job cost that moved to COGS.' },
       ],
     };
+  }
+
+  // One job end to end: overhead applied at a POHR, the Work in Process balance with other jobs already in it, the
+  // transfer on completion, then the gross margin on a cost-plus price and that margin as a percent of the price.
+  function flowChainQ({ rng }) {
+    for (;;) {
+      const dm = nice(rng, 20000, 90000, 500);
+      const hours = nice(rng, 100, 400, 10);
+      const wage = rng.pick([80, 90, 100, 110, 120]);
+      const rate = rng.pick([40, 50, 60, 75, 80, 120]);
+      const otherWip = nice(rng, 10000, 60000, 1000);
+      const markup = rng.pick([0.25, 0.3, 0.4, 0.5]);
+      const dl = hours * wage, oh = hours * rate;
+      const r = flowCore({ dm, dl, oh, price: 0 });
+      const price = Math.round((r.total * (1 + markup)) / 1000) * 1000;
+      const gm = price - r.total;
+      const gmPct = (gm / price) * 100;
+      const wrongOnCost = (gm / r.total) * 100;
+      if (gm <= 0 || Math.abs(wrongOnCost - gmPct) < 1) continue;
+      return {
+        vars: { dm, hours, wage, rate, otherWip, markupPct: markup * 100, dl, oh, total: r.total, wipBefore: otherWip + r.total,
+          fgCost: r.total, price, gm, gmPct, wrongOnCost },
+        misconceptions: [
+          { value: rate * dl, for: 'oh', feedback: 'The rate is per direct labor **hour**, so multiply it by the hours, not the labor pesos.' },
+          { value: r.total, for: 'wipBefore', feedback: 'Work in Process already held the other jobs\' cost. The three entries add to that balance.' },
+          { value: otherWip + dm + dl, for: 'wipBefore', feedback: 'The applied overhead is debited to Work in Process too.' },
+          { value: otherWip + r.total, for: 'fgCost', feedback: 'Only this job moves on completion. The other jobs\' cost stays in Work in Process.' },
+          { value: price - dm - dl, for: 'gm', feedback: 'Gross margin subtracts the **full** job cost, applied overhead included.' },
+          { var: 'wrongOnCost', for: 'gmPct', feedback: 'You divided by cost. A margin as a percent of price divides the gross margin by the **price**.' },
+          { value: markup * 100, for: 'gmPct', feedback: 'That is the markup on cost. As a percent of the price, the same margin is smaller.' },
+        ],
+      };
+    }
   }
 
   function cogmQ({ rng, difficulty }) {
@@ -777,16 +899,28 @@ export default function register(sdk) {
       const r = cogmCore({ jobs, begFG });
       const rows = r.rows.map((x) => ({ ...x }));
       const blanks = new Set(['cogm', 'cogs', 'end-wip', ...(difficulty >= 2 ? ['end-fg'] : [])]);
+      // year-end variant: an immaterial over- or underapplied amount closed to COGS
+      const ohDiff = nice(rng, 1000, 15000, 500);
+      const ohUnder = rng.bool(0.5);
+      const adjCogs = r.cogs + (ohUnder ? ohDiff : -ohDiff);
+      if (r.endWip === begFG) continue;
       return {
         vars: {
           jobs, begFG, cogm: r.cogm, cogs: r.cogs, endWip: r.endWip, endFG: r.endFG, begWip: r.begWip, added: r.added,
           jobText: jobs.map((j) => `Job ${j.id}: ${j.beg ? `beginning WIP ${P(j.beg)}, ` : ''}costs added ${P(j.added)}, ${j.status === 'sold' ? 'completed and sold' : j.status === 'finished' ? 'completed, not yet sold' : 'still in process'}`).join('; '),
           rows: rows.map((x) => clean({ label: x.label, amount: x.amount, style: x.style, indent: x.indent, blank: blanks.has(x.id) || undefined })),
-          wrongCogmAll: r.toAccount, wrongCogsNoBeg: r.cogs - begFG,
+          wrongCogmAll: r.toAccount, wrongCogmPlusFG: r.cogm + begFG, wrongCogsNoBeg: r.cogs - begFG, wrongCogsNoEnd: r.available,
+          ohDiff, ohKindTxt: ohUnder ? 'underapplied' : 'overapplied', ohDir: ohUnder ? 'increases' : 'decreases', adjCogs,
         },
         misconceptions: [
-          { var: 'wrongCogmAll', feedback: 'COGM counts **completed** jobs only. The job still in process stays in ending WIP.' },
-          { var: 'wrongCogsNoBeg', feedback: 'COGS includes the beginning finished goods that were sold this period.' },
+          { var: 'wrongCogmAll', for: 'cogm', feedback: 'COGM counts **completed** jobs only. The job still in process stays in ending WIP.' },
+          { var: 'wrongCogmPlusFG', for: 'cogm', feedback: 'Beginning Finished Goods was finished last period. COGM is this period\'s completed jobs only.' },
+          { var: 'wrongCogsNoBeg', for: 'cogs', feedback: 'COGS includes the beginning finished goods that were sold this period.' },
+          { var: 'wrongCogsNoEnd', for: 'cogs', feedback: 'That is goods available for sale. Subtract the finished job that is still unsold.' },
+          { value: r.cogs + (ohUnder ? -ohDiff : ohDiff), for: 'adjCogs', feedback: ohUnder
+            ? 'Wrong direction. Underapplied means jobs were charged too little, so closing it **increases** COGS.'
+            : 'Wrong direction. Overapplied means jobs were charged too much, so closing it **decreases** COGS.' },
+          { value: r.cogs, for: 'adjCogs', feedback: 'That is COGS before the year-end close. Add the underapplied amount, or subtract the overapplied one.' },
         ],
       };
     }
@@ -804,8 +938,8 @@ export default function register(sdk) {
       vars: { ph: staff[0].hours, pr: staff[0].rate, ah: staff[1].hours, ar: staff[1].rate, direct, ohPct, labor: r.labor, oh: r.oh, total: r.total,
         wrongOhOnAll: ohPct * (r.labor + direct), wrongNoOh: r.labor + direct },
       misconceptions: [
-        { value: r.labor + direct + ohPct * (r.labor + direct), feedback: 'Overhead is a percentage of **professional labor** only, not of labor plus the client fees.' },
-        { var: 'wrongNoOh', feedback: 'You left out the firm overhead applied to the engagement.' },
+        { value: r.labor + direct + ohPct * (r.labor + direct), for: 'total', feedback: 'Overhead is a percentage of **professional labor** only, not of labor plus the client fees.' },
+        { var: 'wrongNoOh', for: 'total', feedback: 'You left out the firm overhead applied to the engagement.' },
       ],
     };
   }
@@ -816,8 +950,8 @@ export default function register(sdk) {
     return {
       vars: { total, markup, price: total * (1 + markup), wrongMargin: total / (1 - markup), wrongOnlyMarkup: total * markup },
       misconceptions: [
-        { var: 'wrongMargin', feedback: 'You treated the markup as a margin on price (cost ÷ (1 − m)). A markup **on cost** is cost × (1 + m).' },
-        { var: 'wrongOnlyMarkup', feedback: 'That is only the markup. The price is cost **plus** the markup.' },
+        { var: 'wrongMargin', for: 'price', feedback: 'You treated the markup as a margin on price (cost ÷ (1 − m)). A markup **on cost** is cost × (1 + m).' },
+        { var: 'wrongOnlyMarkup', for: 'price', feedback: 'That is only the markup. The price is cost **plus** the markup.' },
       ],
     };
   }
@@ -833,10 +967,11 @@ export default function register(sdk) {
       if (r.profit <= 0 || r.actCost === estCost) continue;
       return {
         vars: { price, estCost, ...Object.fromEntries(Object.entries(actual).map(([k, v]) => [`a_${k}`, v])), actCost: r.actCost, profit: r.profit, margin: r.margin,
-          markupPct: markup, wrongOnCost: r.profit / r.actCost, wrongEstProfit: (price - estCost) / price },
+          marginPct: r.margin * 100,
+          markupPct: markup, wrongOnCost: (r.profit / r.actCost) * 100, wrongEstProfit: ((price - estCost) / price) * 100 },
         misconceptions: [
-          { var: 'wrongOnCost', feedback: 'You divided by cost. A profit **margin** divides profit by the **price**.' },
-          { var: 'wrongEstProfit', feedback: 'That is the margin the quote planned on the estimate, not the actual margin.' },
+          { var: 'wrongOnCost', for: 'marginPct', feedback: 'You divided by cost. A profit **margin** divides profit by the **price**.' },
+          { var: 'wrongEstProfit', for: 'marginPct', feedback: 'That is the margin the quote planned on the estimate, not the actual margin.' },
         ],
       };
     }
@@ -846,15 +981,90 @@ export default function register(sdk) {
     for (;;) {
       const rate = rng.pick([40, 60, 75, 90, 120, 150]);
       const actualBase = nice(rng, 10000, 40000, 500);
+      const budgetBase = actualBase + nice(rng, 500, 3000, 500);
       const applied = rate * actualBase;
       const actualOH = applied + nice(rng, -200000, 200000, 5000);
-      if (actualOH === applied) continue;
+      if (actualOH === applied || actualOH === rate * budgetBase) continue;
       const r = overheadClose({ actualOH, rate, actualBase });
       return {
-        vars: { rate, actualBase, actualOH, applied, amt: r.amt, kindTxt: r.kind, budgetBase: actualBase + nice(rng, 500, 3000, 500) },
+        vars: { rate, actualBase, actualOH, applied, amt: r.amt, kindTxt: r.kind, budgetBase },
         misconceptions: [
-          { value: actualOH, feedback: 'That is actual overhead. Applied overhead is the predetermined rate × the **actual** base.' },
-          { value: rate * (actualBase + 1000), feedback: 'Use the actual base worked, not the budgeted base.' },
+          { value: actualOH, for: 'applied', feedback: 'That is actual overhead. Applied overhead is the predetermined rate × the **actual** base.' },
+          { value: rate * budgetBase, for: 'applied', feedback: 'You used the budgeted hours. Applied overhead uses the hours actually worked.' },
+        ],
+      };
+    }
+  }
+
+  // Pampanga-style chain: the rate in January, one job during the year, then the year-end gap.
+  function chainQ({ rng }) {
+    for (;;) {
+      const rate = rng.pick([40, 50, 60, 75, 80, 120, 150]);
+      const budgetDLH = nice(rng, 20000, 60000, 5000);
+      const budgetOH = rate * budgetDLH;
+      const dm = nice(rng, 20000, 90000, 1000);
+      const hours = nice(rng, 100, 300, 10);
+      const wage = rng.pick([80, 90, 95, 100, 110, 120]);
+      const actualDLH = budgetDLH + nice(rng, -4000, 4000, 500);
+      if (actualDLH === budgetDLH) continue;
+      const job = pohrCore({ budgetOH, budgetBase: budgetDLH, dm, hours, wage });
+      const applied = rate * actualDLH;
+      const actualOH = Math.round((applied + nice(rng, -0.06 * applied, 0.06 * applied, 5000)) / 1000) * 1000;
+      const yr = overheadClose({ actualOH, rate, actualBase: actualDLH });
+      if (yr.amt < 5000) continue;
+      return {
+        vars: { rate, budgetDLH, budgetOH, dm, hours, wage, dl: job.dl, oh: job.oh, total: job.total, actualDLH, actualOH,
+          appliedYear: applied, signedDiff: yr.diff, amt: yr.amt, kindTxt: yr.kind, cogsDir: yr.under ? 'increases' : 'decreases' },
+        misconceptions: [
+          { value: budgetOH / actualDLH, for: 'rate', feedback: 'You divided by **actual** hours. The rate is set in January from **budgeted** hours.' },
+          { value: dm + job.dl, for: 'total', feedback: 'You left out applied overhead: the rate × the job\'s hours.' },
+          { value: dm + job.dl + rate * job.dl, for: 'total', feedback: 'You applied the rate to labor **pesos**; it is per direct labor **hour**.' },
+          { value: budgetOH, for: 'appliedYear', feedback: 'That is the budget. Applied overhead is the rate × the hours **actually** worked.' },
+          { value: actualOH, for: 'appliedYear', feedback: 'That is actual overhead. Applied overhead comes from the rate, not from the bills.' },
+          { value: -yr.diff, for: 'signedDiff', feedback: yr.under
+            ? 'You took applied − actual. Use actual − applied: it is **positive** when overhead is underapplied.'
+            : 'Keep the sign: actual − applied is **negative** when overhead is overapplied.' },
+          { value: actualOH - budgetOH, for: 'signedDiff', feedback: 'You compared actual overhead with the **budget**. Compare it with the overhead **applied**.' },
+        ],
+      };
+    }
+  }
+
+  // Departmental rates and the plantwide rate, both computed from the budgets (rates are not given).
+  function deptBudgetQ({ rng }) {
+    for (;;) {
+      const aDLb = rng.pick([40000, 50000, 64000, 80000, 100000]);
+      const aPct = rng.pick([0.8, 1.125, 1.25, 1.5, 2]);
+      const aOH = aPct * aDLb;
+      const bMHb = rng.pick([5000, 8000, 10000, 12000]);
+      const bRate = rng.pick([6, 7.5, 8, 10, 12.5]);
+      const bOH = bRate * bMHb;
+      const plant = rng.pick([1.5, 1.6, 1.75, 1.8, 2, 2.25, 2.4, 2.5, 3]);
+      const bDLb = (aOH + bOH) / plant - aDLb;
+      if (bDLb < 5000 || bDLb > aDLb || Math.abs(bDLb / 100 - Math.round(bDLb / 100)) > 1e-9) continue;
+      const a = { dm: nice(rng, 20, 80, 5), dl: nice(rng, 20, 60, 4), mh: rng.int(2, 8) };
+      const b = { dm: nice(rng, 20, 80, 5), dl: nice(rng, 10, 40, 5), mh: rng.int(8, 25) };
+      if (a.dl === b.dl) continue;
+      // keep the 'B's rate on labor pesos' and 'plantwide rate on machine hours' mistakes off the right answer
+      if (b.dl === b.mh || a.dl + b.dl === a.mh + b.mh) continue;
+      const ohA = aPct * a.dl, ohB = bRate * b.mh, deptOH = ohA + ohB;
+      const plantOH = plant * (a.dl + b.dl);
+      if (Math.abs(deptOH - plantOH) < 1) continue;
+      const wrongPlantOnlyA = ((aOH + bOH) / aDLb) * 100;
+      const wrongPlantAvg = ((aPct + bOH / bDLb) / 2) * 100;
+      if ([wrongPlantOnlyA, wrongPlantAvg].some((w) => Math.abs(w - plant * 100) < 1.5)) continue;
+      return {
+        vars: { aDLb, aOH, bMHb, bOH, bDLb, aDl: a.dl, aMh: a.mh, bDl: b.dl, bMh: b.mh,
+          aRatePct: aPct * 100, bRate, plantPct: plant * 100, ohA, ohB, deptOH, plantOH, dl: a.dl + b.dl,
+          gap: deptOH - plantOH, gapDir: deptOH > plantOH ? 'undercosts' : 'overcosts' },
+        misconceptions: [
+          { value: (aDLb / aOH) * 100, for: 'aRatePct', feedback: 'That is labor per peso of overhead. The rate is budgeted overhead **÷** budgeted labor cost.' },
+          { value: bMHb / bOH, for: 'bRate', feedback: 'That is hours per peso. The rate is budgeted overhead **÷** budgeted machine hours.' },
+          { value: wrongPlantOnlyA, for: 'plantPct', feedback: 'Pool **both** departments\' labor cost in the denominator, Department B\'s included.' },
+          { value: wrongPlantAvg, for: 'plantPct', feedback: 'Don\'t average the two departments\' rates. Pool their overhead and divide by their pooled labor cost.' },
+          { value: aPct * a.dl + bRate * b.dl, for: 'deptOH', feedback: 'Department B applies overhead per **machine hour**, not on labor pesos.' },
+          { value: plant * (a.mh + b.mh), for: 'plantOH', feedback: 'The plantwide rate is a percentage of direct labor **cost**, not a rate per machine hour.' },
+          { value: plant * a.dl, for: 'plantOH', feedback: 'Apply the plantwide rate to the job\'s labor cost in **both** departments.' },
         ],
       };
     }
@@ -867,6 +1077,6 @@ export default function register(sdk) {
       pickCompany, costFlow, flowSheet, flowWalk, jobsCogm, cogmSheet, cogmWalk, engagement, jobProfit,
       caseQuote, caseYearEnd,
     },
-    generators: { pohrQ, jobQ, closeQ, prorateQ, deptQ, flowQ, cogmQ, engagementQ, markupQ, profitQ, appliedQ },
+    generators: { pohrQ, jobQ, closeQ, prorateQ, deptQ, flowQ, flowChainQ, cogmQ, engagementQ, markupQ, profitQ, appliedQ, chainQ, deptBudgetQ },
   };
 }

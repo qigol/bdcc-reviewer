@@ -12,11 +12,12 @@ scenes:
     stage:
       - id: plot
         widget: VectorPlot
-        props: { vectors: '@vecs', domain: [-1, 3], angleBetween: [you, film] }
+        props: { vectors: '@vecs', domain: [-1, 3] }
         bind: { vectors: vecs }
       - id: r
         widget: Readout
         region: side
+        hidden: true
         props:
           items:
             - { label: predicted rating, value: '@dp.dot', format: 2, tone: good }
@@ -27,13 +28,17 @@ scenes:
           steps:
             - 'p = \anchor{u}{u_1} \anchor{v}{v_1} + u_2 v_2'
             - 'p = {=dp.tex}'
-          step: 1
+          step: 0
     beats:
       - say: |
-          Neighbourhood CF needed overlaps. **Latent-factor** CF ("latent" means hidden) takes another route: describe each person by a few **hidden tastes**
-          (say, love of action and of romance) and each film by how much it has of each. Each of these hidden dimensions is a **factor**.
+          Neighbourhood CF needed overlaps. **Latent-factor** CF ("latent" means hidden) takes another route: describe
+          each person by a few hidden tastes (say, love of action and of romance) and each film by how much it has of
+          each. Each hidden taste dimension is a **latent factor**.
+        define: [latent-factor]
       - say: |
-          The predicted rating is the **dot product** of the two vectors: multiply matching entries and add. Here: your action love × the film's action, plus your romance love × its romance.
+          The **predicted rating** is the **dot product** of the two arrows: multiply matching entries and add. Here:
+          your action love × the film's action, plus your romance love × its romance.
+        define: [predicted-rating, dot-product]
         do:
           - { target: f, cmd: highlight, args: { sel: 'term:u', tone: accent } }
         gate:
@@ -42,14 +47,21 @@ scenes:
           answer: { value: 4 }
           explain: '(2)(1) + (1)(2) = 2 + 2 = 4: your action love times its action, plus your romance love times its romance.'
       - say: Drag the film arrow to change what the film is like. The formula redoes the two products and the sum as you drag.
+        show: [r]
+        do:
+          - { target: f, cmd: step, args: { n: 1 } }
         gate:
           type: when
           prompt: Make a film you'd rate about **5**.
           when: 'abs(dp.dot - 5) < 0.25'
           hint: Give it more action, since you care about action twice as much as romance.
       - say: |
-          Nobody tells the model what "action" means. It **learns** whatever hidden dimensions best explain the observed ratings. The factors are latent,
-          and their number, **d**, is chosen by us (the lecture uses d = 2).
+          Nobody tells the model what "action" means. It **learns** whatever hidden dimensions best explain the observed
+          ratings. The factors are latent, and their number, **d**, is chosen by us (the lecture uses d = 2).
+      - say: Try a prediction with fresh numbers.
+        gate:
+          type: practice
+          template: dot-numeric
     takeaway: Each user and item gets a few latent numbers; a rating is predicted as their dot product.
 
   - id: matrix-is-a-product
@@ -66,8 +78,8 @@ scenes:
             rows: [f1, f2]
             cols: [i1, i2, i3, i4, i5]
             values:
-              - ['\bar v_{11}', '\bar v_{21}', '\bar v_{31}', '\bar v_{41}', '\bar v_{51}']
-              - ['\bar v_{12}', '\bar v_{22}', '\bar v_{32}', '\bar v_{42}', '\bar v_{52}']
+              - ['v_{11}', 'v_{12}', 'v_{13}', 'v_{14}', 'v_{15}']
+              - ['v_{21}', 'v_{22}', 'v_{23}', 'v_{24}', 'v_{25}']
           R: '@r5x5'
           symbolic: true
       - id: note
@@ -76,19 +88,23 @@ scenes:
         props: { kind: note, body: 'U is 5×2 and V is 2×5, so 20 numbers describe a 5×5 matrix. With millions of users and items, d = 50 factors is tiny compared with the full matrix.' }
     beats:
       - say: |
-          Stack every user's taste vector as a row of **U** (users × d) and every item's trait vector as a column of **V** (d × items).
-          Then **P = UV** holds every prediction at once (slide 3). Writing R ≈ UV is called **matrix factorization**, and d is its **rank**.
-      - say: Watch one cell being built.
+          Stack every user's taste vector as a row of **U** (users × d) and every item's trait vector as a column of
+          **V** (d × items). Then **P = UV** holds every prediction at once. Writing R ≈ UV is **matrix factorization**,
+          and d is its **rank d**: the number of factors.
+        define: [factorization, rank]
+      - say: |
+          We name V's entries $v_{sj}$: factor $s$, item $j$. So $v_{21}$ is factor 2 of item 1. (The lecture's general
+          formula writes the indices the other way round, $v_{js}$; same numbers.) Watch one cell being built.
         do:
           - { target: mp, cmd: focus, args: { i: 0, j: 0 } }
         gate:
           type: predict
           question: With U = all ones, what is P's cell (u1, i1)?
-          options: ['v̄₁₁ · v̄₁₂', 'v̄₁₁ + v̄₁₂', '2', 'v̄₁₁']
+          options: ['v₁₁ · v₂₁', 'v₁₁ + v₂₁', '2', 'v₁₁']
           answer: 1
-          explain: 'Row (1, 1) of U dotted with column (v̄₁₁, v̄₁₂) of V gives v̄₁₁ + v̄₁₂.'
+          explain: 'Row (1, 1) of U dotted with column (v₁₁, v₂₁) of V gives 1·v₁₁ + 1·v₂₁ = v₁₁ + v₂₁.'
       - say: |
-          Every cell in column 1 is the same, $\bar v_{11} + \bar v_{12}$, because all users start identical. Training will make them differ.
+          Every cell in column 1 is the same, $v_{11} + v_{21}$, because all users start identical. Training will make them differ.
         do:
           - { target: mp, cmd: focus, args: { i: 3, j: 0 } }
       - say: |
@@ -101,7 +117,7 @@ scenes:
 
   - id: only-observed-cells
     title: Only observed cells count
-    goal: What exactly are we minimizing, and how do we get SSE = 75 by hand?
+    goal: How do we score a guess of U and V, and what happens to the blanks?
     skills: [sse-observed]
     data: [r5x5]
     state: { c: 2, sseUpTo: 0 }
@@ -129,6 +145,7 @@ scenes:
       - id: r
         widget: Readout
         region: side
+        hidden: true
         props:
           items:
             - { label: observed cells, value: '@s.observed' }
@@ -148,17 +165,21 @@ scenes:
             - { label: 'SSE if every p = c', value: '@cs.sse', format: 2, tone: accent }
     beats:
       - say: |
-          Training starts from a guess and improves it. The lecture's guess is U = V = all ones, so every prediction is $(1)(1) + (1)(1) = 2$ (slide 9).
-          The top matrix shows each **error** $r - p$: the rating minus the prediction.
-      - say: Which cells should the error include?
+          Training starts from a guess and improves it. The lecture's guess is U = V = all ones, so every prediction is
+          $(1)(1) + (1)(1) = 2$. The top matrix shows each error $r - p$: the rating minus the prediction.
+      - say: |
+          Cells that hold a rating are **observed entries**. The three blanks are what we want to predict.
+        define: [observed-entry]
         gate:
           type: predict
-          question: How many cells contribute to the SSE?
+          question: How many cells contribute to the error score?
           answer: { value: 22 }
           explain: '25 cells minus the 3 missing ratings. Blanks are what we want to predict, so they carry no error.'
       - say: |
-          The score to minimize is the **SSE, sum of squared errors**: square each error and add. Squaring makes every term positive and punishes big misses more.
-          Row u1 has ratings 5, 2, 4, 4, 3, so its errors are 3, 0, 2, 2, 1.
+          The score to minimize is the **SSE, sum of squared errors**: square each error and add. Squaring makes every
+          term positive and punishes big misses more. Row u1 has ratings 5, 2, 4, 4, 3, so its errors are 3, 0, 2, 2, 1.
+        define: [sse]
+        show: [r]
         gate:
           type: predict
           question: 'What does row u1 add to the SSE?'
@@ -172,10 +193,20 @@ scenes:
           target: player
           event: done
       - say: |
-          **SSE** $= 18 + 7 + 6 + 23 + 21 = 75$ over the **22 observed** cells. Missing cells show "—": they are never counted (slide 4 leaves them out).
+          SSE $= 18 + 7 + 6 + 23 + 21 = 75$ over the 22 observed cells. Missing cells show "—": they are never counted.
         set: { sseUpTo: 5 }
         do:
           - { target: err, cmd: highlight, args: { sel: missing, tone: warn } }
+        gate:
+          type: reflect
+          prompt: Why would counting each blank as a 0 rating ruin the model?
+          model: |
+            A blank means "not rated yet", not "rated 0". Counting it as 0 would push every prediction for unseen films
+            toward 0, the opposite of what we want, since the blanks are exactly the films we hope to recommend.
+      - say: Your turn on a fresh matrix.
+        gate:
+          type: practice
+          template: sse-hand
       - say: As a warm-up, forget factors and predict the same number c everywhere.
         show: [cs, csr]
         gate:
@@ -184,12 +215,14 @@ scenes:
           when: 'cs.sse <= cs.best + 0.05'
           hint: Try the average of the observed ratings.
       - say: |
-          The best constant is the **mean of the observed ratings**, $\frac{73}{22} \approx 3.32$. Factors can do much better because each user and item gets its own numbers.
+          The best constant is the mean of the observed ratings, $\frac{73}{22} \approx 3.32$, with SSE ≈ 36.8: already
+          half of 75. Factors do better still, because each user and item gets its own numbers: 22.6 for ALS from all
+          ones, about 1.85 from a random start.
     takeaway: The SSE sums squared errors over observed ratings only; the model is judged on what we know.
 
   - id: als-dance
     title: The ALS dance
-    goal: How does alternating least squares fit U and V, column by column and row by row?
+    goal: How can we fit 20 numbers at once by solving small easy problems?
     skills: [als-step]
     data: [r5x5]
     state:
@@ -215,46 +248,67 @@ scenes:
       - id: chart
         widget: Chart
         region: side
+        hidden: true
         props: { kind: line, series: '@run.series', xLabel: iteration, yLabel: SSE }
       - id: player
         widget: StepPlayer
         region: bottom
+        hidden: true
         props: { fn: alsDetailWalk, in: { R: '@r5x5', iters: 3 }, roles: { product: mp }, speed: 0.5 }
     beats:
       - say: |
-          Fitting U and V together is hard. **Alternating least squares (ALS)** splits it in two. **Freeze U** (hold it fixed), and each item's column of V becomes a
-          **least-squares** problem: pick the numbers with the smallest SSE, like fitting a regression line through the users who rated it. Then freeze V and solve each user's row of U.
+          Fitting U and V together is hard. **Alternating least squares** (ALS) splits it in two. Freeze U, and each
+          item's column of V becomes a **least squares** problem: pick the numbers with the smallest SSE over the users
+          who rated it. Then freeze V and solve each user's row of U.
+        define: [als, least-squares]
       - say: |
-          With U = all ones, every prediction in column $j$ is $v_{1j} + v_{2j}$. Only the **sum** matters, and the best sum is the mean of the column's observed ratings. i1's ratings are 5, 3, 2, 4.
+          With U = all ones, every prediction in column $j$ is $v_{1j} + v_{2j}$. Only the **sum** matters, and the best
+          sum is the mean of the column's observed ratings. i1's ratings are 5, 3, 2, 4.
         gate:
           type: predict
-          question: 'The V-step gives item i1 which value in each factor (slide 5)?'
-          options: ['3.5', '1.75', '1', '14']
-          answer: 1
-          explain: 'The mean is 14/4 = 3.5 = v₁ + v₂. The data can''t tell the two apart, so the lecture takes the minimum-norm solution (the one with the smallest numbers), which splits evenly: 1.75 each.'
-      - say: Try another column.
+          question: 'Which values of v₁₁ and v₂₁ give item i1 the smallest SSE?'
+          options: ['3.5 each', '1.75 each', 'Any pair that adds up to 3.5', '14 and 0']
+          answer: 2
+          explain: 'Every prediction in the column is v₁₁ + v₂₁, so any pair with sum 14 / 4 = 3.5 fits equally well: 1.75 + 1.75, 3.5 + 0, 2 + 1.5…'
+      - say: |
+          The data can't choose, so the lecture takes the **minimum-norm solution**: the fitting pair whose squares add
+          up least. $1.75^2 + 1.75^2 = 6.125$ beats $3.5^2 + 0^2 = 12.25$, so the sum splits evenly: 1.75 each.
+        define: [minimum-norm]
         gate:
           type: predict
           question: 'i3 has ratings 4, 2, 3, 4, 5 (no blanks). What does each factor of i3 get?'
           answer: { value: 1.8, tol: 0.01 }
-          explain: 'Mean = 18/5 = 3.6, split evenly: 1.8 and 1.8 (slide 5).'
+          explain: 'Mean = 18/5 = 3.6, split evenly: 1.8 and 1.8.'
       - say: |
-          One **iteration** of ALS = a V-step (solve every column of V) + a U-step (solve every row of U). Play the first one column by column and row by row, then iterations 2 and 3.
+          The U-step mirrors it. V's two rows are now equal, call them $w_j$ = 1.75, 1.5, 1.8, 1.6, 1.625. For each user,
+          $u_1 + u_2$ is the best single number to multiply $w$ by: a line through the origin, $\frac{\sum w_j r_j}{\sum w_j^2}$.
+        gate:
+          type: predict
+          question: 'u2 rated 3, 1, 2, 4, 1. Σ w·r = 18.375 and Σ w² = 13.753. With the even split, what is u₂₁ (= u₂₂)?'
+          answer: { value: 0.668, tol: 0.005 }
+          explain: '18.375 / 13.753 = 1.336 is u₂₁ + u₂₂; split evenly, 0.668 each (the lecture shows 0.66802999).'
+      - say: |
+          One iteration of ALS = a V-step (solve every column of V) + a U-step (solve every row of U). Play the first one
+          column by column and row by row, then iterations 2 and 3.
+        show: [player, chart]
         gate:
           type: event
           prompt: Play the ALS run to the end.
           target: player
           event: done
       - say: |
-          The U-step for u1: V's rows are equal ($c = 1.75, 1.5, 1.8, 1.6, 1.625$), so $u_{11} + u_{12} = \frac{\sum c_j r_{1j}}{\sum c_j^2} = \frac{30.225}{13.753} = 2.198$, split evenly: **1.09884117**, slide 8.
-      - say: |
-          Each half-step solves its block **exactly**, so the SSE can only fall: 75 → 35.75 → 23.41 → 22.70 → … But look at U: both columns are still identical. Suspicious? That's the next scene.
+          Each half-step solves its block **exactly**, so the SSE can only fall: 75 → 35.75 → 23.41 → 22.70 → … But look
+          at U: both columns are still identical. Suspicious? That's the next scene.
+      - say: Do a V-step column yourself.
+        gate:
+          type: practice
+          template: als-column-hand
     takeaway: 'ALS alternates two easy least-squares problems: freeze U and solve V, then freeze V and solve U; the SSE never rises.'
 
   - id: symmetry-trap
     title: The symmetry trap
-    goal: Why do the slides' U and V have identical columns and rows?
-    skills: [als-symmetry, rank-choice]
+    goal: Why do the lecture's U and V have identical columns and rows?
+    skills: [als-symmetry]
     data: [r5x5]
     state: { initKind: ones }
     derive:
@@ -266,6 +320,7 @@ scenes:
       - id: pick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: Initialize U with
           options:
@@ -282,7 +337,7 @@ scenes:
       - id: beyond
         widget: Callout
         hidden: true
-        props: { kind: beyond, body: 'Only v₁ⱼ + v₂ⱼ is pinned down by the data, so the minimizer isn''t unique. Regularization (a penalty λ on large factor values) makes it unique and keeps the factors small; see Math & Code → Regularization.' }
+        props: { kind: beyond, body: 'Regularization (a penalty λ on large factor values, Math & Code → Regularization) keeps factors small and gives each ALS step a single answer. It does **not** break the tie: from a symmetric start the penalized problem is still symmetric. Only a random start does.' }
     beats:
       - say: |
           After 8 ALS iterations from all-ones U, the two columns of U are **still identical**, as are the two rows of V.
@@ -292,22 +347,34 @@ scenes:
           question: If U's two columns start equal, what does the V-step produce?
           options: ['Two different rows in V', 'Two identical rows in V', 'A V of zeros', 'It depends on the ratings']
           answer: 1
-          explain: 'Both factors look exactly alike to the regression, so they receive the same value. Then the U-step sees identical rows and keeps U''s columns identical.'
+          explain: 'With equal columns in U, only v₁ⱼ + v₂ⱼ matters: any split fits equally well, and the minimum-norm (even) split is chosen. So V''s rows come out equal, and the U-step then keeps U''s columns equal.'
       - say: |
-          Symmetry in, symmetry out, forever. The rank-2 model is really **rank 1** (it behaves as if d = 1): the second factor is wasted, and the SSE gets stuck at 22.6.
+          Symmetry in, symmetry out, forever: the **symmetry trap**. The rank-2 model behaves as if d = 1. The second
+          factor is wasted, and the SSE gets stuck at 22.6.
+        define: [symmetry-trap]
+        gate:
+          type: reflect
+          prompt: Why can't ALS from an all-ones start ever use the second factor?
+          model: |
+            With equal columns in U, the data pins down only v₁ⱼ + v₂ⱼ, and the even split makes V's rows equal. Equal
+            rows in V then make U's columns equal again. The two factors stay copies of each other, so together they act
+            like one.
       - say: Break the tie.
+        show: [pick]
         gate:
           type: when
           prompt: Start from a **random** U instead.
           when: 'run.symmetric == false'
       - say: |
-          With random starts the factors specialize and the SSE drops to about 1.85. That's why real ALS **initializes** (picks the starting U) randomly.
+          With a **random initialization**, picking the starting U (and V) at random, the factors start different,
+          specialize, and the SSE drops to about 1.85. That is why real ALS starts randomly.
+        define: [random-init]
         show: [beyond]
-    takeaway: Identical starting factors stay identical forever; random initialization lets each factor learn something different.
+    takeaway: Identical starting factors stay identical forever under ALS; only a random start lets each factor learn something different.
 
   - id: one-knob
     title: One knob at a time
-    goal: What does coordinate descent actually compute, term by term?
+    goal: What if we improve just one number at a time?
     skills: [cgd-derivation, cgd-update]
     data: [r5x5]
     state: { x: 1, y: 1 }
@@ -352,13 +419,16 @@ scenes:
         widget: Callout
         region: side
         hidden: true
-        props: { kind: errata, body: 'Slide 14 labels its result "x = 1.68"; it solves for **y** (= v₁₁).' }
+        props: { kind: errata, body: 'If you are reading the lecture: its last coordinate step labels the result "x = 1.68". It solves for **y** (= v₁₁).' }
     beats:
       - say: |
-          **Coordinate descent** (slides 9–15, "CGD" on the slides) improves one number, one **coordinate**, at a time while freezing all the others.
-          Start from U = V = ones and free only $u_{11} = x$: row 1's predictions become $x + 1$; every other prediction stays 2.
+          **Coordinate descent** improves one number, one coordinate, at a time while freezing all the others. The
+          lecture calls it coordinate gradient descent (CGD). Start from U = V = ones and free only $u_{11} = x$: row 1's
+          predictions become $x + 1$; every other prediction stays 2.
+        define: [coordinate-descent]
       - say: |
-          Only row 1 depends on x, so the SSE as a function of x is row 1's errors squared: a **parabola**, a U-shaped curve with one lowest point. Subtract the 1 inside each bracket.
+          Only row 1 depends on x, so the SSE as a function of x is row 1's errors squared: a **parabola**, a U-shaped
+          curve with one lowest point. Subtract the 1 inside each bracket.
         do:
           - { target: f, cmd: step, args: { n: 1 } }
         gate:
@@ -372,13 +442,20 @@ scenes:
           prompt: Drag x to the minimum (flat tangent).
           when: 'abs(x - 2.6) < 0.06'
       - say: |
-          At the bottom the slope (the **derivative**) is 0: $-2[(4-x) + (1-x) + (3-x) + (3-x) + (2-x)] = -2[13 - 5x] = 0$, so **x = 2.6** (slide 11). The worksheet shows the general recipe: $\frac{\sum v\,(r - \text{rest})}{\sum v^2} = \frac{13}{5}$.
-        show: [shx]
+          At the bottom the slope (the **derivative**) is 0: $-2[13 - 5x] = 0$, so **x = 2.6**. Ordinary gradient descent
+          would step downhill by a chosen step size; here we jump straight to the bottom, so there is no step size at all.
         do:
           - { target: f, cmd: step, args: { n: 3 } }
           - { target: fx, cmd: markMin }
       - say: |
-          Now freeze x = 2.6 and turn the next knob, $y = v_{11}$. Column i1's predictions become $2.6y + 1$ for u1 and $y + 1$ for u2, u4, u5 (u3 is blank).
+          The worksheet shows the general recipe, a **closed form**: $\frac{\sum f\,(r - \text{rest})}{\sum f^2}$. Here
+          **rest** is what the other factors already predict, $r - \text{rest}$ is the **residual**, and $f$ is the frozen
+          partner factor multiplying x. All $f = 1$: $\frac{13}{5}$.
+        define: [closed-form-update, residual]
+        show: [shx]
+      - say: |
+          Now freeze x = 2.6 and turn the next knob, $y = v_{11}$. Column i1's predictions become $2.6y + 1$ for u1 and
+          $y + 1$ for u2, u4, u5 (u3 is blank). The partner factor f is now u's: 2.6, 1, 1, 1.
         show: [fy]
         hide: [fx, shx]
         do:
@@ -387,16 +464,18 @@ scenes:
           type: predict
           question: Where is the minimum for y?
           answer: { value: 1.68, tol: 0.05 }
-          explain: '−2[2.6(4 − 2.6y) + (2 − y) + (1 − y) + (3 − y)] = −2[10.4 − 6.76y + 6 − 3y] = −2[16.4 − 9.76y] = 0, so y = 16.4 / 9.76 = 1.68 (slides 12–14).'
+          explain: '−2[2.6(4 − 2.6y) + (2 − y) + (1 − y) + (3 − y)] = −2[10.4 − 6.76y + 6 − 3y] = −2[16.4 − 9.76y] = 0, so y = 16.4 / 9.76 = 1.68.'
       - say: |
-          Term by term: u1 contributes $2.6 \times (5 - 1) = 10.4$ to the numerator and $2.6^2 = 6.76$ to the denominator; u2, u4, u5 contribute $2 + 1 + 3 = 6$ and $1 + 1 + 1 = 3$. So $y = \frac{16.4}{9.76} = 1.68$.
-        show: [shy]
+          Term by term: u1 contributes $2.6 \times (5 - 1) = 10.4$ to the numerator and $2.6^2 = 6.76$ to the denominator;
+          u2, u4, u5 contribute $2 + 1 + 3 = 6$ and $1 + 1 + 1 = 3$. So $y = \frac{16.4}{9.76} = 1.68$.
+        show: [shy, err]
         do:
           - { target: f, cmd: step, args: { n: 6 } }
           - { target: fy, cmd: animateTo, args: { x: 1.68 } }
-      - say: |
-          **y = 1.68**. Repeat for every entry, sweep after sweep: that's coordinate descent (next scene). Mind the slide's label:
-        show: [err]
+      - say: Run the recipe yourself on a fresh matrix.
+        gate:
+          type: practice
+          template: cgd-hand
     takeaway: Freeze everything but one entry; the SSE is a parabola in it; jump to its minimum, Σ f·(r − rest) / Σ f². Repeat.
 
   - id: full-sweep
@@ -430,33 +509,46 @@ scenes:
       - id: player
         widget: StepPlayer
         region: bottom
+        hidden: true
         props: { fn: cgdSweepWalk, in: { R: '@r5x5' }, roles: { product: mp }, speed: 0.5 }
     beats:
       - say: |
-          One **sweep** updates every entry once. We start with the lecture's two moves, x = u₁₁ and y = v₁₁, then the other 8 entries of U row by row, then the other 8 entries of V. Every update is the same recipe: $\frac{\sum f\,(r - \text{rest})}{\sum f^2}$.
-      - say: After x = 2.6 and y = 1.68, the next entry is $u_{12}$. Think about what it already predicts.
+          One **sweep** updates every entry once. We start with the lecture's two moves, x = u₁₁ and y = v₁₁, then the
+          other 9 entries of U row by row, then the other 9 entries of V: 20 updates. Every update is the same recipe,
+          $\frac{\sum f\,(r - \text{rest})}{\sum f^2}$.
+        define: [sweep]
+      - say: |
+          After x = 2.6 and y = 1.68, the next entry is $u_{12}$. Row 1's rest is now $2.6\,v_{1j}$: 4.368 for i1 and 2.6
+          for the others. Its partner factors $v_{2j}$ are all still 1.
         gate:
           type: predict
-          question: 'Can an exact coordinate update ever raise the SSE?'
-          options: ['Yes, if the new value overshoots', 'No: each update minimizes the SSE along that coordinate', 'Only for entries of V', 'Only in the first sweep']
-          answer: 1
-          explain: 'Each update jumps to the bottom of a parabola, so the SSE either drops or (if the entry was already optimal) stays the same.'
+          question: 'What is the new u₁₂? (Ratings 5, 2, 4, 4, 3; Σ f² = 5.)'
+          answer: { value: 0.646, tol: 0.005 }
+          explain: 'Residuals 5 − 4.368, 2 − 2.6, 4 − 2.6, 4 − 2.6, 3 − 2.6 = 0.632, −0.6, 1.4, 1.4, 0.4. Their sum is 3.232, so u₁₂ = 3.232 / 5 = 0.646.'
       - say: Play the sweep. The worksheet rebuilds for every entry, and the highlighted cell of U or V is the one being solved.
+        show: [player]
         gate:
           type: event
           prompt: Play all 20 updates.
           target: player
           event: done
       - say: |
-          One sweep takes the SSE from 75 to about 21.1. Compare ALS: one iteration (10 least-squares fits) reached 23.41. Coordinate descent's steps are tiny, one number each, but cheap and easy to parallelize.
-    takeaway: A sweep solves every entry of U and V once with Σ f·(r − rest)/Σ f²; the SSE never rises.
+          One sweep from all ones takes the SSE from 75 to about 21.1, already below the 22.6 where ALS from all ones gets
+          stuck. Why? Changing u₁₁ alone makes U's two columns differ at once: one-at-a-time updates break the tie that ALS keeps.
+        gate:
+          type: predict
+          question: 'Starting from all ones, does coordinate descent fall into the symmetry trap?'
+          options: ['No: the first single-entry update already makes the factors differ', 'Yes, exactly like ALS', 'Only if d = 2', 'Only without regularization']
+          answer: 0
+          explain: 'After x = u₁₁ = 2.6, U''s columns are (2.6, 1) in row 1: no longer equal, so later updates treat the two factors differently.'
+    takeaway: A sweep solves every entry of U and V once with Σ f·(r − rest)/Σ f²; the SSE never rises, and one-at-a-time updates escape the symmetry trap.
 
   - id: watching-sse-fall
     title: Watching the SSE fall
-    goal: How do ALS and coordinate descent compare as optimizers?
+    goal: How do ALS and coordinate descent compare when you run them longer?
     skills: [cgd-update, als-step]
     data: [r5x5]
-    state: { sweeps: 6 }
+    state: { sweeps: 1 }
     derive:
       - { fn: als, in: { R: '@r5x5', iters: '@sweeps', initKind: random, seed: 7 }, out: a }
       - { fn: cgdRun, in: { R: '@r5x5', sweeps: '@sweeps', initKind: random, seed: 7 }, out: g }
@@ -478,7 +570,9 @@ scenes:
             - { label: 'CGD SSE', value: '@g.sse', format: 2, tone: good }
     beats:
       - say: |
-          Both methods start from the same random U and V. ALS solves whole rows and columns at once; coordinate descent adjusts single entries, sweeping through all of them.
+          Both methods start from the same random U and V. ALS solves whole rows and columns at once; coordinate descent
+          adjusts single entries, sweeping through all of them. The chart's height axis is a log scale: each step up
+          multiplies by 10.
       - say: A property worth knowing for the exam.
         gate:
           type: predict
@@ -486,17 +580,20 @@ scenes:
           options: ['Yes, if the step size is too big', 'No: it jumps to the exact minimum along that coordinate', 'Only for entries of V', 'Only in the first sweep']
           answer: 1
           explain: The update minimizes the SSE exactly along one coordinate, so the SSE can only stay the same or drop.
-      - say: Run more iterations.
+      - say: After one iteration ALS is already at 15.3 while coordinate descent is at 20.8. Run more.
         gate:
           type: when
-          prompt: Increase iterations until the ALS SSE is below **2**.
-          when: 'a.sse < 2'
+          prompt: Increase iterations until the **CGD** SSE is below **2**.
+          when: 'g.sse < 2'
+          hint: It takes about 7 sweeps.
       - say: |
-          Both curves only go down (log scale). ALS takes bigger steps per iteration; coordinate descent steps are cheap and easy to parallelize per entry.
+          Both curves only go down. ALS drops further per iteration because it solves whole blocks. Coordinate descent's
+          single-entry steps are cheaper, and entries of the same factor for different users don't interact, so they can
+          be updated in parallel.
       - say: |
-          Neither guarantees the **global minimum** (the best U and V overall, not just a local dip). And a near-zero SSE may just mean **over-fitting**:
-          memorizing the known ratings instead of learning tastes that carry over to the blanks.
-    takeaway: Exact block or coordinate minimization never increases the SSE; ALS moves faster per iteration, CGD per step is cheaper.
+          Neither guarantees the **global minimum** (the best U and V overall, not just a local dip). And a near-zero SSE
+          may just mean memorizing the known ratings instead of learning tastes that carry over to the blanks.
+    takeaway: Exact block or coordinate minimization never increases the SSE; ALS moves further per iteration, CGD per step is cheaper.
 
   - id: filling-the-blanks
     title: Filling the blanks
@@ -516,10 +613,11 @@ scenes:
         props: { data: '@r5x5', format: 2, emptyLabel: '?', title: Ratings with blanks }
       - id: mp
         widget: MatrixProduct
-        props: { U: '@run.U', V: '@run.V', R: '@r5x5', format: 2 }
+        props: { U: '@run.U', V: '@run.V', R: '@r5x5', format: 3 }
       - id: player
         widget: StepPlayer
         region: bottom
+        hidden: true
         props: { fn: fillWalk, in: { R: '@r5x5', U: '@run.U', V: '@run.V' }, roles: { m: m }, speed: 0.5 }
       - id: r
         widget: Readout
@@ -527,7 +625,7 @@ scenes:
         props:
           items:
             - { label: training SSE, value: '@run.sse', format: 2 }
-            - { label: 'u3·i1', value: '@fm.missing.0.value', format: 2, tone: bad }
+            - { label: 'u3·i1', value: '@fm.missing.0.value', format: 2 }
             - { label: 'u3·i2', value: '@fm.missing.1.value', format: 2 }
             - { label: 'u5·i5', value: '@fm.missing.2.value', format: 2 }
       - id: reg
@@ -548,30 +646,51 @@ scenes:
         props: { kind: beyond, body: 'Regularization adds λ(‖U‖² + ‖V‖²) to the SSE. It costs a little training fit and buys saner predictions. Spark''s ALS calls λ `regParam`.' }
     beats:
       - say: |
-          Train with a random start (10 ALS iterations), then read the blanks off P = UV: each blank is **row i of U · column j of V**, exactly like a known cell.
+          Train with a random start (10 ALS iterations), then read the blanks off P = UV: each blank is **row i of U ·
+          column j of V**, exactly like a known cell.
         do:
           - { target: m, cmd: highlight, args: { sel: missing, tone: warn } }
       - say: Compute the three blanks, one dot product each. They appear in the rating matrix as you go.
+        show: [player]
         gate:
           type: event
           prompt: Play the three dot products.
           target: player
           event: done
-      - say: Look at the predictions.
+      - say: Look at the predictions on a 1–5 scale.
         gate:
           type: predict
           question: Which prediction looks least trustworthy?
           options: ['u3·i1', 'u3·i2', 'u5·i5', 'They all look fine']
           answer: 0
-          explain: 'u3·i1 comes out far below the 1–5 scale. The model bent itself to fit 22 ratings with 20 parameters.'
+          explain: 'u3·i1 comes out at about 0.47, below the 1–5 scale. The model bent itself to fit 22 ratings with 20 parameters.'
       - say: |
-          Training SSE ≈ 1.85, nearly perfect, yet u3·i1 is off the scale. That's **over-fitting**: too many free numbers for too little data.
+          Training SSE ≈ 1.85, nearly perfect, yet u3·i1 is below the scale. That's **overfitting**: too many free
+          numbers for too little data, so the model memorizes the known ratings.
+        define: [overfitting]
       - say: |
-          **Regularization** adds a penalty $\lambda(\|U\|^2 + \|V\|^2)$ to the SSE: big factor values now cost something, and λ sets how much.
+          **Regularization** adds a penalty $\lambda(\|U\|^2 + \|V\|^2)$ to the SSE. $\|U\|^2$ is the sum of every entry
+          of U squared, so big factor values now cost something; λ ("lambda") sets how much.
+        define: [regularization]
         show: [reg, regf, tip]
         gate:
           type: continue
           label: Compare with λ = 1
       - say: |
-          With λ = 1 the fit on known ratings loosens a bit, and the same dot product (formula above) lands back near the scale. Choosing d and λ is the real modelling decision.
-    takeaway: Predictions for blanks are just P = UV, one dot product each; a tiny training error can hide over-fitting, which regularization and a smaller d control.
+          With λ = 1 the fit on known ratings loosens a bit, and the same dot product (formula above) lands back near the
+          scale. Choosing d and λ is the real modelling decision.
+      - say: |
+          To choose them, hide some known ratings as a **validation set**, train on the rest, and score how well each
+          d and λ predicts or ranks the hidden ones, by RMSE or by **NDCG** from the neighbourhood module.
+        define: [validation-set, ndcg]
+        gate:
+          type: reflect
+          prompt: Why is a near-zero training SSE not enough to pick d and λ?
+          model: |
+            Training SSE only measures fit to ratings the model has already seen; more factors and less λ always lower
+            it. What matters is predicting unseen ratings, so compare settings on ratings held back from training.
+      - say: |
+          A new user rates three films. Keep V fixed and solve one least-squares problem for their row of U: that is
+          **folding in**, one ALS U-step, no retraining.
+        define: [fold-in]
+    takeaway: Predictions for blanks are just P = UV, one dot product each; a tiny training error can hide overfitting, which regularization and a smaller d control.

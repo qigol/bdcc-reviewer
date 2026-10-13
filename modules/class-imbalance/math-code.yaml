@@ -32,7 +32,7 @@ sections:
         say: 'It never guesses "small group", so it catches none of them. TP (caught cases) is 0, so recall is 0.'
       - tex: |
           \text{Accuracy} = \frac{ {=nMaj} }{ {=nMaj} + {=nMin} } = {=lz.accuracy|4}, \qquad \text{Recall} = {=lz.recall}
-        say: 'Slide 9: 10,000 learners with a 1.41% dropout rate.'
+        say: 'The lecture''s case: 10,000 learners with a 1.41% dropout rate.'
     code:
       lang: python
       source: |
@@ -85,7 +85,7 @@ sections:
     live:
       - id: fraud
         widget: Matrix
-        props: { data: '@fs.table', title: 'Slides 19–20: the 18 transactions' }
+        props: { data: '@fs.table', title: 'The 18 card payments' }
       - id: cm
         widget: Matrix
         props: { data: '@blankCm', format: int, title: 'Rows = actual, columns = predicted', emptyLabel: '·' }
@@ -105,7 +105,7 @@ sections:
           For each row, $a_i$ is the real answer and $\hat y_i$ ("y-hat") is the guess. + means Fraud, the [[positive-class|positive class]]. Exactly one line applies.
       - tex: |
           \anchor{ret}{\begin{pmatrix} TP & FN \\ FP & TN \end{pmatrix}} = \begin{pmatrix} {=c.tp} & {=c.fn} \\ {=c.fp} & {=c.tn} \end{pmatrix}, \qquad {=c.tp} + {=c.fn} + {=c.fp} + {=c.tn} = {=c.n}
-        say: 'Slide 21: most guesses are right, but 2 of the 4 frauds sit in the FN box.'
+        say: 'Most guesses are right, but 2 of the 4 frauds sit in the FN box.'
     code:
       lang: python
       source: |
@@ -153,7 +153,7 @@ sections:
     examples: [fraud-tally, fraud-tally-walk, fraud-metrics-code]
     pitfalls:
       - |
-        scikit-learn sorts the labels itself unless you pass `labels=`. With 0/1 labels you get [[TN, FP], [FN, TP]], the mirror image of slide 21.
+        scikit-learn sorts the labels itself unless you pass `labels=`. With 0/1 labels you get [[TN, FP], [FN, TP]], the mirror image of the lecture's layout (positive first).
       - The four boxes must add up to the number of rows. Always check.
     examTip: |
       Decide which group is "positive" first. Fill the real-positive row (TP, FN) before the real-negative row (FP, TN).
@@ -196,28 +196,32 @@ sections:
           Both have TP on top. Precision divides by everything the model flagged; recall divides by everything that was really positive.
       - tex: |
           \anchor{f1}{F_1 = 2 \cdot \frac{P \cdot R}{P + R}}
-        say: A special average that stays close to the smaller of precision (P) and recall (R).
+        say: A special average that leans towards the smaller of precision (P) and recall (R).
       - tex: |
-          \frac{ {=tp} + {=tn} }{ {=m.n} } = {=m.accuracy|3}, \quad P = \frac{ {=tp} }{ {=tp} + {=fp} } = {=m.precision|2}, \quad R = \frac{ {=tp} }{ {=tp} + {=fn} } = {=m.recall|2}, \quad F_1 = {=m.f1|2}
-        say: 'Slide 22: 83.3% accuracy, yet only half of the fraud is caught.'
+          \anchor{bal}{\text{Balanced} = \tfrac12\Big(\frac{TP}{TP + FN} + \frac{TN}{TN + FP}\Big)}
+        say: 'Balanced accuracy averages the recall on each group, so the small group counts as much as the big one. A lazy model scores 0.5.'
+      - tex: |
+          \frac{ {=tp} + {=tn} }{ {=m.n} } = {=m.accuracy|3}, \quad P = \frac{ {=tp} }{ {=tp} + {=fp} } = {=m.precision|2}, \quad R = \frac{ {=tp} }{ {=tp} + {=fn} } = {=m.recall|2}, \quad F_1 = {=m.f1|2}, \quad \text{Balanced} = {=m.balanced|2}
+        say: 'The fraud example: 83.3% accuracy, yet only half of the fraud is caught; balanced accuracy, 0.71, shows it.'
     code:
       lang: python
       source: |
         def scores(tp, fn, fp, tn):
-            """The four slide-22 metrics from one confusion matrix.
+            """The lecture's four metrics, plus balanced accuracy, from one confusion matrix.
 
             Args:
                 tp, fn, fp, tn: the four cells, positive = minority.
 
             Returns:
-                (accuracy, precision, recall, f1).
-                Lecture: scores(2, 2, 1, 13) ≈ (0.833, 0.67, 0.50, 0.57)
+                (accuracy, precision, recall, f1, balanced).
+                Lecture (slide 22): scores(2, 2, 1, 13) ≈ (0.833, 0.67, 0.50, 0.57, 0.71)
             """
             accuracy = (tp + tn) / (tp + tn + fp + fn)          # @a:acc
             precision = tp / (tp + fp)                           # @a:prec
             recall = tp / (tp + fn)                              # @a:rec
             f1 = 2 * precision * recall / (precision + recall)   # @a:f1
-            return accuracy, precision, recall, f1
+            balanced = (recall + tn / (tn + fp)) / 2             # @a:bal
+            return accuracy, precision, recall, f1, balanced
     extraCode:
       - lang: python
         title: With scikit-learn (as in the Session 3 notebook)
@@ -235,12 +239,13 @@ sections:
       - {anchor: prec, label: precision, say: 'Looks down the "guessed Fraud" column: TP and FP.'}
       - {anchor: rec, label: recall, say: 'Looks along the "really Fraud" row: TP and FN.'}
       - { anchor: f1, label: F1 }
+      - { anchor: bal, label: balanced accuracy, say: 'Recall on the positives and on the negatives, averaged.' }
     trace: { fn: metricsCode, in: { tp: '@tp', fn: '@fn', fp: '@fp', tn: '@tn' } }
     examples: [fraud-metrics]
     pitfalls:
       - |
         Precision and recall share the top number, TP. Mixing up their bottom numbers is the most common slip.
-      - 'F1 is not the normal average: (0.67 + 0.50) ÷ 2 = 0.58, but F1 = 0.57.'
+      - 'F1 is not the normal average: (2/3 + 1/2) ÷ 2 = 0.583, but F1 = 0.571. With precision 1 and recall 0.25 the gap is huge: 0.625 vs 0.40.'
       - 'If the model flags nothing, precision is 0 ÷ 0. The notebook then reports 0 (`zero_division=0`).'
     examTip: |
       Write P = TP/(TP+FP) and R = TP/(TP+FN) side by side before plugging in. FP goes with precision, FN with recall.
@@ -268,12 +273,12 @@ sections:
         props:
           label: SIGLA height input
           options:
-            - { value: anthro, label: Anthropometric }
-            - { value: marker, label: Marker-derived }
+            - { value: anthro, label: Measured height }
+            - { value: marker, label: Estimated height }
         bind: { value: model }
       - id: sigla
         widget: Matrix
-        props: { data: '@sv.M', format: 2, heatmap: seq, title: 'Slide 14, row-normalized (rows = actual)' }
+        props: { data: '@sv.M', format: 2, heatmap: seq, title: 'SIGLA, row-normalized (rows = actual)' }
       - id: macro
         widget: Readout
         props:
@@ -285,7 +290,7 @@ sections:
       - tex: |
           \anchor{row}{\tilde C_{cj} = \frac{C_{cj}}{\sum_{j} C_{cj}}}
         say: |
-          Divide each box by its row total, so each row (one real group) adds up to 1. Slide 14 is already like this.
+          Divide each box by its row total, so each row (one real group) adds up to 1. SIGLA's table is already like this.
       - tex: |
           \anchor{loop}{\text{for each class } c:} \quad \anchor{diag}{\text{Recall}_c = \tilde C_{cc}}
         say: The diagonal box is the share of group c that was labelled as c.
@@ -311,7 +316,7 @@ sections:
 
             Returns:
                 (dict class → recall, macro recall).
-                Lecture: marker-derived SIGLA gives Normal 0.94, Sev. UW 0.00.
+                Lecture: estimated-height SIGLA gives Normal 0.94, Sev. UW 0.00.
             """
             if not normalized:
                 cm = cm / cm.sum(axis=1, keepdims=True)    # @a:row
@@ -364,16 +369,16 @@ sections:
     steps:
       - tex: |
           \anchor{min}{I_{\min} = \{\, i : y_i = 1 \,\}} \qquad \anchor{maj}{I_{\text{maj}} = \{\, i : y_i = 0 \,\}}
-        say: 'Make two lists of row numbers: the minority rows ($y_i = 1$) and the majority rows ($y_i = 0$).'
+        say: 'Code each row''s label as a number: $y_i = 1$ for the minority, $y_i = 0$ for the majority. Then make two lists of row numbers, one per group.'
       - tex: |
-          \anchor{draw}{K \subset I_{\text{maj}}, \ |K| = |I_{\min}|} \ \text{(drawn without replacement)}
-        say: 'Pick, at random, as many majority rows as there are minority rows. Each row can be picked only once.'
+          \anchor{draw}{S \subset I_{\text{maj}}, \ |S| = |I_{\min}|} \ \text{(drawn without replacement)}
+        say: 'Pick, at random, a set S of as many majority rows as there are minority rows. Each row can be picked only once.'
       - tex: |
-          \anchor{join}{D' = I_{\min} \cup K}, \qquad |D'| = 2\,n_{\min}
+          \anchor{join}{D' = I_{\min} \cup S}, \qquad |D'| = 2\,n_{\min}
         say: 'Put them together. Half the rows are minority, half majority.'
       - tex: |
           \text{Adult: } 2 \times {=ac.trainMin} = {=ac.rows} \text{ rows}, \quad {=ac.removed} \text{ majority rows discarded}
-        say: 'Notebook technique 1: 17,530 training rows, now 50% minority.'
+        say: 'The lab''s technique 1: 17,530 training rows, now 50% minority.'
     code:
       lang: python
       source: |
@@ -453,7 +458,7 @@ sections:
         say: 'Every original row stays, and now the minority matches the majority.'
       - tex: |
           \text{Adult: } 2 \times {=ac.trainMaj} = {=ac.rows} \text{ rows}, \quad {=ac.added} \text{ copies}
-        say: 'Notebook technique 2: 55,732 training rows, now 50% minority.'
+        say: 'The lab''s technique 2: 55,732 training rows, now 50% minority.'
     code:
       lang: python
       source: |
@@ -593,7 +598,7 @@ sections:
     examples: [smote-lambda-0, smote-lambda-1, toy-smote, toy-smote-code, toy-knn-walk]
     pitfalls:
       - |
-        Start from x_i and move towards the neighbour: x_i + λ(x_nb − x_i). Starting from the neighbour gives a mirror-image point.
+        Always start at x_i: x_i + λ(x_nb − x_i). Writing x_nb + λ(x_nb − x_i) overshoots past the neighbour, out of the gap between the two points.
       - SMOTE needs numbers. Blending codes for names creates values that do not exist.
       - A minority point sitting among majority points can make SMOTE create points in the wrong area.
     examTip: 'Do one coordinate at a time: new = old + λ × (neighbour − old).'
@@ -857,3 +862,54 @@ sections:
     tryIt:
       - test-minority
       - pipeline-code
+  - id: error-cost
+    title: Pricing the mistakes
+    skills: [choosing]
+    summary: |
+      To choose between models, give each kind of mistake a price. With a miss costing r times a false alarm, a model's
+      cost is r × FN + FP. Two models cost the same at one ratio r*; above it, the model with fewer misses wins.
+    keyFormula: '\text{cost} = r \cdot FN + FP, \qquad r^{*} = \frac{FP_B - FP_A}{FN_A - FN_B}'
+    data: [results]
+    state: { ratio: 2 }
+    derive:
+      - { fn: costCompare, in: { results: '@results', pos: 2922, neg: 9289, ratio: '@ratio' }, out: cc }
+    live:
+      - id: ratio-s
+        widget: Slider
+        props: { label: 'cost of a miss ÷ cost of a false alarm', min: 1, max: 6, step: 0.05, format: 2 }
+        bind: { value: ratio }
+      - id: costs
+        widget: Matrix
+        props: { data: '@cc.table', format: int, title: 'Approximate test-set errors and cost', rowHeader: method }
+    steps:
+      - tex: |
+          \anchor{cost}{\text{cost} = r \cdot FN + FP}
+        say: 'Count the misses (FN) and false alarms (FP) on the test set, then weigh each miss r times as heavily.'
+      - tex: |
+          \anchor{tie}{r \cdot FN_A + FP_A = r \cdot FN_B + FP_B \;\Rightarrow\; r^{*} = \frac{FP_B - FP_A}{FN_A - FN_B}}
+        say: 'Set the two costs equal and solve for r: the ratio where the choice flips.'
+      - tex: |
+          r = {=ratio|2}: \quad \text{cheapest} = \text{ {=cc.best} }
+        say: 'In the lab table the baseline wins up to about 1.6 and ADASYN from about 2.5; the resamplers trade places in between.'
+    code:
+      lang: python
+      source: |
+        def total_cost(fn, fp, ratio):
+            """Cost of a model's mistakes when a miss costs `ratio` false alarms.
+
+            Lecture idea (choose by the decision): price the errors, then compare.
+            """
+            return ratio * fn + fp                      # @a:cost
+
+        def tie_ratio(fn_a, fp_a, fn_b, fp_b):
+            """The cost ratio at which models A and B cost the same."""
+            return (fp_b - fp_a) / (fn_a - fn_b)       # @a:tie
+    links:
+      - { anchor: cost, label: 'cost = r × FN + FP' }
+      - { anchor: tie, label: 'tie point r*' }
+    beyondSlides: true
+    pitfalls:
+      - 'Swapping the prices: the ratio multiplies the misses (FN), not the false alarms.'
+      - 'FN and FP here are worked back from the rounded lab table, so the costs are approximate.'
+    examTip: 'Write cost = r·FN + FP for each model; the tie point is (difference in FP) ÷ (difference in FN).'
+    tryIt: [cost-numeric, tie-numeric]

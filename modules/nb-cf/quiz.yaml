@@ -5,11 +5,14 @@ templates:
     difficulty: 1
     tags: [math]
     generator: meanQ
-    lessonRef: { tab: math-code, id: mean-centering }
+    lessonRef: { tab: intuition, id: harsh-vs-generous }
     prompt: 'What is user **{=user}**''s mean rating $\mu_{ {=user} }$? (Blank = not rated.)'
     show:
       - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
     answer: { var: mean, tol: 0.01 }
+    hints:
+      - Which cells in {=user}'s row actually hold a rating?
+      - Add those ratings and divide by how many there are, not by the number of columns.
     explanation: |
       Average only the observed ratings: $\mu = {=sum} / {=n} = {=mean|2}$ (as a fraction, ${=mean|frac}$).
 
@@ -24,6 +27,9 @@ templates:
     show:
       - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
     answer: { var: dev, tol: 0.01 }
+    hints:
+      - Centering uses the mean of the user who gave the rating.
+      - Find {=user}'s mean over the items {=user} rated, then subtract it from the rating.
     explanation: |
       $s = r - \mu_{ {=user} } = {=r} - {=mean|frac} = {=dev|2}$.
 
@@ -33,13 +39,17 @@ templates:
     difficulty: 2
     tags: [math]
     generator: simQ
-    lessonRef: { tab: math-code, id: similarity }
-    prompt: Compute the lecture's similarity between users A and B (mean-centered cosine over co-rated items).
+    lessonRef: { tab: intuition, id: only-co-rated }
+    prompt: Compute the lecture's similarity between users A and B (the cosine of their centered ratings over the items both rated).
     show:
       - { id: m, widget: Matrix, props: { data: '@matrix', format: int, showRowMeans: true } }
     answer: { var: sim, tol: 0.01 }
+    hints:
+      - List the items both A and B rated; ignore the rest.
+      - Center each user by their own mean (shown on the right), multiply the centered values item by item and add.
+      - Divide by the two lengths, each over the same co-rated items.
     explanation: |
-      Co-rated items: {=corated|list}. Dot product of centered values = {=dot|3}; norms {=na|3} and {=nb|3}; sim = {=sim|2}.
+      Co-rated items: {=corated|list}. Dot product of centered values = {=dot|3}; lengths over those items {=na|3} and {=nb|3}; sim = {=dot|3} / ({=na|3} × {=nb|3}) = {=sim|2}.
 
   - id: sim-hand
     type: hand-calc
@@ -51,9 +61,12 @@ templates:
     prompt: Compute sim(A, B) step by step, the way the lecture does.
     show:
       - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
+    hints:
+      - Each mean uses every rating that user gave; the similarity uses only the co-rated items.
     steps:
       - prompt: 'μ_A (mean of A''s ratings)'
         answer: { var: muA, tol: 0.01 }
+        hint: Add A's ratings and divide by how many A gave.
       - prompt: 'μ_B'
         answer: { var: muB, tol: 0.01 }
       - prompt: How many items did both users rate?
@@ -61,12 +74,10 @@ templates:
       - prompt: 'Dot product of their **centered** ratings over those items'
         answer: { var: dot, tol: 0.02 }
         hint: 'Subtract each user''s mean from their ratings first, then multiply item by item and add.'
-      - prompt: 'sim(A, B) = dot / (‖a‖ · ‖b‖), norms over the same co-rated items'
+      - prompt: 'sim(A, B) = dot / (‖a‖ · ‖b‖), lengths over the same co-rated items'
         answer: { var: sim, tol: 0.01 }
-        misconceptions:
-          - { var: rawCos, feedback: 'That is the cosine of the raw ratings; use the centered values.' }
     explanation: |
-      μ_A = {=muA|2}, μ_B = {=muB|2}; co-rated {=corated|list}; dot = {=dot|3}; norms {=na|3}, {=nb|3}; sim = {=sim|2}.
+      μ_A = {=muA|2}, μ_B = {=muB|2}; co-rated {=corated|list}; dot = {=dot|3}; lengths {=na|3}, {=nb|3}; sim = {=sim|2}.
 
   - id: sim-hand-hard
     type: hand-calc
@@ -78,6 +89,9 @@ templates:
     prompt: Six items, several blanks. Compute sim(A, B).
     show:
       - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
+    hints:
+      - Blanks are not zeros. Drop any item either user skipped.
+      - Center first, with each user's mean over all their ratings.
     steps:
       - prompt: Number of co-rated items
         answer: { var: overlap, tol: 0 }
@@ -85,12 +99,88 @@ templates:
         answer: { var: dot, tol: 0.02 }
       - prompt: '‖a‖ over the co-rated items'
         answer: { var: na, tol: 0.02 }
+        hint: Square A's centered values on the co-rated items only, add, take the root.
       - prompt: '‖b‖ over the co-rated items'
         answer: { var: nb, tol: 0.02 }
       - prompt: sim(A, B)
         answer: { var: sim, tol: 0.01 }
     explanation: |
       Means {=muA|2} and {=muB|2}; co-rated {=corated|list}; {=dot|3} / ({=na|3} · {=nb|3}) = {=sim|2}.
+
+  - id: sig-hand
+    type: hand-calc
+    skills: [similarity, sparsity-pitfalls]
+    difficulty: 3
+    tags: [math]
+    generator: sigSimQ
+    lessonRef: { tab: math-code, id: significance }
+    prompt: |
+      A and B share only a few rated items, so you don't fully trust their similarity. Shrink it with significance weighting at **β = {=beta}** (a common fix that goes beyond the lecture).
+    show:
+      - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
+    hints:
+      - First compute the ordinary sim(A, B), centering each user by the mean of all their ratings.
+      - The weight is min(overlap, β)/β; multiply the similarity by it.
+    steps:
+      - prompt: Number of co-rated items (the overlap)
+        answer: { var: overlap, tol: 0 }
+      - prompt: sim(A, B)
+        answer: { var: sim, tol: 0.01 }
+        hint: Cosine of the centered ratings over the co-rated items only.
+      - prompt: 'Weight min(overlap, β)/β'
+        answer: { var: weight, tol: 0.01 }
+      - prompt: Shrunk similarity
+        answer: { var: shrunk, tol: 0.01 }
+    explanation: |
+      Means {=muA|2} and {=muB|2}; co-rated {=corated|list}, so the overlap is {=overlap} and sim(A, B) = {=sim|2}. The weight is min({=overlap}, {=beta})/{=beta} = {=weight|2}, so the shrunk similarity is {=sim|2} × {=weight|2} = {=shrunk|2}.
+
+  - id: isim-numeric
+    type: numeric
+    skills: [ibcf-similarity]
+    difficulty: 2
+    tags: [math]
+    generator: isimQ
+    lessonRef: { tab: intuition, id: item-based-ab }
+    prompt: |
+      Compute the **adjusted cosine** between items **{=a}** and **{=b}**. User means are shown on the right.
+    show:
+      - { id: m, widget: Matrix, props: { data: '@matrix', format: int, showRowMeans: true } }
+    answer: { var: sim, tol: 0.01 }
+    hints:
+      - Center each rating by the mean of the **user** who gave it, not by the item's mean.
+      - Keep only the users who rated both {=a} and {=b}.
+      - Dot product over those users, divided by both lengths over the same users.
+    explanation: |
+      Co-raters: {=corated|list}. Centered by user means, the dot product is {=dot|3}; the lengths over those users are {=na|3} and {=nb|3}; sim({=a}, {=b}) = {=dot|3} / ({=na|3} × {=nb|3}) = {=sim|2}.
+
+  - id: isim-hand
+    type: hand-calc
+    skills: [ibcf-similarity, mean-centering]
+    difficulty: 3
+    tags: [math]
+    generator: isimQ
+    lessonRef: { tab: math-code, id: item-similarity }
+    prompt: |
+      Compute the adjusted cosine sim({=a}, {=b}) step by step, like the lecture's item-similarity table. User means: {=meansText}.
+    show:
+      - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
+    hints:
+      - Item similarity still centers by **user** means, then compares two columns.
+    steps:
+      - prompt: 'How many users rated both {=a} and {=b}?'
+        answer: { var: overlap, tol: 0 }
+      - prompt: 'Dot product of the two columns'' centered ratings over those users'
+        answer: { var: dot, tol: 0.02 }
+        hint: Subtract each user's mean from that user's ratings, then multiply across and add.
+      - prompt: '‖{=a}‖ over the same users'
+        answer: { var: na, tol: 0.02 }
+        hint: Only the users who rated both items count.
+      - prompt: '‖{=b}‖ over the same users'
+        answer: { var: nb, tol: 0.02 }
+      - prompt: 'sim({=a}, {=b})'
+        answer: { var: sim, tol: 0.01 }
+    explanation: |
+      Co-raters {=corated|list}; dot = {=dot|3}; lengths {=na|3} and {=nb|3}; sim = {=sim|2}.
 
   - id: neighbors-multi
     type: multi
@@ -103,6 +193,9 @@ templates:
       We predict **{=user}**'s rating of **{=item}** with user-based CF, **k = {=k}**. The candidates (users who rated {=item}) and their similarities to {=user} are listed. Which neighbours are actually used?
     show:
       - { id: s, widget: Matrix, props: { data: '@sims', format: 2, heatmap: div, rowHeader: 'sim to' } }
+    hints:
+      - Sort the candidates by similarity and keep the top k first.
+      - Then drop anyone in the top k whose similarity is not positive.
     explanation: |
       Take the top-{=k} by similarity, then keep only sim > 0: {=used|list}.
 
@@ -112,14 +205,18 @@ templates:
     difficulty: 2
     tags: [math]
     generator: ubPredictQ
-    lessonRef: { tab: math-code, id: ub-predict }
+    lessonRef: { tab: intuition, id: add-the-mean-back }
     prompt: |
-      Using user-based CF with **k = {=k}**, predict {=user}'s **rating** of {=item} (on the original scale, i.e. after adding the mean back).
+      Using user-based CF with **k = {=k}**, predict {=user}'s **rating** of {=item}: the centered prediction ŝ plus {=user}'s mean.
     show:
       - { id: c, widget: Matrix, props: { data: '@centeredM', format: 2, title: Centered ratings, showRowMeans: false } }
       - { id: s, widget: Matrix, props: { data: '@sims', format: 2, heatmap: div, title: User similarities } }
       - { id: r, widget: Matrix, props: { data: '@matrix', format: int, showRowMeans: true, title: Original ratings } }
     answer: { var: rating, tol: 0.02 }
+    hints:
+      - Candidates are the other users who rated {=item}. Rank them by similarity to {=user} and keep the top {=k}.
+      - Drop any of those with similarity ≤ 0, then take the similarity-weighted average of their centered ratings.
+      - Add {=user}'s mean to turn ŝ into a rating.
     explanation: |
       Top-{=k} candidates: {=top|list}; positive: {=used|list}. $\hat s = {=num|3} / {=den|3} = {=pred|2}$, then $\hat r = \hat s + \mu = {=pred|2} + {=mean|2} = {=rating|2}$.
 
@@ -131,28 +228,58 @@ templates:
     generator: ubPredictQ
     lessonRef: { tab: intuition, id: borrowing-opinions }
     prompt: |
-      Walk through the user-based prediction of **{=user} · {=item}** (k = {=k}) exactly like slides 10–13.
+      Walk through the user-based prediction of **{=user} · {=item}** (k = {=k}) exactly like the lecture's worked examples.
     show:
       - { id: c, widget: Matrix, props: { data: '@centeredM', format: 2, title: Centered ratings } }
       - { id: s, widget: Matrix, props: { data: '@sims', format: 2, heatmap: div, title: User similarities } }
+      - { id: r, widget: Matrix, props: { data: '@matrix', format: int, showRowMeans: true, title: Original ratings } }
+    hints:
+      - Top-k raters of the item first, then keep only sim > 0.
     steps:
       - prompt: 'Numerator: Σ sim(u, v) · s_vj over the neighbours used'
         answer: { var: num, tol: 0.02 }
         hint: 'Top-k raters of the item, then drop sim ≤ 0.'
       - prompt: 'Denominator: Σ sim(u, v) over the same neighbours'
         answer: { var: den, tol: 0.02 }
+        hint: Add only the similarities you used in the numerator.
       - prompt: 'Centered prediction ŝ'
         answer: { var: pred, tol: 0.02 }
-        misconceptions:
-          - { var: wrongAllNeighbors, feedback: 'Include only neighbours with positive similarity.' }
       - prompt: 'μ of {=user}'
         answer: { var: mean, tol: 0.01 }
       - prompt: 'Predicted rating ŝ + μ'
         answer: { var: rating, tol: 0.02 }
-        misconceptions:
-          - { var: wrongNoMean, feedback: 'That is still centered. Add the mean.' }
     explanation: |
-      Neighbours {=used|list}: ŝ = {=num|3}/{=den|3} = {=pred|2}; rating = {=pred|2} + {=mean|2} = {=rating|2}.
+      Top-{=k}: {=top|list}; used (sim > 0): {=used|list}. ŝ = {=num|3}/{=den|3} = {=pred|2}; rating = {=pred|2} + {=mean|2} = {=rating|2}.
+
+  - id: ub-pipeline-hand
+    type: hand-calc
+    skills: [ubcf-predict, similarity, mean-centering]
+    difficulty: 3
+    tags: [math]
+    generator: ubPipelineQ
+    lessonRef: { tab: intuition, id: add-the-mean-back }
+    prompt: |
+      From the raw ratings alone, predict **{=user}**'s rating of **{=item}** with user-based CF (k = 2). Only {=n1} and {=n2} rated {=item}.
+    show:
+      - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
+    hints:
+      - Center every user first, each by their own mean.
+      - Each similarity is a cosine over the items the two users both rated.
+    steps:
+      - prompt: 'μ of {=user}'
+        answer: { var: mean, tol: 0.01 }
+      - prompt: 'sim({=user}, {=n1})'
+        answer: { var: sim1, tol: 0.01 }
+        hint: Use only the items both {=user} and {=n1} rated.
+      - prompt: 'sim({=user}, {=n2})'
+        answer: { var: sim2, tol: 0.01 }
+      - prompt: 'Centered prediction ŝ'
+        answer: { var: pred, tol: 0.02 }
+        hint: Weight each neighbour's centered rating of the item by its similarity, then divide by the sum of the similarities.
+      - prompt: 'Predicted rating ŝ + μ'
+        answer: { var: rating, tol: 0.02 }
+    explanation: |
+      μ = {=mean|2}. sim({=user}, {=n1}) = {=sim1|2} over {=co1|list}; sim({=user}, {=n2}) = {=sim2|2} over {=co2|list}. Both are positive, so both are used: ŝ = {=num|3} / {=den|3} = {=pred|2}, and the rating is {=pred|2} + {=mean|2} = {=rating|2}.
 
   - id: ib-predict-numeric
     type: numeric
@@ -162,13 +289,76 @@ templates:
     generator: ibPredictQ
     lessonRef: { tab: math-code, id: ib-predict }
     prompt: |
-      Using **item-based** CF with k = 2, compute the **centered** prediction ŝ for {=user} · {=item} (as the slides do, before adding the mean).
+      Using item-based CF with **k = 2**, compute the **centered prediction ŝ** for {=user} · {=item}, before adding the mean (the lecture's tables report ŝ).
     show:
       - { id: c, widget: Matrix, props: { data: '@centeredM', format: 2, title: Centered ratings } }
       - { id: s, widget: Matrix, props: { data: '@sims', format: 2, heatmap: div, title: Item similarities } }
     answer: { var: pred, tol: 0.02 }
+    hints:
+      - Candidates are the items {=user} rated. Read their similarities to {=item} from the table.
+      - Keep the top 2, drop any with sim ≤ 0, and average {=user}'s own centered ratings of them, weighted by similarity.
     explanation: |
-      Among the items {=user} rated, the top-2 by similarity to {=item} with sim > 0 are {=used|list}. Their similarity-weighted average of {=user}'s centered ratings is {=pred|2} (rating {=rating|2}).
+      Among the items {=user} rated, the top 2 by similarity to {=item} are {=top|list}; with sim > 0: {=used|list}. Their similarity-weighted average of {=user}'s centered ratings is {=num|3} / {=den|3} = {=pred|2} (as a rating, {=pred|2} + {=mean|2} = {=rating|2}).
+
+  - id: ib-predict-hand
+    type: hand-calc
+    skills: [ibcf-predict, mean-centering]
+    difficulty: 3
+    tags: [math]
+    generator: ibPredictQ
+    lessonRef: { tab: intuition, id: item-based-ab }
+    prompt: |
+      Walk through the item-based prediction of **{=user} · {=item}** (k = 2), then turn it into a rating.
+    show:
+      - { id: c, widget: Matrix, props: { data: '@centeredM', format: 2, title: Centered ratings } }
+      - { id: s, widget: Matrix, props: { data: '@sims', format: 2, heatmap: div, title: Item similarities } }
+      - { id: r, widget: Matrix, props: { data: '@matrix', format: int, showRowMeans: true, title: Original ratings } }
+    hints:
+      - The weights come from the target item's row of the item-similarity table; the values from the user's own row.
+    steps:
+      - prompt: 'Numerator: Σ sim({=item}, i) · s_{=user},i over the items used'
+        answer: { var: num, tol: 0.02 }
+        hint: Among the items {=user} rated, keep the 2 most similar to {=item}, then drop sim ≤ 0.
+      - prompt: 'Denominator: Σ sim over the same items'
+        answer: { var: den, tol: 0.02 }
+      - prompt: 'Centered prediction ŝ'
+        answer: { var: pred, tol: 0.02 }
+      - prompt: 'μ of {=user}'
+        answer: { var: mean, tol: 0.01 }
+      - prompt: 'Predicted rating ŝ + μ'
+        answer: { var: rating, tol: 0.02 }
+    explanation: |
+      Top 2 of {=user}'s items: {=top|list}; used: {=used|list}. ŝ = {=num|3} / {=den|3} = {=pred|2}; rating = {=pred|2} + {=mean|2} = {=rating|2}.
+
+  - id: ib-pipeline-hand
+    type: hand-calc
+    skills: [ibcf-predict, ibcf-similarity, mean-centering]
+    difficulty: 3
+    tags: [math]
+    generator: ibPipelineQ
+    lessonRef: { tab: intuition, id: flip-it }
+    prompt: |
+      From the raw ratings alone, predict **{=user}**'s rating of **{=item}** with item-based CF (k = 2). {=user} rated only {=n1} and {=n2}. User means: {=meansText}.
+    show:
+      - { id: m, widget: Matrix, props: { data: '@matrix', format: int } }
+    hints:
+      - Item similarity still centers every rating by the mean of the **user** who gave it.
+      - Each similarity runs only over the users who rated both items.
+    steps:
+      - prompt: 'μ of {=user}'
+        answer: { var: mean, tol: 0.01 }
+      - prompt: 'sim({=item}, {=n1})'
+        answer: { var: sim1, tol: 0.01 }
+        hint: Use only the users who rated both {=item} and {=n1}.
+      - prompt: 'sim({=item}, {=n2})'
+        answer: { var: sim2, tol: 0.01 }
+      - prompt: 'Centered prediction ŝ'
+        answer: { var: pred, tol: 0.02 }
+        hint: Weight {=user}'s own centered ratings of {=n1} and {=n2} by their similarities to {=item}, then divide by the sum of the similarities.
+      - prompt: 'Predicted rating ŝ + μ'
+        answer: { var: rating, tol: 0.02 }
+    explanation: |
+      μ = {=mean|2}. sim({=item}, {=n1}) = {=sim1|2} over {=co1|list}; sim({=item}, {=n2}) = {=sim2|2} over {=co2|list}. Both are positive, so ŝ = {=num|3} / {=den|3} = {=pred|2}, and the rating is {=pred|2} + {=mean|2} = {=rating|2}.
 
   - id: adjusted-cosine
     type: mcq
@@ -179,12 +369,12 @@ templates:
     prompt: In the lecture's item-based CF, before computing the cosine between two item columns, each rating is centered by…
     options:
       - the mean of the user who gave it
-      - the mean of the item (column)
-      - the global mean of the whole matrix
-      - nothing; item-based CF uses raw ratings
+      - the mean of the item (column) it sits in
+      - the mean of the whole rating matrix
+      - nothing; item-based CF uses the raw ratings
     answer: 0
     optionFeedback:
-      '1': 'Centering by the item mean would be Pearson correlation between items; the slides use the user-centered table (slide 17).'
+      '1': 'Centering by the item mean is the Pearson correlation between items, a different measure. The lecture centers the whole table by user means and then compares columns.'
     explanation: The same user-centered matrix serves both flavours; comparing its columns is the adjusted cosine.
 
   - id: item-sim-zero
@@ -193,12 +383,12 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: math-code, id: item-similarity }
-    prompt: 'On slide 18, sim(HP3, TW) = 0. Why?'
+    prompt: 'In the HP item-similarity table, sim(HP3, TW) = 0. Why?'
     options:
       - No user rated both HP3 and TW
-      - HP3 and TW have opposite ratings, which cancel out
-      - TW has the lowest average rating
-      - Similarities below 0.5 are rounded to 0
+      - HP3 and TW have opposite ratings that cancel out
+      - TW has the lowest average rating of all the films
+      - Similarities below 0.5 are rounded down to 0
     answer: 0
     explanation: Only B rated HP3 and only A and C rated TW, so the co-rated set is empty and similarity defaults to 0.
 
@@ -212,8 +402,11 @@ templates:
     prompt: |
       True relevance: {=ratingsText}. A recommender returns **{=list|list}**. Compute DCG@{=k} (gain 2^rel − 1, discount log₂(i + 1)).
     answer: { var: dcg, tol: 0.05 }
+    hints:
+      - Each position i adds (2^rel − 1) / log₂(i + 1).
+      - Position 1 divides by log₂2 = 1, position 2 by log₂3 ≈ 1.585, position 3 by log₂4 = 2.
     explanation: |
-      DCG = {=terms} = {=dcg|2}.
+      Terms: {=terms}. Their sum is DCG = {=dcg|2}.
 
   - id: dcg-numeric-hard
     type: numeric
@@ -223,10 +416,13 @@ templates:
     generator: dcgQ
     lessonRef: { tab: intuition, id: judging-a-ranking }
     prompt: |
-      Relevance scores: {=ratingsText}. Top-{=k} list: **{=list|list}**. What is its DCG@{=k}?
-    answer: { var: dcg, tol: 0.05 }
+      Relevance scores: {=ratingsText}. A recommender shows **{=list|list}**. If it swapped its first two items ({=top1} and {=top2}), by how much would DCG@{=k} change? Give new − old (negative if it drops).
+    answer: { var: swapDelta, tol: 0.05 }
+    hints:
+      - Only positions 1 and 2 change; every other term is the same before and after.
+      - Compute the first two terms before and after the swap, then subtract old from new.
     explanation: |
-      {=terms} = **{=dcg|2}**.
+      Before: {=terms}, DCG = {=dcg|2}. After the swap: {=swapTerms}. The change is {=swapDelta|2}: putting the more relevant item first gains, because position 1 has no discount.
 
   - id: ndcg-numeric
     type: numeric
@@ -241,6 +437,9 @@ templates:
     misconceptions:
       - { var: dcg, feedback: 'That is DCG. Normalize by the ideal DCG (best possible order of all items).' }
       - { var: idcg, feedback: 'That is IDCG, the denominator. NDCG = DCG / IDCG.' }
+    hints:
+      - NDCG = DCG / IDCG, with the same k for both.
+      - For IDCG, sort **all** items by relevance (not just the listed ones) and keep the best k.
     explanation: |
       DCG = {=dcg|2}; ideal order {=ideal|list} gives IDCG = {=idcg|2}; NDCG = {=ndcg|3}.
 
@@ -252,7 +451,9 @@ templates:
     generator: ndcgQ
     lessonRef: { tab: math-code, id: ndcg }
     prompt: |
-      Relevance: {=ratingsText}. Recommended top-{=k}: **{=list|list}**. Compute NDCG@{=k} like slides 50–53.
+      Relevance: {=ratingsText}. Recommended top-{=k}: **{=list|list}**. Compute NDCG@{=k} the way the lecture does.
+    hints:
+      - The ideal list draws from every item, not just the recommended ones.
     steps:
       - prompt: 'DCG@{=k} of the recommended list'
         answer: { var: dcg, tol: 0.05 }
@@ -263,10 +464,34 @@ templates:
         hint: Sort all items by relevance, keep the best k, and compute their DCG.
       - prompt: NDCG = DCG / IDCG
         answer: { var: ndcg, tol: 0.01 }
-        misconceptions:
-          - { var: wrongNoIdeal, feedback: 'That is still DCG; divide by IDCG.' }
     explanation: |
       DCG = {=dcg|2}; ideal {=ideal|list} → IDCG = {=idcg|2}; NDCG = {=ndcg|3}.
+
+  - id: ndcg-hand-hard
+    type: hand-calc
+    skills: [ndcg, dcg]
+    difficulty: 3
+    tags: [math]
+    generator: ndcgQ
+    lessonRef: { tab: intuition, id: judging-a-ranking }
+    prompt: |
+      Six items have true relevance {=ratingsText} (0 = irrelevant). A recommender shows the top-{=k} list **{=list|list}**. Score it with NDCG@{=k}.
+    hints:
+      - Gain 2^rel − 1, discount log₂(i + 1); an item with relevance 0 adds nothing.
+      - The ideal list ranks **all six** items by relevance, including any the recommender left out.
+    steps:
+      - prompt: 'DCG@{=k} of the recommended list'
+        answer: { var: dcg, tol: 0.05 }
+        hint: Four terms, one per position, in the order shown.
+      - prompt: 'Relevance of the item that belongs first in the ideal list'
+        answer: { var: topRel, tol: 0 }
+      - prompt: 'IDCG@{=k}'
+        answer: { var: idcg, tol: 0.05 }
+        hint: Sort all six items by relevance, keep the best {=k}, and compute their DCG.
+      - prompt: NDCG = DCG / IDCG
+        answer: { var: ndcg, tol: 0.01 }
+    explanation: |
+      DCG terms: {=terms}, so DCG = {=dcg|2}. The ideal list {=ideal|list} starts with {=top} (relevance {=topRel}), which the recommender missed. Its terms: {=idealTerms}, so IDCG = {=idcg|2} and NDCG = {=ndcg|3}.
 
   - id: ndcg-steps
     type: order
@@ -274,14 +499,14 @@ templates:
     difficulty: 1
     tags: [intuition]
     lessonRef: { tab: intuition, id: judging-a-ranking }
-    prompt: Order the steps for computing NDCG@k.
+    prompt: Order the steps for scoring a recommended list with NDCG@k.
     items:
-      - Look up the true relevance of each recommended item
-      - Compute each position's gain 2^rel − 1 divided by log₂(i + 1) and add them (DCG)
-      - Sort all rated items by relevance and keep the best k (ideal list)
-      - Compute the DCG of the ideal list (IDCG)
-      - Divide DCG by IDCG
-    explanation: NDCG = DCG / IDCG, both with the same k, gain and discount.
+      - Look up the true relevance of each recommended item, in list order
+      - Turn each relevance into a gain, 2^rel − 1
+      - Divide each gain by its position's discount, log₂(i + 1)
+      - Add the discounted gains to get the DCG
+      - Divide the DCG by the ideal list's DCG (IDCG)
+    explanation: Each step uses the result of the one before. NDCG = DCG / IDCG, with the same k, gain and discount for both.
 
   - id: ubcf-steps
     type: order
@@ -297,7 +522,7 @@ templates:
       - Among users who rated the target item, take the top-k by similarity and keep sim > 0
       - Similarity-weight their centered ratings of the item (ŝ)
       - Add the target user's mean back (ŝ + μᵤ)
-    explanation: Slides 3–14, plus the implicit last step of adding the mean back.
+    explanation: The lecture's steps, plus the last step it leaves implicit, adding the mean back.
 
   - id: code-center
     type: code-fill
@@ -314,7 +539,9 @@ templates:
     blanks:
       '1': { accept: ['nanmean'], hint: mean that ignores NaN }
       '2': { accept: ['[:, None]', '[:,None]', '.reshape(-1, 1)', '[:, np.newaxis]'], hint: make it a column }
-    explanation: '`np.nanmean` skips missing ratings; `mu[:, None]` broadcasts each row''s mean across its columns.'
+    hints:
+      - A plain mean returns NaN for any row with a blank.
+    explanation: '`np.nanmean` skips missing ratings; `mu[:, None]` turns the means into a column, so each row''s mean is subtracted from that row.'
 
   - id: code-sim
     type: code-fill
@@ -331,8 +558,10 @@ templates:
           return 0.0 if norm == 0 else __BLANK_2__ / norm
     blanks:
       '1': { accept: ['&'], hint: element-wise and }
-      '2': { accept: ['np.dot(a, b)', 'a @ b', 'np.dot(a,b)', '(a * b).sum()'] }
-    explanation: 'Keep only items both users rated (`&`), then dot product over norms; 0 when a norm is 0.'
+      '2': { accept: ['np.dot(a, b)', 'a @ b', 'a.dot(b)', 'b.dot(a)', 'b @ a', 'np.dot(b, a)', '(a * b).sum()', 'np.sum(a * b)', 'sum(a * b)', 'np.inner(a, b)', 'np.vdot(a, b)'] }
+    hints:
+      - '`a` and `b` already hold only the co-rated centered values, so their lengths here are the lecture''s lengths.'
+    explanation: 'Keep only items both users rated (`&`), then dot product over the two lengths; 0 when a length is 0. `np.linalg.norm` is right here because `a` and `b` are already cut down to the co-rated items.'
 
   - id: code-predict
     type: code-fill
@@ -350,8 +579,10 @@ templates:
           s_hat = (w @ S[N, j]) / w.sum()
           return s_hat + __BLANK_2__
     blanks:
-      '1': { accept: ['> 0', '>0'], hint: a condition that keeps only some neighbours }
+      '1': { accept: ['> 0', '> 0.0', '> 0.', '> 1e-12'], hint: a condition that keeps only some neighbours }
       '2': { accept: ['mu[u]'] }
+    hints:
+      - Which neighbours does the lecture drop from the top k?
     explanation: 'Boolean indexing keeps only the positive neighbours (`sims[u, top] > 0`), and the target user''s mean `mu[u]` turns ŝ back into a rating.'
 
   - id: code-dcg
@@ -367,8 +598,10 @@ templates:
           i = np.arange(1, rel.size + 1)
           return np.sum((__BLANK_1__) / np.log2(__BLANK_2__))
     blanks:
-      '1': { accept: ['2 ** rel - 1', '2.0 ** rel - 1', 'np.power(2, rel) - 1', 'np.exp2(rel) - 1'], hint: the gain of every position at once }
-      '2': { accept: ['i + 1', 'i+1'] }
+      '1': { accept: ['2 ** rel - 1', '2.0 ** rel - 1', '(2 ** rel) - 1', '(2.0 ** rel) - 1', 'np.power(2, rel) - 1', 'np.power(2.0, rel) - 1', 'np.exp2(rel) - 1', 'pow(2, rel) - 1'], hint: the gain of every position at once }
+      '2': { accept: ['i + 1', '1 + i'] }
+    hints:
+      - The gain is 2^rel − 1 and position i is discounted by log₂(i + 1).
     explanation: 'Gain 2^rel − 1 over log₂(i + 1), element-wise, with positions starting at 1; `np.sum` adds the terms.'
 
   - id: match-terms
@@ -386,7 +619,7 @@ templates:
       - [Cold start, 'No ratings yet for a user or item']
       - [One-overlap trap, 'Similarity of ±1 from a single shared item']
     pick: 5
-    explanation: Core vocabulary from the deck and its pitfalls.
+    explanation: Core vocabulary from the lecture and its pitfalls.
 
   - id: match-formulas
     type: match
@@ -401,7 +634,7 @@ templates:
       - [Final rating, 'ŝ + μᵤ']
       - [DCG term at position i, '(2^rel − 1) / log₂(i + 1)']
       - [NDCG, 'DCG / IDCG']
-    explanation: The five formulas that carry the whole deck.
+    explanation: The five formulas that carry the whole lecture.
 
   - id: why-center
     type: mcq
@@ -411,14 +644,15 @@ templates:
     lessonRef: { tab: intuition, id: harsh-vs-generous }
     prompt: Why does the lecture mean-center ratings before computing similarities?
     options:
-      - To remove each user's personal rating scale, so "above my usual" can be compared across users
-      - To make all ratings positive
-      - To fill in the missing ratings with zeros
-      - To make the matrix square
+      - So a rating means "above or below this user's usual", whatever their scale
+      - So every user ends up with the same number of ratings to compare
+      - So blank cells can safely be treated as neutral zero ratings
+      - So the most popular items stop dominating every similarity
     answer: 0
     optionFeedback:
       '2': 'Missing ratings stay missing; centering never turns blanks into zeros.'
-    explanation: A 4 from a harsh rater and a 5 from a generous one can mean the same thing. Centering expresses both as deviations.
+      '3': 'That would be centering by the item (column) mean. The lecture subtracts each user''s own mean.'
+    explanation: A 4 from a harsh rater and a 5 from a generous one can mean the same thing. Centering expresses both as deviations from that person's usual.
 
   - id: positive-only
     type: mcq
@@ -426,14 +660,14 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: intuition, id: borrowing-opinions }
-    prompt: 'On slide 10 (k = 3), D is among B''s three most similar raters of item c, yet D is not used. Why?'
+    prompt: 'In the user-based example (k = 3, predicting B · c), D is among B''s three most similar raters of item c, yet D is not used. Why?'
     options:
-      - D's similarity to B is negative (−0.72); only neighbours with sim > 0 are used
-      - D didn't rate item c
-      - D has the lowest mean rating
-      - k = 3 means only the first two neighbours are used
+      - D's similarity to B is negative, so D is dropped
+      - D rated item c below D's own average rating
+      - D has the lowest mean rating of the candidates
+      - Only the top two of the k = 3 are ever used
     answer: 0
-    explanation: The rule is top-k, then keep sim > 0. D fills a top-3 slot but is dropped.
+    explanation: The rule is top-k, then keep sim > 0. D fills a top-3 slot (sim −0.72) but is dropped.
 
   - id: blank-when
     type: mcq
@@ -441,12 +675,12 @@ templates:
     difficulty: 2
     tags: [intuition]
     lessonRef: { tab: math-code, id: ib-predict }
-    prompt: 'When does the lecture leave a predicted cell blank (e.g. C · HP2 on slide 22)?'
+    prompt: 'When does the lecture leave a predicted cell blank (e.g. C · HP2 in the item-based HP example)?'
     options:
       - When none of the top-k candidates has a positive similarity
-      - When the user's mean is below 3
-      - When k is larger than the number of users
-      - Only when the item has never been rated by anyone
+      - When the target user's mean is below the middle of the scale
+      - When k is larger than the number of candidates
+      - Only when nobody at all has rated the target item
     answer: 0
     explanation: 'C''s rated items all have similarity 0 with HP2, so there is no positive neighbour and nothing to average.'
 
@@ -456,12 +690,12 @@ templates:
     difficulty: 1
     tags: [intuition]
     lessonRef: { tab: intuition, id: one-overlap-trap }
-    prompt: 'sim(A, B) = 1 on slide 5. What should make you suspicious?'
+    prompt: 'In the HP data, sim(A, B) = 1. What should make you suspicious?'
     options:
-      - It is based on a single co-rated movie, and any one-item cosine is ±1
-      - Similarities can never be exactly 1
-      - A and B have different means
-      - B rated more movies than A
+      - It rests on one co-rated movie, and any one-item cosine is ±1
+      - A and B have different means, so 1 must be a rounding error
+      - B rated more movies than A, so their vectors differ in length
+      - A centered cosine reaches 1 only when both rated every movie
     answer: 0
     explanation: With one shared item, the centered "vectors" are single numbers, so the cosine is just their sign. It is not strong evidence.
 
@@ -489,10 +723,10 @@ templates:
     lessonRef: { tab: application, id: movie-night }
     prompt: A shop has 50 million users and 200 thousand products. Why might it prefer item-based CF?
     options:
-      - Item–item similarities involve far fewer pairs and change slowly, so they can be precomputed offline
-      - Item-based CF needs no ratings at all
-      - User-based CF cannot use cosine similarity
-      - Item-based CF always has higher NDCG
+      - Item pairs are far fewer and change slowly, so they can be precomputed
+      - Item-based predictions never leave a cell blank, however sparse the data
+      - User-based CF cannot handle users with different rating scales
+      - Item-based CF always reaches a higher NDCG than user-based CF
     answer: 0
     explanation: 'There are far fewer item pairs than user pairs, and item relations are stable. That is Amazon''s classic argument.'
 
@@ -505,8 +739,8 @@ templates:
     prompt: In the lecture's DCG, what is the discount for the item in position 1?
     options:
       - 'log₂(2) = 1, so no discount'
-      - 'log₂(1) = 0'
-      - '1/2'
+      - 'log₂(1) = 0, so it is skipped'
+      - '1/2, half of its gain'
       - 'It depends on k'
     answer: 0
     explanation: 'Positions are discounted by log₂(i + 1), so position 1 divides by log₂2 = 1.'
@@ -519,9 +753,9 @@ templates:
     lessonRef: { tab: intuition, id: judging-a-ranking }
     prompt: 'NDCG@5 = 1 for a recommendation list means:'
     options:
-      - The top 5 are exactly the 5 most relevant items in the best order
-      - Every recommended item has relevance 1
+      - The top 5 are the 5 most relevant items, in the best order
+      - Every recommended item has a relevance of exactly 1
       - The list contains exactly one relevant item
-      - The DCG is 1
+      - The list's DCG@5 is exactly 1
     answer: 0
     explanation: NDCG = DCG / IDCG reaches 1 only when the list matches the ideal ordering.

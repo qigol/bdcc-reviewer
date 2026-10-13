@@ -1,7 +1,8 @@
 intro: |
-  Netflix's "Because you watched…", Shopee's "Similar items" and Spotify's early playlists all started as neighbourhood
-  collaborative filtering. Here you run both flavours on a barkada's movie ratings, add yourself, check which one
-  ranks better with NDCG, and hit the cold-start wall.
+  Amazon's "Customers who bought this item also bought" is the classic neighbourhood recommender: item-to-item
+  collaborative filtering, published in 2003. "Because you watched…" and "Similar items" rows work in the same spirit.
+  Here you run both flavours on a barkada's movie ratings, predict one rating by hand, add yourself, check which
+  flavour ranks better with NDCG, and hit the cold-start wall.
 case:
   id: movie-night
   title: Barkada movie night
@@ -25,8 +26,9 @@ case:
     - { fn: center, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' } }, out: c }
     - { fn: simMatrix, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, mode: user }, out: sm }
     - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: '@user', k: '@k', mode: '@mode', n: 3 }, out: rec }
-    - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: Faye, k: 2, mode: user, n: 3 }, out: fayeUB }
-    - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: Faye, k: 2, mode: item, n: 3 }, out: fayeIB }
+    - { fn: recommend, in: { matrix: '@barkada', user: Faye, k: 2, mode: user, n: 3 }, out: fayeUB }
+    - { fn: recommend, in: { matrix: '@barkada', user: Faye, k: 2, mode: item, n: 3 }, out: fayeIB }
+    - { fn: predictMistakes, in: { matrix: '@barkada', user: Bea, item: Goyo, k: 2, mode: user }, out: bg }
     - { fn: holdout, in: { matrix: '@barkada', user: Bea, hide: [HLuna, FourSis, KitaKita, Rewind], k: 2, mode: user }, out: hUB }
     - { fn: holdout, in: { matrix: '@barkada', user: Bea, hide: [HLuna, FourSis, KitaKita, Rewind], k: 2, mode: item }, out: hIB }
     - { fn: recommend, in: { matrix: { rows: [Migs, Bea, Carlo, Dana, Enzo, Faye, You], cols: [HLuna, Goyo, OTJ, FourSis, Hello, KitaKita, Rewind, Barber], values: '@ratings' }, user: You, k: 2, mode: user, n: 3 }, out: youRec }
@@ -50,6 +52,24 @@ case:
         - id: sims
           widget: Matrix
           props: { rows: '@sm.rows', cols: '@sm.cols', values: '@sm.values', format: 2, heatmap: div, title: User similarity }
+      decision:
+        prompt: |
+          On the original sheet, Bea hasn't seen Goyo. Her two most similar friends who rated it are
+          {=bg.neighbors.0.label} (sim {=bg.neighbors.0.sim|2}, centered Goyo rating {=bg.neighbors.0.dev|2}) and
+          {=bg.neighbors.1.label} (sim {=bg.neighbors.1.sim|2}, centered rating {=bg.neighbors.1.dev|2}). Bea's mean is
+          {=bg.mean|2}. What rating does user-based CF (k = 2) predict for her?
+        type: mcq
+        options:
+          - '{=bg.rating|2}'
+          - '{=bg.centered|2}'
+          - '{=bg.rawAvg|2}'
+          - '{=bg.nbMean|2}'
+        answer: 0
+        model: |
+          The weighted average of the centered ratings is ŝ = {=bg.centered|2}; adding **Bea's** mean {=bg.mean|2} gives
+          {=bg.rating|2}. The other options are common slips: {=bg.centered|2} forgets the mean, {=bg.rawAvg|2} averages
+          the raw ratings instead of the centered ones, and {=bg.nbMean|2} adds {=bg.neighbors.0.label}'s mean instead of Bea's.
+          Goyo is a poor pick for Bea.
     - id: recommend
       title: Recommend for one friend
       say: |
@@ -87,22 +107,24 @@ case:
           props: { data: '@rec.table', format: 2, heatmap: seq, rowHeader: unseen film }
       decision:
         prompt: |
-          For Faye, user-based CF (k = 2) ranks {=fayeUB.text}; item-based ranks {=fayeIB.text}. Why can the two flavours disagree?
+          On the original sheet, user-based CF (k = 2) predicts Faye's unseen films as {=fayeUB.text}; item-based predicts
+          {=fayeIB.text}. Same order, different numbers. Why do the two flavours give different predicted ratings?
         type: mcq
         options:
-          - One of them must have a bug
-          - They borrow different evidence; user-based uses similar people's ratings of the film, item-based uses Faye's own ratings of similar films
-          - Item-based ignores mean-centering
-          - User-based only works for users with many ratings, item-based never needs ratings
-        answer: 1
+          - They borrow different evidence, friends' ratings of the film versus Faye's ratings of similar films
+          - Item-based CF skips mean-centering, so its predicted ratings come out higher
+          - User-based CF clips its predictions to the 1–5 scale and item-based CF does not
+          - User-based CF uses the top k neighbours while item-based CF uses every film
+        answer: 0
         model: |
           They answer the same question from different evidence. **User-based** asks "what did people like Faye think of this film?".
-          **Item-based** asks "how did Faye rate films like this one?". With a tiny, sparse matrix the neighbourhoods differ, and so can the predictions.
+          **Item-based** asks "how did Faye rate films like this one?". Both center by user means and both use the top k positive
+          neighbours, but with a tiny, sparse matrix the neighbourhoods differ, and so do the numbers.
     - id: offline-test
       title: Which flavour ranks better?
       say: |
         Offline evaluation: hide four of Bea's known ratings, predict them from the rest, rank the four films by prediction,
-        and score that ranking with **NDCG** against Bea's true ratings.
+        and score that ranking with [[ndcg|NDCG]] against Bea's true ratings. Read the predicted columns closely before you decide.
       stage:
         - id: ub
           widget: Matrix
@@ -116,24 +138,26 @@ case:
             items:
               - { label: 'NDCG user-based', value: '@hUB.ndcg', format: 3, tone: accent }
               - { label: 'NDCG item-based', value: '@hIB.ndcg', format: 3, tone: good }
-              - { label: 'RMSE user-based', value: '@hUB.rmse', format: 2 }
-              - { label: 'RMSE item-based', value: '@hIB.rmse', format: 2 }
       decision:
         prompt: Based on this test, which recommender would you ship for Bea, and is four hidden ratings enough to decide?
         type: mcq
         options:
-          - Item-based; it ranks better here, but four ratings from one user is far too little evidence to decide in general
-          - User-based, because user-based is always better
-          - Item-based, and the test proves it is better for everyone
-          - Neither; NDCG can't compare two recommenders
+          - Item-based scores higher here, but one user and four films is far too little evidence
+          - User-based, because its predicted ratings are closer to Bea's true ratings
+          - Item-based, and this test shows it ranks better for every user
+          - Neither, because NDCG cannot compare two different recommenders
         answer: 0
         model: |
-          Item-based wins this tiny test (NDCG {=hIB.ndcg|3} vs {=hUB.ndcg|3}). But it's one user and four films: noise can flip it.
-          Real evaluations hide ratings from many users (or a time-based split) and average NDCG@k across all of them.
+          Item-based wins this tiny test (NDCG {=hIB.ndcg|3} vs {=hUB.ndcg|3}), but look at its predictions: FourSis, KitaKita
+          and Rewind all get exactly 5.0. That three-way tie is broken alphabetically, so the "win" partly rests on luck.
+          User-based predicts 0.83 for Heneral Luna, below the 1–5 scale (clipping it to 1 would not change its order).
+          One user, four films and a tie can't decide anything. Real evaluations hide ratings from many users (or use a
+          time-based split) and average NDCG@k across all of them.
     - id: add-yourself
       title: Add yourself
       say: |
-        Scroll back up and rate at least three films in the **You** row of the sheet, then pick "You" in the recommender.
+        Scroll back up and rate at least three films in the **You** row of the sheet, and don't give them all the same
+        score: equal ratings center to all zeros, a zero vector, so you'd still match nobody. Then pick "You" in the recommender.
         Current suggestions for you: {=youRec.text}.
       stage:
         - id: youbox
@@ -184,9 +208,11 @@ atScale:
     offline and looked up at request time.
 
     On Spark, `RowMatrix.columnSimilarities()` computes cosine similarities between columns (items) of a sparse matrix, with an
-    optional sampling threshold (DIMSUM) that skips pairs that can't be similar. Center the ratings first to get the lecture's
-    adjusted cosine. For single-machine work, the `surprise` library's `KNNWithMeans` implements the user- and item-based
-    neighbourhood predictors; its `pearson` similarity is close to the lecture's centered cosine.
+    optional sampling threshold (DIMSUM, a shortcut that skips pairs unlikely to be similar). Run on user-centered ratings it
+    gives a close cousin of the lecture's adjusted cosine: the dot product is over co-raters, but each item's length uses
+    **all** its raters, the very mistake the Math & Code pitfall warns about. For single-machine work, the `surprise`
+    library's `KNNWithMeans` implements both neighbourhood predictors. Its `pearson` similarity centers by means over the
+    co-rated items only, and with `user_based=False` it centers by **item** means, so its numbers differ from the lecture's.
 
     For evaluation at scale, hold out ratings per user (or the latest ratings in time) and report the mean NDCG@k over users.
   code:
@@ -199,12 +225,13 @@ atScale:
         spark = SparkSession.builder.appName("item-cf").getOrCreate()
         ratings = spark.read.csv("ratings.csv", header=True, inferSchema=True)   # user, item, rating (int ids)
 
-        # center by each user's mean (the lecture's adjusted cosine)
+        # center by each user's mean, as the adjusted cosine does
         means = ratings.groupBy("user").agg(F.avg("rating").alias("mu"))
         centered = ratings.join(means, "user").withColumn("s", F.col("rating") - F.col("mu"))
 
         entries = centered.rdd.map(lambda r: MatrixEntry(r.user, r.item, r.s))
         R = CoordinateMatrix(entries).toRowMatrix()        # rows = users, columns = items
+        # cosine of columns: dot over co-raters, but lengths over ALL raters of each item
         sims = R.columnSimilarities(threshold=0.1)         # DIMSUM sampling for speed
         sims.entries.filter(lambda e: e.value > 0.5).take(10)
     - lang: python
@@ -215,7 +242,7 @@ atScale:
 
         data = Dataset.load_builtin("ml-100k")
         train, test = train_test_split(data, test_size=0.2)
-        algo = KNNWithMeans(k=20, sim_options={"name": "pearson", "user_based": False})  # item-based
+        algo = KNNWithMeans(k=20, sim_options={"name": "pearson", "user_based": False})  # item-based (centers by item means)
         algo.fit(train)
         print(algo.predict(uid="196", iid="302").est)   # predicted rating = mean + weighted deviations
 tradeoffs:

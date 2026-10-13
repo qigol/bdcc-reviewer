@@ -454,7 +454,8 @@ export default function register(sdk) {
     const out = [];
     R.values.forEach((row, i) => row.forEach((r, j) => {
       if (r !== null) return;
-      const terms = Array.from({ length: d }, (_, s) => `${pr(U.values[i][s])}${pr(V.values[s][j])}`).join(' + ');
+      // 3 decimals, so multiplying the printed factors by hand gives the printed result
+      const terms = Array.from({ length: d }, (_, s) => `${pr(U.values[i][s], 3)}${pr(V.values[s][j], 3)}`).join(' + ');
       out.push({ cell: `${R.rows[i]},${R.cols[j]}`, value: P[i][j], tex: `\\hat r_{${R.rows[i]},${R.cols[j]}} = ${Array.from({ length: d }, (_, s) => `${uName(i, s)}${vName(s, j)}`).join(' + ')} = ${terms} = ${dn(P[i][j])}` });
     }));
     return { cells: out, tex: out.map((o) => o.tex) };
@@ -598,7 +599,7 @@ export default function register(sdk) {
     trace.push(
       { label: `\`als_step_U\`: with \`R.T\` and \`V.T\`, users become columns, so the V-step code solves U; \`.T\` flips it back.\n\n$U = ${arr(U2.values, { rows: R.rows, cols: factorNames(d), f: (x) => dn(x, 8) })}$`,
         code: 'transpose', math: 'transpose', vars: { shape: shp(U2.values) }, ops: [M_CLEAR(), M_HL(R.rows.map((r) => `row:${r}`))] },
-      { label: `Row ${R.rows[0]} of that U-step, written out (slide 8). V's rows are equal, so only u₁₁ + u₁₂ matters.\n\n$${su.tex}$`,
+      { label: `Row ${R.rows[0]} of that U-step, written out. V's rows are equal, so only u₁₁ + u₁₂ matters.\n\n$${su.tex}$`,
         code: 'transpose', math: 'transpose', vars: { 'U[0]': pyList(U2.values[0], (x) => dn(x, 8)) }, ops: [M_HL(`row:${R.rows[0]}`), M_HL(rowCells(R, 0), 'good')] },
     );
     return { V: Vm, U: U2, trace };
@@ -777,7 +778,7 @@ export default function register(sdk) {
       const v = Array.from({ length: d }, () => halfInts(rng));
       const p = u.reduce((s, x, t) => s + x * v[t], 0);
       const wrongSum = u.reduce((a, b) => a + b, 0) + v.reduce((a, b) => a + b, 0);
-      if (p === 0 || near(p, wrongSum)) continue;
+      if (p === 0 || near(p, wrongSum) || near(p, u[0] * v[0])) continue;
       return { vars: { u, v, p, d, wrongSum, wrongFirst: u[0] * v[0] }, misconceptions: [
         { var: 'wrongSum', feedback: 'You added the factors. The prediction is the **dot product**: multiply matching factors, then add.' },
         { var: 'wrongFirst', feedback: 'Include every latent factor, not just the first: Σₛ uᵢₛ vₛⱼ.' },
@@ -819,21 +820,117 @@ export default function register(sdk) {
     }
   }
 
+  // Update u_i1 (which U) by coordinate descent. From difficulty 2 the partner factor v_1j is not always 1,
+  // so Σ v² is no longer just a count.
   function cgdQ({ rng, difficulty }) {
     for (;;) {
       const R = smallR(rng, 3, 4, difficulty === 3 ? 2 : 1);
       const i = rng.int(0, 2);
       const Uv = R.rows.map(() => [1, 1]);
-      const Vv = [R.cols.map(() => 1), R.cols.map(() => (difficulty === 1 ? 1 : rng.int(1, 2)))];
+      const Vv = [R.cols.map(() => (difficulty === 1 ? 1 : rng.pick([1, 1.5, 2]))), R.cols.map(() => (difficulty === 1 ? 1 : rng.int(1, 2)))];
       const U = mat(R.rows, ['f1', 'f2'], Uv), V = mat(['f1', 'f2'], R.cols, Vv);
       const r = cgdUpdate({ R, U, V, which: 'U', i, s: 0 });
       const obs = R.values[i].filter((x) => x !== null);
       const wrongMean = obs.reduce((a, b) => a + b, 0) / obs.length;
-      if (near(wrongMean, r.value) || Math.abs(r.value * 10 - Math.round(r.value * 10)) > 1e-9 && difficulty === 1) continue;
-      return { vars: { R, U, V, i: i + 1, user: R.rows[i], value: r.value, num: r.num, den: r.den, wrongMean, before: r.sseBefore, after: r.sseAfter }, misconceptions: [
-        { var: 'wrongMean', feedback: 'You averaged the raw ratings. Subtract what the other factor already predicts (r − Σₜ≠ₛ uᵢₜvₜⱼ) first.' },
-        { var: 'num', feedback: 'That is only the numerator; divide by Σ v²ₛⱼ over the observed cells.' },
+      const rated = R.values[i].map((x, j) => (x === null ? null : j)).filter((j) => j !== null);
+      const wrongNoRest = rated.reduce((a, j) => a + Vv[0][j] * R.values[i][j], 0) / r.den;
+      const wrongCount = r.num / rated.length;
+      if (near(wrongMean, r.value) || near(wrongNoRest, r.value) || (difficulty > 1 && near(wrongCount, r.value)) || (Math.abs(r.value * 10 - Math.round(r.value * 10)) > 1e-9 && difficulty === 1)) continue;
+      return { vars: { R, U, V, i: i + 1, user: R.rows[i], value: r.value, num: r.num, den: r.den, wrongMean, wrongNoRest, wrongCount, before: r.sseBefore, after: r.sseAfter }, misconceptions: [
+        { var: 'wrongMean', feedback: 'You averaged the raw ratings. Subtract what the other factor already predicts (r − Σₜ≠ₛ uᵢₜvₜⱼ) first.', for: 'value' },
+        { var: 'wrongNoRest', feedback: 'Subtract what factor 2 already predicts from each rating before multiplying by v₁ⱼ.', for: 'value' },
+        { var: 'num', feedback: 'That is only the numerator; divide by Σ v²₁ⱼ over the observed cells.', for: 'value' },
+        ...(difficulty > 1 ? [{ var: 'wrongCount', feedback: 'Divide by Σ v²₁ⱼ, not by the number of ratings: the partner factor isn\'t 1 everywhere.', for: 'value' }] : []),
       ] };
+    }
+  }
+
+  // Update v_1j (which V) with a partner u_i1 that is not 1, like the lecture's 2.6 in y = 16.4 / 9.76.
+  function cgdVQ({ rng }) {
+    for (;;) {
+      const R = smallR(rng, 4, 3, 1);
+      const j = rng.int(0, 2);
+      const Uv = R.rows.map(() => [rng.pick([1, 1.5, 2, 2.5]), 1]);
+      const Vv = [R.cols.map(() => 1), R.cols.map(() => 1)];
+      const U = mat(R.rows, ['f1', 'f2'], Uv), V = mat(['f1', 'f2'], R.cols, Vv);
+      const r = cgdUpdate({ R, U, V, which: 'V', s: 0, j });
+      const raters = R.values.map((row, i) => (row[j] === null ? null : i)).filter((i) => i !== null);
+      if (raters.every((i) => Uv[i][0] === 1)) continue;
+      const wrongNoRest = raters.reduce((a, i) => a + Uv[i][0] * R.values[i][j], 0) / r.den;
+      const wrongCount = r.num / raters.length;
+      const wrongMean = raters.reduce((a, i) => a + R.values[i][j] - 1, 0) / raters.length;
+      if ([wrongNoRest, wrongCount, wrongMean].some((w) => near(w, r.value))) continue;
+      return { vars: { R, U, V, j: j + 1, item: R.cols[j], value: r.value, num: r.num, den: r.den, wrongNoRest, wrongCount, wrongMean }, misconceptions: [
+        { var: 'wrongCount', feedback: 'Divide by Σ u²ᵢ₁, the squared partner factors, not by the number of raters.', for: 'value' },
+        { var: 'wrongNoRest', feedback: 'Subtract what factor 2 already predicts (here 1 × 1 = 1) from each rating first.', for: 'value' },
+        { var: 'wrongMean', feedback: 'Weight each rater by their u_i1: the update is Σ u(r − rest) / Σ u², not a plain average.', for: 'value' },
+      ] };
+    }
+  }
+
+  // ALS U-step for one user when V's two rows are equal (w_j), as on the lecture's U-step:
+  // u_i1 + u_i2 = Σ w r / Σ w², then the minimum-norm split halves it.
+  function alsRowQ({ rng }) {
+    for (;;) {
+      const n = 4;
+      const w = Array.from({ length: n }, () => rng.pick([1, 1.5, 2, 2.5]));
+      const r = Array.from({ length: n }, () => rng.int(1, 5));
+      const blank = rng.int(0, n - 1);
+      const obs = r.map((x, j) => (j === blank ? null : j)).filter((j) => j !== null);
+      const num = obs.reduce((a, j) => a + w[j] * r[j], 0), den = obs.reduce((a, j) => a + w[j] * w[j], 0);
+      const sumU = num / den, each = sumU / 2;
+      const wrongAll = r.reduce((a, x, j) => a + w[j] * x, 0) / w.reduce((a, x) => a + x * x, 0) / 2;
+      if (near(wrongAll, each) || near(sumU, each)) continue;
+      const cols = Array.from({ length: n }, (_, j) => `i${j + 1}`);
+      return { vars: {
+        w, ratingsText: r.map((x, j) => (j === blank ? '—' : String(x))).join(', '), blankItem: cols[blank], num, den, sumU, each, wrongAll,
+        R: mat(['u'], cols, [r.map((x, j) => (j === blank ? null : x))]), V: mat(['f1', 'f2'], cols, [w, w]),
+      }, misconceptions: [
+        { var: 'sumU', feedback: 'That is u₁ + u₂. V\'s two rows are equal, so the minimum-norm solution splits the sum evenly: halve it.', for: 'each' },
+        { var: 'wrongAll', feedback: 'Leave out the item this user didn\'t rate: only observed ratings enter the least squares.', for: 'each' },
+      ] };
+    }
+  }
+
+  // Two coordinate steps in a row, like the lecture's x then y: update u_i1, then v_1j using the NEW u_i1.
+  function cgdTwoQ({ rng }) {
+    for (;;) {
+      const R = smallR(rng, 3, 3, 1);
+      const i = rng.int(0, 2), j = rng.int(0, 2);
+      if (R.values[i][j] === null) continue;
+      const U = mat(R.rows, ['f1', 'f2'], R.rows.map(() => [1, 1]));
+      const V = mat(['f1', 'f2'], R.cols, [R.cols.map(() => 1), R.cols.map(() => 1)]);
+      const a = cgdUpdate({ R, U, V, which: 'U', i, s: 0 });
+      const b = cgdUpdate({ R, U: a.U, V: a.V, which: 'V', s: 0, j });
+      const stale = cgdUpdate({ R, U, V, which: 'V', s: 0, j });   // forgot to use the new u_i1
+      if (Math.abs(a.value * 10 - Math.round(a.value * 10)) > 1e-9) continue;
+      if (near(stale.value, b.value) || Math.abs(a.value - 1) < 0.05) continue;
+      return { vars: { R, U, V, i: i + 1, j: j + 1, user: R.rows[i], item: R.cols[j], x: a.value, y: b.value, yNum: b.num, yDen: b.den, sse0: a.sseBefore, sse1: a.sseAfter, sse2: b.sseAfter, wrongStaleY: stale.value },
+        misconceptions: [
+          { var: 'wrongStaleY', feedback: 'Use the NEW value of u from the first step: in coordinate descent each update sees the latest numbers.', for: 'y' },
+          { var: 'x', feedback: 'That is the first update. The second one updates the item factor, with the new u as its partner.', for: 'y' },
+        ] };
+    }
+  }
+
+  // Rank 2: fill one blank and score the fit (SSE over observed cells).
+  function sse2Q({ rng }) {
+    for (;;) {
+      const R = smallR(rng, 3, 3, 1);
+      const U = mat(R.rows, ['f1', 'f2'], R.rows.map(() => [rng.pick([0, 0.5, 1, 1.5]), rng.pick([0.5, 1, 1.5, 2])]));
+      const V = mat(['f1', 'f2'], R.cols, [R.cols.map(() => rng.pick([1, 2])), R.cols.map(() => rng.pick([0, 1, 2]))]);
+      const s = sse({ R, U, V });
+      let bi = 0, bj = 0;
+      R.values.forEach((row, i) => row.forEach((r, j) => { if (r === null) { bi = i; bj = j; } }));
+      const blank = s.P.values[bi][bj];
+      const wrongZero = s.sse + blank * blank;
+      if (s.sse === 0 || near(wrongZero, s.sse)) continue;
+      if (near(U.values[bi][0] * V.values[0][bj], blank)) continue;   // the second factor must matter in the blank
+      return { vars: { R, U, V, blank, blankCell: `${R.rows[bi]}·${R.cols[bj]}`, sse: s.sse, observed: s.observed, wrongZero, wrongFirstOnly: U.values[bi][0] * V.values[0][bj] },
+        misconceptions: [
+          { var: 'wrongFirstOnly', feedback: 'Include both factors: p = u₁v₁ + u₂v₂.', for: 'blank' },
+          { var: 'wrongZero', feedback: 'You counted the blank as a rating of 0. Only observed cells enter the SSE.', for: 'sse' },
+        ] };
     }
   }
 
@@ -851,6 +948,6 @@ export default function register(sdk) {
       sseSheet, sseWalk, alsDetailWalk, cgdSheet, cgdSweepWalk, fillTex, fillWalk,
       predictOneCode, sseCode, alsStepVCode, alsCode, cgdUpdateCode, cgdWorkedCode, fillCode, ridgeCode,
     },
-    generators: { dotQ, sseQ, alsColumnQ, cgdQ, paramsQ },
+    generators: { dotQ, sseQ, alsColumnQ, cgdQ, cgdVQ, alsRowQ, cgdTwoQ, sse2Q, paramsQ },
   };
 }

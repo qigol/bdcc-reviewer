@@ -70,7 +70,7 @@ sections:
             return {f: v / total for f, v in raw.items()}                             # @a:norm
     extraCode:
       - lang: python
-        title: scikit-learn (Session 6 notebook)
+        title: scikit-learn (course notebook)
         source: |
           import pandas as pd
 
@@ -106,7 +106,7 @@ sections:
       Keep the trained model. On the [[test-set|test set]], shuffle one column, which cuts its link to the right answer but
       keeps every other column as it was, and score again. The drop in the score is the importance, in the score's own
       units. Repeat with several shuffles and average, because one shuffle can be lucky.
-    keyFormula: 'I_j = s_0 - \frac{1}{K}\sum_{k=1}^{K} s\big(f, X^{(j,\pi_k)}, y\big)'
+    keyFormula: 'I_j = s_0 - \frac{1}{K}\sum_{k=1}^{K} s\big(f, X^{(j,k)}, y\big)'
     data: [tumors, trees]
     derive:
       - { fn: shuffleView, in: { tumors: '@tumors', trees: '@trees', which: tree1, feature: none }, out: sv }
@@ -129,10 +129,10 @@ sections:
         say: |
           Score the model once on the untouched test data. The notebook uses [[roc-auc|ROC-AUC]]; the toy uses accuracy.
       - tex: |
-          \anchor{shuffle}{X^{(j,\pi)} = X \text{ with column } j \text{ reordered by } \pi} \qquad \anchor{score}{s_{j,\pi} = \text{score}\big(f, X^{(j,\pi)}, y\big)}
-        say: 'Nothing is retrained. Only the model''s answers change.'
+          \anchor{shuffle}{X^{(j,k)} = X \text{ with column } j \text{ shuffled the } k\text{-th way}} \qquad \anchor{score}{s_{j,k} = \text{score}\big(f, X^{(j,k)}, y\big)}
+        say: 'K is the number of shuffles and k counts them. Nothing is retrained. Only the model''s answers change.'
       - tex: |
-          \anchor{drop}{d_{j,\pi} = s_0 - s_{j,\pi}} \qquad \anchor{avg}{I_j = \tfrac{1}{K}\sum_{k} d_{j,\pi_k}}
+          \anchor{drop}{d_{j,k} = s_0 - s_{j,k}} \qquad \anchor{avg}{I_j = \tfrac{1}{K}\sum_{k} d_{j,k}}
         say: |
           A big average drop means the model needed the feature. Near zero means it manages without it, given the others.
       - tex: |
@@ -168,7 +168,7 @@ sections:
             return result
     extraCode:
       - lang: python
-        title: scikit-learn (Session 6 notebook)
+        title: scikit-learn (course notebook)
         source: |
           from sklearn.inspection import permutation_importance
 
@@ -196,6 +196,7 @@ sections:
 
     tryIt:
       - perm-numeric
+      - perm-auc-numeric
       - perm-code
   - id: correlated-twins
     title: Correlated features split or erase credit
@@ -219,7 +220,7 @@ sections:
         props: { data: '@ts.table', format: 3, title: 'Toy importances', rowHeader: feature }
       - id: lecture
         widget: Matrix
-        props: { data: '@tl.table', format: 4, title: 'The real forest (Session 6)', rowHeader: feature }
+        props: { data: '@tl.table', format: 4, title: 'The real forest', rowHeader: feature }
     steps:
       - tex: |
           \anchor{avg}{P_{\text{forest}} = \tfrac12\big(P_{\text{tree 1}}(\text{radius}, \text{texture}) + P_{\text{tree 2}}(\text{area}, \text{texture})\big)}
@@ -229,7 +230,7 @@ sections:
           \anchor{base}{s_0 = 0.8} \qquad \anchor{one}{\text{shuffle radius only}} \;\Rightarrow\; \text{tree 2 still knows the size}
         say: The confused tree is outvoted by its healthy twin.
       - tex: |
-          \anchor{both}{\text{shuffle radius and area with the same } \pi} \;\Rightarrow\; \text{both trees lose the size}
+          \anchor{both}{\text{shuffle radius and area with the same shuffle } k} \;\Rightarrow\; \text{both trees lose the size}
         say: Shuffling the pair together measures what they carry between them.
       - tex: |
           \anchor{drops}{I_{\text{radius}} = {=ts.radiusForest|2}, \quad I_{\text{radius+area}} = {=ts.twinsForest|2}}
@@ -280,6 +281,7 @@ sections:
     tryIt:
       - twins-mcq
       - twins-multi
+      - twins-loan-hand
   - id: partial-dependence
     title: Partial dependence
     skills: [pdp, global-local]
@@ -302,7 +304,7 @@ sections:
       - tex: |
           \anchor{grid}{v \in \{v_1, \dots, v_m\}} \ \text{spanning the observed range}
         say: |
-          The values to try. Real PDPs mark where the data actually lies, so you can see where the curve rests on few cases.
+          The values to try. scikit-learn also draws small ticks at the deciles, the values that cut the data into ten equal-sized groups, so you can see where the curve rests on few real cases.
       - tex: |
           \anchor{force}{x_{i,j} \leftarrow v \ \text{for every row } i}
         say: |
@@ -340,7 +342,7 @@ sections:
             return np.array(curve)
     extraCode:
       - lang: python
-        title: scikit-learn (Session 6 notebook)
+        title: scikit-learn (course notebook)
         source: |
           from sklearn.inspection import PartialDependenceDisplay
 
@@ -372,7 +374,7 @@ sections:
       Add the features one at a time in some order and note how much the prediction moves when feature j joins. Average
       that over every possible order. The average is j's [[shapley-value|Shapley value]], and all the features' values add
       up exactly to the prediction minus the starting value.
-    keyFormula: '\phi_j = \frac{1}{|F|!}\sum_{\text{orders } \sigma} \big[v(\text{before}_\sigma(j) \cup \{j\}) - v(\text{before}_\sigma(j))\big]'
+    keyFormula: '\phi_j = \frac{1}{|F|!}\sum_{\text{orders } o} \big[v(\text{before}_o(j) \cup \{j\}) - v(\text{before}_o(j))\big]'
     data: [shapgame]
     state: { player: A }
     derive:
@@ -389,16 +391,16 @@ sections:
         bind: { value: player }
       - id: sheet
         widget: Matrix
-        props: { rows: '@ss.rows', cols: '@ss.cols', values: '@ss.values', format: 2, title: 'Session 7: six orderings, baseline 0.60, prediction 0.30', rowHeader: order }
+        props: { rows: '@ss.rows', cols: '@ss.cols', values: '@ss.values', format: 2, title: 'Six orderings, baseline 0.60, prediction 0.30', rowHeader: order }
     steps:
       - tex: |
-          \anchor{orders}{\sigma \in \text{all } 3! = 6 \text{ orderings of } \{A, B, C\}}
-        say: Every order in which the features could be revealed. With 3 features there are 3 × 2 × 1 = 6.
+          \anchor{orders}{o \in \text{all } 3! = 6 \text{ orders of } \{A, B, C\}}
+        say: 'Every order o in which the features could be revealed. With 3 features there are 3 × 2 × 1 = 6, written 3! ("3 factorial").'
       - tex: |
-          \anchor{before}{S = \text{features before } j \text{ in } \sigma} \qquad \anchor{after}{S \cup \{j\}}
-        say: 'v(S) is the model''s answer when only the features in the set S are known.'
+          \anchor{before}{S = \text{features before } j \text{ in } o} \qquad \anchor{after}{S \cup \{j\}}
+        say: 'v(S) is the model''s answer when only the features in the set S are known (the rest filled in from background data). The notebook writes f(S); we keep f(x) for the prediction itself.'
       - tex: |
-          \anchor{delta}{\Delta_\sigma(j) = v(S \cup \{j\}) - v(S)} \qquad \anchor{avg}{\phi_j = \tfrac{1}{6}\sum_\sigma \Delta_\sigma(j)}
+          \anchor{delta}{\Delta_o(j) = v(S \cup \{j\}) - v(S)} \qquad \anchor{avg}{\phi_j = \tfrac{1}{6}\sum_o \Delta_o(j)}
         say: How much the answer moved when j joined the features already known. Then average over the orders.
       - tex: |
           \phi_A = \tfrac{-0.25 - 0.25 - 0.22 - 0.25 - 0.22 - 0.25}{6} = -0.24, \quad \phi_B = +0.03, \quad \phi_C = -0.09, \quad \textstyle\sum \phi = -0.30 = 0.30 - 0.60
@@ -416,7 +418,8 @@ sections:
                 players: all features; j: the one to value.
 
             Returns:
-                float φ_j. Session 7 table: φ_A = −0.24.
+                float φ_j.
+                Lecture: φ_A = −0.24 (the notebook's ordering table).
             """
             deltas = []
             for order in permutations(players):                 # @a:orders
@@ -446,7 +449,7 @@ sections:
     summary: |
       The same value without listing every order: add up over each set S of the other features. The factorial weight is
       the share of orders in which exactly the features in S come before j, so every order is counted once.
-    keyFormula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[f(S \cup \{j\}) - f(S)\big]'
+    keyFormula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[v(S \cup \{j\}) - v(S)\big]'
     data: [shapgame]
     state: { player: A }
     derive:
@@ -467,18 +470,18 @@ sections:
     steps:
       - tex: |
           \anchor{subsets}{S \subseteq F \setminus \{j\}}
-        say: 'With 3 features, j has 4 possible sets of "features already known".'
+        say: 'F is the set of all features, and S runs over the sets of the other features. With 3 features, j has 4 possible sets of "features already known".'
       - tex: |
           \anchor{weight}{w(S) = \frac{|S|!\,(|F| - |S| - 1)!}{|F|!}}
         say: |
-          Orders of the features before j (|S|!) times orders of those after j, out of all orders (|F|!). "n!" means n × (n−1) × … × 1.
+          Orders of the features before j (|S|!) times orders of those after j, out of all orders (|F|!). "n!" means n × (n−1) × … × 1. (Why the weight has this shape goes beyond the notebook, which gives the formula only.)
       - tex: |
-          \anchor{gain}{f(S \cup \{j\}) - f(S)} \qquad \anchor{term}{w(S)\,\big[f(S \cup \{j\}) - f(S)\big]}
+          \anchor{gain}{v(S \cup \{j\}) - v(S)} \qquad \anchor{term}{w(S)\,\big[v(S \cup \{j\}) - v(S)\big]}
         say: Ignore the factorials and read the bracket. The weights only make sure every order counts once.
       - tex: |
-          \anchor{phi}{\phi_A = \tfrac{2}{6}(-0.25) + \tfrac{1}{6}(-0.22) + \tfrac{1}{6}(-0.22) + \tfrac{2}{6}(-0.25) = {=sw.phi|3}}
+          \anchor{phi}{\phi_{ {=player} } = {=sw.sumTex} = {=sw.phi|3}}
         say: |
-          For the chosen feature the four terms add up to φ. With 30 features there are over 500 million sets per feature; TreeExplainer avoids that.
+          For the chosen feature the four terms add up to φ. With 30 features there are over 500 million sets per feature; SHAP's shortcut for trees, met in the next scene, avoids that.
     code:
       lang: python
       source: |
@@ -493,7 +496,8 @@ sections:
                 j: the feature to value.
 
             Returns:
-                float φ_j (Session 7: φ_C = −0.09).
+                float φ_j.
+                Lecture: φ_C = −0.09.
             """
             n = len(players)
             others = [p for p in players if p != j]
@@ -525,7 +529,7 @@ sections:
       - shapley-weights-match
   - id: shap-additivity
     title: SHAP additivity and the class you explain
-    skills: [shapley, honest-reading, global-local]
+    skills: [shap-reading, honest-reading]
     summary: |
       For one case, the [[baseline|baseline]] plus all the SHAP contributions equals the model's prediction exactly. Every
       sign depends on the class you chose: explain class 0 instead and every contribution flips, with the model unchanged.
@@ -556,10 +560,10 @@ sections:
         say: 'One contribution per case, per feature, per class.'
       - tex: |
           \anchor{slice}{\phi = \Phi[\,94, :, 1\,]} \quad (\text{class } 1 = \text{benign})
-        say: 'Picking the wrong class here is the most common way to get a confident, backwards explanation.'
+        say: 'Patient 205 is row 205 of the full data set and position 94 (counting from 0) of the 143 test rows. Picking the wrong class here gives a confident, backwards explanation.'
       - tex: |
           \anchor{base}{E[f(x)] = 0.626} \qquad \anchor{add}{\textstyle\sum_j \phi_j = -0.2893}
-        say: The baseline is about the share of benign cases in the background data.
+        say: 'The baseline is about the share of benign cases in the [[background-data|background data]].'
       - tex: |
           \anchor{check}{0.626 + (-0.2893) = 0.3367 = f(x)}
         say: 'Additivity, checked rather than assumed.'
@@ -569,7 +573,7 @@ sections:
     code:
       lang: python
       source: |
-        """SHAP additivity for one patient (Session 7, section 3)."""
+        """SHAP additivity for one patient (course notebook, SHAP section)."""
         import shap
 
         explainer = shap.TreeExplainer(model)                     # @a:explain
@@ -580,7 +584,7 @@ sections:
         assert abs(base + total - y_proba[obs_pos]) < 1e-6        # @a:check
     extraCode:
       - lang: python
-        title: Waterfall plot (Session 7)
+        title: Waterfall plot (course notebook)
         source: |
           import matplotlib.pyplot as plt
 
@@ -603,7 +607,7 @@ sections:
 
     tryIt:
       - additivity-missing
-      - class-flip
+      - waterfall-hand
       - shap-slice-code
   - id: lime-surrogate
     title: LIME's local surrogate
@@ -615,7 +619,7 @@ sections:
     keyFormula: '\xi(x) = \arg\min_{g \in G} \sum_{z} \pi_x(z)\,\big(f(z) - g(z)\big)^2 + \Omega(g), \quad \pi_x(z) = e^{-(z - x)^2/\sigma^2}'
     state: { sigma: 2 }
     derive:
-      - { fn: limeFit, in: { x0: 16, sigma: '@sigma', deltas: [-2, 0, 2] }, out: lf }
+      - { fn: limeFit, in: { x0: 16, sigma: '@sigma', deltas: [-3, -2, -1, 0, 1, 2, 3] }, out: lf }
     live:
       - id: pts
         widget: Matrix
@@ -629,11 +633,18 @@ sections:
         props:
           items:
             - { label: 'LIME slope', value: '@lf.b', format: 4, tone: accent }
-            - { label: "model's true slope at 16", value: '@lf.trueSlope', format: 4 }
+            - { label: 'how steep the model is right at 16', value: '@lf.trueSlope', format: 4 }
+            - { label: 'total weight of the copies', value: '@lf.W', format: 2 }
     steps:
       - tex: |
+          \xi(x) = \arg\min_{g \in G} \; \mathcal{L}(f, g, \pi_x) + \Omega(g)
+        say: |
+          The notebook's objective, in words: from a family G of simple models (here straight lines), pick the g that
+          copies the model f best near x (the loss $\mathcal{L}$, with copies weighted by the kernel $\pi_x$) while staying
+          simple ($\Omega(g)$, a penalty for complexity such as too many features). "arg min" means "the g that makes this smallest".
+      - tex: |
           \anchor{sample}{z_k = x_0 + \delta_k}
-        say: 'Several slightly changed copies of the case (here three, so you can work it by hand).'
+        say: 'Seven changed copies of the case, at distances δ ("delta") from −3 to 3. Real LIME draws them at random.'
       - tex: |
           \anchor{predict}{f(z_k)} \text{ from the original model}
         say: The real model answers every copy; LIME never looks inside it.
@@ -642,10 +653,10 @@ sections:
         say: '"Local" as arithmetic: nearby copies count a lot, distant ones barely at all.'
       - tex: |
           \anchor{wls}{\bar z = \frac{\sum \pi_k z_k}{\sum \pi_k},\ \bar f = \frac{\sum \pi_k f(z_k)}{\sum \pi_k}} \qquad \anchor{coef}{b = \frac{\sum \pi_k (z_k - \bar z)(f_k - \bar f)}{\sum \pi_k (z_k - \bar z)^2}}
-        say: A weighted straight-line fit. Its slope b is the explanation.
+        say: A weighted straight-line fit. Its slope b is the explanation. (Doing this arithmetic by hand goes beyond the notebook, which lets the library do it.)
       - tex: |
           \sigma = {=sigma}: \quad b = {=lf.b|4} \quad \text{vs} \quad f'(16) = {=lf.trueSlope|4}
-        say: 'Shrink σ and the stand-in line''s slope gets close to the model''s own slope at 16.'
+        say: 'Shrink σ and the stand-in line''s slope gets close to how steep the model is right at 16. But the total weight falls too: near σ = 0.5 the line rests on about one copy.'
     code:
       lang: python
       source: |
@@ -660,7 +671,7 @@ sections:
 
             Returns:
                 float: weighted least-squares slope of f near x0.
-                Toy: x0 = 16, deltas (−2, 0, 2), σ = 2 → −0.2016.
+                Toy: x0 = 16, deltas −3..3, σ = 2 → −0.1948; σ = 0.5 → −0.2263.
             """
             z = x0 + np.array(deltas, dtype=float)        # @a:sample
             y = f(z)                                      # @a:predict
@@ -670,7 +681,7 @@ sections:
             return np.sum(w * (z - zb) * (y - yb)) / np.sum(w * (z - zb) ** 2)   # @a:coef
     extraCode:
       - lang: python
-        title: lime (Session 7 notebook)
+        title: lime (course notebook)
         source: |
           from lime.lime_tabular import LimeTabularExplainer
 
@@ -686,13 +697,14 @@ sections:
       - { anchor: kernel, label: 'proximity weights' }
       - { anchor: wls, label: 'weighted means' }
       - { anchor: coef, label: 'surrogate coefficient' }
-    trace: { fn: limeCode, in: { x0: 16, sigma: '@sigma', deltas: [-2, 0, 2] } }
-    examples: [toy-lime-narrow, toy-lime-wide, toy-lime-code, lime-top]
+    trace: { fn: limeCode, in: { x0: 16, sigma: '@sigma', deltas: [-3, -2, -1, 0, 1, 2, 3] } }
+    examples: [toy-lime-narrow, toy-lime-wide, toy-lime-code-7, lime-top]
     pitfalls:
       - |
         LIME weights belong to the stand-in line, not to probabilities. Compare them with SHAP only by order and sign.
       - 'LIME on tables explains ranges ("worst perimeter between 97.62 and 124.97"), not the raw feature.'
       - 'Without a fixed random seed the weights, and sometimes their order, change from run to run.'
+      - 'A very narrow kernel is not "more correct": with random copies, the line then rests on very few of them and becomes unstable.'
     examTip: |
       The weighted slope uses weighted averages. With equal weights it becomes the ordinary straight-line slope.
 
@@ -700,6 +712,7 @@ sections:
     tryIt:
       - lime-slope
       - lime-code
+      - lime-objective-mcq
   - id: counterfactual-search
     title: Counterfactuals
     skills: [counterfactuals, honest-reading]
@@ -722,14 +735,19 @@ sections:
             - { label: 'radius implied by that area', value: '@one.impliedR', format: 2, tone: bad }
     steps:
       - tex: |
+          \arg\min_{x'} \; \text{loss}\big(f(x'), y_{\text{target}}\big) + \lambda \, d(x, x')
+        say: |
+          The notebook's objective (Wachter and colleagues), in words: find a new case x' that the model puts in the wanted
+          class (small loss) and that stays close to x (small distance d). λ ("lambda") sets how much closeness matters.
+      - tex: |
           \anchor{score}{s(x) = 8 - 0.3\,r - 0.004\,A}, \quad \text{benign if } s > 0
         say: 'A toy straight-line model on the two size twins (radius r, area A). Positive score means benign.'
       - tex: |
-          \anchor{solve}{s = 0 \;\Rightarrow\; A^\ast = -\frac{8 - 0.3\,r}{-0.004}}
+          \anchor{solve}{s = 0 \;\Rightarrow\; A^\ast = \frac{8 - 0.3\,r}{0.004}}
         say: Keep radius fixed and solve for the area that puts the score exactly at zero.
       - tex: |
           \anchor{check}{A < A^\ast \Rightarrow s > 0 \Rightarrow \text{benign}} \qquad \anchor{plaus}{r_A = \sqrt{A^\ast/\pi} \overset{?}{=} r}
-        say: Valid. But a tumour with radius 17.77 cannot have an area that means radius 14.6.
+        say: Valid. But a tumour with radius 17.77 cannot have an area that means radius 14.57.
       - tex: |
           r = {=radius}: \quad A^\ast = {=one.value|1}, \quad \sqrt{A^\ast/\pi} = {=one.impliedR|2}
         say: 'DiCE did the same on the real forest: cf1 halves worst perimeter and leaves worst area at 989.5.'
@@ -755,7 +773,7 @@ sections:
             return area_cf, flips, implied_r
     extraCode:
       - lang: python
-        title: DiCE (Session 7 notebook)
+        title: DiCE (course notebook)
         source: |
           import dice_ml
           from dice_ml import Dice
@@ -782,3 +800,4 @@ sections:
     tryIt:
       - cf-numeric
       - cf-valid-plausible
+      - cf-lambda-mcq

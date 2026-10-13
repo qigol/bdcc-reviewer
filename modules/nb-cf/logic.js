@@ -58,15 +58,23 @@ export default function register(sdk) {
     const value = na < EPS || nb < EPS ? 0 : dot / (na * nb);
     const corated = idx.map((k) => other[k]);
     const cells = (lab) => corated.map((o) => (mode === 'item' ? `cell:${o},${lab}` : `cell:${lab},${o}`));
+    const side = (lab) => (mode === 'item' ? `col:${lab}` : `row:${lab}`);
+    const coCells = [...cells(a), ...cells(b)];
     const r2 = (x) => Math.round(x * 100) / 100;
+    const p2 = (x) => `(${r2(x)})`;
+    const dotT = idx.length ? xa.map((x, q) => `${p2(x)}${p2(xb[q])}`).join(' + ') : '0';
+    const sqT = (xs) => (xs.length ? xs.map((x) => `${r2(x)}^2`).join(' + ') : '0');
     return {
       sim: value, corated, overlap: idx.length, xa, xb, dot, na, nb,
       trace: [
-        { label: `Co-rated ${mode === 'item' ? 'users' : 'items'}: ${corated.length ? corated.join(', ') : 'none → similarity 0'}`, code: 'corated', math: 'corated', vars: { overlap: idx.length },
-          ops: [{ role: 'matrix', cmd: 'mask', args: { sel: [...cells(a), ...cells(b)] } }] },
-        { label: `Dot product of the centered values = ${r2(dot)}`, code: 'dot', math: 'dot', vars: { dot } },
-        { label: `Norms over the co-rated entries: ${r2(na)} and ${r2(nb)}`, code: 'norm', math: 'norm', vars: { na, nb } },
-        { label: `sim(${a}, ${b}) = ${r2(dot)} / (${r2(na)} · ${r2(nb)}) = ${r2(value)}`, code: 'sim', math: 'sim', vars: { sim: value } },
+        { label: `\`both\` is True where neither rating is NaN: ${idx.length} co-rated ${mode === 'item' ? 'users' : 'items'}. \`a\`, \`b\` keep only those.`, code: 'corated', math: 'corated', vars: { 'co-rated': corated.join(', ') || 'none', a: `[${xa.map(r2).join(', ')}]`, b: `[${xb.map(r2).join(', ')}]` },
+          ops: [{ role: 'matrix', cmd: 'clear' }, { role: 'matrix', cmd: 'highlight', args: { sel: [side(a), side(b)], tone: 'muted' } }, { role: 'matrix', cmd: 'highlight', args: { sel: coCells, tone: 'good' } }] },
+        { label: `\`a @ b\` multiplies pairwise and adds: $${dotT} = ${r2(dot)}$`, code: 'dot', math: 'dot', vars: { dot },
+          ops: [{ role: 'matrix', cmd: 'highlight', args: { sel: coCells, tone: 'accent' } }] },
+        { label: `Lengths over the same entries: $\\sqrt{${sqT(xa)}} = ${r2(na)}$, $\\sqrt{${sqT(xb)}} = ${r2(nb)}$`, code: 'norm', math: 'norm', vars: { na, nb },
+          ops: [{ role: 'matrix', cmd: 'highlight', args: { sel: coCells, tone: 'good' } }] },
+        { label: na < EPS || nb < EPS ? `A length is 0, so \`norm == 0\` and sim(${a}, ${b}) = 0` : `sim(${a}, ${b}) $= \\frac{${r2(dot)}}{${r2(na)} \\times ${r2(nb)}} = ${r2(value)}$`, code: 'sim', math: 'sim', vars: { sim: value },
+          ops: [{ role: 'matrix', cmd: 'highlight', args: { sel: coCells, tone: 'good' } }] },
       ],
     };
   }
@@ -291,20 +299,29 @@ export default function register(sdk) {
   const lab = (x) => `\\text{${x}}`;
 
   // Worksheet for one similarity: the co-rated entries side by side, their products and squares, and the sums.
-  function simSheet({ matrix, a, b, mode = 'user' }) {
+  // reveal (predict gates, guide §7.1b): 0 = centered values only, symbolic formula; 1 = + products and the dot
+  // product; 2 = + squares and their sums (formula stops before the division); 3 (default) = everything.
+  function simSheet({ matrix, a, b, mode = 'user', reveal = 3 }) {
     const st = styleOf(matrix);
     const s = sim({ matrix, a, b, mode });
     const over = mode === 'item' ? 'users' : 'items';
     const rows = s.corated.length ? [...s.corated, 'Σ'] : ['Σ'];
     const cols = [`s(${a})`, `s(${b})`, 'product', `s(${a})²`, `s(${b})²`];
-    const values = s.corated.map((o, k) => [s.xa[k], s.xb[k], s.xa[k] * s.xb[k], s.xa[k] ** 2, s.xb[k] ** 2]);
+    const r1 = reveal >= 1, r2 = reveal >= 2;
+    const values = s.corated.map((o, k) => [s.xa[k], s.xb[k], r1 ? s.xa[k] * s.xb[k] : null, r2 ? s.xa[k] ** 2 : null, r2 ? s.xb[k] ** 2 : null]);
     const ssa = s.na ** 2, ssb = s.nb ** 2;
-    values.push([null, null, s.dot, ssa, ssb]);
+    values.push([null, null, r1 ? s.dot : null, r2 ? ssa : null, r2 ? ssb : null]);
     const pair = `\\text{sim}(${lab(a)}, ${lab(b)})`;
     const dotTex = s.overlap ? s.xa.map((x, k) => `${pn(x, st)}${pn(s.xb[k], st)}`).join(' + ') : '0';
     const zero = s.na < EPS || s.nb < EPS;
+    const lens = `\\|${lab(a)}\\|\\,\\|${lab(b)}\\|`;
     let simTex;
-    if (!s.overlap) simTex = `${pair} = 0 \\quad (\\text{no co-rated ${over}})`;
+    if (reveal < 1) simTex = `${pair} = \\frac{\\sum s_{${lab(a)}}\\, s_{${lab(b)}}}{${lens}} \\quad (\\text{co-rated ${over} only})`;
+    else if (reveal < 3 && s.overlap && !zero) simTex = reveal < 2
+      ? `${pair} = \\frac{${dotTex}}{${lens}} = \\frac{${tn(s.dot, st)}}{${lens}}`
+      : `${pair} = \\frac{${dotTex}}{\\sqrt{${tn(ssa, st)}}\\,\\sqrt{${tn(ssb, st)}}} = \\frac{${tn(s.dot, st)}}{${tr(s.na, st)} \\times ${tr(s.nb, st)}}`;
+    else if (reveal < 3) simTex = `${pair} = \\frac{\\sum s_{${lab(a)}}\\, s_{${lab(b)}}}{${lens}}`;
+    else if (!s.overlap) simTex = `${pair} = 0 \\quad (\\text{no co-rated ${over}})`;
     else if (zero) simTex = `${pair}: \\ \\|${lab(s.na < EPS ? a : b)}\\| = 0 \\;\\Rightarrow\\; ${pair} = 0`;
     else simTex = `${pair} = \\frac{${dotTex}}{\\sqrt{${tn(ssa, st)}}\\,\\sqrt{${tn(ssb, st)}}} = \\frac{${tn(s.dot, st)}}{${tr(s.na, st)} \\times ${tr(s.nb, st)}} = \\frac{${dec(s.dot)}}{${dec(s.na * s.nb)}} = ${dec(s.sim)}`;
     const why = !s.overlap
@@ -388,24 +405,33 @@ export default function register(sdk) {
   }
 
   // Worksheet for one prediction: every candidate neighbour, its similarity and centered rating, and whether it is used.
-  function predictSheet({ matrix, user, item, k, mode = 'user' }) {
+  // reveal (predict gates, guide §7.1b): 0 = candidates, similarities and ranks only, symbolic formula; 1 = + which
+  // neighbours are used; 2 = + products and sums (formula stops before the division); 3 (default) = everything.
+  function predictSheet({ matrix, user, item, k, mode = 'user', reveal = 3 }) {
     const st = styleOf(matrix);
     const p = predict({ matrix, user, item, k, mode });
     const ranked = p.neighbors;
     const rows = ranked.length ? [...ranked.map((c) => c.label), 'Σ'] : ['Σ'];
     const cols = ['sim', mode === 'user' ? `s(·, ${item})` : `s(${user}, ·)`, 'rank', 'used?', 'sim × s'];
     const values = ranked.map((c, r) => [c.sim, c.dev, r + 1,
-      c.used ? '\\checkmark' : c.top ? '\\text{sim} \\le 0' : '\\text{beyond } k',
-      c.used ? c.sim * c.dev : null]);
-    values.push([p.blank ? null : p.den, null, null, null, p.blank ? null : p.num]);
+      reveal < 1 ? null : c.used ? '\\checkmark' : c.top ? '\\text{sim} \\le 0' : '\\text{beyond } k',
+      reveal >= 2 && c.used ? c.sim * c.dev : null]);
+    values.push([p.blank || reveal < 2 ? null : p.den, null, null, null, p.blank || reveal < 2 ? null : p.num]);
     const used = ranked.filter((c) => c.used);
     const tgt = `\\hat s_{${lab(user)},${lab(item)}}`;
     const numTex = used.map((c) => `${pn(+c.sim.toFixed(2), 'dec')}${pn(c.dev, st)}`).join(' + ');
     const denTex = used.map((c) => dec(c.sim)).join(' + ');
-    const predTex = p.blank
-      ? `${tgt} = \\text{blank (no positive neighbour among the top ${k})}`
-      : `${tgt} = \\frac{${numTex}}{${denTex}} = \\frac{${dec(p.num)}}{${dec(p.den)}} = ${dec(p.centered)}`;
-    const ratingTex = p.blank ? `\\hat r_{${lab(user)},${lab(item)}} = \\text{blank}` : `\\hat r_{${lab(user)},${lab(item)}} = \\hat s + \\mu_{${lab(user)}} = ${dec(p.centered)} + ${tn(p.mean, st)} = ${dec(p.rating)}`;
+    const symbolic = `${tgt} = \\frac{\\sum \\text{sim} \\times s}{\\sum \\text{sim}} \\quad (\\text{over the neighbours used})`;
+    const predTex = reveal < 2 || (p.blank && reveal < 3)
+      ? symbolic
+      : p.blank
+        ? `${tgt} = \\text{blank (no positive neighbour among the top ${k})}`
+        : reveal < 3
+          ? `${tgt} = \\frac{${numTex}}{${denTex}}`
+          : `${tgt} = \\frac{${numTex}}{${denTex}} = \\frac{${dec(p.num)}}{${dec(p.den)}} = ${dec(p.centered)}`;
+    const ratingTex = reveal < 3
+      ? `\\hat r_{${lab(user)},${lab(item)}} = \\hat s + \\mu_{${lab(user)}}`
+      : p.blank ? `\\hat r_{${lab(user)},${lab(item)}} = \\text{blank}` : `\\hat r_{${lab(user)},${lab(item)}} = \\hat s + \\mu_{${lab(user)}} = ${dec(p.centered)} + ${tn(p.mean, st)} = ${dec(p.rating)}`;
     const who = mode === 'user' ? `users who rated ${item}` : `items ${user} rated`;
     return {
       rows, cols, values, predTex, ratingTex, centered: p.centered, rating: p.rating, mean: p.mean, blank: p.blank, used: p.used, top: p.top,
@@ -962,10 +988,10 @@ export default function register(sdk) {
       if (obs.length === row.length) continue;
       const mu = obs.reduce((a, b) => a + b, 0) / obs.length;
       const wrongAll = obs.reduce((a, b) => a + b, 0) / row.length;
-      if (near(mu, wrongAll)) continue;
+      if (near(mu, wrongAll, 0.04)) continue;
       return { vars: { matrix: M, user: M.rows[u], mean: mu, wrongAll, sum: obs.reduce((a, b) => a + b, 0), n: obs.length, ni: row.length }, misconceptions: [
-        { var: 'wrongAll', feedback: 'You divided by every item, including the ones the user never rated. μᵤ averages only the **observed** ratings.' },
-        { var: 'sum', feedback: 'That is the sum; divide by the number of ratings.' },
+        { var: 'wrongAll', for: 'mean', feedback: 'You divided by every item, including the ones the user never rated. μᵤ averages only the **observed** ratings.' },
+        { var: 'sum', for: 'mean', feedback: 'That is the sum; divide by the number of ratings.' },
       ] };
     }
   }
@@ -981,31 +1007,95 @@ export default function register(sdk) {
       if (Math.abs(dev) < 0.05) continue;
       const colMu = (() => { const o = M.values.map((r) => r[j]).filter((x) => x !== null); return o.reduce((a, b) => a + b, 0) / o.length; })();
       const wrongCol = M.values[u][j] - colMu;
-      if (near(wrongCol, dev)) continue;
+      if (near(wrongCol, dev, 0.04)) continue;
       return { vars: { matrix: M, user: M.rows[u], item: M.cols[j], r: M.values[u][j], mean: mu, dev, wrongSign: -dev, wrongCol }, misconceptions: [
-        { var: 'wrongSign', feedback: 'Sign flipped: centered value = rating − μᵤ.' },
-        { var: 'wrongCol', feedback: 'You subtracted the **item** (column) mean. The lecture centers by the **user** (row) mean.' },
+        { var: 'wrongSign', for: 'dev', feedback: 'Sign flipped: centered value = rating − μᵤ.' },
+        { var: 'wrongCol', for: 'dev', feedback: 'You subtracted the **item** (column) mean. The lecture centers by the **user** (row) mean.' },
       ] };
     }
   }
 
+  // cosine of two equal-length lists (0 if either is all zeros)
+  const cosL = (x, y) => {
+    const d = x.reduce((t, v, q) => t + v * y[q], 0);
+    const nx = Math.sqrt(x.reduce((t, v) => t + v * v, 0)), ny = Math.sqrt(y.reduce((t, v) => t + v * v, 0));
+    return nx < EPS || ny < EPS ? 0 : d / (nx * ny);
+  };
+  const normL = (x) => Math.sqrt(x.reduce((t, v) => t + v * v, 0));
+
+  // user–user similarity of A and B. Difficulty ≥ 2: each user also rated an item the other did not, so the
+  // "norms over every rating" mistake gives a different number.
   function simQ({ rng, difficulty }) {
     for (;;) {
       const ni = difficulty === 3 ? 6 : 5;
       const M = randMatrix(rng, 2, ni, difficulty === 1 ? 1 : 3);
       const s = sim({ matrix: M, a: 'A', b: 'B', mode: 'user' });
       if (s.overlap < 2 || s.na < 1e-9 || s.nb < 1e-9) continue;
-      if (Math.abs(s.sim) > 0.999) continue;
-      // raw cosine over co-rated (forgot to center)
+      if (Math.abs(s.sim) > 0.999 || Math.abs(s.sim) < 0.05) continue;
+      const onlyA = M.cols.some((_, j) => M.values[0][j] !== null && M.values[1][j] === null);
+      const onlyB = M.cols.some((_, j) => M.values[1][j] !== null && M.values[0][j] === null);
+      if (difficulty >= 2 && !(onlyA && onlyB)) continue;
       const idx = M.cols.map((_, j) => j).filter((j) => M.values[0][j] !== null && M.values[1][j] !== null);
       const ra = idx.map((j) => M.values[0][j]), rb = idx.map((j) => M.values[1][j]);
-      const rawCos = ra.reduce((t, x, q) => t + x * rb[q], 0) / (Math.sqrt(ra.reduce((t, x) => t + x * x, 0)) * Math.sqrt(rb.reduce((t, x) => t + x * x, 0)));
-      if (near(rawCos, s.sim)) continue;
+      const rawCos = cosL(ra, rb);
+      const C = centered(M);
+      const wrongNormA = normL(C[0].filter((x) => x !== null)), wrongNormB = normL(C[1].filter((x) => x !== null));
+      const wrongAllNorms = s.dot / (wrongNormA * wrongNormB);
+      if (near(rawCos, s.sim, 0.03) || (difficulty >= 2 && near(wrongAllNorms, s.sim, 0.03))) continue;
+      if (difficulty >= 2 && (near(wrongNormA, s.na, 0.06) || near(wrongNormB, s.nb, 0.06))) continue;
       const mu = means(M);
-      return { vars: { matrix: M, sim: s.sim, overlap: s.overlap, corated: s.corated, dot: s.dot, na: s.na, nb: s.nb, rawCos, muA: mu[0], muB: mu[1] }, misconceptions: [
-        { var: 'rawCos', feedback: 'You used the raw ratings. Mean-center each user first (subtract μᵤ), then take the cosine.' },
-        { value: -s.sim, feedback: 'Check the signs of the centered values: the magnitude is right but the sign is flipped.' },
+      return { vars: { matrix: M, sim: s.sim, overlap: s.overlap, corated: s.corated, dot: s.dot, na: s.na, nb: s.nb, rawCos, wrongAllNorms, wrongNormA, wrongNormB, negSim: -s.sim, muA: mu[0], muB: mu[1] }, misconceptions: [
+        { var: 'rawCos', for: 'sim', feedback: 'You used the raw ratings. Mean-center each user first (subtract μᵤ), then take the cosine.' },
+        { var: 'negSim', for: 'sim', feedback: 'Check the signs of the centered values: the size is right but the sign is flipped.' },
+        ...(difficulty >= 2 ? [
+          { var: 'wrongAllNorms', for: 'sim', feedback: 'Your lengths used **every** rating of each user. Both lengths run only over the co-rated items, like the dot product.' },
+          { var: 'wrongNormA', for: 'na', feedback: 'That length uses all of A\'s ratings. Use only the items B also rated.' },
+          { var: 'wrongNormB', for: 'nb', feedback: 'That length uses all of B\'s ratings. Use only the items A also rated.' },
+        ] : []),
       ] };
+    }
+  }
+
+  // item–item adjusted cosine between two columns. Each item also has a rater the other lacks, so
+  // "norms over every rater" (Spark's columnSimilarities on centered data) gives a different number.
+  function isimQ({ rng, difficulty }) {
+    for (;;) {
+      const big = difficulty >= 3;
+      const nu = big ? 5 : 4, ni = big ? 5 : 4;
+      const M = randMatrix(rng, nu, ni, big ? 5 : 4);
+      const pairIdx = rng.sample(M.cols.map((_, q) => q), 2).sort((x, y) => x - y);
+      const [x, y] = pairIdx;
+      const a = M.cols[x], b = M.cols[y];
+      const s = sim({ matrix: M, a, b, mode: 'item' });
+      if (s.overlap < (big ? 3 : 2) || s.na < 1e-9 || s.nb < 1e-9) continue;
+      if (Math.abs(s.sim) > 0.999 || Math.abs(s.sim) < 0.05) continue;
+      const onlyA = M.rows.some((_, i) => M.values[i][x] !== null && M.values[i][y] === null);
+      const onlyB = M.rows.some((_, i) => M.values[i][y] !== null && M.values[i][x] === null);
+      if (!(onlyA && onlyB)) continue;
+      const C = centered(M);
+      const co = M.rows.map((_, i) => i).filter((i) => M.values[i][x] !== null && M.values[i][y] !== null);
+      const colMean = (q) => { const o = M.values.map((r) => r[q]).filter((v) => v !== null); return o.reduce((t, v) => t + v, 0) / o.length; };
+      const wrongItemMean = cosL(co.map((i) => M.values[i][x] - colMean(x)), co.map((i) => M.values[i][y] - colMean(y)));
+      const rawCos = cosL(co.map((i) => M.values[i][x]), co.map((i) => M.values[i][y]));
+      const wrongNormA = normL(C.map((r) => r[x]).filter((v) => v !== null));
+      const wrongNormB = normL(C.map((r) => r[y]).filter((v) => v !== null));
+      const wrongAllNorms = s.dot / (wrongNormA * wrongNormB);
+      if ([wrongItemMean, rawCos, wrongAllNorms].some((w) => near(w, s.sim, 0.03))) continue;
+      if (near(wrongNormA, s.na, 0.06) || near(wrongNormB, s.nb, 0.06)) continue;
+      const mu = means(M);
+      const cen = center({ matrix: M });
+      return {
+        vars: { matrix: M, centeredM: { rows: cen.rows, cols: cen.cols, values: cen.values }, a, b, sim: s.sim, overlap: s.overlap, corated: s.corated, dot: s.dot, na: s.na, nb: s.nb,
+          wrongItemMean, rawCos, wrongAllNorms, wrongNormA, wrongNormB,
+          meansText: M.rows.map((r, i) => `μ_${r} = ${dec(mu[i])}`).join(', ') },
+        misconceptions: [
+          { var: 'wrongItemMean', for: 'sim', feedback: 'You centered by the **item** (column) mean. The adjusted cosine centers each rating by the mean of the **user** who gave it.' },
+          { var: 'rawCos', for: 'sim', feedback: 'You used raw ratings. Center each rating by its user\'s mean first.' },
+          { var: 'wrongAllNorms', for: 'sim', feedback: 'Your lengths used **every** rater of each item. Both lengths run only over the users who rated both items.' },
+          { var: 'wrongNormA', for: 'na', feedback: `That length uses every rater of ${a}. Use only the users who also rated ${b}.` },
+          { var: 'wrongNormB', for: 'nb', feedback: `That length uses every rater of ${b}. Use only the users who also rated ${a}.` },
+        ],
+      };
     }
   }
 
@@ -1027,53 +1117,169 @@ export default function register(sdk) {
     }
   }
 
+  // User-based prediction. Difficulty ≥ 2: k = 3, at least two positive neighbours (each from ≥ 2 co-rated items)
+  // and a negative one inside the top 3, so "use every top-k neighbour" gives a different answer.
+  // Ratings outside the 1–5 scale are redrawn, so a learner who clips is never marked wrong.
   function ubPredictQ({ rng, difficulty }) {
     for (;;) {
-      const M = randMatrix(rng, difficulty === 3 ? 5 : 4, 5, difficulty === 3 ? 5 : 4);
+      const big = difficulty >= 2;
+      const M = randMatrix(rng, big ? 5 : 4, 5, big ? 5 : 4);
       const u = rng.int(0, M.rows.length - 1);
       const holes = M.cols.map((_, j) => j).filter((j) => M.values[u][j] === null);
       if (!holes.length) continue;
       const j = rng.pick(holes);
-      const k = 2;
+      const k = big ? 3 : 2;
       const p = predict({ matrix: M, user: M.rows[u], item: M.cols[j], k, mode: 'user' });
-      if (p.blank || p.tieAtCutoff || p.used.length < (difficulty === 1 ? 1 : 2)) continue;
+      if (p.blank || p.tieAtCutoff || p.used.length < (big ? 2 : 1)) continue;
+      if (p.rating < 1 || p.rating > 5) continue;
+      const top = p.neighbors.filter((c) => c.top);
+      const neg = top.filter((c) => !c.used);
+      if (big && !neg.some((c) => c.sim < -0.05 && Math.abs(c.sim * c.dev) > 0.06)) continue;
+      if (big && p.neighbors.filter((c) => c.used).some((c) => sim({ matrix: M, a: M.rows[u], b: c.label, mode: 'user' }).overlap < 2)) continue;
+      const allNum = top.reduce((a, c) => a + c.sim * c.dev, 0);
+      const allDen = top.reduce((a, c) => a + Math.abs(c.sim), 0);
+      const wrongAllCentered = allDen > EPS ? allNum / allDen : p.centered;
+      const wrongAllRating = wrongAllCentered + p.mean;
+      if (big && near(wrongAllCentered, p.centered, 0.06)) continue;
+      // the natural mistake: keep the negative neighbour and add its signed similarity to the denominator
+      const signedDen = top.reduce((a, c) => a + c.sim, 0);
+      if (big && Math.abs(signedDen) < 0.3) continue;
+      const wrongSignedCentered = Math.abs(signedDen) > EPS ? allNum / signedDen : p.centered;
+      const wrongSignedRating = wrongSignedCentered + p.mean;
+      if (big && near(wrongSignedCentered, p.centered, 0.06)) continue;
       const C = center({ matrix: M });
       const s = simMatrix({ matrix: M, mode: 'user' });
-      const allUsed = p.neighbors.filter((c) => c.top);
-      const wrongNoMean = p.centered;
-      const wrongAllNeighbors = allUsed.length ? allUsed.reduce((a, c) => a + c.sim * c.dev, 0) / allUsed.reduce((a, c) => a + Math.abs(c.sim), 0) + p.mean : p.rating;
-      if (near(wrongNoMean, p.rating) || near(wrongAllNeighbors, p.rating) && allUsed.some((c) => !c.used)) continue;
       return { vars: { matrix: M, centeredM: { rows: C.rows, cols: C.cols, values: C.values }, sims: { rows: s.rows, cols: s.cols, values: s.values }, user: M.rows[u], item: M.cols[j], k,
-        mean: p.mean, pred: p.centered, rating: p.rating, num: p.num, den: p.den, used: p.used, top: p.top, wrongNoMean, wrongAllNeighbors },
+        mean: p.mean, pred: p.centered, rating: p.rating, num: p.num, den: p.den, used: p.used, top: p.top,
+        wrongNoMean: p.centered, wrongAllCentered, wrongAllRating, wrongAllNum: allNum, wrongAllDen: allDen,
+        wrongSignedCentered, wrongSignedRating, wrongSignedDen: signedDen },
         misconceptions: [
-          { var: 'wrongNoMean', feedback: 'That is the prediction in **centered** space. Add the user\'s mean μᵤ back to get a rating.' },
-          { var: 'wrongAllNeighbors', feedback: 'Only neighbours with **sim > 0** are used; drop the negative ones from the top-k.' },
+          { var: 'wrongNoMean', for: 'rating', feedback: 'That is the prediction in **centered** space. Add the user\'s mean μᵤ back to get a rating.' },
+          ...(big ? [
+            { var: 'wrongSignedRating', for: 'rating', feedback: 'You included a negative neighbour; its negative weight shrinks the denominator. Keep only neighbours with **sim > 0**.' },
+            { var: 'wrongSignedCentered', for: 'pred', feedback: 'You included a negative neighbour; its negative weight shrinks the denominator. Keep only neighbours with **sim > 0**.' },
+            { var: 'wrongSignedDen', for: 'den', feedback: 'You added a negative similarity, which shrinks the denominator. Keep only sim > 0, and add only the similarities you used.' },
+            { var: 'wrongAllRating', for: 'rating', feedback: 'Only neighbours with **sim > 0** are used; drop the negative ones from the top-k.' },
+            { var: 'wrongAllCentered', for: 'pred', feedback: 'Only neighbours with **sim > 0** are used; drop the negative ones from the top-k.' },
+            { var: 'wrongAllNum', for: 'num', feedback: 'You included a neighbour with a negative similarity. Keep only sim > 0.' },
+            { var: 'wrongAllDen', for: 'den', feedback: 'You included a neighbour with a negative similarity (as |sim|). Add only the similarities of the neighbours used.' },
+          ] : []),
         ] };
     }
   }
 
-  function ibPredictQ({ rng }) {
+  // Full user-based pipeline from raw ratings: exactly two other users rated the target item, both positive,
+  // each from ≥ 2 co-rated items. The learner computes the mean, both similarities, ŝ and the rating.
+  function ubPipelineQ({ rng }) {
     for (;;) {
-      const M = randMatrix(rng, 4, 5, 4);
+      const M = randMatrix(rng, 4, 5, 5);
       const u = rng.int(0, 3);
+      const holes = M.cols.map((_, j) => j).filter((j) => M.values[u][j] === null);
+      if (!holes.length) continue;
+      const j = rng.pick(holes);
+      const p = predict({ matrix: M, user: M.rows[u], item: M.cols[j], k: 2, mode: 'user' });
+      if (p.neighbors.length !== 2 || p.used.length !== 2 || p.tieAtCutoff) continue;
+      if (p.rating < 1 || p.rating > 5) continue;
+      const [n1, n2] = p.neighbors;
+      const s1 = sim({ matrix: M, a: M.rows[u], b: n1.label, mode: 'user' });
+      const s2 = sim({ matrix: M, a: M.rows[u], b: n2.label, mode: 'user' });
+      if (s1.overlap < 2 || s2.overlap < 2 || s1.sim > 0.999 || s2.sim > 0.999) continue;
+      const raw = (b) => {
+        const ib = M.rows.indexOf(b);
+        const idx = M.cols.map((_, q) => q).filter((q) => M.values[u][q] !== null && M.values[ib][q] !== null);
+        return cosL(idx.map((q) => M.values[u][q]), idx.map((q) => M.values[ib][q]));
+      };
+      const rawSim1 = raw(n1.label), rawSim2 = raw(n2.label);
+      if (near(rawSim1, s1.sim, 0.03) || near(rawSim2, s2.sim, 0.03)) continue;
+      return {
+        vars: { matrix: M, user: M.rows[u], item: M.cols[j], n1: n1.label, n2: n2.label, sim1: s1.sim, sim2: s2.sim, co1: s1.corated, co2: s2.corated,
+          dev1: n1.dev, dev2: n2.dev, mean: p.mean, pred: p.centered, rating: p.rating, num: p.num, den: p.den, rawSim1, rawSim2, wrongNoMean: p.centered },
+        misconceptions: [
+          { var: 'rawSim1', for: 'sim1', feedback: 'You took the cosine of the raw ratings. Center each user by their own mean first.' },
+          { var: 'rawSim2', for: 'sim2', feedback: 'You took the cosine of the raw ratings. Center each user by their own mean first.' },
+          { var: 'wrongNoMean', for: 'rating', feedback: 'That is still the centered prediction ŝ. Add the user\'s mean back.' },
+        ],
+      };
+    }
+  }
+
+  // Full item-based pipeline from raw ratings: the user rated exactly two other items, both positively similar to the
+  // target (each from ≥ 2 co-raters). The learner computes the user's mean, both adjusted cosines, ŝ and the rating.
+  function ibPipelineQ({ rng }) {
+    for (;;) {
+      const M = randMatrix(rng, 5, 4, 5);
+      const u = rng.int(0, M.rows.length - 1);
+      const j = rng.int(0, M.cols.length - 1);
+      // build the user's row by hand: exactly two other items rated (with different ratings), the target blank
+      const keep = rng.sample(M.cols.map((_, q) => q).filter((q) => q !== j), 2);
+      M.values[u] = M.values[u].map((x, q) => (keep.includes(q) ? (x === null ? rng.int(1, 5) : x) : null));
+      if (M.values[u][keep[0]] === M.values[u][keep[1]]) continue;
+      // each kept item must share ≥ 2 raters with the target before any similarity is computed
+      const shared = (q) => M.values.filter((r) => r[j] !== null && r[q] !== null).length;
+      if (keep.some((q) => shared(q) < 2)) continue;
+      const p = predict({ matrix: M, user: M.rows[u], item: M.cols[j], k: 2, mode: 'item' });
+      if (p.neighbors.length !== 2 || p.used.length !== 2 || p.tieAtCutoff) continue;
+      if (p.rating < 1 || p.rating > 5) continue;
+      const [n1, n2] = p.neighbors;
+      const s1 = sim({ matrix: M, a: M.cols[j], b: n1.label, mode: 'item' });
+      const s2 = sim({ matrix: M, a: M.cols[j], b: n2.label, mode: 'item' });
+      if (s1.overlap < 2 || s2.overlap < 2 || s1.sim > 0.999 || s2.sim > 0.999) continue;
+      // equal similarities would make ŝ exactly 0 (the user's two centered ratings are ±d)
+      if (near(s1.sim, s2.sim, 0.03) || Math.abs(p.centered) < 0.05) continue;
+      const raw = (b) => {
+        const q = M.cols.indexOf(b);
+        const idx = M.rows.map((_, i) => i).filter((i) => M.values[i][j] !== null && M.values[i][q] !== null);
+        return cosL(idx.map((i) => M.values[i][j]), idx.map((i) => M.values[i][q]));
+      };
+      const rawSim1 = raw(n1.label), rawSim2 = raw(n2.label);
+      if (near(rawSim1, s1.sim, 0.03) || near(rawSim2, s2.sim, 0.03)) continue;
+      const mu = means(M);
+      return {
+        vars: { matrix: M, user: M.rows[u], item: M.cols[j], n1: n1.label, n2: n2.label, sim1: s1.sim, sim2: s2.sim, co1: s1.corated, co2: s2.corated,
+          mean: p.mean, pred: p.centered, rating: p.rating, num: p.num, den: p.den, rawSim1, rawSim2,
+          meansText: M.rows.map((r, i) => `μ_${r} = ${dec(mu[i])}`).join(', ') },
+        misconceptions: [
+          { var: 'rawSim1', for: 'sim1', feedback: 'You took the cosine of raw ratings. Center every rating by its user\'s mean first.' },
+          { var: 'rawSim2', for: 'sim2', feedback: 'You took the cosine of raw ratings. Center every rating by its user\'s mean first.' },
+          { var: 'pred', for: 'rating', feedback: 'That is still the centered prediction ŝ. Add the user\'s mean back.' },
+        ],
+      };
+    }
+  }
+
+  // Item-based prediction. Difficulty ≥ 2: at least two positive similar items, each sharing ≥ 2 raters with the target.
+  function ibPredictQ({ rng, difficulty }) {
+    for (;;) {
+      const big = difficulty >= 2;
+      const M = randMatrix(rng, big ? 5 : 4, 5, big ? 5 : 4);
+      const u = rng.int(0, M.rows.length - 1);
       const holes = M.cols.map((_, j) => j).filter((j) => M.values[u][j] === null);
       if (!holes.length) continue;
       const j = rng.pick(holes);
       const p = predict({ matrix: M, user: M.rows[u], item: M.cols[j], k: 2, mode: 'item' });
       if (p.blank || p.tieAtCutoff) continue;
+      if (big && (p.used.length < 2 || p.used.some((it) => sim({ matrix: M, a: M.cols[j], b: it, mode: 'item' }).overlap < 2))) continue;
+      if (p.rating < 1 || p.rating > 5) continue;
+      const used = p.neighbors.filter((c) => c.used);
+      const rawNum = used.reduce((a, c) => a + c.sim * M.values[u][M.cols.indexOf(c.label)], 0);
+      const wrongRaw = rawNum / used.reduce((a, c) => a + c.sim, 0);
+      if (near(wrongRaw, p.centered, 0.06)) continue;
       const C = center({ matrix: M });
       const s = simMatrix({ matrix: M, mode: 'item' });
-      const wrongRaw = (() => { const used = p.neighbors.filter((c) => c.used); return used.reduce((a, c) => a + c.sim * M.values[u][M.cols.indexOf(c.label)], 0) / used.reduce((a, c) => a + c.sim, 0); })();
-      if (near(wrongRaw, p.centered) || near(p.rating, p.centered)) continue;
-      return { vars: { matrix: M, centeredM: { rows: C.rows, cols: C.cols, values: C.values }, sims: { rows: s.rows, cols: s.cols, values: s.values }, user: M.rows[u], item: M.cols[j], pred: p.centered, rating: p.rating, mean: p.mean, used: p.used, wrongRaw },
+      return { vars: { matrix: M, centeredM: { rows: C.rows, cols: C.cols, values: C.values }, sims: { rows: s.rows, cols: s.cols, values: s.values }, user: M.rows[u], item: M.cols[j],
+        pred: p.centered, rating: p.rating, mean: p.mean, num: p.num, den: p.den, used: p.used, top: p.top, wrongRaw, wrongRawNum: rawNum },
         misconceptions: [
-          { var: 'wrongRaw', feedback: 'Use the user\'s **centered** ratings of the neighbour items, not the raw ratings.' },
-          { var: 'rating', feedback: 'The question asks for the centered prediction ŝ (as on the slides), before adding μᵤ.' },
+          { var: 'wrongRaw', for: 'pred', feedback: 'Use the user\'s **centered** ratings of the neighbour items, not the raw ratings.' },
+          { var: 'rating', for: 'pred', feedback: 'You added the mean back. This step asks for the centered prediction ŝ, before adding μᵤ.' },
+          { var: 'wrongRawNum', for: 'num', feedback: 'Multiply each similarity by the user\'s **centered** rating of that item, not the raw rating.' },
+          { var: 'pred', for: 'rating', feedback: 'That is still the centered prediction ŝ. Add the user\'s mean back to get a rating.' },
         ] };
     }
   }
 
   const DCG_IDS = ['A', 'B', 'C', 'D', 'E', 'F'];
+  // explanation text for a list of DCG terms, each bracketed so no false equation appears
+  const termsText = (terms) => terms.map((t) => `[(2^${t.rel} − 1)/log₂(${t.pos + 1}) = ${Math.round(t.contrib * 100) / 100}]`).join(' + ');
   function dcgQ({ rng, difficulty }) {
     for (;;) {
       const n = difficulty === 1 ? 4 : 6;
@@ -1084,37 +1290,113 @@ export default function register(sdk) {
       const d = dcg({ ratings, list, k });
       const lin = dcg({ ratings, list, k, gain: 'linear' }).dcg;
       const wrongDisc = list.reduce((s, id, i) => s + (Math.pow(2, ratings[id]) - 1) / (i === 0 ? 1 : Math.log2(i + 1)), 0);
-      if (d.dcg < 1 || near(lin, d.dcg, 0.05) || near(wrongDisc, d.dcg, 0.05)) continue;
+      if (d.dcg < 1 || near(lin, d.dcg, 0.15) || near(wrongDisc, d.dcg, 0.15)) continue;
+      // swapping the top two positions (difficulty ≥ 2 template)
+      const swapped = [list[1], list[0], ...list.slice(2)];
+      const swapDelta = dcg({ ratings, list: swapped, k }).dcg - d.dcg;
+      const swapLinear = dcg({ ratings, list: swapped, k, gain: 'linear' }).dcg - lin;
+      if (difficulty >= 2 && (Math.abs(swapDelta) < 0.3 || near(swapLinear, swapDelta, 0.15))) continue;
       const nd = ndcg({ ratings, list, k });
-      return { vars: { ratings, list, k, dcg: d.dcg, idcg: nd.idcg, ndcg: nd.ndcg, ideal: nd.ideal, wrongLinear: lin, wrongDisc,
-        ratingsText: ids.map((i) => `${i}: ${ratings[i]}`).join(', '), terms: d.terms.map((t) => `(2^${t.rel}−1)/log₂(${t.pos + 1}) = ${Math.round(t.contrib * 100) / 100}`).join(' + ') },
+      if (near(nd.dcg, nd.ndcg, 0.03) || near(nd.idcg, nd.ndcg, 0.03)) continue;
+      return { vars: { ratings, list, swapped, k, dcg: d.dcg, idcg: nd.idcg, ndcg: nd.ndcg, ideal: nd.ideal, wrongLinear: lin, wrongDisc, swapDelta, negSwap: -swapDelta, swapLinear,
+        top1: list[0], top2: list[1],
+        ratingsText: ids.map((i) => `${i}: ${ratings[i]}`).join(', '), terms: termsText(d.terms),
+        swapTerms: termsText(dcg({ ratings, list: swapped, k }).terms) },
         misconceptions: [
-          { var: 'wrongLinear', feedback: 'The lecture uses gain **2^rel − 1**, not the raw rating.' },
-          { var: 'wrongDisc', feedback: 'Position i is discounted by **log₂(i + 1)**: log₂2 = 1 for the top item, log₂3 for the second, and so on.' },
+          { var: 'wrongLinear', for: 'dcg', feedback: 'The lecture uses gain **2^rel − 1**, not the raw rating.' },
+          { var: 'wrongDisc', for: 'dcg', feedback: 'Position i is discounted by **log₂(i + 1)**: log₂2 = 1 for the top item, log₂3 for the second, and so on.' },
+          { var: 'negSwap', for: 'swapDelta', feedback: 'Right size, wrong sign: subtract the old DCG from the new one.' },
+          { var: 'swapLinear', for: 'swapDelta', feedback: 'The gain is **2^rel − 1**, not the raw rating.' },
         ] };
     }
   }
 
-  function ndcgQ({ rng }) {
+  // NDCG@k. Difficulty 3 (transfer): 6 items with relevance 0–5, k = 4, and the item that belongs first in the ideal
+  // list is missing from the recommended list, so "sort the recommended items" fails at every later step.
+  function ndcgQ({ rng, difficulty }) {
     for (;;) {
-      const ids = DCG_IDS.slice(0, 5);
-      const ratings = Object.fromEntries(ids.map((i) => [i, rng.int(1, 5)]));
-      const k = 3;
+      const hard = difficulty >= 3;
+      const ids = DCG_IDS.slice(0, hard ? 6 : 5);
+      const ratings = Object.fromEntries(ids.map((i) => [i, rng.int(hard ? 0 : 1, 5)]));
+      const k = hard ? 4 : 3;
       const list = rng.shuffle(ids).slice(0, k);
       const nd = ndcg({ ratings, list, k });
-      if (nd.ndcg > 0.97 || nd.ndcg < 0.2) continue;
-      const wrongNoIdeal = nd.dcg;
-      return { vars: { ratings, list, k, dcg: nd.dcg, idcg: nd.idcg, ndcg: nd.ndcg, ideal: nd.ideal, top: nd.ideal[0], topRel: ratings[nd.ideal[0]], wrongNoIdeal,
-        ratingsText: ids.map((i) => `${i}: ${ratings[i]}`).join(', ') } };
+      if (nd.idcg < 1 || nd.ndcg > 0.97 || nd.ndcg < 0.2) continue;
+      // the mistake: build the "ideal" list from the recommended items only
+      const recSorted = list.slice().sort((a, b) => ratings[b] - ratings[a]);
+      const wrongIdcgRec = dcg({ ratings, list: recSorted, k }).dcg;
+      if (near(wrongIdcgRec, nd.idcg, 0.15)) continue;
+      const wrongNdcgRec = nd.dcg / wrongIdcgRec;
+      if (near(wrongNdcgRec, nd.ndcg, 0.03) || near(nd.dcg, nd.ndcg, 0.03)) continue;
+      const topRel = ratings[nd.ideal[0]];
+      const wrongTopRec = ratings[recSorted[0]];
+      const wrongLinear = dcg({ ratings, list, k, gain: 'linear' }).dcg;
+      if (hard && (wrongTopRec === topRel || near(wrongLinear, nd.dcg, 0.15))) continue;
+      return { vars: { ratings, list, k, dcg: nd.dcg, idcg: nd.idcg, ndcg: nd.ndcg, ideal: nd.ideal, top: nd.ideal[0], topRel, wrongNoIdeal: nd.dcg,
+        wrongIdcgRec, wrongNdcgRec, wrongTopRec, wrongLinear, terms: termsText(nd.terms), idealTerms: termsText(nd.idealTerms),
+        ratingsText: ids.map((i) => `${i}: ${ratings[i]}`).join(', ') },
+        misconceptions: [
+          { var: 'wrongIdcgRec', for: 'idcg', feedback: 'You sorted only the recommended items. The ideal list takes the best k of **all** rated items.' },
+          { var: 'wrongNdcgRec', for: 'ndcg', feedback: 'Your IDCG used only the recommended items. The ideal list takes the best k of **all** rated items.' },
+          { var: 'wrongNoIdeal', for: 'ndcg', feedback: 'That is still DCG; divide by IDCG.' },
+          ...(hard ? [
+            { var: 'wrongTopRec', for: 'topRel', feedback: 'That is the best of the **recommended** items. The ideal list can start with an item the recommender missed.' },
+            { var: 'wrongLinear', for: 'dcg', feedback: 'The lecture uses gain **2^rel − 1**, not the raw relevance.' },
+          ] : []),
+        ] };
     }
+  }
+
+  // Significance weighting (beyond the lecture): sim of two users from raw ratings, then shrink it by min(overlap, β)/β.
+  // The overlap is always below β, so forgetting the weight gives a different number.
+  function sigSimQ({ rng }) {
+    for (;;) {
+      const beta = rng.pick([3, 4]);
+      const M = randMatrix(rng, 2, 6, 4);
+      const s = sim({ matrix: M, a: 'A', b: 'B', mode: 'user' });
+      if (s.overlap < 2 || s.overlap >= beta || s.na < 1e-9 || s.nb < 1e-9) continue;
+      if (Math.abs(s.sim) > 0.999 || Math.abs(s.sim) < 0.2) continue;
+      const idx = M.cols.map((_, j) => j).filter((j) => M.values[0][j] !== null && M.values[1][j] !== null);
+      const rawCos = cosL(idx.map((j) => M.values[0][j]), idx.map((j) => M.values[1][j]));
+      if (near(rawCos, s.sim, 0.03)) continue;
+      const weight = Math.min(s.overlap, beta) / beta;
+      const shrunk = s.sim * weight;
+      // dividing the overlap by the number of items instead of β
+      const wrongWeight = s.overlap / M.cols.length;
+      if (near(wrongWeight, weight, 0.02) || near(s.sim * wrongWeight, shrunk, 0.03)) continue;
+      if (near(s.sim, shrunk, 0.03) || near(rawCos * weight, shrunk, 0.03)) continue;
+      const mu = means(M);
+      return {
+        vars: { matrix: M, beta, overlap: s.overlap, corated: s.corated, sim: s.sim, weight, shrunk, rawCos, rawShrunk: rawCos * weight,
+          wrongWeight, wrongShrunk: s.sim * wrongWeight, muA: mu[0], muB: mu[1] },
+        misconceptions: [
+          { var: 'rawCos', for: 'sim', feedback: 'You used the raw ratings. Mean-center each user first (subtract μᵤ), then take the cosine.' },
+          { var: 'wrongWeight', for: 'weight', feedback: 'Divide the capped overlap by **β**, not by the number of items.' },
+          { var: 'sim', for: 'shrunk', feedback: 'That is the plain similarity. Multiply it by the weight min(overlap, β)/β.' },
+          { var: 'wrongShrunk', for: 'shrunk', feedback: 'Your weight divided by the number of items. The weight is min(overlap, β)/β.' },
+          { var: 'rawShrunk', for: 'shrunk', feedback: 'The weight is right, but the similarity came from raw ratings. Center each user first.' },
+        ],
+      };
+    }
+  }
+
+  // The prediction and the numbers that common mistakes give (Application decision options).
+  function predictMistakes({ matrix, user, item, k, mode = 'user' }) {
+    const p = predict({ matrix, user, item, k, mode });
+    const used = p.neighbors.filter((c) => c.used);
+    const rawOf = (c) => (mode === 'user' ? matrix.values[matrix.rows.indexOf(c.label)][matrix.cols.indexOf(item)] : matrix.values[matrix.rows.indexOf(user)][matrix.cols.indexOf(c.label)]);
+    const rawAvg = used.length ? used.reduce((a, c) => a + c.sim * rawOf(c), 0) / p.den : null;
+    const mu = means(matrix);
+    const nbMean = used.length && mode === 'user' ? p.centered + mu[matrix.rows.indexOf(used[0].label)] : null;
+    return { rating: p.rating, centered: p.centered, mean: p.mean, rawAvg, nbMean, used: p.used, neighbors: p.neighbors };
   }
 
   return {
     fns: {
       vecCos, center, rowMeans, sim, simMatrix, predict, fill, dcg, ndcg, dcgFromOrder, shrunkSim, recommend, holdout,
       simSheet, simWalk, centerWalk, predictSheet, predictWalk, dcgSheet, dcgWalk,
-      centerCode, simCode, neighborsCode, predictCode, ibPredictCode, dcgCode, ndcgCode, shrunkCode,
+      centerCode, simCode, neighborsCode, predictCode, ibPredictCode, dcgCode, ndcgCode, shrunkCode, predictMistakes,
     },
-    generators: { meanQ, centerQ, simQ, neighborsQ, ubPredictQ, ibPredictQ, dcgQ, ndcgQ },
+    generators: { meanQ, centerQ, simQ, isimQ, neighborsQ, ubPredictQ, ubPipelineQ, ibPipelineQ, ibPredictQ, dcgQ, ndcgQ, sigSimQ },
   };
 }

@@ -39,8 +39,8 @@ function scheduleBlanks(inst: QuizInstance): { key: string; spec: NumericSpec }[
   inst.schedule?.rows.forEach((r, i) => {
     if (!r.blank) return;
     r.cells.forEach((v, j) => {
-      if (typeof v !== 'number') return;
-      out.push({ key: `${i}:${j}`, spec: { value: v, tol: r.tol ?? inst.amountTol?.tol ?? 0.01, relTol: inst.amountTol?.relTol, accept: r.format === 'pct' ? ['decimal', 'fraction', 'percent'] : ['decimal', 'fraction'] } });
+      if (typeof v !== 'number' || r.given?.includes(j)) return;
+      out.push({ key: `${i}:${j}`, spec: { value: v, tol: r.tol ?? inst.amountTol?.tol ?? 0.01, relTol: inst.amountTol?.relTol, accept: r.format === 'pct' ? ['decimal', 'fraction', 'percent'] : ['decimal', 'fraction'], parenNegative: !r.format || r.format === 'money' } });
     });
   });
   return out;
@@ -380,7 +380,7 @@ function ScheduleFill({ inst, mod, response, setResponse, locked, reveal }: { in
   const sched = inst.schedule!;
   const specs = Object.fromEntries(scheduleBlanks(inst).map((b) => [b.key, b.spec]));
   const currency = mod.parsed.manifest.currency;
-  const rows = sched.rows.map((r) => ({ label: r.label, indent: r.indent, style: r.style, format: r.format, amounts: r.blank ? r.cells.map(() => null) : r.cells }));
+  const rows = sched.rows.map((r) => ({ label: r.label, indent: r.indent, style: r.style, format: r.format, amounts: r.blank ? r.cells.map((c, j) => (r.given?.includes(j) ? c : null)) : r.cells }));
   return (
     <div className="rounded-xl border border-line bg-panel p-3" data-testid="schedule-fill">
       <ScheduleView rows={rows as any} columns={sched.columns} money={{ currency }}

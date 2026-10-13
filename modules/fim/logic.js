@@ -201,7 +201,7 @@ export default function register(sdk) {
     frequent.sort((a, b) => b.abs - a.abs || b.itemset.length - a.itemset.length || (a.key < b.key ? -1 : 1));
     for (let i = 0; i < items.length; i++) byLevel[i] = byLevel[i] || 0;
     const singles = frequent.filter((f) => f.itemset.length === 1).length;
-    return { supportMap, frequent, count: frequent.length, byLevel, singles, items, minsupAbs: thr, keys: frequent.map((f) => f.key), labels: frequent.map((f) => `${setText(f.itemset)} (${f.abs})`) };
+    return { supportMap, frequent, count: frequent.length, byLevel, singles, items, minsupAbs: thr, minsupCount: Math.ceil(thr - 1e-9), keys: frequent.map((f) => f.key), labels: frequent.map((f) => `${setText(f.itemset)} (${f.abs})`) };
   }
 
   // Frequent itemsets among a given list (the slides 10–13 only list itemsets over bread/butter/milk)
@@ -422,7 +422,7 @@ export default function register(sdk) {
     const ord = orderFor(transactions, order || APRIORI_ORDER);
     const thr = threshold(minsup, transactions.length);
     let candidates = ord.map((i) => [i]);
-    const trace = [{ label: `\`candidates\` = every single item, in slide-19 order: ${candidates.length} of them`, code: 'level', math: 'level', vars: { candidates: candidates.map(setText) }, ops: [T_CLEAR(), T_HL(itemSel(ord))] }];
+    const trace = [{ label: `\`candidates\` = every single item, in the lecture's order: ${candidates.length} of them`, code: 'level', math: 'level', vars: { candidates: candidates.map(setText) }, ops: [T_CLEAR(), T_HL(itemSel(ord))] }];
     let items1 = null;
     let nFreq = 0;
     let k = 1;
@@ -629,7 +629,7 @@ export default function register(sdk) {
       }
     });
     const nf = visits.filter((v) => v.ok).length;
-    trace.push({ label: `Done: ${visits.length} prefixes tried, ${nf} frequent itemsets (slide 40)`, patch: { fpPrefix: [], fpStep: visits.length },
+    trace.push({ label: `Done: ${visits.length} prefixes tried, ${nf} frequent itemsets`, patch: { fpPrefix: [], fpStep: visits.length },
       ops: [{ role: 'table', cmd: 'unproject' }] });
     return { count: nf, explored: visits.length, trace };
   }
@@ -794,7 +794,7 @@ export default function register(sdk) {
         ],
       });
     }
-    trace.push({ label: `${kept} of ${c.length} candidate rules pass minconf = ${minconf} (slide 60)`, patch: { ruleUpTo: c.length }, vars: { kept } });
+    trace.push({ label: `${kept} of ${c.length} candidate rules pass minconf = ${minconf}`, patch: { ruleUpTo: c.length }, vars: { kept } });
     return { kept, considered: c.length, trace };
   }
 
@@ -1090,7 +1090,7 @@ export default function register(sdk) {
       if (r.lift === null || r.supAB === 0) continue;
       const answer = r.verdict === 'positive' ? 0 : r.verdict === 'independent' ? 1 : 2;
       return { vars: { transactions, A: [a], B: [b], lift: r.lift, conf: r.conf, relB: r.relB, verdict: r.verdict }, answer,
-        options: ['Positive association: A makes B more likely', 'No association: A and B are independent', 'Negative association: A makes B less likely', 'Cannot tell without the confidence threshold'] };
+        options: ['Positive association: baskets with A hold B more often than average', 'No association: baskets with A hold B as often as average', 'Negative association: baskets with A hold B less often than average', 'Cannot tell without the confidence threshold'] };
     }
   }
 
@@ -1130,11 +1130,13 @@ export default function register(sdk) {
     }
   }
 
+  // k from 3 to 6: for k = 2 and 3 the old "ordered pairs" misconception k(k−1) equalled 2^k − 2 (audit), so it is replaced
+  // by "single-item antecedents only" (k), which never equals 2^k − 2 for k ≥ 3.
   function ruleCountQ({ rng }) {
-    const k = rng.int(2, 5);
-    return { vars: { k, count: Math.pow(2, k) - 2, wrongAll: Math.pow(2, k) - 1, wrongPairs: k * (k - 1) }, misconceptions: [
+    const k = rng.int(3, 6);
+    return { vars: { k, count: Math.pow(2, k) - 2, wrongAll: Math.pow(2, k) - 1, wrongSingles: k }, misconceptions: [
       { var: 'wrongAll', feedback: 'Both sides of a rule must be non-empty, so drop the empty antecedent **and** the full antecedent: 2^k − 2.' },
-      { var: 'wrongPairs', feedback: 'Rules are not just ordered pairs of items: any non-empty proper subset can be the antecedent.' },
+      { var: 'wrongSingles', feedback: 'You only counted one-item antecedents. Any non-empty proper subset can be the antecedent, e.g. {eggs, yogurt} → {milk}.' },
     ] };
   }
 
@@ -1167,16 +1169,36 @@ export default function register(sdk) {
     }
   }
 
+  // The milk trap, varied: the common item is in every basket, or in all but one. Every option cites a number
+  // computed from a real mistake, so the correct one can't be spotted by its wording.
   function trapQ({ rng, fns }) {
+    const f2 = (x) => +x.toFixed(2);
     for (;;) {
       const pool = POOL.slice(0, 5);
       const always = rng.pick(pool);
-      const transactions = randomDb(rng, 5, pool.filter((x) => x !== always), 1, 3).map((t) => ({ ...t, items: sortSet([...t.items, always], pool) }));
+      const missOne = rng.bool(0.5);
+      const n = missOne ? rng.int(6, 7) : rng.int(5, 7);
+      const transactions = randomDb(rng, n, pool.filter((x) => x !== always), 1, 3)
+        .map((t, i) => ({ ...t, items: missOne && i === n - 1 ? t.items : sortSet([...t.items, always], pool) }));
       const a = rng.pick(pool.filter((x) => x !== always));
       const r = fns.lift({ transactions, A: [a], B: [always] });
-      if (r.supA === 0) continue;
-      return { vars: { transactions, a, always, conf: r.conf, lift: r.lift }, answer: 1,
-        options: ['conf = 1 and lift > 1: a strong rule to act on', 'conf = 1 but lift = 1: the rule tells us nothing', 'conf < 1 and lift < 1: a negative association', 'Confidence is undefined here'] };
+      if (!r.supA || r.supA === n || r.lift === null || r.supAB === 0) continue;
+      if (r.supAB !== r.supA) continue; // conf = 1: the milk-trap shape (lift 1, or just above 1 when one basket lacks the common item)
+      const wrongRelA = r.conf / r.relA;
+      const wrongRev = r.supAB / r.supB;
+      const vals = [r.lift, wrongRelA, wrongRev];
+      if (Math.abs(wrongRelA - r.lift) < 0.15 || Math.abs(wrongRev - r.lift) < 0.15 || Math.abs(wrongRelA - wrongRev) < 0.15) continue;
+      if (vals.some((v) => !Number.isFinite(v)) || wrongRelA < 1.3 || wrongRev > 0.9) continue;
+      return {
+        vars: { transactions, a, always, n, supB: r.supB, conf: r.conf, relB: r.relB, lift: r.lift, wrongRelA, wrongRev },
+        answer: 0,
+        options: [
+          `Lift ≈ ${f2(r.lift)}: ${always} is in almost every basket anyway, so knowing ${a} adds little`,
+          `Confidence ${f2(r.conf)} is high, so ${a} → ${always} is a rule worth acting on`,
+          `Lift ≈ ${f2(wrongRelA)}: baskets with ${a} hold ${always} far more often than average`,
+          `Lift ≈ ${f2(wrongRev)}: baskets with ${a} hold ${always} less often than average`,
+        ],
+      };
     }
   }
 
@@ -1189,6 +1211,9 @@ export default function register(sdk) {
       const B = [b];
       const r = fns.lift({ transactions, A, B });
       if (r.lift === null || r.supAB === 0 || r.supA === r.supAB || r.supB === n) continue;
+      // keep every misconception clearly apart from the right answer (≥ 3× the step tolerance)
+      if (r.supA === n || r.supA === r.supB) continue;
+      if (Math.abs(r.supAB / n - r.conf) < 0.03 || Math.abs(r.conf / r.relA - r.lift) < 0.06) continue;
       return { vars: { transactions, A, B, supAB: r.supAB, supA: r.supA, supB: r.supB, n, conf: r.conf, relB: r.relB, lift: r.lift,
         wrongConfN: r.supAB / n, wrongRelB: r.supB, wrongLift: r.conf / r.relA, verdict: r.verdict } };
     }
@@ -1225,6 +1250,130 @@ export default function register(sdk) {
     }
   }
 
+  // Relative minsup → basket count → frequent itemsets. minsup × n is never a whole number, so rounding matters.
+  function relMinsupQ({ rng, fns }) {
+    for (;;) {
+      const n = rng.pick([6, 7, 8]);
+      const minsup = rng.pick([0.15, 0.2, 0.25, 0.3, 0.35, 0.4]);
+      const product = minsup * n;
+      if (Math.abs(product - Math.round(product)) < 1e-6) continue;
+      const need = Math.ceil(product - 1e-9);
+      const wrongFloor = Math.floor(product + 1e-9);
+      if (wrongFloor < 2) continue;
+      const pool = POOL.slice(0, 5);
+      const transactions = randomDb(rng, n, pool, 2, 4);
+      const fi = fns.frequentItemsets({ transactions, minsup });
+      const floorCount = fns.frequentItemsets({ transactions, minsup: wrongFloor }).count;
+      const allCount = fns.frequentItemsets({ transactions, minsup: 1 }).count;
+      if (fi.count < 3 || fi.count > 12 || floorCount === fi.count || allCount === fi.count) continue;
+      return {
+        vars: { transactions, n, minsup, product, need, wrongFloor, count: fi.count, floorCount, allCount, byLevel: fi.byLevel, list: fi.labels.join(', ') },
+        misconceptions: [
+          { var: 'wrongFloor', for: 'need', feedback: 'You rounded down. A basket count must **reach** minsup × |D|, so round up.' },
+          { var: 'product', for: 'need', feedback: 'That is minsup × |D| itself. Baskets come in whole numbers: round up to the next whole basket.' },
+          { var: 'floorCount', for: 'count', feedback: 'You used the rounded-down basket count as the bar. An itemset in that many baskets has a share below minsup, so it is not frequent.' },
+          { var: 'allCount', for: 'count', feedback: 'You compared the basket count itself with the fraction. A fraction is a relative bar: compare AbsSup / |D| with it, or round minsup × |D| up.' },
+        ],
+      };
+    }
+  }
+
+  // Lecture-scheme Apriori (extend each frequent itemset by a later frequent item), counted level by level.
+  function aprioriCountQ({ rng, fns }) {
+    for (;;) {
+      const m = rng.pick([5, 6]);
+      const pool = POOL.slice(0, m);
+      const transactions = randomDb(rng, 6, pool, 2, 4);
+      const items = itemsOf(transactions, pool);
+      if (items.length !== m) continue;
+      const run = fns.aprioriRun({ transactions, minsup: 2, order: pool });
+      const c = (k) => (run.levels[k - 1] ? run.levels[k - 1].candidates : 0);
+      const l1 = run.levels[0].frequent;
+      const classic = fns.aprioriClassic({ transactions, minsup: 2 }).evaluated;
+      if (l1 === m || l1 < 3 || c(3) < 2 || classic === run.evaluated || run.evaluated > 26) continue;
+      const pairsAll = (m * (m - 1)) / 2;
+      return {
+        vars: { transactions, order: pool.join(', '), m, l1, c2: c(2), c3: c(3), c4: c(4), total: run.evaluated, bruteForce: run.bruteForce, classic, pairsAll,
+          levelText: run.levels.map((L) => `level ${L.k}: ${L.candidates} counted, ${L.frequent} frequent`).join('; '), count: run.count },
+        misconceptions: [
+          { var: 'pairsAll', for: 'c2', feedback: 'You paired every item. Level 2 only pairs the items that passed level 1.' },
+          { var: 'classic', for: 'total', feedback: 'That is the classic prune, which also drops candidates with an infrequent pair inside. The lecture\'s version only extends frequent itemsets by later frequent items.' },
+          { var: 'bruteForce', for: 'total', feedback: 'That is brute force, 2^n − 1. Apriori never counts extensions of infrequent itemsets.' },
+        ],
+      };
+    }
+  }
+
+  // FP-growth by hand: every prefix the recursion tries, on a 5-basket table.
+  function fpEnumQ({ rng }) {
+    for (;;) {
+      const pool = POOL.slice(0, 5);
+      const transactions = randomDb(rng, 5, pool, 2, 4);
+      const { visits } = fpVisits(transactions, 2, pool);
+      const top = visits.filter((v) => v.prefix.length === 1);
+      const topFreq = top.filter((v) => v.ok).length;
+      const count = visits.filter((v) => v.ok).length;
+      if (visits.length > 14 || count < 5 || count > 10 || topFreq === top.length || visits.length === count) continue;
+      return {
+        vars: { transactions, top: top.length, topFreq, explored: visits.length, count,
+          frequentList: visits.filter((v) => v.ok).map((v) => `${setText(v.prefix)} (${v.sup})`).join(', '),
+          stopList: visits.filter((v) => !v.ok).map((v) => `${setText(v.prefix)} (${v.sup})`).join(', ') },
+        misconceptions: [
+          { var: 'count', for: 'explored', feedback: 'You counted only the frequent prefixes. Every prefix FP-growth filters on counts, including the ones that stop below minsup.' },
+          { var: 'top', for: 'topFreq', feedback: 'That is every item in the table. Only items with support ≥ 2 get their own filtered table.' },
+          { var: 'explored', for: 'count', feedback: 'That counts every prefix tried. Only the ones whose filtered table has at least 2 rows are frequent.' },
+        ],
+      };
+    }
+  }
+
+  // Lift is symmetric: Lift(A → B) = Lift(B → A) = Sup(A ∪ B)·|D| / (Sup(A)·Sup(B)).
+  function liftSymQ({ rng, fns }) {
+    for (;;) {
+      const transactions = randomDb(rng, 6, POOL, 2, 4);
+      const [a, b] = rng.sample(POOL, 2);
+      const r = fns.lift({ transactions, A: [a], B: [b] });
+      const rev = fns.lift({ transactions, A: [b], B: [a] });
+      if (r.lift === null || r.supAB === 0 || r.supA === r.supB || approxEq(r.lift, 1)) continue;
+      const wrongInverse = 1 / r.lift;
+      const wrongConf = rev.conf;
+      if (Math.abs(wrongInverse - r.lift) < 0.06 || Math.abs(wrongConf - r.lift) < 0.06) continue;
+      return {
+        vars: { transactions, A: [a], B: [b], lift: r.lift, confAB: r.conf, confBA: rev.conf, supA: r.supA, supB: r.supB, supAB: r.supAB, n: r.n, wrongInverse, wrongConf },
+        misconceptions: [
+          { var: 'wrongInverse', for: 'lift', feedback: 'Reversing a rule does not invert its lift. Lift = Sup(A ∪ B)·|D| / (Sup(A)·Sup(B)) treats A and B the same way.' },
+          { var: 'wrongConf', for: 'lift', feedback: 'That is Conf(B → A). Lift divides it by the base rate of the new consequent.' },
+        ],
+      };
+    }
+  }
+
+  // Integrative: relative minsup → frequent itemsets → rules that pass minconf, on 8 baskets.
+  function relMineQ({ rng, fns }) {
+    for (;;) {
+      const n = 8;
+      const minsup = rng.pick([0.3, 0.35]);
+      const minconf = rng.pick([0.6, 0.7]);
+      const pool = POOL.slice(0, 5);
+      const transactions = randomDb(rng, n, pool, 2, 4);
+      const need = Math.ceil(minsup * n - 1e-9);
+      const wrongFloor = Math.floor(minsup * n + 1e-9);
+      const fi = fns.frequentItemsets({ transactions, minsup });
+      const r = fns.rules({ transactions, minsup, minconf });
+      const floorCount = fns.frequentItemsets({ transactions, minsup: wrongFloor }).count;
+      if (fi.count < 4 || fi.count > 11 || r.count < 2 || r.count > 8 || floorCount === fi.count || r.considered === r.count) continue;
+      return {
+        vars: { transactions, n, minsup, minconf, need, wrongFloor, total: fi.count, floorCount, rules: r.count, considered: r.considered,
+          frequentList: fi.labels.join(', '), ruleList: r.rules.map((x) => `${x.label} (${+x.conf.toFixed(2)})`).join('; ') },
+        misconceptions: [
+          { var: 'wrongFloor', for: 'need', feedback: 'Round minsup × |D| **up**: a basket count below it fails the bar.' },
+          { var: 'floorCount', for: 'total', feedback: 'You used the rounded-down basket count as the bar.' },
+          { var: 'considered', for: 'rules', feedback: 'That is every candidate split. Keep only those with confidence ≥ minconf.' },
+        ],
+      };
+    }
+  }
+
   return {
     fns: {
       support, supportCode, supportGrid, supportGridWalk, frequentItemsets, frequentAmong, frequentCode,
@@ -1234,6 +1383,6 @@ export default function register(sdk) {
       confidence, confidenceCode, lift, liftCode, ruleMetrics, leverageCode, rules, rulesFromItemset, rulesGrid, rulesWalk, rulesCode, liftGrid, liftWalk,
       vennCounts, explosion, itemSupports,
     },
-    generators: { supportQ, supportRelQ, countFrequentQ, confidenceQ, liftQ, liftVerdictQ, aprioriCandidatesQ, rulesPassQ, ruleCountQ, bruteCountQ, projectedQ, trapQ, handRuleQ, handMineQ, vennConfQ },
+    generators: { supportQ, supportRelQ, countFrequentQ, confidenceQ, liftQ, liftVerdictQ, aprioriCandidatesQ, rulesPassQ, ruleCountQ, bruteCountQ, projectedQ, trapQ, handRuleQ, handMineQ, vennConfQ, relMinsupQ, aprioriCountQ, fpEnumQ, liftSymQ, relMineQ },
   };
 }

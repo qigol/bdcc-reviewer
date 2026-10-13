@@ -135,15 +135,10 @@ function Runner({ session }: { session: QuizSession }) {
     else if (exam) finishExam(); else setFinished(true);
   };
   const finishExam = () => {
-    setSlots((s) => {
-      const n = s.map((sl) => {
-        if (!sl.inst) return sl;
-        const g = sl.graded ?? grade(sl.inst, sl.response);
-        return { ...sl, graded: g };
-      });
-      n.forEach((sl, i) => sl.graded && record(i, sl.graded, sl));
-      return n;
-    });
+    // grade outside the state updater: StrictMode runs updaters twice, which would record every attempt twice
+    const n = slots.map((sl) => (sl.inst ? { ...sl, graded: sl.graded ?? grade(sl.inst, sl.response) } : sl));
+    setSlots(n);
+    n.forEach((sl, i) => sl.graded && record(i, sl.graded, sl));
     setFinished(true);
   };
 

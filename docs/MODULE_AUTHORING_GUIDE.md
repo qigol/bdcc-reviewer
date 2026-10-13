@@ -377,9 +377,11 @@ type Generator = (ctx: { rng: Rng; difficulty: 1 | 2 | 3; fns: Fns; sdk: Sdk }) 
   vars: Record<string, Value>;                   // merged into the question's scope
   options?: Markdown[];                          // for mcq/multi (overrides static options)
   answer?: number | number[];                    // option index(es) for mcq/multi
-  misconceptions?: { var?: string; value?: number; feedback: Markdown }[];
+  misconceptions?: { var?: string; value?: number; feedback: Markdown;
+                     for?: string | string[] }[];   // the answer var(s) this mistake produces, e.g. for: 'endWip'
 };
 ```
+- **Key every generator misconception with `for`.** One generator usually serves several templates (equivalent units, unit cost, completed cost…). A misconception keyed `for: 'euConv'` is attached only to templates and hand-calc steps whose answer `var` is `euConv`; an unkeyed one goes to every `numeric` template of that generator (never to hand-calc steps). Unkeyed misconceptions on a shared generator end up as feedback about the wrong quantity.
 - Compute answers **by calling `fns`**, so quiz answers and lessons can never disagree.
 - Produce **hand-computable** problems: small tables (≤ 8 transactions, ≤ 6 items, matrices ≤ 5×6), integer ratings, results with small denominators. Difficulty 1 = one step on a tiny table; 3 = a multi-step computation on a lecture-sized table.
 - **Reject ambiguous draws** and redraw (loop with `rng`): ties at a top-k cutoff, zero denominators, answers equal to a misconception value, degenerate cases (everything frequent, all similarities 0).
@@ -467,7 +469,10 @@ interface Beat {
 type Gate =
   | { type: 'continue'; label?: string }
   | { type: 'predict'; question: Markdown; options?: Markdown[];            // omit options → numeric input
-      answer: number | { value: number; tol?: number }; explain: Markdown }
+      shuffle?: boolean;                                                    // default true: options shown in a fixed shuffled order
+      optionFeedback?: Record<string, Markdown>;                            // key = option index: shown when that wrong option is picked
+      answer: number | { value: number; tol?: number; percent?: boolean };  // percent: answer is in % units (98.59), see §7.1b
+      explain: Markdown }
   | { type: 'when'; prompt: Markdown; when: string;                         // expression over scope
       hint?: Markdown; skippable?: boolean }                                // skippable defaults true
   | { type: 'event'; prompt: Markdown; target: Id; event: string; hint?: Markdown; skippable?: boolean }
@@ -573,8 +578,12 @@ interface ApplicationFile {
 }
 interface Cell {
   id: Id; title?: string; say: Markdown;             // ≤ 90 words
-  stage?: StageWidget[];                             // widgets rendered inside this cell (IDs unique across the case)
-  decision?: { prompt: Markdown; type: 'mcq' | 'open'; options?: Markdown[]; answer?: number; model: Markdown };
+  stage?: StageWidget[];                             // widgets rendered inside this cell (IDs unique across the case);
+                                                     // a widget with hidden: true appears only after the cell's decision is answered
+  decision?: { prompt: Markdown; type: 'mcq' | 'open'; options?: Markdown[]; answer?: number;
+               shuffle?: boolean;                    // default true, as for predict gates
+               optionFeedback?: Record<string, Markdown>;   // key = option index: shown when that wrong option is picked
+               model: Markdown };
 }
 ```
 The case study should **use every major idea from the lecture in one pipeline**: raw data, then computation with live parameters, then interpretation, then a decision. `atScale` shows the production or big-data version (for BDCC, typically PySpark MLlib, or pandas/mlxtend, SQL, or MapReduce as appropriate) with notes on complexity, parallelism and data size. In a journal module, `atScale` is **in practice**: how a real company runs the procedure (the ERP or spreadsheet set-up, who prepares and approves the entries, month-end close, internal controls), with `code` blocks only if a spreadsheet formula or a short script genuinely helps (`lang: text` is fine). Mark anything not in the lecture with a `Callout` of kind `beyond`.
@@ -598,8 +607,9 @@ interface Base {
 interface Mcq extends Base { type: 'mcq'; options?: Markdown[]; answer?: number; shuffle?: boolean;  // default true
                              optionFeedback?: Record<string, Markdown> }                             // key = option index
 interface Multi extends Base { type: 'multi'; options?: Markdown[]; answer?: number[]; shuffle?: boolean }
-interface NumericAnswer { var?: string; value?: number; tol?: number;        // abs tol, default 0.01
-                          relTol?: number; accept?: ('decimal' | 'fraction' | 'percent')[] }  // default [decimal, fraction]
+interface NumericAnswer { var?: string; value?: number; tol?: number;        // abs tol, default 0.01 (10% of the answer when it is < 0.1)
+                          relTol?: number; accept?: ('decimal' | 'fraction' | 'percent')[];   // default [decimal, fraction]; without 'decimal' a plain number is rejected
+                          percent?: boolean }   // answer in % units (98.59): 98.59, 98.59% and 0.9859 all accepted (§7.1b)
 interface Misconception { var?: string; value?: number; feedback: Markdown }
 interface Numeric extends Base { type: 'numeric'; answer: NumericAnswer; misconceptions?: Misconception[] }
 interface CodeFill extends Base { type: 'code-fill'; lang?: string; code: string;   // contains __BLANK_1__, __BLANK_2__, …
@@ -615,7 +625,7 @@ interface JournalEntryQ extends Base { type: 'journal-entry';
   tol?: number; relTol?: number }   // amount tolerance; default 0.01 abs or 0.05% relative
 interface ScheduleFillQ extends Base { type: 'schedule-fill';
   columns?: string[];
-  rows: (ScheduleRow & { blank?: boolean; tol?: number })[] | Ref;   // rows with blank: true become inputs
+  rows: (ScheduleRow & { blank?: boolean; given?: number[]; tol?: number })[] | Ref;   // rows with blank: true become inputs; given = columns of that row printed, not asked (e.g. [0] keeps the physical-units column of an EU row)
   tol?: number; relTol?: number }
 type Template = Mcq | Multi | Numeric | CodeFill | Match | Order | HandCalc | JournalEntryQ | ScheduleFillQ;
 ```
@@ -626,7 +636,20 @@ type Template = Mcq | Multi | Numeric | CodeFill | Match | Order | HandCalc | Jo
 - **Hints** go from a nudge to the method to the first step, and never state the final answer. Every numeric, hand-calc, journal-entry and schedule-fill template gets 1–3 hints (hand-calc steps also keep their per-step `hint`).
 - **Calculator.** In a `workbench: journal` module the quiz offers a desk calculator on every question and opens it by itself for `numeric`, `hand-calc`, `schedule-fill` and `journal-entry` templates. Set `calculator: false` when the arithmetic is already done in the prompt (e.g. "record the transfer of ₱X"), and `calculator: true` on an `mcq`/`multi` that needs computing before choosing. In other workbenches it only appears on templates with `calculator: true`.
 - **journal-entry** grading: accounts match case-insensitively, line order doesn't matter, repeated accounts are netted. Each expected account earns its share when it is on the right side with the right amount; each account that doesn't belong costs one share. The learner gets specific feedback: wrong side, amount off, missing account, stray account, "debits and credits are reversed", and "your debits don't equal your credits". When the side depends on the numbers (over/underapplied, favorable/unfavorable), let the generator return `entries` and `accounts` (`entries: '@entries'`) built by the same fn the lesson uses, and shuffle the accounts list.
-- **schedule-fill** shows a statement or schedule with some rows blank; each blank cell is graded like a numeric answer (rows with `format: pct` also accept `40%`). Learners may type `₱12,500`, `12,500` or `(1,200)` for negatives.
+- **schedule-fill** shows a statement or schedule with some rows blank; each blank cell is graded like a numeric answer (rows with `format: pct` also accept `40%`). Learners may type `₱12,500`, `12,500` or `(1,200)` for negatives in money rows.
+- **How typed numbers are read.** Commas count only as thousands separators (`2,5` is rejected, not read as 25). In a `numeric` or `hand-calc` answer, `(500)` means −500 only when the expected answer is negative; otherwise parentheses are grouping, so `(2/3)` is 2/3. In journal-entry Debit/Credit cells amounts must be positive: the column is the side.
+- **State the rounding whenever the answer isn't a whole number.** If 76% of a generator's answers are decimals like 27.78, a tolerance of 0.1 marks `28` wrong: either say "to one decimal place" in the prompt or loosen `tol` to match the rounding you ask for. Do the same for hand-calc steps.
+- **Misconceptions must stay distinguishable.** If a generator's warned-against method (plain average vs F1, plain accuracy vs balanced accuracy, unclipped vs clipped rating) lands within the tolerance of the right answer, the engine drops that misconception and the wrong method is graded correct. Redraw until the gap is at least 3× the tolerance, and key every misconception to the quantity *its* template asks for (a hint about equivalent units doesn't belong on a unit-cost answer).
+- **Generated wording must match the numbers.** If an option or explanation states a verdict ("adds little", "a loss"),
+  constrain the draws so the verdict holds for every seed (sweep a few hundred), and if the answer always has the same
+  sign, draw some cases on the other side. For a signed answer, never use its absolute value as an unconditional
+  misconception (it equals the answer half the time); use −answer, keyed to that step.
+- **Rounding and ranges.** "One decimal place" needs a tolerance slightly above half a unit (0.06, not 0.05). Range or
+  bucket MCQs must be contiguous, correctly labelled, at one precision, with `shuffle: false`. Printed arithmetic with
+  rounded intermediates must still give the printed result.
+- **Distractors** are plausible, in the same vocabulary and length as the right answer, and unambiguously wrong: no
+  textbook edge case that is arguably right, and check another module's data before writing a "wrong" claim about it.
+- **match:** the right-hand labels may repeat (two "Value-added" cards are interchangeable when graded), but avoid labels that give the pairing away by sharing words with the left side.
 
 ---
 
@@ -1231,6 +1254,53 @@ The glossary is not a list to memorize up front. Every term is **introduced insi
 - **Look-alike terms get a contrast beat:** overapplied vs underapplied, product vs period cost, support vs confidence. Introduce the second term in a beat that sets it against the first, ideally with a `predict` gate that makes the learner choose between them.
 - The site uses the defining scene as the term's lesson link in the glossary and in auto-generated glossary questions ("Show me in the lesson"), unless the term sets its own `lessonRef`.
 
+### 7.1b Predictions must be real predictions
+
+A predict gate only teaches if the learner commits *before* they can see the answer. Learner reviews found most "predict"
+gates in early modules could be answered by reading the stage, so these rules are checked by a careful reviewer:
+
+- **Nothing on stage gives the answer away while the gate is open.** A beat's `show` and `set` take effect *when the beat
+  opens*, together with its gate. So the widget that prints the result (a Readout, a worksheet row, a Formula's last step,
+  a coloured lattice, a finished walk, a T-account balance, a tone such as `tone: bad`) must stay hidden, unfilled or one
+  step short on the gated beat, and appear on the **next** beat. Use `hidden: true` + `show` on the following beat, a
+  worksheet `upTo` that stops before the asked row, `showBalance: false` until after the gate, or ask *before* the
+  player runs ("Before playing: …"). The narration of the gated beat must not state the number either. Watch row
+  *labels* too: a worksheet fn that blanks unreached amounts must also swap a label that carries arithmetic
+  ("320 × 12.7133") for a plain one ("To finish beginning WIP") until that row is reached.
+- **Ask for something new.** Don't ask the learner to add up addends the narration just listed, re-ask a fact answered
+  two scenes earlier, or count dozens of items by eye (busywork). A `when` gate must not be satisfied on arrival: start
+  the slider away from the target.
+- **Options are shuffled for you.** Predict options and Application `mcq` decisions are shown in a fixed shuffled order
+  (keyed by module, scene and beat), so write them in any order and never rely on position. Set `shuffle: false` only when
+  the order carries meaning (ascending ranges, "less / same / more"). Make the wrong options plausible and the same
+  length and tone as the right one: an option that alone is nuanced, cites a number, or echoes the question's wording is
+  a giveaway. Options must not contain amounts that are already on stage.
+- **Percent answers.** A numeric predict that asks "in %" or "as a percent" stores the answer in percent units and sets
+  `percent: true` (`answer: { value: 98.59, tol: 0.01, percent: true }`), so `98.59`, `98.59%` and `0.9859` are all
+  accepted. Quiz `numeric` and hand-calc answers take the same `percent: true` flag. In a gate a typed `%` is always
+  understood (`18.7%` matches 0.187 or 18.7). Pick **one** convention per module (percent
+  units in predicts and quiz prompts that say "%"; decimals when the prompt says "as a decimal") and say it in the prompt.
+- **Tolerance matches the precision you ask for.** If the narration says "about ₱15.10", the tolerance must accept
+  `15.10 × quantity`; otherwise state the decimals ("to 4 decimal places"). A tolerance must reject the misconception the
+  scene warns about (F1 = 0.5714 with tol 0.005, not 0.01, because the plain average is 0.58).
+- **Errata come after the gate.** Show an errata `Callout` on the beat after the learner answers the computation it
+  corrects, prefixed "If you're reading the slide: …", never before or during the first computation.
+- **No slide numbers in learner text.** "Slide 13", "Example 10", "Session 5" mean nothing to a self-learner and drift
+  out of date. Keep slide references in `source` fields, SOURCE_NOTES and `examples`; in narration, prompts, hints and
+  glossary entries refer to the lesson ("the Cavite example", "the job-order module").
+- **Predict attempts count toward mastery**, so a give-away gate inflates a learner's mastery as well as wasting the beat.
+- **Controls leak answers too.** A visible bound Choice or Slider lets the learner produce the answer before predicting
+  (click "radius" and read the new accuracy). Keep such controls hidden until the gate's beat is over, then `show` them
+  for a `when` gate. A Readout can't hide one item, so put answer-bearing items in their own hidden Readout. Bind
+  answer-bearing props (`showRowMeans`, `showGain`, `showCosine`, `showBalance`) to a state key you flip after the gate.
+- **Walks that end on the answer.** If a walk's last step prints the asked result (an average row, a final share), give
+  the walk fn a stop-early parameter. On the next beat `hide` the player and `set` the progress key: an active patch
+  overrides a beat's `set`. When beats and a walk both advance one worksheet, use two state keys and reveal up to the
+  larger, so the beats never `set` a key the player patches.
+- **Look backwards from every gate.** An earlier scene's examples, sort chips, closing line or reflect model must not
+  state a later gate's answer. Re-read the lead-in to every gate after moving or merging scenes. After a `when` gate on
+  a slider, `set` the exact state the next narration assumes (learners overshoot).
+
 ### 7.2 Math & Code / Math & Journal
 - One section per formula or algorithm in the source, in lecture order. Derivations proceed in small steps: definition, then symbolic form, then live numbers.
 - **Anchor every term that matters** in both panes (≥ 2 anchors per non-trivial section).
@@ -1251,6 +1321,13 @@ The glossary is not a list to memorize up front. Every term is **introduced insi
 ### 7.3 Application
 - Keep one coherent story from start to finish, and connect it to prior modules when relevant (`connections`).
 - Include ≥ 3 `decision` cells where the learner must *interpret* results (which rule to act on, which recommender to trust, why a metric misleads).
+- **Make the learner do the work.** Cell widgets are always visible, so a cell must not show the number its decision asks for (no Step 5 schedule next to "what is ending WIP worth?"), and its prompt must not state the answer ("the methods differ by ₱125, what does that mean?"). Give the inputs, ask for the result, and write `mcq` options computed from real mistakes (leaving out beginning cost, the wrong divisor…). At least one decision should require a computation the lesson taught.
+- Numbers in different cells must tell one consistent story: if two cases look alike but are treated differently (prorated vs closed), say what differs.
+- **Every cell is visible at once,** and so is the case story. Neither may state what a later decision asks. Mark an
+  answer-bearing widget `hidden: true`: it then appears only after that cell's decision is answered. Don't derive a
+  cell's asked figure from state another cell toggles (pin it, or give the inputs). For "which and by how much"
+  decisions, give every option the same shape (who, amount), each distractor a computed mistake. Use `optionFeedback`
+  to explain the specific error behind each wrong option.
 - Always include `atScale`, `tradeoffs` and `explainBack`.
 
 ### 7.4 Quiz bank quotas (minimum per module)
@@ -1268,6 +1345,10 @@ A learner should be able to reproduce **every** number in the lecture with penci
 - **Count visibly.** For support, tick every basket that holds the itemset (a basket × candidate `Matrix` of `\checkmark` / `\cdot` cells, or `annotate` on table rows) and show the tally as a sum: `$1+0+1+1+0 = 3$`. For FP-growth, show the item counts, the reordered and filtered baskets, the tree growing one insert at a time, then each conditional pattern base and its counts. Nothing appears already finished.
 - **Worksheet fn + walk fn + `patch`.** Write a derived fn that renders a partly filled worksheet from a progress param (`supportGrid({…, upTo})` returns Matrix `values` with TeX cells for solved entries and `''` for unreached ones). Write a trace fn (a "walk") whose steps advance that param with `patch: { gridUpTo: 7 }`. Declare the key in the scene `state`, feed it to the derived fn in `derive` (`upTo: '@gridUpTo'`), and bind the widget to the result (`values: '@g.values'`). The Matrix, Tree or ItemsetLattice then fills in as the player steps, and seeking back rewinds it. See `fim` scene `lecture-support-table`.
 - **Patch pitfalls.** A patch applies only while its player is on stage (hiding the player drops the patch and any `fill`ed cells, so keep it visible to the end of the scene or `set` the final values in the next beat). A player's `in` must not read a key it patches. Patch only keys the beats don't `set`, because an active patch overrides beat state.
+- **Posting a ledger entry by entry with gates in between:** bind the Journal's `posted` and the TAccounts'
+  `showBalance` to scene state and advance them with beat `set` instead of a StepPlayer, whose patch fights beat state
+  and whose full replay shows the balances being asked. In an Application cell, `posted: [ids]` shows a journal minus
+  the entry the decision asks the learner to record.
 - **Labels carry the arithmetic.** Put the numbers in `$…$` (each math run counts as one word toward the 20-word label limit) and the *why* in words: "T3 holds bread and milk → tick. $1+0+1 = 2$ so far."
 
 **Math & Code sections**
@@ -1294,6 +1375,9 @@ of unexplained words than because of hard ideas.
   own terms build on it.
 - **Explain every symbol the first time it appears,** in words, in the same beat: "$y_t$ ('y at time t') is the value
   now", "λ ('lambda') is a random number between 0 and 1", "Δ means 'change'". Name Greek letters when you introduce them.
+- **One symbol, one meaning, one index order.** Don't let `v₁₂` mean "item 1, factor 2" in one scene and "factor 1,
+  item 2" in the next, or let `σ`, `K`, `I` or `Sup` change meaning between sections. Pick one convention, use it in
+  every file, and if the lecture writes it differently say so once ("the lecture writes v_js; we write v_sj").
 - **Short sentences, everyday words.** Aim for 8–15 words per sentence and one idea per sentence. Prefer *use* to
   *utilize*, *about* to *approximately*, *mixed* to *heterogeneous*, *copy* to *duplicate*, *make* to *synthesize*.
   Keep the technical word when it is the term being taught; replace it everywhere else.
@@ -1323,6 +1407,7 @@ of unexplained words than because of hard ideas.
 7. IDs are unique and kebab-case; `requires.widgets` lists exactly the widgets used.
 8. Every journal entry balances (static entries at import; '@ref' amounts with the initial inputs), every journal amount resolves to a number, and every journal-entry quiz answer balances and uses only accounts from its `accounts` list.
 9. Every glossary term is `define`d in some beat, and every `[[term]]`, `define`, `practice` template and `tryIt` id exists.
+10. Lints (warnings) also flag: a numeric predict whose beat narration states the result ("= 75"); a generator misconception that lands within tolerance of the answer in more than 10% of seeds.
 
 ---
 
@@ -1402,6 +1487,10 @@ Don't invent widgets, props or commands. Instead:
 - [ ] Only catalog widgets, props, commands and selectors are used, and `requires.widgets` matches exactly.
 - [ ] Quotas are met: 6–10 scenes; a predict gate in every scene; interactive gates in ≥ 50% of scenes; ≥ 25 quiz templates; ≥ 2 per skill; type mix per §7.4; ≥ 2 misconceptions per numeric template.
 - [ ] Every lecture number is solved step by step in some scene (no finished tables dropped on stage), and every math-code trace walks each loop iteration line by line (§7.5).
+- [ ] No predict gate can be answered from the stage, a worksheet label or the narration when it opens; `when` gates are not satisfied on arrival; errata come after the gate; percent answers use `percent: true` (§7.1b).
+- [ ] No slide, session or example numbers in learner-visible text; every claim ("this check catches X", "λ fixes Y") was tested in `logic.js`.
+- [ ] Generator misconceptions are keyed with `for`, never land within tolerance of the answer, and prompts state the rounding they expect (§5.10).
+- [ ] Application decisions make the learner compute or judge: the asked number is not on that cell's stage or in its prompt (§7.3).
 - [ ] `manifest.course` is set to the course code the user gave (same spelling as that course's other modules), and `guide: 2` and `workbench` are set.
 - [ ] 3–6 `objectives`, each a checkable "can do" sentence tied to skills; together they cover every skill.
 - [ ] Every glossary term is `define`d in exactly one beat, at its first use, and that beat's narration names it; later mentions use `[[term-id]]` (§7.1a).
@@ -1429,7 +1518,19 @@ Don't invent widgets, props or commands. Instead:
 - Double-quoted TeX in YAML (`"\frac"` breaks). Use `|` or single quotes.
 - Writing for a classmate instead of a beginner: jargon from earlier sessions ("held-out", "metric", "node", "H₀") used as if known, Greek letters and subscripts never read aloud, scene goals that use the very terms the scene teaches (§7.6).
 - Defining terms in a glossary-dump beat ("Here are the key terms: …") instead of at the moment the picture shows each one, or using a term in narration before the beat that defines it.
-- A `practice` gate before the scene has shown the computation once (the learner has nothing to imitate), or a `reflect` prompt that just asks for a definition.
+- A `practice` gate before the scene has shown the computation once (the learner has nothing to imitate), or a `reflect` prompt that just asks for a definition. A practice template that uses ideas taught *later* (beginning WIP before weighted-average) also fails: give the scene a simpler difficulty-1 variant.
+- Starting a story and dropping it (June's numbers set up, then never used), or switching to a company the narration hasn't introduced. When a scene changes example, say why and give the new example's facts.
+- Breaking the Path order. Math sections are placed in file order after the scene that introduces all their skills, and
+  one early section holds back every later one, so keep section order aligned with scene order. Don't give a hook
+  scene a skill whose section would then jump ahead of the scene that defines its terms; when you move a scene, retag
+  the sections that depend on it.
+- Quoting per-case numbers (one patient's SHAP bars, a slide's figures) that SOURCE_NOTES doesn't record. Teach the
+  reading on a toy example, phrase quiz items as hypotheticals, and log the gap.
+- TeX in Matrix `rows`/`cols` labels: labels render as plain text; only cell values are TeX.
+- A review module that re-teaches other modules without saying so. State it in the summary and first beat, and bridge
+  differing conventions (account titles, allocation basis, report formats) in glossary `long` fields rather than
+  renaming accounts the journal grader matches.
+- Teaching a check as catching errors it mathematically can't. Before you write "this test detects X", try X in `logic.js` and confirm the check fails.
 - Journal: an account title spelled differently in the quiz than in the lesson; a static entry whose sides should flip with the inputs (build it in logic.js); negative amounts instead of the opposite side; unquoted titles containing commas in YAML flow maps (`{ title: 'Job cost sheet, Job 101' }`).
 
 ---

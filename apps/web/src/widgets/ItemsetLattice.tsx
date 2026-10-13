@@ -75,7 +75,7 @@ export default function ItemsetLattice({ props, cmds, marks, ctx, bind, emit }: 
               className={cn('cursor-pointer', pulse && 'pulse')}
               onClick={() => { bind('selection', s); emit('nodeClick', { set: s, key: k }); }}
             >
-              <title>{`{${s.map((i) => ctx.labels[i] ?? i).join(', ')}}${typeof sup === 'number' ? ` · support ${sup}` : ''}${pr ? ' · pruned' : ''}`}</title>
+              <title>{`{${s.map((i) => ctx.labels[i] ?? i).join(', ')}}${props.showSupport && typeof sup === 'number' ? ` · support ${sup}` : ''}${pr ? ' · pruned' : ''}`}</title>
               <rect width={NODE_W} height={NODE_H} rx={7} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={selected || tone ? 2 : 1.2} strokeDasharray={pr ? '4 3' : undefined} style={{ transition: 'all .35s' }} />
               {pulse && <rect width={NODE_W} height={NODE_H} rx={7} fill="none" stroke="rgb(var(--accent))" strokeWidth={2}><animate attributeName="opacity" values="1;0;1;0" dur="1.2s" /></rect>}
               <text x={NODE_W / 2} y={NODE_H / 2 + 4.5} textAnchor="middle" fontSize={12.5} fontWeight={600} fill={pr ? 'rgb(var(--muted))' : 'rgb(var(--ink))'} style={{ textDecoration: pr ? 'line-through' : undefined }}>{label}</text>

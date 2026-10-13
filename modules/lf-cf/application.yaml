@@ -1,7 +1,7 @@
 intro: |
-  Matrix factorization won the Netflix Prize and still powers large recommenders: Spark's ALS, YouTube's candidate
-  generation and many e-commerce "for you" feeds. Here you factor the barkada's movie ratings, look inside the learned
-  factors, and compare the recommendations with neighbourhood CF using NDCG.
+  Matrix factorization was a key ingredient of the Netflix Prize-winning models and is widely used in large
+  recommenders, from Spark's ALS to many e-commerce "for you" feeds. Here you factor the barkada's movie ratings, look
+  inside the learned factors, and compare the recommendations with neighbourhood CF using NDCG.
 case:
   id: barkada-factors
   title: The barkada, factorized
@@ -33,7 +33,7 @@ case:
           bind: { value: lambda }
         - id: curve
           widget: Chart
-          props: { kind: line, series: '@tr.series', xLabel: 'ALS half-steps / 2', yLabel: 'SSE (observed)' }
+          props: { kind: line, series: '@tr.series', xLabel: 'iteration (V-step at .5)', yLabel: 'SSE (observed)' }
         - id: fit
           widget: Readout
           props:
@@ -44,8 +44,8 @@ case:
     - id: look-inside
       title: Look inside the factors
       say: |
-        With d = 2 every film is a point in "taste space". Films that attract the same people land close together.
-        Nobody told the model what the axes mean, but the historical epics and the romances separate on their own.
+        With d = 2 every film is a point in "taste space". Films that attract the same friends land close together.
+        Nobody told the model what the axes mean. You can try to name them, but expect a few films that fit no neat label.
       stage:
         - id: films
           widget: VectorPlot
@@ -63,14 +63,15 @@ case:
           - Random numbers with no meaning
         answer: 0
         model: |
-          **Latent** means learned, not labelled. Here the axes roughly line up with epic vs. romance because that's the biggest
-          pattern in the data, but with more data or a larger d the factors can capture subtler tastes, sometimes ones without
-          a neat name. The signs and order of the factors are arbitrary too.
+          **Latent** means learned, not labelled. The axes capture the biggest patterns in who likes what; here they only
+          partly line up with "epics vs romances", and some films sit between the groups. With more data or a larger d the
+          factors can capture subtler tastes, often without a neat name. The signs and order of the factors are arbitrary too.
     - id: predictions
       title: Filled matrix and recommendations
       say: |
         P = UV fills every blank. Pick a friend to see their unseen films ranked by predicted rating.
-        For **{=user}**: {=tr.text}.
+        For **{=user}**: {=tr.text}. Raw dot products can fall outside 1–5 (a slightly negative or tiny value just
+        means "won't like it"); a real system clips them to [1, 5] before showing them.
       stage:
         - id: who
           widget: Choice
@@ -225,4 +226,4 @@ explainBack:
     - Only observed ratings enter the error (SSE)
     - ALS freezes one matrix and solves an ordinary least-squares problem for the other, then swaps
     - Starting from all ones makes both factors identical, and the updates keep them identical (the symmetry trap)
-    - Random initialization and regularization fix it
+    - A random start breaks the tie; regularization does not (it fights over-fitting instead)

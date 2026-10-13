@@ -64,7 +64,8 @@ export default function register(sdk) {
   // tumors payload + trees payload in one object
   const withTrain = (trees, tumors) => ({ ...trees, train: tumors });
 
-  function treeView({ tumors, trees, which = 'tree1' }) {
+  // showGini: false leaves the Gini out of each node's note, so a scene can ask for it first.
+  function treeView({ tumors, trees, which = 'tree1', showGini = true }) {
     const rows = records(tumors);
     const tree = trees[which];
     const st = nodeStats(tree, rows);
@@ -72,7 +73,7 @@ export default function register(sdk) {
       const s = st[n.id];
       const head = isLeaf(n) ? `leaf: P(benign) = ${dn(s.p, 2)}` : `**${n.feature} ≤ ${n.threshold}?**`;
       return {
-        id: n.id, label: head, note: `${s.n} rows (${s.b}B, ${s.m}M), Gini ${dn(s.gini, 3)}`,
+        id: n.id, label: head, note: `${s.n} rows (${s.b}B, ${s.m}M)${showGini ? `, Gini ${dn(s.gini, 3)}` : ''}`,
         tone: isLeaf(n) ? (s.p > 0.5 ? 'good' : 'bad') : undefined,
         ...(isLeaf(n) ? {} : { children: [build(n.left), build(n.right)] }),
       };
@@ -351,15 +352,17 @@ export default function register(sdk) {
     };
   }
 
+  // upTo = order rows filled (0–6); the average row appears only at upTo ≥ 7, so a scene can ask for φ first.
   function shapleySheet({ game, upTo = 99 }) {
     const s = shapley({ game });
     const values = s.rows.map((r, k) => (k < upTo ? [r.d.A, r.d.B, r.d.C, sum(Object.values(r.d))] : [null, null, null, null]));
-    values.push(upTo >= 6 ? [s.A, s.B, s.C, s.total] : [null, null, null, null]);
+    values.push(upTo >= 7 ? [s.A, s.B, s.C, s.total] : [null, null, null, null]);
     return { rows: [...s.rows.map((r) => r.order.join('-')), 'average'], cols: ['ΔA', 'ΔB', 'ΔC', 'sum'], values, done: Math.min(upTo, 6) };
   }
 
-  // roles: sheet (Matrix). Patches shapUpTo.
-  function shapleyWalk({ game }) {
+  // roles: sheet (Matrix). Patches shapUpTo (1–6 per order, 7 for the average row).
+  // withAvg: false stops after the six orders, so a scene can ask for φ_A before revealing the averages.
+  function shapleyWalk({ game, withAvg = true }) {
     const s = shapley({ game });
     const v = game.v;
     const trace = s.rows.map((r, k) => {
@@ -368,7 +371,7 @@ export default function register(sdk) {
       return { label: `${r.order.join(' → ')}: ${parts.join('; ')}`, patch: { shapUpTo: k + 1 }, vars: { dA: r.d.A, dB: r.d.B, dC: r.d.C },
         ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: `row:${r.order.join('-')}`, tone: 'accent' } }] };
     });
-    trace.push({ label: `Average each column: φ = (${dn(s.A, 2)}, ${sg(s.B, 2)}, ${dn(s.C, 2)}); sum ${dn(s.total, 2)}.`, patch: { shapUpTo: 6 }, vars: { phiA: s.A, phiB: s.B, phiC: s.C },
+    if (withAvg) trace.push({ label: `Average each column: φ = (${dn(s.A, 2)}, ${sg(s.B, 2)}, ${dn(s.C, 2)}); sum ${dn(s.total, 2)}.`, patch: { shapUpTo: 7 }, vars: { phiA: s.A, phiB: s.B, phiC: s.C },
       ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: 'row:average', tone: 'good' } }] });
     return { steps: trace.length, phi: s.phi, trace };
   }
@@ -404,8 +407,10 @@ export default function register(sdk) {
       return { S, w, gain, term: w * gain };
     });
     const phi = sum(rows.map((r) => r.term));
+    // the formula with this feature's numbers, e.g. \tfrac{2}{6}(-0.25) + \tfrac{1}{6}(-0.22) + …
+    const sumTex = rows.map((r) => `\\tfrac{${fact(r.S.length) * fact(n - r.S.length - 1)}}{${fact(n)}}(${dn(r.gain, 2)})`).join(' + ');
     return {
-      phi, rows,
+      phi, rows, sumTex,
       table: { rows: rows.map((r) => (r.S.length ? r.S.join('') : 'none')), cols: ['size', 'weight', 'gain', 'term'], values: rows.map((r) => [r.S.length, `${fact(r.S.length) * fact(n - r.S.length - 1)}/${fact(n)}`, r.gain, r.term]) },
     };
   }
@@ -428,6 +433,31 @@ export default function register(sdk) {
     }
     trace.push({ label: `$\\phi_${player} = ${dn(acc, 3)}$, the same as averaging over orderings.`, code: 'phi', math: 'phi', vars: { phi: acc }, ops: [] });
     return { phi: sw.phi, trace };
+  }
+
+  // A SHAP waterfall for the three-feature game, drawn top-down as shap.plots.waterfall draws it:
+  // f(x) on top, then the features by |φ| (largest first), the baseline E[f(x)] at the bottom. It is read bottom-up:
+  // start at the baseline and add one bar at a time. upTo = rows of the running total revealed from the bottom
+  // (1 = the baseline only); f(x) shows its value only when every bar has been added.
+  function waterfallSheet({ game, upTo = 99 }) {
+    const s = shapley({ game });
+    const bars = game.players.map((p) => ({ p, phi: s.phi[p] })).sort((a, b) => Math.abs(b.phi) - Math.abs(a.phi));
+    const up = bars.slice().reverse();          // bottom-up order: smallest push first
+    let run = s.base;
+    const running = up.map((b) => (run += b.phi));
+    const n = up.length;
+    const runAt = (k) => (upTo >= k + 2 ? running[k] : null);   // k-th bar from the bottom
+    const rows = ['f(x)', ...bars.map((b) => b.p), 'E[f(x)]'];
+    const values = [
+      ['', upTo >= n + 1 ? s.fx : null],
+      ...bars.map((b, i) => [sg(b.phi, 2), runAt(n - 1 - i)]),
+      ['', s.base],
+    ];
+    return {
+      rows, cols: ['push', 'running total'], values, order: bars.map((b) => b.p), top: bars[0].p, running, fx: s.fx, base: s.base,
+      afterTwo: running[1],
+      series: [{ name: 'running total', x: ['E[f(x)]', ...up.map((b) => `+${b.p}`)], y: [s.base, ...running] }],
+    };
   }
 
   // SHAP additivity on the real patient, for either class.
@@ -560,8 +590,9 @@ export default function register(sdk) {
   }
 
   // DiCE rows from the notebook: does each counterfactual still look like a possible tumour?
-  function diceCheck({ dice }) {
-    const recs = records(dice);
+  // upTo = how many counterfactual rows to include after the original (so a case can keep one back to ask about).
+  function diceCheck({ dice, upTo = 99 }) {
+    const recs = records(dice).slice(0, upTo + 1);
     const rows = recs.map((r) => {
       const fromP = r['worst perimeter'] / (2 * Math.PI);
       const fromA = Math.sqrt(r['worst area'] / Math.PI);
@@ -587,10 +618,16 @@ export default function register(sdk) {
       const dec = (nt / N) * (gT - child);
       if (dec < 0.02) continue;
       if (difficulty === 1 && nt !== N) continue;
+      // equal-sized children make the plain mean equal to the size-weighted one: the mistake would go unseen
+      if (nL === nR) continue;
+      const childMean = (gL + gR) / 2;
+      const wrongNoChildWeights = (nt / N) * (gT - childMean), wrongNoNodeWeight = gT - child;
+      if (Math.abs(childMean - child) < 0.015) continue;
+      if (difficulty > 1 && (Math.abs(wrongNoChildWeights - dec) < 0.015 || Math.abs(wrongNoNodeWeight - dec) < 0.015)) continue;
       return {
         vars: {
-          bL, mL, bR, mR, nL, nR, b, m, nt, N, giniT: gT, giniL: gL, giniR: gR, child, decrease: dec, unweighted: gT - child,
-          wrongNoChildWeights: gT - (gL + gR) / 2, wrongNoNodeWeight: gT - child,
+          bL, mL, bR, mR, nL, nR, b, m, nt, N, giniT: gT, giniL: gL, giniR: gR, child, decrease: dec,
+          wrongChildMean: childMean, wrongNoChildWeights, wrongNoNodeWeight,
         },
       };
     }
@@ -599,15 +636,18 @@ export default function register(sdk) {
   function impurityQ({ rng, difficulty }) {
     for (;;) {
       const feats = ['radius', 'texture', 'smoothness'];
-      const n = difficulty === 1 ? 2 : 3;
+      // at least 3 questions on 2+ features, and the asked feature is used by 2+ questions, so its splits must be summed
+      const n = difficulty === 1 ? 3 : 4;
       const splits = Array.from({ length: n }, () => ({ feature: rng.pick(feats.slice(0, difficulty === 3 ? 3 : 2)), decrease: rng.int(1, 9) / 100 }));
       const raw = Object.fromEntries(feats.map((f) => [f, sum(splits.filter((s) => s.feature === f).map((s) => s.decrease))]));
       const total = sum(Object.values(raw));
-      const target = rng.pick(feats.filter((f) => raw[f] > 0));
+      const repeated = feats.filter((f) => splits.filter((s) => s.feature === f).length >= 2);
+      if (!repeated.length || feats.filter((f) => raw[f] > 0).length < 2) continue;
+      const target = rng.pick(repeated);
       const imp = raw[target] / total;
-      if (Math.abs(imp - raw[target]) < 0.01 || imp === 1) continue;
+      if (Math.abs(imp - raw[target]) < 0.015 || imp === 1) continue;
       const firstOnly = splits.find((s) => s.feature === target).decrease / total;
-      if (Math.abs(firstOnly - imp) < 1e-9 && splits.filter((s) => s.feature === target).length > 1) continue;
+      if (Math.abs(firstOnly - imp) < 0.015) continue;
       return {
         vars: {
           splits: splits.map((s, i) => `split ${i + 1}: ${s.feature}, decrease ${s.decrease}`).join('; '), target, raw: raw[target], total, imp,
@@ -620,13 +660,16 @@ export default function register(sdk) {
 
   function permQ({ rng, difficulty }) {
     for (;;) {
-      const metric = difficulty === 1 ? 'accuracy' : rng.pick(['accuracy', 'ROC-AUC']);
+      // difficulty 1: accuracy (toy scale); 2–3: ROC-AUC, with drops in thousandths as in the notebook
+      const metric = difficulty === 1 ? 'accuracy' : 'ROC-AUC';
       const base = metric === 'accuracy' ? rng.int(80, 96) / 100 : rng.int(900, 995) / 1000;
       const reps = difficulty === 3 ? 4 : 3;
       const shuffled = Array.from({ length: reps }, () => +(base - rng.int(-2, 15) / (metric === 'accuracy' ? 100 : 1000)).toFixed(3));
       const drops = shuffled.map((s) => base - s);
       const imp = mean(drops);
       if (Math.abs(imp) < 0.002) continue;
+      // "one shuffle only" must give a visibly different answer (tol 0.001 at AUC scale)
+      if (Math.abs(drops[0] - imp) < 0.003) continue;
       const wrongRatio = mean(shuffled) / base;
       return { vars: { metric, base, shuffled, shuffledList: shuffled.join(', '), reps, imp, meanShuffled: mean(shuffled), wrongSign: -imp, wrongRatio, wrongFirst: drops[0] } };
     }
@@ -726,8 +769,72 @@ export default function register(sdk) {
       const target = x - s / w; // value at which the score reaches 0
       const change = target - x;
       if (target < 0.5) continue;
-      return { vars: { w0, w1, w2, x1, x2, s, which, feature: `x${which}`, target, change, wrongSign: x + s / w, wrongNoWeight: x - s,
-        rule: `score = ${w0} ${w1 < 0 ? '−' : '+'} ${Math.abs(w1)}·x1 ${w2 < 0 ? '−' : '+'} ${Math.abs(w2)}·x2; benign when score ≥ 0` } };
+      const wrongSign = x + s / w, wrongNoWeight = x - s;
+      // the warned-against methods must land clearly away from the answer (tol 0.01)
+      if (Math.abs(wrongSign - target) < 0.05 || Math.abs(wrongNoWeight - target) < 0.05) continue;
+      return { vars: { w0, w1, w2, x1, x2, s, gap: -s, w, which, feature: `x${which}`, target, change, wrongSign, wrongNoWeight,
+        rule: `score = ${w0} ${w1 < 0 ? '−' : '+'} ${Math.abs(w1)}·x1 ${w2 < 0 ? '−' : '+'} ${Math.abs(w2)}·x2` } };
+    }
+  }
+
+  // A loan model's SHAP waterfall (class 1 = approved): read it bottom-up, then switch class.
+  function waterfallQ({ rng }) {
+    const names = ['income', 'debt', 'age', 'late payments'];
+    for (;;) {
+      const base = rng.int(40, 70) / 100;
+      const phis = names.map(() => rng.int(-20, 15) / 100);
+      if (phis.some((p) => p === 0)) continue;
+      const mags = phis.map(Math.abs);
+      if (new Set(mags).size < mags.length) continue;          // no ties in the bar order
+      const sumPhi = sum(phis);
+      const fx = base + sumPhi;
+      if (fx < 0.08 || fx > 0.92 || Math.abs(fx - 0.5) < 0.05) continue;
+      const bars = names.map((n, i) => ({ n, phi: phis[i] })).sort((a, b) => Math.abs(b.phi) - Math.abs(a.phi));
+      const up = bars.slice().reverse();
+      const afterTwo = base + up[0].phi + up[1].phi;
+      const topTwo = base + bars[0].phi + bars[1].phi;
+      const fxNo = 1 - fx;
+      const wrongBaseOnly = 1 - base + sumPhi;
+      if (Math.abs(afterTwo - topTwo) < 0.015 || Math.abs(sumPhi - fx) < 0.015 || Math.abs(wrongBaseOnly - fxNo) < 0.015) continue;
+      return {
+        vars: {
+          base, fx, fxNo, sumPhi, afterTwo, bottomTwo: `${up[0].n} and ${up[1].n}`,
+          table: { rows: ['f(x)', ...bars.map((b) => b.n), 'E[f(x)]'], cols: ['push'], values: [['?'], ...bars.map((b) => [b.phi]), [base]] },
+          wrongTopTwo: topTwo, wrongNoBase: sumPhi, wrongBaseOnly, wrongSameClass: fx,
+        },
+        misconceptions: [
+          { var: 'wrongTopTwo', feedback: 'Read from the bottom: start at the baseline and add the bars nearest it first.', for: 'afterTwo' },
+          { var: 'wrongNoBase', feedback: 'The bars only move the baseline. Start from E[f(x)], then add every push.', for: 'fx' },
+          { var: 'wrongBaseOnly', feedback: 'Switching class flips every push too, not just the baseline.', for: 'fxNo' },
+          { var: 'wrongSameClass', feedback: 'That is P(approved). The class-0 plot ends at P(not approved) = 1 − P(approved).', for: 'fxNo' },
+        ],
+      };
+    }
+  }
+
+  // Permutation importance with twin features on a loan model (income ≈ salary): one at a time vs together.
+  function twinsQ({ rng }) {
+    for (;;) {
+      const base = rng.int(850, 950) / 1000;
+      const inc = [rng.int(-2, 3), rng.int(-2, 3)].map((d) => +(base - d / 1000).toFixed(3));
+      const both = [rng.int(40, 90), rng.int(40, 90)].map((d) => +(base - d / 1000).toFixed(3));
+      const sal = [rng.int(-2, 3), rng.int(-2, 3)].map((d) => +(base - d / 1000).toFixed(3));
+      const impIncome = base - mean(inc), impSalary = base - mean(sal), impBoth = base - mean(both);
+      if (Math.abs(impIncome) < 0.001) continue;
+      const sumSingles = impIncome + impSalary;
+      if (Math.abs(sumSingles - impBoth) < 0.01) continue;
+      return {
+        vars: {
+          base, incList: inc.join(' and '), salList: sal.join(' and '), bothList: both.join(' and '),
+          impIncome, impSalary, impBoth, sumSingles, meanInc: mean(inc), meanBoth: mean(both),
+          wrongSignIncome: -impIncome, wrongSignBoth: -impBoth,
+        },
+        misconceptions: [
+          { var: 'wrongSignIncome', feedback: 'Importance is original score − shuffled score.', for: 'impIncome' },
+          { var: 'wrongSignBoth', feedback: 'Importance is original score − shuffled score.', for: 'impBoth' },
+          { var: 'sumSingles', feedback: 'Adding the one-at-a-time importances misses what the twins carry together. Use the scores with both shuffled at once.', for: 'impBoth' },
+        ],
+      };
     }
   }
 
@@ -736,9 +843,9 @@ export default function register(sdk) {
       treeView, impurity, forestImportance, impuritySheet, impurityWalk, impurityCode,
       shuffleView, permImportance, permCode, twinsSummary, rankImportance, twinsLecture, twinsCode,
       pdpPoint, pdp, pdpBoth, pdpCode,
-      shapley, shapleySheet, shapleyWalk, shapleyOrderCode, shapleyWeights, shapleyWeightCode, additivity, additivityCode,
+      shapley, shapleySheet, shapleyWalk, shapleyOrderCode, shapleyWeights, shapleyWeightCode, waterfallSheet, additivity, additivityCode,
       limeCurve, limeFit, limeCode, limeRank, cfModel, cfOneFeature, cfGeometric, cfScene, cfCode, diceCheck,
     },
-    generators: { giniQ, impurityQ, permQ, pdpQ, shapleyQ, additivityQ, limeQ, cfQ },
+    generators: { giniQ, impurityQ, permQ, pdpQ, shapleyQ, additivityQ, limeQ, cfQ, waterfallQ, twinsQ },
   };
 }

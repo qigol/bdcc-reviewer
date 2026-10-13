@@ -1,65 +1,109 @@
 terms:
   - id: collaborative-filtering
     term: Collaborative filtering
+    aka: [CF]
     short: Recommending by using the ratings of many users, assuming people who agreed before will agree again.
     related: [user-based-cf, item-based-cf]
     lessonRef: { tab: intuition, id: taste-twins }
     skills: [similarity]
+  - id: vector
+    term: Vector
+    aka: [vectors]
+    short: An ordered list of numbers, drawn as an arrow; here, one person's ratings of the same movies in the same order.
+    related: [dot-product, norm]
+    lessonRef: { tab: intuition, id: taste-twins }
+    skills: [similarity]
+  - id: dot-product
+    term: Dot product
+    short: Multiply two lists of numbers entry by entry and add the products; (2, 1)·(1, 2) = 2 + 2 = 4.
+    formula: '\mathbf{a}\cdot\mathbf{b} = \sum_j a_j b_j'
+    related: [cosine-similarity, vector]
+    lessonRef: { tab: intuition, id: taste-twins }
+    skills: [similarity]
+  - id: norm
+    term: Norm (length)
+    aka: [norm, norms, length, lengths]
+    short: The length of a vector, the square root of the sum of its squared entries (Pythagoras).
+    formula: '\|\mathbf{a}\| = \sqrt{\sum_j a_j^2}'
+    related: [dot-product, cosine-similarity]
+    lessonRef: { tab: intuition, id: taste-twins }
+    skills: [similarity]
+  - id: cosine-similarity
+    term: Cosine similarity
+    aka: [cosine, centered cosine]
+    short: Dot product of two rating vectors divided by the product of their lengths; 1 = same taste, −1 = opposite.
+    long: The lecture applies it to **centered** ratings, over the items both users rated only.
+    formula: '\frac{\sum_{j} s_{uj} s_{vj}}{\sqrt{\sum_j s_{uj}^2}\sqrt{\sum_j s_{vj}^2}}'
+    related: [co-rated, adjusted-cosine, dot-product, norm]
+    lessonRef: { tab: intuition, id: taste-twins }
+    skills: [similarity]
   - id: ratings-matrix
     term: Ratings matrix
-    aka: [utility matrix]
+    aka: [utility matrix, rating matrix]
     short: Users as rows, items as columns, known ratings in cells; most cells are empty.
     related: [sparsity]
     lessonRef: { tab: intuition, id: harsh-vs-generous }
     skills: [mean-centering]
   - id: user-mean
     term: User mean (μᵤ)
+    aka: [user mean]
     short: The average of the ratings a user actually gave, ignoring items they never rated.
     formula: '\mu_u = \frac{1}{|I_u|}\sum_{j \in I_u} r_{uj}'
+    long: '$I_u$ ("I sub u") is the set of items user u rated, and $|I_u|$ is how many there are.'
     related: [mean-centering]
-    lessonRef: { tab: math-code, id: mean-centering }
+    lessonRef: { tab: intuition, id: harsh-vs-generous }
     skills: [mean-centering]
   - id: mean-centering
     term: Mean-centering
+    aka: [centering, mean-center, centered rating]
     short: Subtracting a user's mean from each of their ratings so harsh and generous raters become comparable.
     formula: 's_{uj} = r_{uj} - \mu_u'
+    long: Here $s_{uj}$ is a centered rating. The latent-factor module uses the letter s for something else (a factor number), even on the same barkada data.
     related: [user-mean]
     lessonRef: { tab: intuition, id: harsh-vs-generous }
     skills: [mean-centering]
   - id: co-rated
     term: Co-rated items
+    aka: [co-rated, co-raters, co-rater]
     short: The items that both users being compared have rated; similarity is computed over these only.
+    long: 'Written $I_u \cap I_v$: the items u rated **and** v rated ($\cap$ reads "intersect"). For items, the co-raters are the users who rated both.'
     related: [cosine-similarity, one-overlap-trap]
     lessonRef: { tab: intuition, id: only-co-rated }
     skills: [similarity, sparsity-pitfalls]
-  - id: cosine-similarity
-    term: Cosine similarity (centered)
-    short: Dot product of two centered rating vectors divided by the product of their lengths, between −1 and 1.
-    formula: '\frac{\sum_{j} s_{uj} s_{vj}}{\sqrt{\sum_j s_{uj}^2}\sqrt{\sum_j s_{vj}^2}}'
-    related: [co-rated, adjusted-cosine]
-    lessonRef: { tab: math-code, id: similarity }
-    skills: [similarity]
   - id: user-based-cf
     term: User-based CF
+    aka: [user-based collaborative filtering]
     short: Predicting a user's rating of an item from how the most similar users rated that item.
     related: [neighborhood, item-based-cf]
     lessonRef: { tab: intuition, id: borrowing-opinions }
     skills: [ubcf-predict]
   - id: neighborhood
     term: Neighbourhood (top-k peers)
-    short: The k most similar users who rated the target item, keeping only those with positive similarity.
-    related: [user-based-cf]
-    lessonRef: { tab: math-code, id: neighbors }
+    aka: [neighbourhood, neighborhood, neighbours, neighbors, neighbour]
+    short: The k most similar users (or items) that can vote on a prediction, keeping only those with positive similarity; k is the neighbourhood size.
+    long: 'The lecture writes the users used as $P_u(j)$: the top-k raters of item j by similarity to u, with sim > 0.'
+    related: [user-based-cf, weighted-average]
+    lessonRef: { tab: intuition, id: borrowing-opinions }
     skills: [neighbors]
+  - id: weighted-average
+    term: Weighted average
+    short: An average where each value counts in proportion to its weight; multiply, add, then divide by the total weight.
+    formula: '\frac{\sum_v w_v x_v}{\sum_v w_v}'
+    related: [centered-prediction]
+    lessonRef: { tab: intuition, id: borrowing-opinions }
+    skills: [ubcf-predict]
   - id: centered-prediction
     term: Centered prediction (ŝ)
+    aka: [centered prediction]
     short: The similarity-weighted average of the neighbours' centered ratings; add the user's mean to get a rating.
     formula: '\hat s_{uj} = \frac{\sum_v \text{sim}(u,v)\, s_{vj}}{\sum_v \text{sim}(u,v)}, \quad \hat r_{uj} = \hat s_{uj} + \mu_u'
-    related: [user-mean, neighborhood]
-    lessonRef: { tab: intuition, id: add-the-mean-back }
+    long: 'The hat marks a predicted value: ŝ ("s-hat") is the predicted centered rating, r̂ ("r-hat") the predicted rating. The lecture''s tables report ŝ.'
+    related: [user-mean, neighborhood, weighted-average]
+    lessonRef: { tab: intuition, id: borrowing-opinions }
     skills: [ubcf-predict]
   - id: item-based-cf
     term: Item-based CF
+    aka: [item-based collaborative filtering]
     short: Predicting a rating from the same user's ratings of the items most similar to the target item.
     related: [adjusted-cosine, user-based-cf]
     lessonRef: { tab: intuition, id: flip-it }
@@ -67,12 +111,14 @@ terms:
   - id: adjusted-cosine
     term: Adjusted cosine
     short: Item–item cosine computed on ratings centered by each user's mean, over users who rated both items.
+    long: Centering each item by its own (column) mean instead gives the Pearson correlation between items, a different measure that the lecture does not use.
     related: [cosine-similarity, item-based-cf]
-    lessonRef: { tab: math-code, id: item-similarity }
+    lessonRef: { tab: intuition, id: flip-it }
     skills: [ibcf-similarity]
   - id: sparsity
     term: Sparsity
-    short: Most user–item pairs have no rating, so overlaps are small and some predictions have no usable neighbours.
+    aka: [sparse]
+    short: Most user–item pairs have no rating, so overlaps are small and some predictions have nobody to borrow from.
     related: [co-rated, cold-start]
     lessonRef: { tab: intuition, id: one-overlap-trap }
     skills: [sparsity-pitfalls]
@@ -85,32 +131,43 @@ terms:
   - id: significance-weighting
     term: Significance weighting
     short: Scaling a similarity down when it rests on few co-rated items, e.g. by min(n, β)/β.
+    long: β ("beta") is the number of shared items needed for full trust.
     related: [one-overlap-trap]
-    lessonRef: { tab: math-code, id: significance }
+    lessonRef: { tab: intuition, id: one-overlap-trap }
     skills: [sparsity-pitfalls]
   - id: cold-start
     term: Cold start
     short: A new user or item has no ratings, so neighbourhood methods cannot compute similarities for it.
     related: [sparsity]
-    lessonRef: { tab: application, id: cold-start }
+    lessonRef: { tab: intuition, id: flip-it }
     skills: [sparsity-pitfalls]
+  - id: relevance
+    term: Relevance
+    short: How good an item really is for this user; in the lecture's ranking example, the user's true rating of it.
+    related: [dcg]
+    lessonRef: { tab: intuition, id: judging-a-ranking }
+    skills: [dcg]
   - id: dcg
     term: Discounted cumulative gain (DCG)
-    short: Sum over list positions of the gain 2^rel − 1 divided by log₂(position + 1).
+    aka: [DCG, discounted cumulative gain]
+    short: A score for a ranked list. Relevant items earn points, items lower down earn less, and the points are added up.
     formula: '\sum_{i=1}^{k} \frac{2^{rel_i} - 1}{\log_2(i + 1)}'
-    related: [idcg, ndcg]
-    lessonRef: { tab: math-code, id: dcg }
+    long: 'Each position i earns the gain $2^{rel} - 1$, divided by the discount $\log_2(i + 1)$. "DCG@5" ("at 5") scores only the top 5 positions.'
+    related: [idcg, ndcg, relevance]
+    lessonRef: { tab: intuition, id: judging-a-ranking }
     skills: [dcg]
   - id: idcg
     term: Ideal DCG (IDCG)
+    aka: [IDCG, ideal DCG]
     short: The DCG of the best possible ordering, items sorted by true relevance.
     related: [dcg, ndcg]
-    lessonRef: { tab: math-code, id: ndcg }
+    lessonRef: { tab: intuition, id: judging-a-ranking }
     skills: [ndcg]
   - id: ndcg
     term: Normalized DCG (NDCG)
+    aka: [NDCG, normalized DCG]
     short: DCG divided by the ideal DCG, a ranking score between 0 and 1.
     formula: '\frac{\text{DCG}}{\text{IDCG}}'
     related: [dcg, idcg]
-    lessonRef: { tab: math-code, id: ndcg }
+    lessonRef: { tab: intuition, id: judging-a-ranking }
     skills: [ndcg]

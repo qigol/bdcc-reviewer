@@ -196,7 +196,7 @@ export default function register(sdk) {
     return {
       M, ...pc, diag,
       normal: pc.recalls[2], sevuw: pc.recalls[0], uw: pc.recalls[1],
-      label: model === 'anthro' ? 'Anthropometric (measured)' : 'Marker-derived (estimated)',
+      label: model === 'anthro' ? 'measured height' : 'estimated height',
       bars: [{ name: 'recall', x: M.rows, y: pc.recalls.map((x) => x ?? 0) }],
     };
   }
@@ -488,17 +488,20 @@ export default function register(sdk) {
     return { G, k, rows, sumR: total, g, deltas: rows.map((r) => r.delta), gs: rows.map((r) => r.g), generated: sum(rows.map((r) => r.g)) };
   }
 
+  // upTo = rows filled; upTo = n also shows the shares r̂; upTo > n (the walk's last step) also shows g.
   function adasynSheet({ toy, k = 3, upTo = 99 }) {
     const a = adasyn({ toy, k });
-    const show = upTo >= a.rows.length;
+    const showShare = upTo >= a.rows.length;
+    const showG = upTo > a.rows.length;
     const values = a.rows.map((r, i) => i < upTo
-      ? [txt(r.neighbours.join(', ')), r.delta, `${r.delta}/${k}`, show ? r.rhat : null, show ? r.g : null]
+      ? [txt(r.neighbours.join(', ')), r.delta, `${r.delta}/${k}`, showShare ? r.rhat : null, showG ? r.g : null]
       : [null, null, null, null, null]);
     return { rows: a.rows.map((r) => r.id), cols: ['nearest', 'Δ', 'r', 'r̂', 'g'], values, G: a.G, sumR: a.sumR, done: Math.min(upTo, a.rows.length) };
   }
 
   // roles: sheet (Matrix from adasynSheet), plot (Chart). Patches adaUpTo.
-  function adasynWalk({ toy, k = 3 }) {
+  // withG: false stops after the shares, so a scene can ask for g before revealing it.
+  function adasynWalk({ toy, k = 3, withG = true }) {
     const a = adasyn({ toy, k });
     const pts = toyPoints(toy);
     const minIds = pts.filter((p) => p.cls === 'min').map((p) => p.id);
@@ -511,7 +514,7 @@ export default function register(sdk) {
     }));
     trace.push({ label: `$\\sum r = ${a.rows.map((r) => `${r.delta}/${k}`).join(' + ')} = ${dn(a.sumR, 3)}$. Normalize: $\\hat r_i = r_i / ${dn(a.sumR, 3)}$.`, patch: { adaUpTo: a.rows.length }, vars: { sumR: a.sumR },
       ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: 'col:r̂', tone: 'accent' } }] });
-    trace.push({ label: `$g_i = \\hat r_i \\times G = \\hat r_i \\times ${a.G}$: ${a.rows.map((r) => `${r.id} ${r.g}`).join(', ')}.`, patch: { adaUpTo: a.rows.length }, vars: { G: a.G },
+    if (withG) trace.push({ label: `$g_i = \\hat r_i \\times G = \\hat r_i \\times ${a.G}$: ${a.rows.map((r) => `${r.id} ${r.g}`).join(', ')}.`, patch: { adaUpTo: a.rows.length + 1 }, vars: { G: a.G },
       ops: [{ role: 'sheet', cmd: 'highlight', args: { sel: 'col:g', tone: 'good' } }] });
     return { steps: trace.length, g: a.g, trace };
   }
@@ -665,6 +668,9 @@ export default function register(sdk) {
       const m = metrics({ tp, fn, fp, tn });
       if (Math.abs(m.precision - m.recall) < 0.05) continue;
       if (Math.abs(m.f1 - m.accuracy) < 0.02) continue;
+      // the warned-against shortcuts must give a visibly different answer, or they would be graded correct
+      if (Math.abs(m.f1Arith - m.f1) < 0.03) continue;
+      if (Math.abs(m.balanced - m.accuracy) < 0.03) continue;
       const labels = [...Array(tp).fill(['+', '+']), ...Array(fn).fill(['+', '-']), ...Array(fp).fill(['-', '+']), ...Array(tn).fill(['-', '-'])];
       const order = rng.shuffle(labels);
       const table = { rows: order.map((_, i) => `R${i + 1}`), cols: ['actual', 'predicted'], values: order.map(([a, p]) => [a === '+' ? txt('pos') : txt('neg'), p === '+' ? txt('pos') : txt('neg')]) };
@@ -695,6 +701,7 @@ export default function register(sdk) {
       if (rowSum === colSum) continue;
       if (pc.recalls.some((r) => r === null) || pc.precisions.some((p) => p === null)) continue;
       if (Math.abs(pc.macroRecall - pc.accuracy) < 0.03) continue;
+      if (Math.abs(pc.macroRecall - mean(pc.precisions)) < 0.03) continue;
       const names = { A: 'Normal', B: 'Underweight', C: 'Severely UW' };
       return {
         vars: {
@@ -776,7 +783,8 @@ export default function register(sdk) {
       if (neigh[chosenIdx] === v.winner && difficulty > 1) continue;
       const age = rng.int(25, 55), nbAge = rng.int(25, 60);
       if (age === nbAge) continue;
-      const lambda = rng.pick([0.25, 0.5, 0.75]);
+      // not 0.5: there the midpoint and the reversed formula would give the right answer by accident
+      const lambda = rng.pick([0.25, 0.75]);
       const newAge = age + lambda * (nbAge - age);
       const opts = [v.winner, ...maritals.filter((m) => m !== v.winner).slice(0, 2), `the code halfway between ${neigh[chosenIdx] === v.winner ? maritals.find((m) => m !== v.winner) : neigh[chosenIdx]} and ${v.winner}`];
       return {
@@ -831,7 +839,74 @@ export default function register(sdk) {
       const better = costA < costB ? 'A' : 'B';
       const lowerFN = fnA < fnB ? 'A' : 'B';
       if (difficulty > 1 && better === lowerFN && rng.bool(0.7)) continue;
-      return { vars: { fnA, fpA, fnB, fpB, cFN, cFP, costA, costB, better, swapA, wrongFnOnlyA: cFN * fnA, wrongUnitA: fnA + fpA } };
+      return { vars: { fnA, fpA, fnB, fpB, cFN, cFP, costA, costB, better, swapA, wrongFnOnlyA: cFN * fnA, wrongUnitA: fnA + fpA, saving: Math.abs(costA - costB), swapB: fnB + cFN * fpB } };
+    }
+  }
+
+  // A real model against the lazy baseline on the same data: is it actually better?
+  function trapQ({ rng }) {
+    for (;;) {
+      const N = rng.pick([1000, 2000, 4000, 5000]);
+      const ratePct = rng.pick([2, 4, 5, 8]);
+      const nMin = (N * ratePct) / 100, nMaj = N - nMin;
+      const tp = Math.round(nMin * rng.pick([0.4, 0.5, 0.6, 0.7, 0.8]));
+      const fp = rng.int(Math.round(nMin * 0.3), Math.round(nMin * 1.5));
+      const fn = nMin - tp, tn = nMaj - fp;
+      const m = metrics({ tp, fn, fp, tn });
+      const lazy = nMaj / N;
+      if (Math.abs(m.accuracy - lazy) < 0.003) continue;
+      return { vars: { N, ratePct, nMin, nMaj, tp, fp, lazy, accuracy: m.accuracy, recall: m.recall, precision: m.precision, beatsLazy: m.accuracy > lazy ? 'higher' : 'lower', wrongLazyRecall: 1, wrongTpOverN: tp / N },
+        misconceptions: [
+          { var: 'wrongTpOverN', feedback: 'Recall divides by the real minority cases, not by every row.', for: 'recall' },
+          { value: 0, feedback: 'That is the lazy model\'s recall. This model does flag some cases.', for: 'recall' },
+        ] };
+    }
+  }
+
+  // Ten learners with risk scores; count what a cut-off flags and catches.
+  function thresholdQ({ rng, difficulty }) {
+    for (;;) {
+      const n = 10;
+      const scores = rng.shuffle(Array.from({ length: 19 }, (_, i) => (i + 1) / 20)).slice(0, n).sort((a, b) => b - a);
+      const nPos = difficulty === 1 ? 3 : 4;
+      // dropouts mostly score high, but not always (so precision and recall both matter)
+      const posIdx = new Set(rng.shuffle([0, 1, 2, 3, 4, 5, 6]).slice(0, nPos));
+      const dropout = scores.map((_, i) => (posIdx.has(i) ? 1 : 0));
+      const t = rng.pick([0.3, 0.4, 0.5, 0.6]);
+      const flagged = scores.filter((s) => s >= t - 1e-9).length;
+      const tp = scores.filter((s, i) => s >= t - 1e-9 && dropout[i] === 1).length;
+      if (!flagged || !tp || tp === nPos || tp === flagged) continue;
+      const recall = tp / nPos, precision = tp / flagged;
+      if (Math.abs(recall - precision) < 0.05) continue;
+      return {
+        vars: {
+          t, flagged, tp, nPos, recall, precision, wrongPrec: precision, wrongRec: recall, wrongTpOverN: tp / n,
+          table: { rows: scores.map((_, i) => `L${i + 1}`), cols: ['score', 'dropped out?'], values: scores.map((s, i) => [s, dropout[i] ? txt('yes') : txt('no')]) },
+        },
+        misconceptions: [
+          { var: 'wrongPrec', feedback: 'That is precision (caught ÷ flagged). Recall divides by all real dropouts.', for: 'recall' },
+          { var: 'wrongRec', feedback: 'That is recall (caught ÷ real dropouts). Precision divides by everyone flagged.', for: 'precision' },
+          { var: 'wrongTpOverN', feedback: 'Divide by the right group, not by all 10 learners.', for: ['recall', 'precision'] },
+        ],
+      };
+    }
+  }
+
+  // Two models; the cost ratio at which they cost the same (r·FN_A + FP_A = r·FN_B + FP_B).
+  function tieQ({ rng }) {
+    for (;;) {
+      const fnA = rng.int(10, 60), fnB = rng.int(10, 60);
+      if (fnA === fnB) continue;
+      const fpA = rng.int(10, 150), fpB = rng.int(10, 150);
+      const r = (fpB - fpA) / (fnA - fnB);
+      if (!(r > 1 && r < 10)) continue;
+      if (Math.abs(r * 4 - Math.round(r * 4)) > 1e-9) continue;   // a clean ratio (quarters)
+      const fewerMisses = fnA < fnB ? 'A' : 'B';
+      return { vars: { fnA, fpA, fnB, fpB, r, fewerMisses, wrongInv: 1 / r, wrongSum: (fpA + fpB) / (fnA + fnB) },
+        misconceptions: [
+          { var: 'wrongInv', feedback: 'You divided the other way round: the ratio multiplies the misses, so it is (difference in false alarms) ÷ (difference in misses).', for: 'r' },
+          { var: 'wrongSum', feedback: 'Use the differences between the models, not their totals.', for: 'r' },
+        ] };
     }
   }
 
@@ -843,7 +918,7 @@ export default function register(sdk) {
       const s = stratifiedSplit({ majority, minority, testSize });
       if (Math.abs(minority * testSize - Math.round(minority * testSize)) > 1e-9) continue;
       if (Math.abs(majority * testSize - Math.round(majority * testSize)) > 1e-9) continue;
-      return { vars: { majority, minority, total: s.total, testSize, testPct: 100 * testSize, testMin: s.testMin, trainMin: s.trainMin, trainMaj: s.trainMaj, testRows: s.testRows, rus: 2 * s.trainMin, wrongAll: s.testRows, wrongTestMin: s.testMin, wrongNoSplit: 2 * minority } };
+      return { vars: { majority, minority, total: s.total, testSize, testPct: 100 * testSize, testMin: s.testMin, trainMin: s.trainMin, trainMaj: s.trainMaj, testRows: s.testRows, rus: 2 * s.trainMin, ros: 2 * s.trainMaj, added: s.trainMaj - s.trainMin, testShare: s.testMin / s.testRows, wrongAll: s.testRows, wrongTestMin: s.testMin, wrongNoSplit: 2 * minority, wrongRosAll: 2 * majority } };
     }
   }
 
@@ -854,6 +929,6 @@ export default function register(sdk) {
       smoteInterp, knn, smoteToy, knnSheet, knnWalk, smoteCode, smoteNC, smoteNCCode, adasyn, adasynSheet, adasynWalk, adasynCode,
       costCompare, resultsView, pipelineCode, pipelineTable, screening, tierCounts, scoreChart,
     },
-    generators: { lazyQ, confusionQ, perClassQ, resampleQ, smoteQ, knnQ, smotencQ, adasynQ, costQ, splitQ },
+    generators: { lazyQ, confusionQ, perClassQ, resampleQ, smoteQ, knnQ, smotencQ, adasynQ, costQ, thresholdQ, tieQ, trapQ, splitQ },
   };
 }

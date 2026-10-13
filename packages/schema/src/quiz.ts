@@ -12,6 +12,10 @@ export interface NumericSpec {
   tol: number;
   relTol?: number;
   accept: ('decimal' | 'fraction' | 'percent')[];
+  /** read "(500)" as −500 (accounting). Default: only when the expected answer is negative */
+  parenNegative?: boolean;
+  /** answer in percent units: a typed "%" is stripped, and a bare decimal is also tried × 100 */
+  percent?: boolean;
 }
 export interface ResolvedMisconception { value: number; feedback: string }
 
@@ -71,6 +75,8 @@ export interface QuizScheduleCellRow {
   /** one entry per column (a single-column schedule has one) */
   cells: (number | string | null)[];
   blank: boolean;
+  /** columns of a blank row that are printed, not asked */
+  given?: number[];
   tol?: number;
 }
 
@@ -88,7 +94,19 @@ function numSpec(a: NumericAnswer, scope: Scope, problems: string[], where: stri
     value = r.value;
   }
   if (typeof value !== 'number' || !Number.isFinite(value)) problems.push(`${where}: answer is not a finite number (${JSON.stringify(value)})`);
-  return { value, tol: a.tol ?? 0.01, relTol: a.relTol, accept: a.accept ?? ['decimal', 'fraction'] };
+  return { value, tol: a.tol ?? defaultTol(value), relTol: a.relTol, accept: a.accept ?? ['decimal', 'fraction'], percent: a.percent };
+}
+
+/**
+ * A generator's misconceptions that belong to this answer: those keyed `for` this answer var, plus unkeyed ones.
+ * Hand-calc steps (`stepsOnly`) take only keyed ones, so a step never gets another step's feedback.
+ */
+function genMiscFor(gen: GeneratorOutput | undefined, answerVar: string | undefined, stepsOnly = false) {
+  return (gen?.misconceptions ?? []).filter((m) => {
+    if (m.for === undefined) return !stepsOnly;
+    const fors = Array.isArray(m.for) ? m.for : [m.for];
+    return answerVar !== undefined && fors.includes(answerVar);
+  }).map(({ var: v, value, feedback }) => ({ var: v, value, feedback }));
 }
 
 function resolveMisc(list: { var?: string; value?: number; feedback: string }[] | undefined, scope: Scope, problems: string[], where: string): ResolvedMisconception[] {
@@ -153,7 +171,7 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
     }
     case 'numeric':
       inst.numeric = numSpec(t.answer, scope, problems, 'answer');
-      inst.misconceptions = resolveMisc([...(t.misconceptions ?? []), ...(gen?.misconceptions ?? [])], scope, problems, 'misconception');
+      inst.misconceptions = resolveMisc([...(t.misconceptions ?? []), ...genMiscFor(gen, t.answer.var)], scope, problems, 'misconception');
       break;
     case 'code-fill':
       inst.code = t.code;
@@ -178,7 +196,7 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
       inst.steps = t.steps.map((s, i) => ({
         prompt: s.prompt,
         numeric: numSpec(s.answer, scope, problems, `step ${i + 1}`),
-        misconceptions: resolveMisc(s.misconceptions, scope, problems, `step ${i + 1}`),
+        misconceptions: resolveMisc([...(s.misconceptions ?? []), ...genMiscFor(gen, s.answer.var, true)], scope, problems, `step ${i + 1}`),
         hint: s.hint,
       }));
       break;
@@ -216,13 +234,14 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
         rows: rows.map((r: any, i: number) => {
           const cells = (r?.amounts ?? (r?.amount === undefined ? [] : [r.amount])) as any[];
           const blank = !!r?.blank;
+          const given: number[] | undefined = Array.isArray(r?.given) ? r.given : undefined;
           if (blank) {
-            blanks += cells.length;
+            blanks += cells.length - (given?.length ?? 0);
             if (!cells.length) problems.push(`row ${i + 1} is blank but has no amount to check`);
-            cells.forEach((c, j) => { if (typeof c !== 'number' || !Number.isFinite(c)) problems.push(`row ${i + 1} cell ${j + 1}: a blank's answer must be a number (got ${JSON.stringify(c)})`); });
+            cells.forEach((c, j) => { if (!given?.includes(j) && (typeof c !== 'number' || !Number.isFinite(c))) problems.push(`row ${i + 1} cell ${j + 1}: a blank's answer must be a number (got ${JSON.stringify(c)})`); });
           }
           if (cells.length && cells.length !== nCols && !(nCols === 1 && cells.length === 1)) problems.push(`row ${i + 1} has ${cells.length} amounts for ${nCols} column(s)`);
-          return { label: String(r?.label ?? ''), indent: r?.indent, style: r?.style, format: r?.format, cells: cells.map((c) => (c === undefined ? null : c)), blank, tol: r?.tol };
+          return { label: String(r?.label ?? ''), indent: r?.indent, style: r?.style, format: r?.format, cells: cells.map((c) => (c === undefined ? null : c)), blank, given, tol: r?.tol };
         }),
       };
       if (!blanks) problems.push('schedule-fill needs at least one row with blank: true');
@@ -287,18 +306,36 @@ export function buildGlossaryInstance(moduleId: string, terms: Term[], templateI
 }
 
 // ------------------------------------------------------------ checkers
-export function parseNumber(raw: string, accept: NumericSpec['accept'] = ['decimal', 'fraction']): number | null {
+const CURRENCY = /^(?:₱|PHP|Php|P(?=\s*\d)|\$|€|£)\s*/;
+
+/**
+ * Read a typed number. Accepts currency symbols, thousands commas (`12,500`; a comma that isn't a
+ * thousands separator, like `2,5`, is unreadable), fractions and percents per `accept`.
+ * `parenNegative` (default true) reads the accounting `(1,200)` as −1,200; a fraction or percent in
+ * parentheses, like `(2/3)`, is always plain grouping. Without `decimal` in `accept`, a plain number
+ * is unreadable (e.g. `accept: ['percent']` insists on a typed `%`).
+ */
+export function parseNumber(raw: string, accept: NumericSpec['accept'] = ['decimal', 'fraction'], opts: { parenNegative?: boolean } = {}): number | null {
   if (raw === undefined || raw === null) return null;
-  let s = String(raw).trim().replace(/^=\s*/, '').replace(/[−–]/g, '-').replace(/,/g, '');
-  // accounting style: currency symbols and (1,200) for negatives
+  let s = String(raw).trim().replace(/^=\s*/, '').replace(/[−–]/g, '-');
   s = s.replace(/^(-?)\s*(?:₱|PHP|Php|P(?=\s*\d)|\$|€|£)\s*/, '$1');
   const paren = /^\((.+)\)$/.exec(s);
-  if (paren) s = `-${paren[1].trim().replace(/^(?:₱|PHP|Php|P(?=\s*\d)|\$|€|£)\s*/, '')}`;
+  if (paren) {
+    const inner = paren[1].trim().replace(CURRENCY, '');
+    const grouping = /[/%]/.test(inner) || opts.parenNegative === false;
+    s = grouping ? inner : `-${inner}`;
+  }
+  // commas only as thousands separators
+  if (s.includes(',')) {
+    if (!/^-?\d{1,3}(,\d{3})+(\.\d+)?%?$/.test(s)) return null;
+    s = s.replace(/,/g, '');
+  }
   if (!s) return null;
   if (s.endsWith('%')) {
     if (!accept.includes('percent')) return null;
-    const v = Number(s.slice(0, -1));
-    return Number.isFinite(v) ? v / 100 : null;
+    const body = s.slice(0, -1).trim();
+    if (!/^-?(\d+\.?\d*|\.\d+)$/.test(body)) return null;
+    return Number(body) / 100;
   }
   const fr = /^(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)$/.exec(s);
   if (fr) {
@@ -306,9 +343,19 @@ export function parseNumber(raw: string, accept: NumericSpec['accept'] = ['decim
     const d = Number(fr[2]);
     return d === 0 ? null : Number(fr[1]) / d;
   }
+  if (!accept.includes('decimal')) return null;
   if (!/^-?(\d+\.?\d*|\.\d+)(e-?\d+)?$/i.test(s)) return null;
   const v = Number(s);
   return Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Default absolute tolerance for a numeric answer: 0.01, but 10% of the answer for answers smaller
+ * than 0.1, so typing 0 doesn't pass for an answer of 0.004.
+ */
+export function defaultTol(value: number): number {
+  const a = Math.abs(value);
+  return a > 0 && a < 0.1 ? Math.min(0.01, a * 0.1) : 0.01;
 }
 
 export function withinTol(x: number, target: number, tol: number, relTol?: number): boolean {
@@ -325,19 +372,58 @@ export interface NumericResult {
 }
 
 export function checkNumeric(raw: string, spec: NumericSpec, misconceptions: ResolvedMisconception[] = []): NumericResult {
-  const parsed = parseNumber(raw, spec.accept);
+  const opts = { parenNegative: spec.parenNegative ?? spec.value < 0 };
+  let parsed: number | null;
+  let candidates: number[];
+  if (spec.percent) {
+    // percent units: "18.7%" and "18.7" mean 18.7; a bare "0.187" is also tried as 18.7
+    const s = String(raw ?? '').trim();
+    const pct = /%\s*$/.test(s);
+    parsed = parseNumber(pct ? s.replace(/%\s*$/, '') : s, spec.accept.filter((a) => a !== 'percent').concat(['decimal']), opts);
+    candidates = parsed === null ? [] : pct ? [parsed] : [parsed, parsed * 100];
+  } else {
+    parsed = parseNumber(raw, spec.accept, opts);
+    candidates = parsed === null ? [] : [parsed];
+  }
   if (parsed === null) return { parsed, correct: false, score: 0, feedback: `Couldn't read that as a number${spec.accept.includes('fraction') ? ' (decimals like 0.67 or fractions like 2/3 work)' : ''}.` };
-  if (withinTol(parsed, spec.value, spec.tol, spec.relTol)) return { parsed, correct: true, score: 1 };
+  const hit = candidates.find((c) => withinTol(c, spec.value, spec.tol, spec.relTol));
+  if (hit !== undefined) return { parsed: hit, correct: true, score: 1 };
   for (const m of misconceptions) {
     if (withinTol(m.value, spec.value, spec.tol, spec.relTol)) continue; // engine ignores misconceptions equal to the answer
-    if (withinTol(parsed, m.value, spec.tol, spec.relTol)) return { parsed, correct: false, score: 0, feedback: m.feedback };
+    if (candidates.some((c) => withinTol(c, m.value, spec.tol, spec.relTol))) return { parsed, correct: false, score: 0, feedback: m.feedback };
   }
   return { parsed, correct: false, score: 0 };
 }
 
 export const checkMcq = (choice: number | null, answer: number) => (choice === answer ? 1 : 0);
 
+/**
+ * Display order for lesson options (predict gates, Application decisions): a fixed shuffle keyed by
+ * `key` (module + scene/cell + beat), so the right answer isn't always in the same slot but the order
+ * survives reloads. `shuffle: false` keeps the authored order.
+ */
+export function optionOrder(n: number, key: string, shuffle = true): number[] {
+  const idx = Array.from({ length: n }, (_, i) => i);
+  return shuffle && n > 1 ? createRng(hashSeed(`${key}:options`)).shuffle(idx) : idx;
+}
+
+/**
+ * Grade a typed predict-gate answer. A typed "%" is read as a percent: "18.7%" matches an answer
+ * stored as 0.187 or as 18.7. With `percent: true` (answer in percent units) a bare decimal is also
+ * accepted: 0.9859 matches 98.59. Returns null when the input can't be read as a number.
+ */
+export function checkPredict(raw: string, ans: { value: number; tol?: number; percent?: boolean }): boolean | null {
+  const tol = (ans.tol ?? defaultTol(ans.value)) + 1e-9;
+  const s = String(raw ?? '').trim();
+  const pct = /%\s*$/.test(s);
+  const v = parseNumber(pct ? s.replace(/%\s*$/, '') : s, ['decimal', 'fraction']);
+  if (v === null) return null;
+  const candidates = pct ? [v / 100, v] : ans.percent ? [v, v * 100] : [v];
+  return candidates.some((c) => Math.abs(c - ans.value) <= tol);
+}
+
 export function checkMulti(chosen: number[], answer: number[]): number {
+  chosen = [...new Set(chosen)];
   const A = new Set(answer);
   const tp = chosen.filter((c) => A.has(c)).length;
   const fp = chosen.length - tp;

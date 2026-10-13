@@ -12,10 +12,9 @@ case:
   data: [davao]
   derive:
     - { fn: cycle, in: { process: '@davao.batch.before.process', inspect: '@davao.batch.before.inspect', move: '@davao.batch.before.move', wait: '@davao.batch.before.wait', units: '@davao.batch.units' }, out: cb }
-    - { fn: cycleCompare, in: { before: '@davao.batch.before', after: '@davao.batch.after', units: '@davao.batch.units' }, out: cc }
+    - { fn: cycleCompare, in: { before: '@davao.batch.before', after: '@davao.batch.after' }, out: cc }
     - { fn: whale, in: { pools: '@davao.pools', customers: '@davao.customers' }, out: wh }
-    - { fn: customers, in: { pools: '@davao.pools', customers: '@davao.customers' }, out: cu }
-    - { fn: tco, in: { qty: '@davao.supply.qty', suppliers: '@davao.supply.suppliers', activities: '@davao.supply.activities' }, out: tc }
+    - { fn: tco, in: { qty: '@davao.supply.qty', suppliers: '@davao.supply.suppliers', activities: '@davao.supply.activities', upTo: 6 }, out: tc }
   cells:
     - id: measure
       title: Measure the process
@@ -40,16 +39,15 @@ case:
       decision:
         prompt: Cycle time fell from 15 to 7 hours. By how much did velocity rise?
         type: mcq
-        options: ['About 114%, from 40 to 85.7 bags an hour', 'About 53%, the same as the cut in cycle time', 'Not at all, because processing time is unchanged', 'About 43%']
+        options: ['About 114%', 'About 53%', 'About 47%', 'About 214%']
         answer: 0
-        model: 'Velocity $= 600 \div 7 = 85.7$ bags an hour against $600 \div 15 = 40$: up $15 \div 7 - 1 = 114\%$. A 53% shorter cycle more than doubles throughput.'
+        model: 'Velocity $= 600 \div 7 = 85.7$ bags an hour against $600 \div 15 = 40$: up $15 \div 7 - 1 = 114\%$. 53% is the cut in cycle time, 47% is 7 ÷ 15, and 214% is the new velocity as a percent of the old. A 53% shorter cycle more than doubles throughput.'
     - id: customers
       title: Who earns the profit?
       say: |
         Order processing, delivery and special requests (rush orders, custom labels) are assigned by activity. Five
         customers earn {=wh.peakShare|pct} of total profit; three lose {=wh.lossTotal|money} between them.
       stage:
-        - { id: cus, widget: Schedule, props: { title: Customer profitability, columns: [Mall chain, Supermarket group, Exporter, Hotel group, Pasalubong stores, Online resellers, Café chain, Airline caterer], rows: '@cu.rows' } }
         - { id: wc, widget: Schedule, props: { title: 'The whale curve, most to least profitable', columns: [Gross margin, Cost to serve, Operating profit, Cumulative profit, Share of total], rows: '@wh.rows' } }
       decision:
         prompt: Online resellers lose ₱300,000 on 1,200 small orders and 600 deliveries a year. What should the sales team do first?
@@ -62,17 +60,18 @@ case:
       title: Choosing a pouch supplier
       say: |
         Supplier X quotes ₱4.00 a pouch, Supplier Y ₱4.50, for 500,000 pouches. X's pouches leak more often, spoiling
-        product, and arrive in many small, late shipments.
+        product, and arrive in many small, late shipments. The schedule prices each hidden activity; the totals are
+        yours to work out.
       stage:
         - { id: tc, widget: Schedule, props: { title: 'Total cost of ownership, 500,000 pouches', columns: [Supplier X, Supplier Y], rows: '@tc.rows' } }
       decision:
-        prompt: Which supplier should Davao Fruit Snacks choose?
+        prompt: Which supplier has the lower total cost of ownership for the 500,000 pouches, and by how much a year?
         type: mcq
         options:
-          - Supplier Y; its total cost of ownership is ₱95,300 lower despite the higher price
-          - Supplier X; it is ₱250,000 cheaper on the invoice
-          - Either; the difference is within rounding
-          - Supplier X, and inspect every pouch to catch the leaks
+          - 'Supplier Y, by about ₱95,300'
+          - 'Supplier X, by about ₱95,300'
+          - 'Supplier X, by about ₱250,000'
+          - 'Supplier Y, by about ₱345,300'
         answer: 0
         model: 'TCO: X ₱2,388,000 (₱4.78 a pouch), Y ₱2,292,700 (₱4.59). X''s ₱388,000 of hidden cost (mostly spoiled product and inspection) outweighs its ₱250,000 price advantage.'
     - id: root-cause
@@ -88,7 +87,10 @@ case:
           leak data before blaming the supplier.
     - id: next-cycle
       title: Plan the next cycle
-      say: The owners want to know what to track next quarter.
+      say: |
+        The owners asked why margins slipped although sales grew. The answer is now on the table: growth came through
+        small-order channels that cost more to serve than they earn, from a cheaper supplier that costs more to own, in
+        batches that spent most of their time waiting. They want to know what to track next quarter.
       decision:
         prompt: Which three measures would you put on the monthly report to keep the improvements going?
         type: open
@@ -122,7 +124,7 @@ tradeoffs:
     - ['Non-value-added activity', 'Reduce it', 'Eliminate it', 'A redesign (cells, digitization, prevention) can remove it entirely']
     - ['Improvement approach', 'One big project', 'Kaizen cycles', 'Most of the time; each cycle should show some improvement']
 connections:
-  - { module: abc, note: 'Every activity pool and rate built in Session 7 becomes a candidate for elimination, redesign or renegotiation here; Rizal Wholesale continues from Example 10.' }
+  - { module: abc, note: 'Every activity pool and rate built in the ABC module becomes a candidate for elimination, redesign or renegotiation here; Rizal Wholesale''s customers return, now with a consolidation offer.' }
   - { module: cost-flows, note: 'The supplemental notes introduced JIT, pull systems and manufacturing time; MCE turns them into a measure.' }
 explainBack:
   prompt: Explain to Davao Fruit Snacks' owners why the plant got faster without anyone working harder.

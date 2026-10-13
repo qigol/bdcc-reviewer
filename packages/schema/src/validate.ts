@@ -416,6 +416,7 @@ function checkScene(scene: Scene, i: number, ctx: Ctx) {
       if (g.options) {
         const a = typeof g.answer === 'number' ? g.answer : g.answer.value;
         if (!Number.isInteger(a) || a < 0 || a >= g.options.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${bp}.gate.answer`, message: `predict answer must be an option index 0..${g.options.length - 1}` });
+        for (const k of Object.keys(g.optionFeedback ?? {})) if (!(Number(k) >= 0 && Number(k) < g.options.length)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${bp}.gate.optionFeedback`, message: `optionFeedback key "${k}" is not an option index` });
       }
     } else if (g.type === 'when') {
       checkText(g.prompt, scope, file, `${bp}.gate.prompt`, ctx);
@@ -554,6 +555,7 @@ function checkApplication(ctx: Ctx) {
         const n = cell.decision.options?.length ?? 0;
         if (n < 2) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision`, message: 'mcq decision needs ≥ 2 options' });
         if (cell.decision.answer !== undefined && (cell.decision.answer < 0 || cell.decision.answer >= n)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision.answer`, message: 'answer index out of range' });
+        for (const k of Object.keys(cell.decision.optionFeedback ?? {})) if (!(Number(k) >= 0 && Number(k) < n)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision.optionFeedback`, message: `optionFeedback key "${k}" is not an option index` });
       }
     }
   });
@@ -718,6 +720,15 @@ export function lintModule(mod: ParsedModule): Issue[] {
     s.beats.forEach((b, j) => {
       limit(b.say, 60, 'intuition.yaml', `${p}.beats[${j}].say`, 'beat narration');
       if (b.gate?.type === 'reflect') limit(b.gate.model, 80, 'intuition.yaml', `${p}.beats[${j}].gate.model`, 'reflect model answer');
+      // a numeric predict whose answer is printed in the same beat's narration is a giveaway (guide §7.1b)
+      if (b.gate?.type === 'predict' && !b.gate.options) {
+        const v = typeof b.gate.answer === 'number' ? b.gate.answer : b.gate.answer.value;
+        const forms = new Set([String(v), v.toLocaleString('en-US'), v.toLocaleString('en-US', { maximumFractionDigits: 2 })]);
+        const said = b.say.replace(/[₱$]/g, '');
+        // only a stated result ("= 75", "≈ 0.57"): an input that happens to equal the answer is not a giveaway
+        const hit = [...forms].find((f) => f.replace(/[^0-9]/g, '').length >= 2 && new RegExp(`[=≈]\\s*\\$?\\s*${f.replace(/[.,]/g, (c) => `\\${c}`)}(?![0-9]|[.,][0-9])`).test(said));
+        if (hit) w('intuition.yaml', `beat narration states the predict answer (${hit}) while the gate is open; reveal it on the next beat (guide §7.1b)`, `${p}.beats[${j}]`);
+      }
       for (const id of b.define ?? []) {
         const t = mod.glossary.find((x) => x.id === id);
         if (!t) continue;
@@ -963,6 +974,7 @@ export async function runLogicChecks(
       const nSeeds = t.generator ? seeds : 1;
       const problems = new Set<string>();
       let slow = 0;
+      let collapsed = 0;
       let misconceptionCount = (t.type === 'numeric' ? t.misconceptions?.length ?? 0 : 0);
       for (let s = 1; s <= nSeeds; s++) {
         let gen: GeneratorOutput | undefined;
@@ -972,11 +984,14 @@ export async function runLogicChecks(
           if (r.ms > 50) slow = Math.max(slow, r.ms);
           gen = r.output;
           if (!gen || typeof gen.vars !== 'object') { problems.add('generator must return { vars }'); continue; }
-          if (t.type === 'numeric') misconceptionCount = Math.max(misconceptionCount, (t.misconceptions?.length ?? 0) + (gen.misconceptions?.length ?? 0));
         }
         const inst = buildInstance({ moduleId: mod.manifest.id, datasets: data }, t, s, gen);
         inst.problems.forEach((x) => problems.add(x));
         instances++;
+        if (inst.numeric) misconceptionCount = Math.max(misconceptionCount, inst.misconceptions?.length ?? 0);
+        // a misconception within tolerance of the answer is dropped, so that wrong method is graded correct
+        const checks = inst.numeric ? [{ spec: inst.numeric, miscs: inst.misconceptions }] : (inst.steps ?? []).map((st) => ({ spec: st.numeric, miscs: st.misconceptions }));
+        if (checks.some(({ spec, miscs }) => miscs?.some((m) => Math.abs(m.value - spec.value) <= Math.max(spec.tol, (spec.relTol ?? 0) * Math.abs(spec.value)) + 1e-12))) collapsed++;
         const texts: string[] = [inst.prompt, inst.explanation, ...(inst.options ?? []), ...(inst.steps?.map((x) => x.prompt) ?? []), ...(inst.misconceptions?.map((m) => m.feedback) ?? []),
           ...(inst.hints ?? []), ...(inst.entries?.map((e) => e.prompt ?? '') ?? []), ...(inst.schedule?.rows.map((r) => r.label) ?? [])];
         for (const tx of texts) for (const m of interpolate(tx, inst.scope, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}}`);
@@ -990,6 +1005,7 @@ export async function runLogicChecks(
         }
       }
       for (const pr of problems) E('quiz', 'quiz.yaml', p, `template "${t.id}": ${pr}`);
+      if (t.generator && collapsed / nSeeds > 0.1) W('lint', 'quiz.yaml', p, `template "${t.id}": in ${collapsed} of ${nSeeds} seeds a misconception lands within tolerance of the answer: either the wrong method is then graded correct, or the data never separates it from the right one, so the question doesn't test it (redraw such cases, guide §5.10)`);
       if (slow) W('quiz', 'quiz.yaml', p, `template "${t.id}": generator took ${slow.toFixed(0)} ms (limit 50 ms)`);
       if (t.type === 'numeric' && misconceptionCount < 2) W('lint', 'quiz.yaml', p, `numeric template "${t.id}" has ${misconceptionCount} misconceptions (guide: ≥ 2)`);
     }

@@ -24,16 +24,20 @@ export default function register(sdk) {
     return o;
   }
   function keysOf(s) { return s.reveal ?? (s.row ? [s.row] : []); }
+  // Rows may carry `plain`: the label without its arithmetic, shown until the row is revealed, so a label such as
+  // "Transferred out, conversion 180,000 EU @ 0.840" can't give away a unit cost the scene is about to ask for.
+  const dropPlain = (r) => { const { plain, ...rest } = r; return rest; };
   function reveal(rows, steps, upTo) {
-    if (upTo === undefined || upTo === null) return rows;
+    if (upTo === undefined || upTo === null) return rows.map(dropPlain);
     const pending = new Set();
     steps.forEach((s, i) => { if (i >= upTo) keysOf(s).forEach((k) => pending.add(k)); });
     steps.slice(0, upTo).forEach((s) => keysOf(s).forEach((k) => pending.delete(k)));
     return rows.map((r) => {
-      if (!r.id) return r;
-      const out = { ...r };
+      if (!r.id) return dropPlain(r);
+      const out = dropPlain(r);
       if (Array.isArray(out.amounts)) out.amounts = out.amounts.map((v, j) => (pending.has(r.id) || pending.has(`${r.id}:${j}`) ? null : v));
       else if ('amount' in out && pending.has(r.id)) out.amount = null;
+      if (r.plain && pending.has(r.id)) out.label = r.plain;
       return out;
     });
   }
@@ -74,18 +78,18 @@ export default function register(sdk) {
       ]),
     });
   }
-  // DM, DL, MOH totals into prime and conversion cost
-  function costTotals({ dm, dl, moh, selling, admin }) {
+  // DM, DL, MOH totals into prime and conversion cost. `period` is the selling and administrative total, one line.
+  function costTotals({ dm, dl, moh, period }) {
     return clean({
-      prime: dm + dl, conversion: dl + moh, product: dm + dl + moh, period: selling + admin,
+      prime: dm + dl, conversion: dl + moh, product: dm + dl + moh, period,
       rows: [
         { id: 'dm', label: 'Direct materials', amount: dm, anchor: 'prime' },
         { id: 'dl', label: 'Direct labor', amount: dl, anchor: 'prime' },
-        { id: 'moh', label: 'Manufacturing overhead', amount: moh, anchor: 'conv' },
+        { id: 'moh', label: 'Manufacturing overhead (applied)', amount: moh, anchor: 'conv' },
         { id: 'prime', label: 'Prime cost (DM + DL)', amount: dm + dl, style: 'subtotal', anchor: 'prime' },
         { id: 'conv', label: 'Conversion cost (DL + MOH)', amount: dl + moh, style: 'subtotal', anchor: 'conv' },
         { id: 'product', label: 'Product (manufacturing) costs', amount: dm + dl + moh, style: 'total', anchor: 'product' },
-        { id: 'period', label: 'Period costs (selling + administrative)', amount: selling + admin, style: 'total', anchor: 'period' },
+        { id: 'period', label: 'Period costs (selling and administrative expenses)', amount: period, style: 'total', anchor: 'period' },
       ],
     });
   }
@@ -131,7 +135,7 @@ export default function register(sdk) {
       { id: 'dl-head', label: 'Direct labor (time tickets)', style: 'heading' },
       ...tickets.map((t, i) => ({ id: `tt-${i + 1}`, label: `Ticket ${t.no}: ${t.hours} hours`, amount: t.amount, indent: 1, anchor: 'dl' })),
       { id: 'dl', label: `Total direct labor (${hours} hours)`, amount: dl, style: 'subtotal', anchor: 'dl' },
-      { id: 'oh', label: `Manufacturing overhead: ${hours} DLH × ${P(rate)}/DLH`, amount: oh, anchor: 'oh' },
+      { id: 'oh', label: `Manufacturing overhead: ${hours} DLH × ${P(rate)}/DLH`, plain: 'Manufacturing overhead applied', amount: oh, anchor: 'oh' },
       { id: 'total', label: 'Total cost', amount: total, style: 'total', anchor: 'total' },
       { id: 'unit', label: `Unit cost (${C(units)} units)`, amount: unit, style: 'subtotal', anchor: 'unit' },
     ];
@@ -149,7 +153,7 @@ export default function register(sdk) {
   }
   function jobSheet(args) {
     const r = sheetCore(args);
-    return clean({ dm: r.dm, dl: r.dl, hours: r.hours, oh: r.oh, total: r.total, unit: r.unit, req14873: Math.round(r.reqTotal * 100) / 100, rows: r.rows, trace: toTrace(r.steps) });
+    return clean({ dm: r.dm, dl: r.dl, hours: r.hours, oh: r.oh, total: r.total, unit: r.unit, req14873: Math.round(r.reqTotal * 100) / 100, rows: r.rows.map(dropPlain), trace: toTrace(r.steps) });
   }
   function jobSheetSheet(args) {
     const r = sheetCore(args);
@@ -186,7 +190,8 @@ export default function register(sdk) {
       { id: 'e', memo: `Insurance expired: ${PCT(d.insurance.factoryPct)} factory, the rest selling and administrative`, lines: [line(A.moh, 'dr', insFactory, 'e'), line(A.ie, 'dr', insSA, 'e'), line(A.pi, 'cr', d.insurance.total, 'e')] },
       { id: 'f', memo: 'Advertising', lines: [line(A.ae, 'dr', d.advertising, 'f'), line(A.ap, 'cr', d.advertising, 'f')] },
       { id: 'g', memo: 'Depreciation on factory and on selling and administrative assets', lines: [line(A.moh, 'dr', d.depreciation.factory, 'g'), line(A.de, 'dr', d.depreciation.sa, 'g'), line(A.ad, 'cr', d.depreciation.factory + d.depreciation.sa, 'g')] },
-      { id: 'h', memo: `Overhead applied: ${PCT(rate)} of ${P(d.labor.direct)} direct labor cost`, lines: [line(A.wip, 'dr', applied, 'h'), line(A.moh, 'cr', applied, 'h')] },
+      // The memo never prints the rate: the Application journal sits on screen beside a cell that asks for it.
+      { id: 'h', memo: 'Overhead applied to Work in Process at the predetermined rate', lines: [line(A.wip, 'dr', applied, 'h'), line(A.moh, 'cr', applied, 'h')] },
       { id: 'i', memo: 'Jobs completed and transferred to the finished goods warehouse', lines: [line(A.fg, 'dr', d.completed, 'i'), line(A.wip, 'cr', d.completed, 'i')] },
       { id: 'j', memo: 'Sales on account', lines: [line(A.ar, 'dr', d.sales, 'j'), line(A.sales, 'cr', d.sales, 'j')] },
       { id: 'k', memo: 'Cost of the goods sold', lines: [line(A.cogs, 'dr', d.costSold, 'k'), line(A.fg, 'cr', d.costSold, 'k')] },
@@ -220,7 +225,7 @@ export default function register(sdk) {
   function cycle({ d }) {
     const c = cycleCore(d);
     const steps = c.E.map((e) => ({ entry: e.id, math: e.id,
-      label: `(${e.id}) ${e.memo}`, vars: Object.fromEntries([[`entry_${e.id}`, sum(e.lines.filter((l) => l.debit !== undefined).map((l) => l.debit))]]) }));
+      label: e.id === 'h' ? `(h) Overhead applied: ${PCT(c.rate)} of ${P(d.labor.direct)} direct labor cost` : `(${e.id}) ${e.memo}`, vars: Object.fromEntries([[`entry_${e.id}`, sum(e.lines.filter((l) => l.debit !== undefined).map((l) => l.debit))]]) }));
     return clean({
       rate: c.rate, applied: c.applied, actualOH: c.actualOH, diff: c.diff, amt: c.amt, kind: c.under ? 'underapplied' : 'overapplied',
       insFactory: c.insFactory, insSA: c.insSA, endRM: c.bal.rm, endWIP: c.bal.wip, endFG: c.bal.fg,
@@ -267,7 +272,13 @@ export default function register(sdk) {
       { account: 'cogs', math: 'cogs', label: `Cost of Goods Sold before adjustment: ${P(d.costSold)}`, vars: { cogs: d.costSold } },
     ];
     const accounts = accountsAfter(c, 11).map((a) => ({ ...a, debits: a.debits.map((x) => ({ ...x, anchor: a.id })), credits: a.credits.map((x) => ({ ...x, anchor: a.id })) }));
-    return clean({ rm: c.bal.rm, wip: c.bal.wip, fg: c.bal.fg, moh: c.diff, cogs: d.costSold, cogm: d.completed, accounts, trace: toTrace(steps) });
+    // Totals only (no per-entry postings), for a page where another cell asks about one of the entries.
+    const balanceRows = accountsAfter(c, 11).map((a) => {
+      const dr = sum(a.debits.map((x) => x.amount));
+      const cr = sum(a.credits.map((x) => x.amount));
+      return { id: `bal-${a.id}`, label: a.name, amounts: [dr, cr || null, Math.abs(dr - cr)] };
+    });
+    return clean({ rm: c.bal.rm, wip: c.bal.wip, fg: c.bal.fg, moh: c.diff, cogs: d.costSold, cogm: d.completed, accounts, balanceRows, trace: toTrace(steps) });
   }
 
   // Disposition: close to COGS, or allocate on ending balances (slide 14)
@@ -453,17 +464,17 @@ export default function register(sdk) {
       transferred = fromBeg + scCost.mat + scCost.conv;
       r.push({ id: 'r-head', label: 'Transferred out, units from beginning inventory:', style: 'heading' });
       r.push({ id: 'r-beg', label: 'Cost in beginning inventory', amount: begTotal, indent: 1, anchor: 'recon' });
-      cats.forEach((k) => r.push({ id: `r-fin-${k}`, label: `Cost to complete: ${name[k].toLowerCase()} ${C(e.finish[k])} EU @ ${fmt(unit[k], '3')}`, amount: finishCost[k], indent: 1, anchor: 'recon' }));
+      cats.forEach((k) => r.push({ id: `r-fin-${k}`, label: `Cost to complete: ${name[k].toLowerCase()} ${C(e.finish[k])} EU @ ${fmt(unit[k], '3')}`, plain: `Cost to complete, ${name[k].toLowerCase()}`, amount: finishCost[k], indent: 1, anchor: 'recon' }));
       r.push({ id: 'r-fromBeg', label: 'Total from beginning inventory', amount: fromBeg, style: 'subtotal', anchor: 'recon' });
-      cats.forEach((k) => r.push({ id: `r-sc-${k}`, label: `Started and completed: ${name[k].toLowerCase()} ${C(e.sc)} EU @ ${fmt(unit[k], '3')}`, amount: scCost[k], indent: 1, anchor: 'recon' }));
+      cats.forEach((k) => r.push({ id: `r-sc-${k}`, label: `Started and completed: ${name[k].toLowerCase()} ${C(e.sc)} EU @ ${fmt(unit[k], '3')}`, plain: `Started and completed, ${name[k].toLowerCase()}`, amount: scCost[k], indent: 1, anchor: 'recon' }));
       r.push({ id: 'r-out', label: 'Total cost transferred', amount: transferred, style: 'subtotal', anchor: 'recon' });
     } else {
-      cats.forEach((k) => r.push({ id: `r-out-${k}`, label: `Transferred out, ${name[k].toLowerCase()} ${C(completed)} EU @ ${fmt(unit[k], '3')}`, amount: completed * unit[k], indent: 1, anchor: 'recon' }));
+      cats.forEach((k) => r.push({ id: `r-out-${k}`, label: `Transferred out, ${name[k].toLowerCase()} ${C(completed)} EU @ ${fmt(unit[k], '3')}`, plain: `Transferred out, ${name[k].toLowerCase()}`, amount: completed * unit[k], indent: 1, anchor: 'recon' }));
       transferred = completed * (unit.mat + unit.conv);
       r.push({ id: 'r-out', label: 'Total transferred out', amount: transferred, style: 'subtotal', anchor: 'recon' });
     }
     const endCost = { mat: e.endEu.mat * unit.mat, conv: e.endEu.conv * unit.conv };
-    cats.forEach((k) => r.push({ id: `r-end-${k}`, label: `Work in process, ending: ${name[k].toLowerCase()} ${C(e.endEu[k])} EU @ ${fmt(unit[k], '3')}`, amount: endCost[k], indent: 1, anchor: 'recon' }));
+    cats.forEach((k) => r.push({ id: `r-end-${k}`, label: `Work in process, ending: ${name[k].toLowerCase()} ${C(e.endEu[k])} EU @ ${fmt(unit[k], '3')}`, plain: `Work in process, ending, ${name[k].toLowerCase()}`, amount: endCost[k], indent: 1, anchor: 'recon' }));
     const endWip = endCost.mat + endCost.conv;
     r.push({ id: 'r-end', label: 'Total work in process, ending', amount: endWip, style: 'subtotal', anchor: 'recon' });
     r.push({ id: 'r-check', label: 'Total cost accounted for', amount: transferred + endWip, style: 'total', anchor: 'recon' });
@@ -488,7 +499,7 @@ export default function register(sdk) {
   }
   function reportOut(x) {
     return { method: x.fifo ? 'FIFO' : 'weighted-average', euMat: x.eu.mat, euConv: x.eu.conv, unitMat: x.unit.mat, unitConv: x.unit.conv, unitTotal: x.unit.mat + x.unit.conv,
-      transferred: x.transferred, endWip: x.endWip, endMat: x.endCost.mat, endConv: x.endCost.conv, total: x.total, qRows: x.q, unitRows: x.u, reconRows: x.r };
+      transferred: x.transferred, endWip: x.endWip, endMat: x.endCost.mat, endConv: x.endCost.conv, total: x.total, qRows: x.q, unitRows: x.u, reconRows: x.r.map(dropPlain) };
   }
   // roles: journal, formula, code
   function productionReport(args) {
@@ -548,6 +559,9 @@ export default function register(sdk) {
     const s = sarverCore(args);
     const [pa, pb] = s.prod;
     const rateRows = s.rates.map((a) => ({ id: `rate-${a.id}`, label: `${a.name}: ${C(a.cost)} ÷ ${C(a.total)}`, amount: a.rate, anchor: 'rate' }));
+    // How much of each driver each product uses (the inputs to a hand computation of ABC overhead)
+    const useRows = s.rates.map((a, i) => ({ id: `u-${a.id}`, label: `${a.name} (${a.unit}s)`, amounts: [pa.abcLines[i].qty, pb.abcLines[i].qty], format: 'units', anchor: 'assign' }))
+      .concat([{ id: 'u-units', label: 'Units produced', amounts: [pa.units, pb.units], format: 'units', anchor: 'assign' }]);
     const prodRows = s.rates.map((a, i) => ({ id: `use-${a.id}`, label: `${a.name} @ ${P2(a.rate)}`, amounts: [pa.abcLines[i].amount, pb.abcLines[i].amount], anchor: 'assign' }))
       .concat([
         { id: 'oh-total', label: 'Total overhead (a)', amounts: [pa.abcTotal, pb.abcTotal], style: 'subtotal', anchor: 'assign' },
@@ -573,7 +587,7 @@ export default function register(sdk) {
       tradRate: s.trad, tradOHA: pa.tradOH, tradOHB: pb.tradOH, tradCostA: pa.tradCost, tradCostB: pb.tradCost,
       ohTotalA: pa.abcTotal, ohTotalB: pb.abcTotal, abcOHA: pa.abcOH, abcOHB: pb.abcOH, abcCostA: pa.abcCost, abcCostB: pb.abcCost,
       rates: Object.fromEntries(s.rates.map((a) => [a.id, a.rate])),
-      rateRows, prodRows, costRows, trace: toTrace(steps),
+      rateRows, useRows, prodRows, costRows, trace: toTrace(steps),
     });
   }
   function sarverView({ totalOH, totalDLH, products, activities, system }) {
@@ -613,7 +627,8 @@ export default function register(sdk) {
       const actual = cycleCore({ ...d, est: { oh: 1, dl: 1 } }).actualOH;
       const rate = Math.round(((actual / dl) * rng.pick([0.9, 0.94, 0.97, 1.03, 1.06, 1.1])) * 20) / 20;
       if (rate < 0.5 || rate > 2.5) continue;
-      const estDL = dl + nice(rng, -30000, 30000, 10000);
+      // never a zero offset: estimated and actual labor must differ, or "used the estimate" equals the right answer
+      const estDL = dl + rng.pick([-30000, -20000, -10000, 10000, 20000, 30000]);
       d.est = { oh: Math.round(rate * estDL), dl: estDL };
       const c0 = cycleCore(d);
       const intoWip = d.opening.wip + d.issued.direct + d.labor.direct + c0.applied;
@@ -653,14 +668,18 @@ export default function register(sdk) {
       completed: d.completed, costSold: d.costSold, endRM: c.bal.rm, endWIP: c.bal.wip, endFG: c.bal.fg,
     };
   }
+  // Misconceptions are keyed with `for` to the answer var they produce, so a shared generator never attaches a hint
+  // about one quantity to a template that asks for another.
   function overheadQ({ rng }) {
     const d = randomYear(rng);
     const c = cycleCore(d);
     return {
       vars: { ...yearVars(d, c), wrongEstRate: d.est.oh, wrongWithSA: c.actualOH + c.insSA + d.depreciation.sa },
       misconceptions: [
-        { var: 'wrongWithSA', feedback: 'Only factory costs are overhead. Selling and administrative insurance and depreciation are period expenses.' },
-        { value: c.actualOH + d.labor.direct, feedback: 'Direct labor goes to Work in Process, not to Manufacturing Overhead.' },
+        { var: 'wrongWithSA', feedback: 'Only factory costs are overhead. Selling and administrative insurance and depreciation are period expenses.', for: 'actualOH' },
+        { value: c.actualOH + d.labor.direct, feedback: 'Direct labor goes to Work in Process, not to Manufacturing Overhead.', for: 'actualOH' },
+        // rate × estimated labor is the estimated overhead itself, so one entry covers both readings
+        { var: 'wrongEstRate', feedback: 'That uses the estimate. Applied overhead is the rate times the **actual** direct labor cost.', for: 'applied' },
       ],
     };
   }
@@ -670,46 +689,88 @@ export default function register(sdk) {
     return {
       vars: { ...yearVars(d, c), wrongWipNoOH: c.bal.wip - c.applied, wrongWipActual: c.bal.wip - c.applied + c.actualOH },
       misconceptions: [
-        { var: 'wrongWipNoOH', feedback: 'Work in Process is also debited for overhead **applied**.' },
-        { var: 'wrongWipActual', feedback: 'WIP receives **applied** overhead, not actual overhead; actual overhead sits in Manufacturing Overhead.' },
+        { var: 'wrongWipNoOH', feedback: 'Work in Process is also debited for overhead **applied**.', for: 'endWIP' },
+        { var: 'wrongWipActual', feedback: 'WIP receives **applied** overhead, not actual overhead; actual overhead sits in Manufacturing Overhead.', for: 'endWIP' },
       ],
     };
   }
   function disposeQ({ rng, difficulty }) {
-    for (;;) {
-      const d = randomYear(rng);
-      const c = cycleCore(d);
-      const method = difficulty >= 2 ? 'allocate' : 'close';
-      const r = dispose({ d, method });
-      return {
-        vars: { ...yearVars(d, c), method, wipAdj: r.wipAdj, fgAdj: r.fgAdj, cogsAdj: r.cogsAdj, wipShare: r.wipShare, fgShare: r.fgShare, cogsShare: r.cogsShare,
-          adjustedCogs: r.adjustedCogs, accounts: shuffled(rng, [A.cogs, A.moh, A.wip, A.fg, A.rm, A.sales, A.ap]), entries: [{ lines: quizLines(r.entries[0].lines) }],
-          wrongWrongWay: c.under ? d.costSold - c.amt : d.costSold + c.amt },
-        misconceptions: [
-          { var: 'wrongWrongWay', feedback: 'Wrong direction: underapplied overhead **adds** to COGS; overapplied subtracts.' },
-          { value: d.costSold, feedback: 'You left COGS unadjusted. The Manufacturing Overhead balance must be closed out.' },
-        ],
-      };
-    }
+    const d = randomYear(rng);
+    const c = cycleCore(d);
+    const method = difficulty >= 2 ? 'allocate' : 'close';
+    const r = dispose({ d, method });
+    return {
+      vars: { ...yearVars(d, c), method, wipAdj: r.wipAdj, fgAdj: r.fgAdj, cogsAdj: r.cogsAdj, wipShare: r.wipShare, fgShare: r.fgShare, cogsShare: r.cogsShare,
+        adjustedCogs: r.adjustedCogs, accounts: shuffled(rng, [A.cogs, A.moh, A.wip, A.fg, A.rm, A.sales, A.ap]), entries: [{ lines: quizLines(r.entries[0].lines) }],
+        wrongWrongWay: c.under ? d.costSold - c.amt : d.costSold + c.amt },
+      misconceptions: [
+        { var: 'wrongWrongWay', feedback: 'Wrong direction: underapplied overhead **adds** to COGS; overapplied subtracts.', for: 'adjustedCogs' },
+        { value: d.costSold, feedback: 'You left COGS unadjusted. The Manufacturing Overhead balance must be closed out.', for: 'adjustedCogs' },
+      ],
+    };
   }
   function incomeQ({ rng }) {
+    for (;;) {
     const d = randomYear(rng);
     const c = cycleCore(d);
     const r = incomeCore(d, 'close');
+    if (r.ni <= 0) continue;
     return {
       vars: { ...yearVars(d, c), sales: d.sales, saWages: d.labor.sa, insSA: c.insSA, advertising: d.advertising, deprSA: d.depreciation.sa,
         cogs: r.adjustedCogs, gm: r.gm, totalSA: r.totalSA, ni: r.ni,
         rows: r.rows.map((x) => clean({ label: x.label, amount: x.amount, style: x.style, indent: x.indent, blank: ['cogs', 'gm', 'sa', 'ni'].includes(x.id) || undefined })) },
       misconceptions: [
-        { value: d.sales - d.costSold - r.totalSA, feedback: 'Adjust COGS for the under- or overapplied overhead before computing net income.' },
-        { value: r.gm, feedback: 'That is gross margin. Subtract the selling and administrative (period) expenses too.' },
+        { value: d.sales - d.costSold - r.totalSA, feedback: 'Adjust COGS for the under- or overapplied overhead before computing net income.', for: 'ni' },
+        { value: r.gm, feedback: 'That is gross margin. Subtract the selling and administrative (period) expenses too.', for: 'ni' },
       ],
     };
+    }
+  }
+  // A whole year on fresh numbers: the integrative (level 3) problems.
+  function yearQ({ rng }) {
+    for (;;) {
+      const d = randomYear(rng);
+      const c = cycleCore(d);
+      const close = incomeCore(d, 'close');
+      const alloc = incomeCore(d, 'allocate');
+      const al = disposeCore(d, 'allocate');
+      // closing and allocating must give clearly different answers, or the two methods can't be told apart
+      if (al.adj.wip + al.adj.fg < 100) continue;
+      // keep to a profitable year, so the net income questions don't hinge on typing a loss
+      if (close.ni <= 0 || alloc.ni <= 0) continue;
+      const sign = c.under ? 1 : -1;
+      return {
+        vars: { ...yearVars(d, c), sales: d.sales, saWages: d.labor.sa, insSA: c.insSA, advertising: d.advertising, deprSA: d.depreciation.sa,
+          insTotal: d.insurance.total, insPct: d.insurance.factoryPct,
+          totalSA: close.totalSA, cogsClose: close.adjustedCogs, niClose: close.ni, gmClose: close.gm,
+          wipAdj: al.adj.wip, fgAdj: al.adj.fg, cogsAdjAlloc: al.adj.cogs, cogsAlloc: alloc.adjustedCogs, niAlloc: alloc.ni,
+          wipShare: al.share.wip, fgShare: al.share.fg, cogsShare: al.share.cogs, allocTotal: al.tot,
+          wrongWithSA: c.actualOH + c.insSA + d.depreciation.sa, wrongWipNoOH: c.bal.wip - c.applied, wrongWipActual: c.bal.wip - c.applied + c.actualOH,
+          wrongRmDirectOnly: d.opening.rm + d.purchases - d.issued.direct, wrongFgNoOpen: d.completed - d.costSold },
+        misconceptions: [
+          { var: 'wrongWithSA', feedback: 'Only factory costs are overhead. Selling and administrative insurance and depreciation are period expenses.', for: 'actualOH' },
+          { value: c.actualOH + d.labor.direct, feedback: 'Direct labor goes to Work in Process, not to Manufacturing Overhead.', for: 'actualOH' },
+          { value: c.rate * d.est.dl, feedback: 'Apply the rate to the **actual** direct labor cost, not the estimate.', for: 'applied' },
+          { var: 'wrongRmDirectOnly', feedback: 'Indirect materials leave the storeroom too: credit Raw Materials for both.', for: 'endRM' },
+          { var: 'wrongWipNoOH', feedback: 'Work in Process is also debited for overhead **applied**.', for: 'endWIP' },
+          { var: 'wrongWipActual', feedback: 'WIP receives **applied** overhead, not actual overhead.', for: 'endWIP' },
+          { var: 'wrongFgNoOpen', feedback: 'Start from the opening Finished Goods balance.', for: 'endFG' },
+          { value: d.costSold - sign * c.amt, feedback: 'Wrong direction: underapplied overhead **adds** to COGS; overapplied subtracts.', for: 'cogsClose' },
+          { value: d.costSold, feedback: 'Adjust COGS for the overhead balance before the income statement.', for: 'cogsClose' },
+          { value: d.sales - d.costSold - close.totalSA, feedback: 'Adjust COGS for the under- or overapplied overhead before computing net income.', for: ['niClose', 'niAlloc'] },
+          { value: close.gm, feedback: 'That is gross margin. Subtract the selling and administrative (period) expenses too.', for: 'niClose' },
+          { value: close.ni, feedback: 'That closes the whole balance to COGS. Allocation puts only COGS\'s share there; the rest stays in WIP and Finished Goods.', for: 'niAlloc' },
+          { value: d.sales - (d.costSold - sign * al.adj.cogs) - close.totalSA, feedback: 'Wrong direction: underapplied overhead **adds** to COGS; overapplied subtracts.', for: 'niAlloc' },
+        ],
+      };
+    }
   }
   function euQ({ rng, difficulty }) {
     for (;;) {
       const method = difficulty >= 2 ? 'fifo' : 'wa';
       const beg = { units: nice(rng, 1000, 20000, 1000), mat: rng.pick([1, 1, 0.6, 0.8]), conv: rng.pick([0.4, 0.5, 0.6, 0.8, 0.9]) };
+      // at 50% the work done last period equals the work still to do, so that FIFO slip would grade as correct
+      if (method === 'fifo' && beg.conv === 0.5) continue;
       const started = nice(rng, 50000, 200000, 5000);
       const end = { units: nice(rng, 5000, 30000, 1000), mat: rng.pick([1, 0.7, 0.5]), conv: rng.pick([0.2, 0.25, 0.3, 0.4, 0.5]) };
       const completed = beg.units + started - end.units;
@@ -718,10 +779,19 @@ export default function register(sdk) {
       const wa = equivUnits({ beg, completed, end, method: 'wa' });
       return {
         vars: { method: method === 'fifo' ? 'FIFO' : 'weighted-average', begUnits: beg.units, begMat: beg.mat, begConv: beg.conv, started, completed, endUnits: end.units, endMat: end.mat, endConv: end.conv,
-          euMat: r.euMat, euConv: r.euConv, sc: r.sc, waConv: wa.euConv, finishConv: r.finishConv },
+          euMat: r.euMat, euConv: r.euConv, sc: r.sc, waConv: wa.euConv, waMat: wa.euMat, finishConv: r.finishConv },
         misconceptions: method === 'fifo'
-          ? [{ var: 'waConv', feedback: 'That is the weighted-average figure. FIFO counts only the work done this period.' }, { value: r.sc + end.units * end.conv, feedback: 'You left out the work needed to finish the beginning inventory.' }]
-          : [{ value: completed + end.units, feedback: 'Ending inventory counts only at its percent complete.' }, { value: r.euConv - beg.units * beg.conv, feedback: 'That subtracts beginning inventory, which is FIFO. Weighted-average does not.' }],
+          ? [
+              { var: 'waConv', feedback: 'That is the weighted-average figure. FIFO counts only the work done this period.', for: 'euConv' },
+              { value: r.sc + end.units * end.conv, feedback: 'You left out the work needed to finish the beginning inventory.', for: 'euConv' },
+              { var: 'waMat', feedback: 'That is the weighted-average figure. FIFO leaves out the materials beginning inventory already had.', for: 'euMat' },
+              { value: completed, feedback: 'Subtract the beginning units: they were started last period.', for: 'sc' },
+              { value: beg.units * beg.conv, feedback: 'That is the work done last period. FIFO needs the work still to do, 100% minus the percent done.', for: 'finishConv' },
+            ]
+          : [
+              { value: completed + end.units, feedback: 'Ending inventory counts only at its percent complete.', for: 'euConv' },
+              { value: r.euConv - beg.units * beg.conv, feedback: 'That subtracts beginning inventory, which is FIFO. Weighted-average does not.', for: 'euConv' },
+            ],
       };
     }
   }
@@ -747,15 +817,30 @@ export default function register(sdk) {
       }
       if (added.mat <= 0 || added.conv <= 0) continue;
       const x = reportCore({ beg, started, completed, end, added, method });
+      const blankIds = x.r.filter((y) => 'amount' in y).map((y) => y.id);
       return {
         vars: { method: x.fifo ? 'FIFO' : 'weighted-average', begUnits: beg.units, begConv: beg.conv, begMatCost: beg.cost.mat, begConvCost: beg.cost.conv, started, completed, endUnits: end.units, endConv: end.conv,
           addMat: added.mat, addConv: added.conv, euMat: x.eu.mat, euConv: x.eu.conv, unitMat: x.unit.mat, unitConv: x.unit.conv, unitTotal: x.unit.mat + x.unit.conv,
-          transferred: x.transferred, endWip: x.endWip, total: x.total, begTotal: beg.cost.mat + beg.cost.conv, sc: completed - beg.units,
+          transferred: x.transferred, endWip: x.endWip, total: x.total, begTotal: beg.cost.mat + beg.cost.conv, sc: completed - beg.units, finishConv: beg.units * (1 - beg.conv),
           wrongNoBeg: x.transferred - beg.cost.mat - beg.cost.conv, wrongAllAtUnit: completed * (x.unit.mat + x.unit.conv), wrongUnitAddedOnly: added.conv / x.eu.conv, wrongUnitWithBeg: (added.conv + beg.cost.conv) / x.eu.conv,
-          recon: x.r.map((y) => clean({ label: y.label, amount: y.amount, style: y.style, indent: y.indent, blank: ['r-out', 'r-end', 'r-check'].includes(y.id) || undefined })) },
+          wrongEndCombined: end.units * (x.unit.mat + x.unit.conv),
+          // every amount is asked; labels lose their EU and unit-cost arithmetic so the learner works it out
+          recon: x.r.filter((y) => !('amount' in y) || Math.abs(y.amount) > 1e-9)
+            .map((y) => clean({ label: blankIds.includes(y.id) && y.plain ? y.plain : y.label, amount: y.amount, style: y.style, indent: y.indent, blank: blankIds.includes(y.id) || undefined })) },
         misconceptions: x.fifo
-          ? [{ var: 'wrongUnitWithBeg', feedback: 'FIFO unit costs exclude beginning inventory cost.' }, { value: added.conv / (completed + end.units * end.conv), feedback: 'FIFO equivalent units exclude work done on beginning inventory last period.' }]
-          : [{ var: 'wrongUnitAddedOnly', feedback: 'Weighted-average adds beginning inventory cost to the costs added.' }, { value: (added.conv + beg.cost.conv) / (completed + end.units), feedback: 'Ending inventory counts only at its percent converted.' }],
+          ? [
+              { var: 'wrongUnitWithBeg', feedback: 'FIFO unit costs exclude beginning inventory cost.', for: 'unitConv' },
+              { value: added.conv / (completed + end.units * end.conv), feedback: 'FIFO equivalent units exclude work done on beginning inventory last period.', for: 'unitConv' },
+              { value: completed + end.units * end.conv, feedback: 'That is the weighted-average count. FIFO leaves out the work done on beginning inventory last period.', for: 'euConv' },
+              { value: (completed - beg.units) + end.units * end.conv, feedback: 'Add the conversion work needed to finish the beginning inventory.', for: 'euConv' },
+              { var: 'wrongNoBeg', feedback: 'Add the cost already in beginning inventory; FIFO transfers it out first.', for: 'transferred' },
+              { var: 'wrongAllAtUnit', feedback: 'Under FIFO the beginning units carry their own cost plus only the cost to finish them.', for: 'transferred' },
+              { var: 'wrongEndCombined', feedback: 'Ending inventory is only partly converted: cost each category on its own equivalent units.', for: 'endWip' },
+            ]
+          : [
+              { var: 'wrongUnitAddedOnly', feedback: 'Weighted-average adds beginning inventory cost to the costs added.', for: 'unitConv' },
+              { value: (added.conv + beg.cost.conv) / (completed + end.units), feedback: 'Ending inventory counts only at its percent converted.', for: 'unitConv' },
+            ],
       };
     }
   }
@@ -768,8 +853,8 @@ export default function register(sdk) {
     return {
       vars: { process, inspect, move, wait, total: r.total, vaShare: r.vaShare, nva: r.nva, vaPct: 100 * r.vaShare, wrongNvaPct: (100 * r.nva) / r.total, wrongOnlyWaitPct: (100 * process) / (process + wait) },
       misconceptions: [
-        { var: 'wrongNvaPct', feedback: 'That is the non-value-added share. Only processing time adds value.' },
-        { var: 'wrongOnlyWaitPct', feedback: 'Manufacturing time includes inspection and move time too.' },
+        { var: 'wrongNvaPct', feedback: 'That is the non-value-added share. Only processing time adds value.', for: 'vaPct' },
+        { var: 'wrongOnlyWaitPct', feedback: 'Manufacturing time includes inspection and move time too.', for: 'vaPct' },
       ],
     };
   }
@@ -788,14 +873,19 @@ export default function register(sdk) {
       const totalDLH = units[0] * 2 + units[1] * 2;
       const s = sarver({ totalOH, totalDLH, products, activities });
       if ([s.abcOHA, s.abcOHB].some((v) => Math.abs(v * 100 - Math.round(v * 100)) > 1e-6)) continue;
+      // the old labor-hour figure must stay clearly apart from the ABC answer
+      if (Math.abs(s.abcOHA - s.tradOHA) < 0.5) continue;
       return {
         vars: { unitsA: units[0], unitsB: units[1], table: activities.map((a) => `| ${a.name} | ${P(a.cost)} | ${C(a.use[0] + a.use[1])} | ${C(a.use[0])} | ${C(a.use[1])} |`).join('\n'),
           firstName: activities[0].name, firstRate: activities[0].cost / (activities[0].use[0] + activities[0].use[1]), firstCost: activities[0].cost, firstTotal: activities[0].use[0] + activities[0].use[1],
           ohTotalA: s.ohTotalA, abcOHA: s.abcOHA, abcOHB: s.abcOHB, tradRate: s.tradRate, tradOHA: s.tradOHA, wrongTradA: s.tradOHA, wrongNoUnits: s.ohTotalA,
+          dmA: products[0].dm, dlA: products[0].dl, abcCostA: s.abcCostA, tradCostA: s.tradCostA,
           wrongRateInverse: (activities[0].use[0] + activities[0].use[1]) / activities[0].cost, wrongRateA: activities[0].cost / activities[0].use[0] },
         misconceptions: [
-          { var: 'wrongTradA', feedback: 'That is the old direct-labor-hour overhead. ABC sums the activities Product A actually uses.' },
-          { var: 'wrongNoUnits', feedback: 'That is Product A\'s total overhead; divide by its units for a per-unit figure.' },
+          { var: 'wrongTradA', feedback: 'That is the old direct-labor-hour overhead. ABC sums the activities Product A actually uses.', for: 'abcOHA' },
+          { var: 'wrongNoUnits', feedback: 'That is Product A\'s total overhead; divide by its units for a per-unit figure.', for: 'abcOHA' },
+          { value: s.tradOHA * units[0], feedback: 'That is the old labor-hour overhead for all of Product A. ABC adds each activity rate times A\'s own driver use.', for: 'ohTotalA' },
+          { var: 'tradCostA', feedback: 'That is the old unit cost, with labor-hour overhead. Use the ABC overhead per unit.', for: 'abcCostA' },
         ],
       };
     }
@@ -807,8 +897,8 @@ export default function register(sdk) {
     const y = intercept + slope * x;
     return { vars: { intercept, slope, x, y, wrongNoFixed: slope * x, wrongFixedOnly: intercept + slope },
       misconceptions: [
-        { var: 'wrongNoFixed', feedback: 'You left out the fixed part (the intercept).' },
-        { var: 'wrongFixedOnly', feedback: 'Multiply the slope by the number of hours.' },
+        { var: 'wrongNoFixed', feedback: 'You left out the fixed part (the intercept).', for: 'y' },
+        { var: 'wrongFixedOnly', feedback: 'Multiply the slope by the number of hours.', for: 'y' },
       ] };
   }
   function pohrQ({ rng }) {
@@ -818,8 +908,8 @@ export default function register(sdk) {
     const r = parkerJob({ budgetOH: rate * mh, budgetMH: mh, job });
     return { vars: { budgetOH: rate * mh, budgetMH: mh, dm: job.dm, dl: job.dl, jobMH: job.mh, rate, oh: r.oh, total: r.total, wrongInverse: mh / (rate * mh), wrongNoOH: job.dm + job.dl },
       misconceptions: [
-        { var: 'wrongNoOH', feedback: 'Add the overhead applied (machine-hours × rate).' },
-        { value: job.dm + job.dl + rate * job.dl, feedback: 'The rate is per machine-hour, not per peso of labor.' },
+        { var: 'wrongNoOH', feedback: 'Add the overhead applied (machine-hours × rate).', for: 'total' },
+        { value: job.dm + job.dl + rate * job.dl, feedback: 'The rate is per machine-hour, not per peso of labor.', for: 'total' },
       ] };
   }
 
@@ -828,6 +918,6 @@ export default function register(sdk) {
       costEquation, costTotals, parkerJob, jobSheet, jobSheetSheet, jobSheetWalk, timeTicket, cycle, ledgerSheet, ledgerWalk, balances,
       dispose, income, incomeSheet, incomeWalk, equivUnits, productionReport, reportSheet, reportWalk, mfgTime, sarver, sarverView, activityRate,
     },
-    generators: { entryQ, overheadQ, balanceQ, disposeQ, incomeQ, euQ, reportQ, timeQ, abcQ, costEqQ, pohrQ },
+    generators: { entryQ, overheadQ, balanceQ, disposeQ, incomeQ, yearQ, euQ, reportQ, timeQ, abcQ, costEqQ, pohrQ },
   };
 }

@@ -32,7 +32,7 @@ case:
               - { label: 'lazy-model accuracy', value: '@sc.lazyAccuracy', format: 2, tone: warn }
         - id: syn
           widget: Callout
-          props: { kind: note, body: 'Synthetic school, in the spirit of SAGIP (TALAAN). The real national dropout rate is about 1.41%; 10% keeps the minority visible on screen.' }
+          props: { kind: note, body: 'Synthetic school, in the spirit of SAGIP. The real national dropout rate is about 1.41%; 10% keeps the minority visible on screen.' }
       decision:
         prompt: The vendor says the model is "90% accurate". What should you ask next?
         type: mcq
@@ -74,20 +74,18 @@ case:
       decision:
         prompt: The counsellor can visit at most 8 learners. Which threshold uses those visits best?
         type: mcq
-        options:
-          - '0.35: flags 8 and catches 3 of the 4 dropouts'
-          - '0.50: flags 4 and catches 2'
-          - '0.25: catches all 4 but flags more than 8'
-          - '0.90: flags nobody, so no visits are wasted'
-        answer: 0
+        options: ['0.35', '0.40', '0.50', '0.25']
+        shuffle: false
+        answer: 1
         model: |
-          At 0.35 exactly 8 learners are flagged and recall is 0.75. A higher cut-off wastes visits and misses a dropout. A
-          lower one catches the fourth dropout (score 0.27) but needs more visits than she has. The cut-off is a decision
-          about capacity, not part of the model itself. SAGIP shows it as Low/Medium/High levels you can adjust.
+          0.35 and 0.40 both catch 3 of the 4 dropouts (recall 0.75), but 0.40 flags only 7 learners, so it needs one
+          fewer visit and has higher precision (0.43 vs 0.38). 0.50 flags 4 but catches only 2. Catching the fourth
+          dropout (score 0.27) needs 0.25, which flags 15: more visits than she has. The cut-off is a decision about
+          capacity, not part of the model itself; SAGIP shows it as Low/Medium/High levels you can adjust.
     - id: tiers
       title: Risk levels instead of one cut-off
       say: |
-        SAGIP reports Low, Medium and High risk levels, which DepEd sets to match how many learners it can help. Here High
+        SAGIP reports Low, Medium and High risk levels, which DepEd (the Department of Education) sets to match how many learners it can help. Here High
         means a score of at least 0.6, and Medium at least 0.3.
       stage:
         - id: tier-t
@@ -104,8 +102,9 @@ case:
     - id: resample-or-not
       title: Would rebalancing help?
       say: |
-        In the Adult Income lab, every rebalancing method raised recall from 0.506 to above 0.82 and lowered precision.
-        [[roc-auc|ROC-AUC]] and PR-AUC, which measure how well the model **ranks** people, barely moved.
+        One school's 40 learners are too few to compare rebalancing methods, so borrow the Session 3 lab (Adult Income) as a
+        stand-in. There, every method raised recall from 0.506 to above 0.82 and lowered precision.
+        [[roc-auc|ROC-AUC]] and [[pr-auc|PR-AUC]], which measure how well the model **ranks** people, barely moved.
       stage:
         - id: res
           widget: Matrix
@@ -126,8 +125,9 @@ case:
     - id: price-errors
       title: Put a price on each error
       say: |
-        Suppose a missed case costs {=ratio|2} times as much as a false alarm. Working out FN and FP for the 2,922 minority
-        test rows from each method's precision and recall, the cheapest method is **{=cc.best}**.
+        Still using the lab as a stand-in: suppose a missed case costs {=ratio|2} times as much as a false alarm. Working
+        out FN and FP for the lab's 2,922 minority test rows from each method's precision and recall, the cheapest method
+        is **{=cc.best}**.
       stage:
         - id: ratio-s
           widget: Slider
@@ -140,7 +140,7 @@ case:
           widget: Callout
           props: { kind: beyond, body: 'Cost = ratio × FN + FP is not in the lecture. It makes "choose by the decision" concrete. FN and FP are approximate because the table is rounded.' }
       decision:
-        prompt: 'For dropout screening a missed learner is judged about 4× as costly as an unnecessary home visit. Which method?'
+        prompt: 'A school judges a missed dropout about 4× as costly as an unnecessary home visit. With that ratio, which method wins on the lab''s results?'
         type: mcq
         options: ['ADASYN', 'Baseline (no resampling)', 'SMOTE-NC', 'It does not matter']
         answer: 0
@@ -221,7 +221,7 @@ tradeoffs:
   rows:
     - ['Random undersampling', 'Deletes majority rows', 'Fast; tiny training set', 'Throws away real signal']
     - ['Random oversampling', 'Duplicates minority rows', 'Keeps all data', 'Overfits exact copies']
-    - ['SMOTE', 'Synthesizes points between minority neighbours', 'Smoother boundaries', 'Can invent points in the wrong region']
+    - ['SMOTE', 'Synthesizes points between minority neighbours', 'Fills the gaps between minority points', 'Can invent points in the wrong region']
     - ['SMOTE-NC', 'SMOTE that votes on categories', 'Correct for mixed data', 'Needs the categorical indices set right']
     - ['ADASYN', 'More synthetic points near the border', 'Highest recall, adaptive', 'Most false alarms; sensitive to noise']
     - ['Class weights (beyond the slides)', 'Weights the loss, not the rows', 'No new rows; scales to big data', 'Needs a model that supports weights']

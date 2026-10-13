@@ -4,6 +4,18 @@ terms:
     aka: [features, measurement, column]
     short: One piece of information the model reads about each case. Here, one of 30 measurements of a tumour, like its radius.
     skills: [global-local]
+  - id: feature-prefixes
+    term: 'Feature name prefixes: mean, worst, error'
+    aka: [worst, prefixes, prefix]
+    short: 'Each measurement is taken on many cells in a scan. "mean" averages them, "worst" averages the three largest, "error" says how much they vary.'
+    long: |
+      Ten measurements (radius, texture, perimeter, area, smoothness, compactness, concavity, concave points, symmetry,
+      fractal dimension) each come in three versions, giving 30 features. "error" is the standard error: how much the
+      measurement varies from cell to cell. In charts we shorten them: w. = worst, m. = mean, se. = error; rad = radius,
+      tex = texture, per = perimeter, smo = smoothness, comp = compactness, conc = concavity, c.pts = concave points,
+      sym = symmetry, fd = fractal dimension.
+    related: [feature]
+    skills: [global-local]
   - id: decision-tree
     term: Decision tree
     aka: [tree, trees]
@@ -83,7 +95,19 @@ terms:
     term: Correlated (twin) features
     aka: [twin features, twins, twin, correlated features, near-duplicate]
     short: Features that carry almost the same information, like worst radius, worst perimeter and worst area (correlation above 0.98).
-    long: Built-in importance splits their credit between them. Permutation importance can erase it, because the model still sees the twin.
+    long: |
+      Built-in importance splits their credit between them. Permutation importance can erase it, because the model still
+      sees the twin. Rankings inside a twin group are unstable, so judge the group as a whole.
+    related: [correlation]
+    skills: [correlation-trap]
+  - id: correlation
+    term: Correlation
+    aka: [correlated]
+    short: 'A number from −1 to 1 for how closely two features rise and fall together. Near 1: when one is big, so is the other.'
+    long: |
+      0 means no straight-line link. Near −1 means one rises as the other falls. Worst radius and worst area have a
+      correlation above 0.98, so knowing one tells you almost exactly the other.
+    related: [correlated-features]
     skills: [correlation-trap]
   - id: pdp
     term: Partial dependence plot (PDP)
@@ -100,7 +124,11 @@ terms:
     term: Shapley value
     aka: [Shapley]
     short: A fair share of credit for one player, found by averaging what they added over every order in which players could join.
-    formula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[f(S \cup \{j\}) - f(S)\big]'
+    long: |
+      φ ("phi") is the value. S is a set of features already known, F is all the features, and v(S) is the model's
+      answer when only the features in S are known. The notebook writes f(S); we write v(S) so that f(x) always means
+      the model's prediction for the case.
+    formula: '\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!\,(|F|-|S|-1)!}{|F|!}\,\big[v(S \cup \{j\}) - v(S)\big]'
     skills: [shapley]
   - id: additivity
     term: Additivity (local accuracy)
@@ -119,11 +147,30 @@ terms:
     aka: [baseline]
     short: The model's average prediction over a set of background cases. SHAP contributions start from it.
     long: Change the background cases and every contribution changes. For patient 205 it is 0.626 for P(benign).
+    related: [background-data]
     skills: [shapley]
+  - id: background-data
+    term: Background data
+    aka: [background cases, background]
+    short: Real cases SHAP borrows values from to fill in features treated as unknown, then averages the answers.
+    long: |
+      With every feature unknown, the averaged answer is the baseline. A different background set gives a different
+      baseline and different contributions, so report which one you used.
+    related: [baseline]
+    skills: [shapley]
+  - id: waterfall-plot
+    term: SHAP waterfall plot
+    aka: [waterfall, waterfall plot]
+    short: 'A chart of one prediction: start at the baseline at the bottom, each bar adds one feature''s push, the top is the prediction.'
+    long: |
+      Bars are sorted by size, the largest next to the prediction at the top. Bars pointing one way push towards the class
+      explained, the other way away from it. With many features the smallest are grouped into one "other features" bar.
+    related: [shap, baseline, additivity]
+    skills: [shap-reading]
   - id: tree-explainer
     term: TreeExplainer
     short: SHAP's fast, exact shortcut for tree models, so it does not have to try every combination of 30 features.
-    skills: [shapley]
+    skills: [shap-reading]
   - id: linear-model
     term: Linear model
     aka: [straight line, linear]
@@ -140,7 +187,17 @@ terms:
     term: Proximity kernel
     aka: [kernel]
     short: The rule that gives each changed copy a weight by how close it is to the case being explained. Closer counts more.
+    long: σ ("sigma") is the kernel width. In this module σ means only that; orders of features are written o.
     formula: '\pi_x(z) = e^{-d(x,z)^2/\sigma^2}'
+    skills: [lime]
+  - id: quartile-bins
+    term: Quartile bins
+    aka: [quartiles, quartile]
+    short: Four ranges cut at the values that split the training data into four equal-sized groups. Tabular LIME explains ranges like these.
+    long: |
+      That is why LIME's conditions read "worst texture ≤ 21.06" or "97.62 < worst perimeter ≤ 124.97": each is one
+      quartile bin of that feature, and the weight belongs to "being in this bin".
+    related: [lime]
     skills: [lime]
   - id: surrogate
     term: Surrogate model

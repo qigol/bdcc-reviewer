@@ -139,7 +139,15 @@ export const Gate = z.discriminatedUnion('type', [
     type: z.literal('predict'),
     question: Markdown,
     options: z.array(Markdown).optional(),
-    answer: z.union([z.number(), z.object({ value: z.number(), tol: z.number().optional() }).strict()]),
+    /** options are shown in a fixed shuffled order (default); false keeps the authored order (e.g. ascending ranges) */
+    shuffle: z.boolean().optional(),
+    /** feedback shown when the learner picks that option (key = option index) */
+    optionFeedback: z.record(z.string(), Markdown).optional(),
+    /**
+     * `percent: true` = the answer is in percent units (98.59 for 98.59%): the learner may type 98.59, 98.59% or 0.9859.
+     * Without it, a typed "18.7%" still matches an answer of 0.187 or 18.7.
+     */
+    answer: z.union([z.number(), z.object({ value: z.number(), tol: z.number().optional(), percent: z.boolean().optional() }).strict()]),
     explain: Markdown,
   }).strict(),
   z.object({ type: z.literal('when'), prompt: Markdown, when: z.string(), hint: Markdown.optional(), skippable: z.boolean().optional() }).strict(),
@@ -270,6 +278,10 @@ export const Cell = z
         prompt: Markdown,
         type: z.enum(['mcq', 'open']),
         options: z.array(Markdown).optional(),
+        /** options are shown in a fixed shuffled order (default); false keeps the authored order */
+        shuffle: z.boolean().optional(),
+        /** feedback shown when the learner picks that option (key = option index) */
+        optionFeedback: z.record(z.string(), Markdown).optional(),
         answer: z.number().int().optional(),
         model: Markdown,
       })
@@ -309,6 +321,8 @@ export const NumericAnswer = z
     tol: z.number().nonnegative().optional(),
     relTol: z.number().nonnegative().optional(),
     accept: z.array(z.enum(['decimal', 'fraction', 'percent'])).optional(),
+    /** the answer is in percent units (98.59 for 98.59%): 98.59, 98.59% and 0.9859 are all accepted */
+    percent: z.boolean().optional(),
   })
   .strict()
   .refine((a) => a.var !== undefined || a.value !== undefined, { message: 'answer needs `var` or `value`' });
@@ -342,7 +356,8 @@ export const QuizJournalEntry = z
       .refine((l) => (l.debit !== undefined) !== (l.credit !== undefined), { message: 'each line has exactly one of debit or credit' })).min(2),
   })
   .strict();
-export const QuizScheduleRow = ScheduleRow.extend({ blank: z.boolean().optional(), tol: z.number().nonnegative().optional() }).strict();
+/** `given`: column indexes of a blank row that stay printed (e.g. the physical-units column of an equivalent-units row) */
+export const QuizScheduleRow = ScheduleRow.extend({ blank: z.boolean().optional(), given: z.array(z.number().int().nonnegative()).optional(), tol: z.number().nonnegative().optional() }).strict();
 export const Template = z.discriminatedUnion('type', [
   z.object({ ...QBase, type: z.literal('mcq'), options: z.array(Markdown).optional(), answer: z.number().int().optional(), shuffle: z.boolean().optional(), optionFeedback: z.record(z.string(), Markdown).optional() }).strict(),
   z.object({ ...QBase, type: z.literal('multi'), options: z.array(Markdown).optional(), answer: z.array(z.number().int()).optional(), shuffle: z.boolean().optional() }).strict(),
@@ -437,7 +452,8 @@ export interface GeneratorOutput {
   vars: Record<string, Value>;
   options?: string[];
   answer?: number | number[];
-  misconceptions?: { var?: string; value?: number; feedback: string }[];
+  /** `for`: the answer var(s) this misconception explains; it is attached only to templates (or hand-calc steps) whose answer var matches. Without `for` it is attached to every numeric template of the generator. */
+  misconceptions?: { var?: string; value?: number; feedback: string; for?: string | string[] }[];
 }
 
 /** Fixed file names (guide §3.1). */

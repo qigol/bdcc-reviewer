@@ -179,7 +179,7 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
                   <Markdown text={cur.say} className="text-[15px]" />
                   {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
                   {cur.gate && cur.gate.type !== 'continue' && (
-                    <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`}
+                    <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`} seedKey={`${mod.id}:${scene.id}:${beat}`}
                       onAnswer={(correct, response) => { if (!mod.preview) db.attempts.add({ key: `${mod.id}/predict:${scene.id}:${beat}`, templateId: `predict:${scene.id}:${beat}`, moduleId: mod.id, seed: 0, type: 'predict', skills: scene.skills ?? [], score: correct ? 1 : 0, response, timeMs: 0, mode: 'predict', at: Date.now() }); }} />
                   )}
                   <div className="flex items-center gap-3">
