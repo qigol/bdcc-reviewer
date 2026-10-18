@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, CalendarClock, Dumbbell, GraduationCap, PlayCircle, Repeat, Target } from 'lucide-react';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
@@ -35,6 +36,28 @@ export function Dashboard() {
   const multiCourse = courses.length > 1;
   const q = (course: string) => encodeURIComponent(course);
 
+  // exactly one course is focused at a time, kept in the URL so reload and back preserve it
+  const [params, setParams] = useSearchParams();
+  const panel = useRef<HTMLElement>(null);
+  const scrollToPanel = useRef(false);
+  const known = (c: string | null | undefined) => (c && courses.some((g) => g.course === c) ? c : null);
+  const lastModule = last?.path.match(/^\/m\/([^/]+)/)?.[1];
+  const focused = known(params.get('course')) ?? (courses.length === 1 ? courses[0].course : known(lastModule ? courseOf(lastModule) : null));
+  const focusGroup = courses.find((g) => g.course === focused);
+  const toggleCourse = (course: string) => {
+    scrollToPanel.current = focused !== course;
+    setParams(focused === course ? {} : { course }, { replace: true });
+  };
+  useEffect(() => {
+    if (!scrollToPanel.current || !focused) return;
+    scrollToPanel.current = false;
+    panel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [focused]);
+  const courseMastery = (g: (typeof courses)[number]) => {
+    const skills = g.modules.flatMap((e) => (mods.find((m) => m.id === e.id)?.parsed.manifest.skills ?? []).map((s) => mastery.find((x) => x.skillKey === `${e.id}:${s.id}`)));
+    return skills.reduce((a, s) => a + (s?.score ?? 0), 0) / (skills.length || 1);
+  };
+
   if (store.listError) return (
     <div className="mx-auto max-w-xl p-10"><div className="card p-5"><div className="mb-1 flex items-center gap-2 font-semibold text-bad"><AlertTriangle size={18} /> Can't reach the Qdigo server</div><p className="text-sm text-muted">{store.listError}</p></div></div>
   );
@@ -69,26 +92,51 @@ export function Dashboard() {
         <button className="btn" onClick={() => nav('/quiz')}><Dumbbell size={15} /> Build a quiz</button>
       </div>
       {store.listLoaded && !store.list.length && <div className="card p-6 text-sm text-muted">No modules installed. Add one in <Link to="/admin" className="text-accent underline">Admin</Link>.</div>}
-      <div className="flex flex-col gap-8">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {courses.map((g) => {
-          const loaded = g.modules.map((e) => mods.find((m) => m.id === e.id)).filter((m): m is LoadedModule => !!m);
+          const on = g.course === focused;
           return (
-            <section key={g.course} aria-label={`${g.course} modules`} data-testid={`course-${g.course}`}>
-              <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-line pb-2">
-                <h3 className="mr-auto flex items-center gap-2 font-semibold"><GraduationCap size={18} className="text-accent" /> {g.course} <span className="text-xs font-normal text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</span></h3>
-                <Link to={`/quiz?course=${q(g.course)}`} className="btn btn-sm"><Dumbbell size={14} /> Quiz on {g.course}</Link>
+            <button
+              key={g.course}
+              type="button"
+              aria-expanded={on}
+              aria-controls="course-panel"
+              data-testid="course-card"
+              data-course={g.course}
+              onClick={() => toggleCourse(g.course)}
+              className={cn('card flex items-center gap-4 p-4 text-left transition hover:bg-panel2', on && 'ring-2 ring-accent')}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 font-semibold"><GraduationCap size={18} className="shrink-0 text-accent" /> <span className="truncate">{g.course}</span></div>
+                <div className="mt-1 text-xs text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</div>
+                <div className="mt-2 flex flex-wrap gap-1" aria-hidden>
+                  {g.modules.map((m) => <span key={m.id} className="h-2 w-2 rounded-full" style={{ background: m.color ?? 'rgb(var(--accent))' }} />)}
+                </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {loading && !loaded.length && g.modules.filter((e) => !errors[e.id]).map((m) => <div key={m.id} className="card h-56 animate-pulse" />)}
-                {loaded.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
-                {g.modules.filter((e) => errors[e.id]).map((e) => (
-                  <div key={e.id} className="card border-bad/40 p-4 text-sm"><div className="font-semibold text-bad">{e.id} failed to load</div><pre className="mt-1 whitespace-pre-wrap text-xs text-muted">{errors[e.id]}</pre></div>
-                ))}
-              </div>
-            </section>
+              <Ring value={courseMastery(g)} label="Mastery" color="rgb(var(--good))" />
+            </button>
           );
         })}
       </div>
+      {focusGroup && (() => {
+        const g = focusGroup;
+        const loaded = g.modules.map((e) => mods.find((m) => m.id === e.id)).filter((m): m is LoadedModule => !!m);
+        return (
+          <section ref={panel} id="course-panel" key={g.course} className="mt-6" aria-label={`${g.course} modules`} data-testid={`course-${g.course}`}>
+            <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-line pb-2">
+              <h3 className="mr-auto flex items-center gap-2 font-semibold"><GraduationCap size={18} className="text-accent" /> {g.course} <span className="text-xs font-normal text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</span></h3>
+              <Link to={`/quiz?course=${q(g.course)}`} className="btn btn-sm"><Dumbbell size={14} /> Quiz on {g.course}</Link>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {loading && !loaded.length && g.modules.filter((e) => !errors[e.id]).map((m) => <div key={m.id} className="card h-56 animate-pulse" />)}
+              {loaded.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
+              {g.modules.filter((e) => errors[e.id]).map((e) => (
+                <div key={e.id} className="card border-bad/40 p-4 text-sm"><div className="font-semibold text-bad">{e.id} failed to load</div><pre className="mt-1 whitespace-pre-wrap text-xs text-muted">{errors[e.id]}</pre></div>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       {weak.length > 0 && (
         <div className="mt-8">
