@@ -41,8 +41,7 @@ export function Dashboard() {
   const panel = useRef<HTMLElement>(null);
   const scrollToPanel = useRef(false);
   const known = (c: string | null | undefined) => (c && courses.some((g) => g.course === c) ? c : null);
-  const lastModule = last?.path.match(/^\/m\/([^/]+)/)?.[1];
-  const focused = known(params.get('course')) ?? (courses.length === 1 ? courses[0].course : known(lastModule ? courseOf(lastModule) : null));
+  const focused = known(params.get('course')) ?? (courses.length === 1 ? courses[0].course : null);
   const focusGroup = courses.find((g) => g.course === focused);
   const toggleCourse = (course: string) => {
     scrollToPanel.current = focused !== course;
@@ -73,7 +72,7 @@ export function Dashboard() {
           <PlayCircle className="shrink-0 text-accent" size={32} />
           <div className="min-w-0 flex-1">
             <div className="label">Resume where you left off</div>
-            {last ? <div className="truncate font-semibold">{last.title ?? last.path}</div> : <div className="text-sm text-muted">Nothing yet. Pick a module below and start with its first Intuition scene.</div>}
+            {last ? <div className="truncate font-semibold">{last.title ?? last.path}</div> : <div className="text-sm text-muted">Nothing yet. Pick a course below and start with its first Intuition scene.</div>}
             {last && <div className="text-xs text-muted">{timeAgo(last.at)}</div>}
           </div>
           {last && <button className="btn-primary" onClick={() => nav(last.path)}>Continue <ArrowRight size={15} /></button>}
