@@ -225,6 +225,39 @@ test('quiz progress survives the nudge popup, the glossary and leaving the page'
   expect(errors).toEqual([]);
 });
 
+test('main menu shows course cards; exactly one course is focused at a time', async ({ page, request }) => {
+  const errors = collectErrors(page);
+  const list: { id: string; enabled: boolean; course: string }[] = await (await request.get('/api/modules')).json();
+  const enabled = list.filter((m) => m.enabled);
+  const courses = [...new Set(enabled.map((m) => m.course))];
+  const count = (c: string) => enabled.filter((m) => m.course === c).length;
+  await page.goto('/');
+  const cards = page.getByTestId('course-card');
+  await expect(cards).toHaveCount(courses.length);
+  const panel = page.locator('#course-panel');
+  const moduleLinks = () => panel.getByRole('link', { name: /^Study$/ });
+
+  const a = courses[0];
+  const cardA = page.locator(`[data-testid=course-card][data-course="${a}"]`);
+  if (courses.length > 1) await expect(panel).toHaveCount(0);
+  else await expect(panel).toHaveCount(1); // a lone course is focused by default
+  if (courses.length > 1) await cardA.click();
+  await expect(panel).toHaveAttribute('aria-label', `${a} modules`);
+  await expect(moduleLinks()).toHaveCount(count(a));
+
+  if (courses.length > 1) {
+    const b = courses[1];
+    await page.locator(`[data-testid=course-card][data-course="${b}"]`).click();
+    await expect(panel).toHaveCount(1);
+    await expect(panel).toHaveAttribute('aria-label', `${b} modules`);
+    await expect(moduleLinks()).toHaveCount(count(b));
+    await expect(page.locator('[data-testid=course-card][aria-expanded=true]')).toHaveCount(1);
+    await page.locator(`[data-testid=course-card][data-course="${b}"]`).click();
+    await expect(panel).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('modules are grouped by course: top-bar course menu and course-scoped quizzes', async ({ page, request }) => {
   const errors = collectErrors(page);
   const list: { id: string; enabled: boolean; course: string; shortTitle: string }[] = await (await request.get('/api/modules')).json();
