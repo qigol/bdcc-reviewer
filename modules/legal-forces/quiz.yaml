@@ -1,0 +1,627 @@
+templates:
+  # ------------------------------------------------------------------ legal-systems
+  - id: law-systems-match
+    type: match
+    skills: [legal-systems]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: kinds-of-law }
+    prompt: Match each legal system to its main feature.
+    pairs:
+      - ['[[civil-law|Civil law]]', 'Written codes that try to cover every area; judges question witnesses']
+      - ['[[common-law|Common law]]', 'Earlier court decisions guide later ones; the trial is adversarial']
+      - ['[[religious-law|Religious law]]', 'A religious source is the basis of the law']
+    hints:
+      - Which system depends on earlier judgments?
+    explanation: Civil law is codified, common law grows from precedent, and religious law rests on a religious source.
+
+  - id: common-law-mcq
+    type: mcq
+    skills: [legal-systems]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: kinds-of-law }
+    prompt: In a common law system, a defendant is…
+    options:
+      - Presumed innocent until proven guilty
+      - Presumed guilty until proven innocent
+      - Questioned by the judge only
+      - Judged only by religious leaders
+    answer: 0
+    hints:
+      - Think of who has to prove the case.
+    explanation: In common law trials are adversarial and the defendant is presumed innocent until proven guilty.
+
+  - id: civil-law-multi
+    type: multi
+    skills: [legal-systems]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: kinds-of-law }
+    prompt: Which statements are true of civil law?
+    options:
+      - It is based on codification
+      - It comes from ancient Roman law
+      - It is the most widespread system in the world
+      - Judges actively question the prosecution, the defense and the witnesses
+      - It depends mainly on precedent
+    answer: [0, 1, 2, 3]
+    hints:
+      - Which option describes common law instead?
+    explanation: Civil law relies on written codes, not precedent, and its judges are inquisitorial.
+
+  - id: precedent-mcq
+    type: mcq
+    skills: [legal-systems]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: kinds-of-law }
+    prompt: A judge decides a case the same way an earlier court decided a similar one. The judge is following…
+    options:
+      - Precedent
+      - A treaty
+      - A trade secret
+      - Extraterritoriality
+    answer: 0
+    hints:
+      - Which word means an earlier decision?
+    explanation: Following earlier decisions is the use of precedent, central to common law.
+
+  # ------------------------------------------------------------------ corruption-index
+  - id: cpi-change-numeric
+    type: numeric
+    skills: [corruption-index]
+    difficulty: 1
+    tags: [math]
+    generator: cpiQ
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: |
+      In the Corruption Perceptions Index, **{=country}** ranked **{=earlier}** in {=from} and **{=later}** in {=to}. By how many places did its rank change? (Positive if it improved, negative if it got worse.)
+    answer: { var: change, tol: 0.5 }
+    misconceptions:
+      - { var: wrongSign, feedback: 'You have the sign backwards. A smaller rank number is better, so a fall in the number is an improvement.' }
+      - { var: wrongEarlier, feedback: 'That is the earlier rank itself. Subtract the later rank from it.' }
+    hints:
+      - A smaller rank number means less corruption.
+      - Change = earlier rank minus later rank.
+    explanation: |
+      $ {=earlier} - {=later} = {=change}$, so the rank {=direction}.
+
+  - id: cpi-handcalc
+    type: hand-calc
+    skills: [corruption-index]
+    difficulty: 2
+    tags: [math]
+    generator: cpiQ
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: |
+      Use the Corruption Perceptions Index table for **{=country}** between {=from} and {=to}.
+    steps:
+      - prompt: What was the rank in {=from}?
+        answer: { var: earlier, tol: 0.5 }
+        misconceptions:
+          - { var: later, feedback: 'That is the rank in the later year.' }
+        hint: Find the column for the earlier year.
+      - prompt: What was the rank in {=to}?
+        answer: { var: later, tol: 0.5 }
+        misconceptions:
+          - { var: earlier, feedback: 'That is the rank in the earlier year.' }
+        hint: Find the column for the later year.
+      - prompt: By how many places did the rank change (positive = improved)?
+        answer: { var: change, tol: 0.5 }
+        misconceptions:
+          - { var: wrongSign, feedback: 'Check the sign. Earlier minus later is positive when the rank number falls.' }
+        hint: Earlier minus later.
+    hints:
+      - Find the two ranks first.
+    explanation: |
+      Ranks: {=earlier} then {=later}. Change $= {=earlier} - {=later} = {=change}$.
+
+  - id: cpi-gap-numeric
+    type: numeric
+    skills: [corruption-index]
+    difficulty: 1
+    tags: [math]
+    generator: cpiGapQ
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: |
+      In {=year}, **{=a}** ranked **{=ra}** and **{=b}** ranked **{=rb}** in the Corruption Perceptions Index. How many places apart were they?
+    answer: { var: gap, tol: 0.5 }
+    misconceptions:
+      - { var: wrongSum, feedback: 'You added the ranks. The distance between them is their difference.' }
+      - { var: ra, feedback: 'That is just one country''s rank. Subtract one rank from the other.' }
+    hints:
+      - How far apart are two positions in a list?
+      - Subtract the smaller rank from the larger.
+    explanation: |
+      $|{=ra} - {=rb}| = {=gap}$ places.
+
+  - id: cpi-compare-mcq
+    type: mcq
+    skills: [corruption-index]
+    difficulty: 1
+    tags: [math]
+    generator: cpiGapQ
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: |
+      In {=year}, **{=a}** ranked **{=ra}** and **{=b}** ranked **{=rb}** in the Corruption Perceptions Index. Which was seen as less corrupt?
+    hints:
+      - Rank 1 is the best.
+    explanation: |
+      The smaller rank number is better, so the country ranked {=cleaner} was seen as less corrupt.
+
+  - id: fcpa-mcq
+    type: mcq
+    skills: [corruption-index]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: rule-and-corruption }
+    prompt: What does the U.S. Foreign Corrupt Practices Act forbid?
+    options:
+      - Paying foreign government officials to receive special treatment
+      - Paying any foreign supplier for goods
+      - Hiring foreign workers
+      - Selling goods abroad
+    answer: 0
+    hints:
+      - The word corrupt is the clue.
+    explanation: The act forbids bribing foreign officials. Facilitating payments for routine services are allowed.
+
+  - id: cpi-code
+    type: code-fill
+    skills: [corruption-index]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: Complete the function that finds how a rank changed.
+    code: |
+      def rank_change(earlier, later):
+          return __BLANK_1__ - __BLANK_2__
+    blanks:
+      '1': { accept: ['earlier'] }
+      '2': { accept: ['later'] }
+    hints:
+      - A positive answer should mean the country improved.
+    explanation: Earlier minus later is positive when the rank number got smaller.
+
+  - id: rule-law-multi
+    type: multi
+    skills: [corruption-index]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: rule-and-corruption }
+    prompt: Which are true about the rule of law?
+    options:
+      - Countries governed by the rule of law tend to attract foreign investment
+      - Such countries tend to protect their citizens' human rights
+      - It means rulers can change the law whenever they like
+      - It applies only to private companies
+    answer: [0, 1]
+    hints:
+      - The rule of law limits those in power.
+    explanation: Under the rule of law, laws bind everyone, which encourages investment and protects rights.
+
+  # ------------------------------------------------------------------ intl-law
+  - id: public-private-match
+    type: match
+    skills: [intl-law]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: law-between-nations }
+    prompt: Match each kind of international rule to what it governs.
+    pairs:
+      - ['[[public-international-law|Public international law]]', 'Relationships between governments']
+      - ['[[private-international-law|Private international law]]', 'Relationships between people and companies in different countries']
+      - ['[[treaty|Treaty]]', 'A formal agreement between countries']
+      - ['[[customary-international-law|Customary international law]]', 'Rules that grew from customs over centuries']
+    hints:
+      - Which one is about companies?
+    explanation: International rules come from agreements and from long custom, and apply to governments or to private parties.
+
+  - id: arbitration-mcq
+    type: mcq
+    skills: [intl-law]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: settling-disputes }
+    prompt: Why do many international contracts name arbitration instead of court?
+    options:
+      - It is usually quicker, cheaper and more private
+      - A world court will always enforce its ruling
+      - It avoids having any contract
+      - It is required by every treaty
+    answer: 0
+    hints:
+      - No world court can enforce its decrees.
+    explanation: Arbitration is faster, less costly and private. No worldwide court can force parties to obey.
+
+  - id: clauses-match
+    type: match
+    skills: [intl-law]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: settling-disputes }
+    prompt: Match each clause or term to its job.
+    pairs:
+      - ['[[choice-of-law|Choice-of-law provision]]', 'Says which country''s law governs the contract']
+      - ['[[choice-of-forum|Choice-of-forum clause]]', 'Says where a dispute will be settled']
+      - ['[[arbitration|Arbitration]]', 'Settles a dispute outside the courts']
+      - ['[[litigation|Litigation]]', 'A court case to decide legal rights']
+    hints:
+      - Law versus place.
+    explanation: A contract can fix both the law that applies and the place where disputes are settled.
+
+  - id: extraterritorial-mcq
+    type: mcq
+    skills: [intl-law]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: law-between-nations }
+    prompt: A country applies its antitrust law to a foreign company's actions that happen entirely abroad. This is…
+    options:
+      - Extraterritoriality
+      - Arbitration
+      - Precedent
+      - Privatization
+    answer: 0
+    hints:
+      - Territory means land; extra means beyond.
+    explanation: Extraterritorial application means a country tries to apply its laws beyond its borders.
+
+  - id: contracts-multi
+    type: multi
+    skills: [intl-law]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: settling-disputes }
+    prompt: Which statements about international contracts are true?
+    options:
+      - No worldwide court can enforce its decrees
+      - The UN Convention on the International Sale of Goods helps solve jurisdiction problems
+      - Cross-border litigation raises the question of which country's law applies
+      - Courts everywhere must follow one world contract law
+    answer: [0, 1, 2]
+    hints:
+      - Which option sounds too good to be true?
+    explanation: There is no world court and no single contract law, which is why clauses and conventions matter.
+
+  # ------------------------------------------------------------------ incoterms
+  - id: inco-price-numeric
+    type: numeric
+    skills: [incoterms]
+    difficulty: 1
+    tags: [math]
+    generator: incoQ
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: |
+      Goods cost **{=fob|comma}** on board the ship (FOB price). Freight to the destination port is **{=freight|comma}** and insurance is **{=insurance|comma}**. What price does a seller quote under **{=term}**?
+    answer: { var: price, tol: 0.5 }
+    misconceptions:
+      - { var: wrongFob, feedback: 'That is only the FOB price. CFR and CIF add freight; CIF adds insurance too.' }
+      - { var: wrongAll, feedback: 'You added a cost that is not part of this term. Check what the term includes.' }
+    hints:
+      - CFR includes freight. CIF includes freight and insurance.
+      - Start from the FOB price and add what the term covers.
+    explanation: |
+      Under {=term} the quote is {=price|comma}.
+
+  - id: inco-fas-numeric
+    type: numeric
+    skills: [incoterms]
+    difficulty: 2
+    tags: [math]
+    generator: incoQ
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: |
+      Goods cost **{=fob|comma}** on board the ship (FOB price). Loading them onto the ship costs **{=loading|comma}**, freight is **{=freight|comma}** and insurance is **{=insurance|comma}**. What price does the seller quote under **{=term}**?
+    answer: { var: price, tol: 0.5 }
+    misconceptions:
+      - { var: wrongFob, feedback: 'That is the FOB price. The terms differ in what the seller includes.' }
+      - { var: wrongAll, feedback: 'You added everything, including costs that this term leaves to the buyer or the seller.' }
+    hints:
+      - FAS stops at the ship's side, before loading.
+      - FAS price = FOB price minus loading. CFR and CIF add freight.
+    explanation: |
+      Under {=term} the quote is {=price|comma}.
+
+  - id: inco-total-numeric
+    type: numeric
+    skills: [incoterms]
+    difficulty: 2
+    tags: [math]
+    generator: incoQ
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: |
+      Goods cost **{=fob|comma}** on board, freight is **{=freight|comma}** and insurance is **{=insurance|comma}**. Whatever term is used, what is the total cost of getting the goods to the destination port insured?
+    answer: { var: total, tol: 0.5 }
+    misconceptions:
+      - { var: wrongFob, feedback: 'That leaves out freight and insurance.' }
+      - { var: wrongNoIns, feedback: 'You left out insurance.' }
+    hints:
+      - The costs are the same; only who pays them changes.
+    explanation: |
+      Total $= {=fob|comma} + {=freight|comma} + {=insurance|comma} = {=total|comma}$.
+
+  - id: inco-buyer-numeric
+    type: numeric
+    skills: [incoterms]
+    difficulty: 3
+    tags: [math]
+    generator: incoQ
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: |
+      Goods cost **{=fob|comma}** on board (FOB price). Loading costs **{=loading|comma}**, freight **{=freight|comma}** and insurance **{=insurance|comma}**. The seller quotes under **{=term}**. How much must the buyer pay on top of the quoted price to cover the rest of the costs to the destination port?
+    answer: { var: buyerExtra, tol: 0.5 }
+    misconceptions:
+      - { var: wrongBuyer, feedback: 'That is the quoted price itself. Work out the costs it does not include.' }
+      - { var: wrongAll, feedback: 'That is the cost of everything. Take away what the quote already includes.' }
+    hints:
+      - Total costs minus what the quote covers.
+      - For FAS the loading is also left to the buyer.
+    explanation: |
+      Costs to destination (FOB + freight + insurance) are {=total|comma}. The quote covers {=price|comma}. The buyer pays {=buyerExtra|comma} more.
+
+  - id: inco-handcalc
+    type: hand-calc
+    skills: [incoterms]
+    difficulty: 3
+    tags: [math]
+    generator: incoQ
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: |
+      FOB price **{=fob|comma}**, loading **{=loading|comma}**, freight **{=freight|comma}**, insurance **{=insurance|comma}**. The seller quotes under **{=term}**.
+    steps:
+      - prompt: What is the quoted price?
+        answer: { var: price, tol: 0.5 }
+        misconceptions:
+          - { var: wrongFob, feedback: 'Check what this term adds to or removes from the FOB price.' }
+        hint: Start at FOB and apply the term.
+      - prompt: What is the total cost of getting the goods to the port insured?
+        answer: { var: total, tol: 0.5 }
+        misconceptions:
+          - { var: wrongFob, feedback: 'Add freight and insurance to the FOB price.' }
+        hint: FOB plus freight plus insurance.
+      - prompt: How much does the buyer pay on top of the quote?
+        answer: { var: buyerExtra, tol: 0.5 }
+        misconceptions:
+          - { var: wrongBuyer, feedback: 'That is the quote. Subtract it from the total.' }
+        hint: Total minus quote.
+    hints:
+      - Take it one step at a time.
+    explanation: |
+      Quote {=price|comma}; total {=total|comma}; buyer pays {=buyerExtra|comma} on top.
+
+  - id: inco-terms-match
+    type: match
+    skills: [incoterms]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: shipping-terms }
+    prompt: Match each term to what it covers.
+    pairs:
+      - ['[[fas|FAS]]', 'Seller pays up to the ship''s side; risk passes alongside the ship']
+      - ['[[fob|FOB]]', 'Seller puts the goods on board; risk passes on board']
+      - ['[[cfr|CFR]]', 'Price includes goods and freight; buyer buys insurance']
+      - ['[[cif|CIF]]', 'Price includes goods, insurance and freight']
+    hints:
+      - Which term covers the most?
+    explanation: The four terms differ in how far the seller's costs and risk go.
+
+  - id: inco-code
+    type: code-fill
+    skills: [incoterms]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: Complete the CIF price function.
+    code: |
+      def cif_price(fob, freight, insurance):
+          return fob + __BLANK_1__ + __BLANK_2__
+    blanks:
+      '1': { accept: ['freight', 'insurance'] }
+      '2': { accept: ['insurance', 'freight'] }
+    hints:
+      - CIF stands for cost, insurance and freight.
+    explanation: A CIF price covers the goods, the freight and the insurance.
+
+  - id: inco-order
+    type: order
+    skills: [incoterms]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: incoterm-price }
+    prompt: Put the terms in order from the one that covers the least of the seller's costs to the most (starting from FAS).
+    items:
+      - FAS
+      - FOB
+      - CFR
+      - CIF
+    hints:
+      - What does each term add?
+    explanation: FAS stops alongside the ship, FOB adds loading, CFR adds freight and CIF adds insurance.
+
+  # ------------------------------------------------------------------ ip-rights
+  - id: ip-match
+    type: match
+    skills: [ip-rights]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: protecting-ideas }
+    prompt: Match each kind of intellectual property to what it protects.
+    pairs:
+      - ['[[patent|Patent]]', 'An invention or process, with exclusive rights to make and sell it']
+      - ['[[trademark|Trademark]]', 'A shape, color, phrase or sound that marks a product']
+      - ['[[copyright|Copyright]]', 'Works by authors, artists, composers and software makers']
+      - ['[[trade-secret|Trade secret]]', 'Confidential information such as a formula']
+    hints:
+      - Which one needs no registration?
+    explanation: Each kind of intellectual property protects a different kind of creation.
+
+  - id: trade-secret-mcq
+    type: mcq
+    skills: [ip-rights]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: protecting-ideas }
+    prompt: What is true of trade secrets?
+    options:
+      - They are the most common type of IP protection and need no government registration
+      - They must be registered at the patent office
+      - They only protect songs and books
+      - They last forever without any effort
+    answer: 0
+    hints:
+      - Think of a secret recipe.
+    explanation: A trade secret is any confidential business information. Keeping it secret is the protection.
+
+  - id: ip-treaties-mcq
+    type: mcq
+    skills: [ip-rights]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: protecting-ideas }
+    prompt: Which agreement is named in the lecture as protecting copyrights?
+    options:
+      - The Berne Convention
+      - The Madrid Agreement
+      - The FCPA
+      - The Jamaica Agreement
+    answer: 0
+    hints:
+      - The Madrid Agreement covers trademarks.
+    explanation: Copyrights are protected by the Berne Convention, WIPO and TRIPS. The Madrid Agreement of 1891 covers international trademark registration.
+
+  - id: ip-multi
+    type: multi
+    skills: [ip-rights]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: protecting-ideas }
+    prompt: Which statements about intellectual property and property rights are true?
+    options:
+      - Patent laws vary widely from country to country
+      - Property rights can be violated by private actions such as theft and piracy
+      - Property rights can also be violated by public actions such as bribes and excessive taxes
+      - Intellectual property is protected the same way everywhere
+    answer: [0, 1, 2]
+    hints:
+      - Which option says everywhere?
+    explanation: Protection varies by country, and both private and public actions can violate property rights.
+
+  # ------------------------------------------------------------------ national-laws
+  - id: antitrust-mcq
+    type: mcq
+    skills: [national-laws]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: laws-at-home }
+    prompt: Competitors secretly agree to charge the same high price. Which law targets this?
+    options:
+      - Antitrust (competition) law
+      - Tort law
+      - Accounting law
+      - Copyright law
+    answer: 0
+    hints:
+      - Price fixing is one example named in the lecture.
+    explanation: Antitrust law prevents price fixing, market sharing and monopolies.
+
+  - id: strict-mcq
+    type: mcq
+    skills: [national-laws]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: laws-at-home }
+    prompt: Under strict liability, an injured customer must…
+    options:
+      - Show the product caused the harm, not that the maker was careless
+      - Prove the maker was careless
+      - Pay the maker's costs
+      - Settle in arbitration only
+    answer: 0
+    hints:
+      - Strict means no proof of carelessness is needed.
+    explanation: Strict liability holds the designer or maker liable for harm caused by a product, without proof of negligence.
+
+  - id: accounting-match
+    type: match
+    skills: [national-laws]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: laws-at-home }
+    prompt: Match each term to its meaning.
+    pairs:
+      - ['[[antitrust-law|Antitrust law]]', 'Stops firms abusing market power']
+      - ['[[tort|Tort]]', 'An injury inflicted on someone, on purpose or by carelessness']
+      - ['[[ifrs|IFRS]]', 'The accounting standards used by the EU and most countries']
+      - ['[[sarbanes-oxley|Sarbanes-Oxley]]', 'A U.S. law that raised standards after accounting scandals']
+    hints:
+      - Which one is an accounting standard?
+    explanation: These national laws and standards cover competition, injury and accounting.
+
+  - id: tort-multi
+    type: multi
+    skills: [national-laws]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: laws-at-home }
+    prompt: Which statements about product liability are true?
+    options:
+      - A company and its officers and directors can be held liable when a product causes death or injury
+      - Fines or imprisonment are possible
+      - Strict liability does not need proof of negligence
+      - A manager abroad is always judged by the law of their home country
+    answer: [0, 1, 2]
+    hints:
+      - Employees abroad must follow local law.
+    explanation: Liability can reach officers and directors, and employees abroad are subject to local law.
+
+  - id: law-code
+    type: code-fill
+    skills: [ip-rights, national-laws]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: which-law }
+    prompt: Complete the rule lookup.
+    code: |
+      RULES = {"invention": "Patent", "price-fixing": "Antitrust law"}
+
+      def which_law(issue):
+          return RULES[__BLANK_1__]
+    blanks:
+      '1': { accept: ['issue'] }
+    hints:
+      - Which variable names the situation?
+    explanation: The situation is the key, and the rule is the value.
+
+  - id: cpi-best-code
+    type: code-fill
+    skills: [corruption-index]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: Complete the function that finds the best-ranked country in a year.
+    code: |
+      def best_country(ranks):
+          return __BLANK_1__(ranks, key=ranks.get)
+    blanks:
+      '1': { accept: ['min'] }
+    hints:
+      - Rank 1 is best, so the best country has the smallest number.
+    explanation: The least corrupt country has the smallest rank number.
+
+  - id: cpi-steps-order
+    type: order
+    skills: [corruption-index]
+    difficulty: 1
+    tags: [math]
+    lessonRef: { tab: math-code, id: cpi-ranks }
+    prompt: Put the steps for finding how a country's rank changed in order.
+    items:
+      - Find the country's rank in the earlier year
+      - Find the country's rank in the later year
+      - Subtract the later rank from the earlier rank
+      - Read the sign. Positive means the country improved
+    hints:
+      - You need both ranks before you subtract.
+    explanation: The sign comes last, because it only means something after the subtraction.

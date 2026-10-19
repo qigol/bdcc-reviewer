@@ -1,0 +1,143 @@
+intro: |
+  Before opening a factory or shop abroad, a company reads the economy: how rich people are, what money buys, what labor
+  costs and what the country owes. This case puts those readings together for one decision.
+case:
+  id: shoe-maker
+  title: A Cebu shoe maker looks at Thailand
+  story: |
+    Cebu Soles makes leather shoes and is thinking of opening a small factory in Thailand. The owner reads the economy
+    first. A basket of five goods costs 1,865 baht in Thailand and 160.05 dollars in the United States. A Thai factory
+    would pay **50,000 dollars** in direct labor to make **10,000 pairs**. A comparable factory at home pays 70,000
+    dollars for the same 10,000 pairs.
+  data: [basket]
+  state:
+    totalLabor: 50000
+    units: 10000
+    homeLabor: 70000
+    atlas: 10590
+    ppp: 36920
+    income: 18000
+    tax: 2000
+    essentials: 11000
+  derive:
+    - { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, out: x }
+    - { fn: basketPPP, in: { table: '@basket' }, out: b }
+    - { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, out: u }
+    - { fn: unitLaborCost, in: { totalLabor: '@homeLabor', units: '@units' }, out: h }
+    - { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, out: a }
+  cells:
+    - id: price-level
+      title: What does money buy there?
+      say: |
+        The same five goods cost 1,865 baht in Thailand and 160.05 dollars in the United States. The ratio shows what the
+        market exchange rate hides: how far a dollar goes in the shops.
+      stage:
+        - id: basket-r
+          widget: Readout
+          props:
+            items:
+              - { label: Basket in baht, value: '@b.bahtTotal' }
+              - { label: Basket in dollars, value: '@b.usdTotal' }
+              - { label: Implied baht per dollar, value: '@b.rate', format: 2, tone: good }
+      decision:
+        prompt: Suppose the market rate were 35 baht per dollar while PPP implies about 11.65. What would that say about prices in Thailand?
+        type: mcq
+        options: ['Local prices are low, so a dollar buys much more than the market rate suggests', Local prices are higher than in the United States, The two countries have the same prices, Nothing can be said]
+        answer: 0
+        model: PPP implies fewer baht per dollar than the market rate, so the same basket costs less when converted at the market rate. Local goods and services are cheap.
+    - id: labor
+      title: What does labor cost per pair?
+      say: |
+        Compare labor cost per pair at the two sites. The lower number is attractive, but pay and productivity both
+        matter.
+      stage:
+        - id: ulc-r
+          widget: Readout
+          props:
+            items:
+              - { label: Thai unit labor cost, value: '@u.ulc', format: 2, tone: good }
+              - { label: Home unit labor cost, value: '@h.ulc', format: 2, tone: accent }
+      decision:
+        prompt: Which site has the lower unit labor cost, and by how much per pair?
+        type: mcq
+        options: ['Thailand, by 2 dollars', 'Home, by 2 dollars', 'Thailand, by 20,000 dollars', They are equal]
+        answer: 0
+        model: Thailand costs 5 dollars per pair and home costs 7. The difference is 2 dollars per pair.
+    - id: market
+      title: Is the market itself worth entering?
+      say: |
+        The owner also wants to sell in Thailand. Income at PPP is far higher than at Atlas rates in a country like
+        Turkey, and the same pattern often holds for middle-income markets.
+      stage:
+        - id: market-r
+          widget: Readout
+          props:
+            items:
+              - { label: 'Example: Atlas income', value: '@atlas' }
+              - { label: 'Example: PPP income', value: '@ppp' }
+              - { label: Ratio, value: '@a.ratio', format: 2, tone: accent }
+      decision:
+        prompt: What can you say about the buying power of a middle-income market like this one?
+        type: open
+        model: |
+          Measured at PPP, incomes buy about three times more than the Atlas figure suggests, so local buying power is
+          greater than the exchange rate makes it look. Still, income may be unevenly shared, so check distribution and
+          discretionary income too.
+    - id: household
+      title: Who can afford a pair of shoes?
+      say: |
+        A typical household earns 18,000 dollars (at PPP), pays 2,000 in taxes and spends 11,000 on essentials. Shoes are
+        not essential, so what counts is the money left over.
+      stage:
+        - id: house-r
+          widget: Readout
+          props:
+            items:
+              - { label: Income, value: '@income' }
+              - { label: Disposable income, value: '@x.disposable', tone: accent }
+              - { label: Discretionary income, value: '@x.discretionary', tone: good }
+      decision:
+        prompt: How much discretionary income does this household have, and what does it suggest about demand for shoes?
+        type: mcq
+        options: ['5,000 dollars, so there is some room to buy non-essentials', '16,000 dollars, so demand is very strong', 'Nothing is left, so there is no demand', '18,000 dollars, because taxes do not matter']
+        answer: 0
+        model: Disposable income is 16,000 and essentials take 11,000, leaving 5,000. That is room for non-essentials such as shoes, but not a lot.
+    - id: risks
+      title: What could go wrong?
+      say: |
+        Large foreign debt, an underground economy and slow growth can all hurt a plan. A heavily indebted government may
+        restrict imports to save foreign currency, which could block the leather the factory needs.
+      stage:
+        - id: beyond-note
+          widget: Callout
+          props:
+            kind: beyond
+            title: Beyond the slides
+            body: Real site choices also weigh taxes, transport, skills and incentives. The lecture covers the economic indicators.
+      decision:
+        prompt: The government of the host country is heavily indebted. Which risk matters most to the factory?
+        type: mcq
+        options: [Import restrictions that make it hard to buy leather abroad, A fall in the Gini index, A rise in population density, Lower GNI per capita in another country]
+        answer: 0
+        model: Indebted governments may restrict imports to conserve foreign currency, which could hurt a factory that needs imported inputs.
+explainBack:
+  prompt: |
+    Explain to a friend how purchasing power parity differs from the market exchange rate, and why unit labor cost is a
+    better guide than wage rates alone.
+  rubric:
+    - Says PPP compares what the same basket of goods costs
+    - Says unit labor cost combines pay and output
+    - Gives one other indicator to check, such as debt or income distribution
+atScale:
+  title: In practice
+  body: |
+    Analysts pull these indicators from the World Bank, the International Monetary Fund and national statistics offices, and
+    update them as new releases appear. Many firms build dashboards that track GNI per capita, growth, inflation, debt and
+    unit labor cost for a short list of target countries.
+tradeoffs:
+  title: Where to site the factory
+  columns: [Option, Strength, Risk]
+  rows:
+    - [Thailand, 'Lower unit labor cost, growing market', 'Exchange rate swings, unfamiliar rules']
+    - [Stay at home, 'Known rules, no currency risk', Higher labor cost]
+    - [Partner with a local firm, 'Local knowledge, shared risk', Less control]

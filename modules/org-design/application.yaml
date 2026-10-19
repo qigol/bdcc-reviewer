@@ -1,0 +1,147 @@
+intro: |
+  Organizing a growing company means choosing layers, structure, who decides, how profit is booked and how much control to
+  keep. This case works through each choice for one electronics maker.
+case:
+  id: circuit-maker
+  title: A Laguna circuit maker spreads across Asia
+  story: |
+    Luzon Circuits employs **1,000** people in Laguna with a span of control of 10. It has two subsidiaries: **Alpha** in a
+    high-tax country (50%) and **Beta** in a low-tax one (20%). Together they earn 100 million before tax. Headquarters
+    makes 30 of 50 key decisions. A joint venture partner in Vietnam owns 60% of a new plant while Luzon Circuits owns 40%.
+    The company follows a transnational strategy.
+  data: [transfer, structures]
+  state:
+    employees: 1000
+    span: 10
+    alphaPretax: 60
+    betaPretax: 40
+    alphaRate: 0.5
+    betaRate: 0.2
+    hq: 30
+    total: 50
+    sharePct: 40
+    strategy: transnational
+  derive:
+    - { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' }, out: h }
+    - { fn: centralization, in: { hq: '@hq', total: '@total' }, out: c }
+    - { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, out: t }
+    - { fn: ownershipControl, in: { sharePct: '@sharePct' }, out: o }
+    - { fn: cultureFor, in: { strategy: '@strategy' }, out: k }
+  cells:
+    - id: layers
+      title: How tall is the company?
+      say: |
+        With 1,000 employees and a span of 10, the company needs three layers of management. Widening the span would flatten
+        it.
+      stage:
+        - id: layers-r
+          widget: Readout
+          props:
+            items:
+              - { label: Layers of management, value: '@h.layers', tone: accent }
+              - { label: Managers in all, value: '@h.managers', tone: good }
+      decision:
+        prompt: Management proposes a span of 20 to save on managers. What is the likely trade-off?
+        type: mcq
+        options: [Fewer managers and layers but less attention per person, More managers, No change, Faster decisions only]
+        answer: 0
+        model: A wider span needs fewer managers and layers, but each manager oversees more people, so there may be less time for each.
+    - id: who-decides
+      title: Who decides?
+      say: |
+        Headquarters makes 30 of 50 decisions. Subsidiary managers may feel they have too little power.
+      stage:
+        - id: central-r
+          widget: Readout
+          props:
+            items:
+              - { label: Share at headquarters, value: '{=c.share|pct}', tone: good }
+              - { label: Mood, value: '{=c.label}', tone: accent }
+      decision:
+        prompt: Why might headquarters delegate more decisions to the subsidiaries?
+        type: open
+        model: |
+          Subsidiary managers know local conditions best, and having decisions taken away can sap their motivation and loyalty.
+          Delegating as many decisions as reasonable keeps them engaged, while headquarters keeps coordination and control.
+    - id: taxes
+      title: Where should profit show up?
+      say: |
+        Today Alpha books 60 million and Beta 40 million. The group keeps 62 million after tax. Shifting 20 million of profit
+        to Beta by changing transfer prices would raise that to 68 million.
+      stage:
+        - id: tax-r
+          widget: Readout
+          props:
+            items:
+              - { label: Alpha after tax, value: '@t.alphaAfter', tone: accent }
+              - { label: Beta after tax, value: '@t.betaAfter', tone: accent }
+              - { label: Group after tax, value: '@t.totalAfter', tone: good }
+      decision:
+        prompt: Is it wise to shift the profit just because it saves 6 million in tax?
+        type: open
+        model: |
+          It saves the group 6 million, but the high-tax government loses revenue and may challenge the transfer prices, and the
+          press may treat the company as aggressive. Shareholders gain, yet the reputation risk and legal limits are real.
+    - id: venture
+      title: Control of the Vietnam plant
+      say: |
+        Luzon Circuits owns 40% of the voting stock of the new plant. That makes the company an affiliate, not a subsidiary.
+      stage:
+        - id: owner-r
+          widget: Readout
+          props:
+            items:
+              - { label: Voting stock owned (%), value: '@sharePct' }
+              - { label: Type of company, value: '{=o.type}', tone: good }
+              - { label: Ways to keep control, value: '{=o.tools}', tone: accent }
+      decision:
+        prompt: Luzon Circuits wants control over technology at the plant. Which tool should it rely on?
+        type: mcq
+        options: [Retaining control of the technology, Owning no shares at all, Giving the partner all decisions, Selling the technology outright]
+        answer: 0
+        model: With less than half the votes, the parent can still keep control by holding the technology, the finances, a management contract or key people in executive jobs.
+    - id: culture
+      title: What culture comes with the strategy?
+      say: |
+        The company follows a transnational strategy: standardize when possible and adapt when necessary. The lecture links
+        that to one kind of culture.
+      stage:
+        - id: culture-r
+          widget: Readout
+          props:
+            items:
+              - { label: Strategy, value: '{=strategy}' }
+              - { label: Culture, value: '{=k.culture}', tone: good }
+        - id: beyond-note
+          widget: Callout
+          props:
+            kind: beyond
+            title: Beyond the slides
+            body: The numbers in this case are made up to practice the lecture's ideas. The lecture's own case is 3M.
+      decision:
+        prompt: What does a geocentric culture mean for hiring managers?
+        type: open
+        model: |
+          A geocentric culture looks for the best practices and people from anywhere in the world, so the company would promote
+          managers on ability, not on nationality, and move them between countries.
+explainBack:
+  prompt: |
+    Explain to a friend how span of control sets the layers of a company, and why transfer pricing and control without
+    ownership matter to a multinational.
+  rubric:
+    - Links a wider span to fewer layers
+    - Explains that moving profit to a low-tax unit raises the group's after-tax profit
+    - Names at least two tools of control without a majority of the votes
+atScale:
+  title: In practice
+  body: |
+    Large groups document their transfer prices and keep records for tax authorities, since governments scrutinize them.
+    Organization charts are revisited every few years, often when a new product line or region is added. Joint venture
+    agreements spell out who appoints the managers, who controls technology and how disputes are settled.
+tradeoffs:
+  title: Structure choices
+  columns: [Structure, Strength, Cost]
+  rows:
+    - [Product, 'Avoids duplicating product experts', 'Duplicates area experts']
+    - [Geographic, 'Every country has a manager in touch with headquarters', 'Best for low or stable technology']
+    - [Matrix, 'Meshes several dimensions', 'Multiple reporting lines']

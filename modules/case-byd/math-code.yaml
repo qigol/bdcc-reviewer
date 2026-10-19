@@ -1,0 +1,301 @@
+sections:
+  - id: compare-numbers
+    title: Comparing two numbers
+    skills: [byd-market, cost-advantage]
+    summary: |
+      The case is full of comparisons: BYD against Tesla, one battery maker against another, one model life against
+      another. Three numbers describe each one: the gap, the ratio, and the fraction above the base.
+    keyFormula: '\text{above} = \dfrac{\text{other} - \text{base}}{\text{base}}'
+    data: [exhibit4]
+    state: { base: 26572, other: 32466 }
+    derive:
+      - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Base, value: '@base' }
+            - { label: Other, value: '@other' }
+            - { label: Difference, value: '@c.diff', tone: accent }
+            - { label: Ratio, value: '@c.ratio', format: 3, tone: accent }
+            - { label: Fraction above the base, value: '{=c.pctOver|pct1}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{b} = {=base|comma},\quad o = {=other|comma}
+        say: The base and the other number. The example is the Seal and the Model 3 in China.
+      - tex: |
+          \anchor{diff}{o - b} = {=c.diff|comma}
+        say: The gap between them.
+      - tex: |
+          \anchor{over}{\dfrac{o - b}{b}} = {=c.pctOver|pct1}, \qquad \text{BYD is } {=c.pctUnder|pct1} \text{ below}
+        say: Above the base divides by the base; below the other divides by the other.
+    code:
+      lang: python
+      title: Comparing two numbers
+      source: |
+        def compare(base, other):
+            """Gap, ratio and fraction above the base.
+
+            Args:
+                base: the number being compared against.
+                other: the number being compared.
+            Returns:
+                The gap, the ratio, the fraction above the base and the fraction below the other.
+            Lecture: BYD Seal 26,572 and Tesla Model 3 32,466 in China (case, Exhibit 4).
+            """
+            numbers = (base, other)             # @a:inputs
+            diff = other - base                 # @a:diff
+            over = diff / base                  # @a:over
+            return diff, other / base, over, diff / other
+    links:
+      - { anchor: inputs, label: The two numbers }
+      - { anchor: diff, label: The gap }
+      - { anchor: over, label: Fraction above the base }
+    trace: { fn: compare, in: { base: '@base', other: '@other' } }
+    examples: [price-china-tesla, price-germany-tesla, price-seal-markup, battery-renault, battery-vw, powertrain-vw, capex-korean, capex-japanese, wages, dev-time, model-life, model-releases, breakeven-multiple]
+    tryIt: [compare-over-numeric, compare-under-numeric, compare-handcalc]
+    pitfalls:
+      - Dividing the gap by the wrong number. Above the base uses the base; below the other uses the other.
+    examTip: Say which number is the base before you quote a percentage.
+
+  - id: growth-rate
+    title: Growth multiple and yearly growth
+    skills: [scale-growth]
+    summary: |
+      BYD went from 741,000 cars in 2021 to more than 4.6 million in 2025. The multiple shows how many times larger it
+      became, and the yearly growth rate shows the steady pace that would get there.
+    keyFormula: '\text{yearly growth} = \left(\dfrac{\text{end}}{\text{start}}\right)^{1/n} - 1'
+    state: { start: 741000, end: 4600000, years: 4 }
+    derive:
+      - { fn: growthRate, in: { start: '@start', end: '@end', years: '@years' }, out: g }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Cars at the start, value: '@start' }
+            - { label: Cars at the end, value: '@end' }
+            - { label: Times larger, value: '@g.multiple', format: 2, tone: accent }
+            - { label: Yearly growth, value: '{=g.cagr|pct1}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{S_0} = {=start|comma},\quad S_n = {=end|comma},\quad n = {=years}
+        say: The first and last values and the years between them.
+      - tex: |
+          \anchor{multiple}{\dfrac{S_n}{S_0}} = {=g.multiple|2}
+        say: How many times larger.
+      - tex: |
+          \anchor{cagr}{g} = {=g.multiple|2}^{1/{=years}} - 1 = {=g.cagr|pct1}
+        say: The steady yearly rate that gives the same result.
+    code:
+      lang: python
+      title: Yearly growth
+      source: |
+        def growth(start, end, years):
+            """How many times larger sales became and the steady yearly growth rate.
+
+            Args:
+                start: value at the start.
+                end: value at the end.
+                years: number of years between them.
+            Returns:
+                The multiple and the yearly growth rate.
+            Lecture: 741,000 cars in 2021 and more than 4.6 million in 2025 (case, page 8).
+            """
+            values = (start, end)                       # @a:inputs
+            multiple = end / start                      # @a:multiple
+            return multiple, multiple ** (1 / years) - 1    # @a:cagr
+    links:
+      - { anchor: inputs, label: 'Start, end and years' }
+      - { anchor: multiple, label: Times larger }
+      - { anchor: cagr, label: Yearly growth rate }
+    trace: { fn: growthRate, in: { start: '@start', end: '@end', years: '@years' } }
+    examples: [byd-growth]
+    tryIt: [growth-multiple-numeric, cagr-numeric, growth-handcalc]
+    pitfalls:
+      - Dividing the total growth by the number of years. Growth compounds.
+    examTip: Yearly growth uses a root of the multiple, so a calculator with a power key helps.
+
+  - id: overseas-gap
+    title: The overseas sales target
+    skills: [overseas-push]
+    beyondSlides: true
+    summary: |
+      BYD aims to sell half its cars outside China by 2030. Comparing today's overseas share with the target shows how
+      many more cars it must sell abroad at the same total.
+    keyFormula: '\text{extra} = \text{target share} \times \text{total} - \text{overseas}'
+    state: { total: 4600000, overseas: 1050000, targetShare: 0.5 }
+    derive:
+      - { fn: overseasGap, in: { total: '@total', overseas: '@overseas', targetShare: '@targetShare' }, out: o }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Total sales, value: '@total' }
+            - { label: Sold abroad (exports), value: '@overseas' }
+            - { label: Share abroad, value: '{=o.share|pct1}', tone: accent }
+            - { label: Needed abroad, value: '@o.needed', tone: accent }
+            - { label: Extra needed, value: '@o.extra', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{T} = {=total|comma},\quad O = {=overseas|comma}
+        say: Total sales and sales abroad.
+      - tex: |
+          \anchor{share}{O/T} = {=o.share|pct1}
+        say: Today's share abroad.
+      - tex: |
+          \anchor{needed}{s \times T} = {=o.needed|comma}
+        say: What the target needs.
+      - tex: |
+          \anchor{extra}{s T - O} = {=o.extra|comma}
+        say: How many more must be sold abroad.
+    code:
+      lang: python
+      title: Overseas target
+      source: |
+        def overseas_gap(total, overseas, target_share):
+            """How far BYD is from its overseas sales target.
+
+            Args:
+                total: total vehicles sold.
+                overseas: vehicles sold abroad.
+                target_share: target share of sales abroad (0.5 means 50%).
+            Returns:
+                Today's share abroad, vehicles needed abroad and the extra needed.
+            Lecture: 1.05 million exports of 4.6 million and a 50% target for 2030 (case, page 10).
+            """
+            totals = (total, overseas)              # @a:inputs
+            share = overseas / total                # @a:share
+            needed = total * target_share           # @a:needed
+            return share, needed, needed - overseas # @a:extra
+    links:
+      - { anchor: inputs, label: Total and overseas sales }
+      - { anchor: share, label: Share abroad today }
+      - { anchor: needed, label: Overseas sales the target needs }
+      - { anchor: extra, label: Extra needed }
+    trace: { fn: overseasGap, in: { total: '@total', overseas: '@overseas', targetShare: '@targetShare' } }
+    examples: [overseas-target]
+    tryIt: [overseas-share-numeric, overseas-extra-numeric, overseas-code]
+    pitfalls:
+      - Treating exports as all overseas sales. Cars built in overseas plants also count toward the target.
+    examTip: The target assumes the total stays the same. In practice it will grow too.
+
+  - id: tariffed-price
+    title: What a tariff does to a price
+    skills: [trade-policy]
+    beyondSlides: true
+    summary: |
+      A tariff is a tax on imported goods. At a rate of 100%, the price paid doubles. This is how very high tariffs lock a
+      carmaker out of a market.
+    keyFormula: '\text{price after tariff} = \text{price} \times (1 + \text{tariff rate})'
+    state: { price: 26572, tariff: 1 }
+    derive:
+      - { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' }, out: t }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Price before the tariff, value: '@price' }
+            - { label: Tariff rate, value: '{=tariff|pct}' }
+            - { label: Duty, value: '@t.duty', tone: accent }
+            - { label: Price after the tariff, value: '@t.total', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{P} = {=price|comma},\quad \tau = {=tariff|pct}
+        say: The price and the tariff rate.
+      - tex: |
+          \anchor{duty}{\tau P} = {=t.duty|comma}
+        say: The tariff paid.
+      - tex: |
+          \anchor{total}{P(1 + \tau)} = {=t.total|comma}
+        say: 'The case says US tariffs were 100% or more, so the Seal''s China price of 26,572 would roughly double.'
+    code:
+      lang: python
+      title: Price after a tariff
+      source: |
+        def price_after_tariff(price, tariff):
+            """Price of an imported car once the tariff is added.
+
+            Args:
+                price: price before the tariff.
+                tariff: tariff rate (1.0 means 100%).
+            Returns:
+                The duty and the price after the tariff.
+            Lecture: tariffs of 100% or more keep BYD out of the US (case, page 1).
+            """
+            goods = (price, tariff)              # @a:inputs
+            duty = price * tariff                # @a:duty
+            return duty, price + duty            # @a:total
+    links:
+      - { anchor: inputs, label: Price and rate }
+      - { anchor: duty, label: The tariff paid }
+      - { anchor: total, label: Price after the tariff }
+    trace: { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' } }
+    examples: [tariff-us]
+    tryIt: [tariff-total-numeric, tariff-duty-numeric, tariff-code]
+    pitfalls:
+      - Forgetting that the tariff is added to the price.
+    examTip: At a tariff of 100% the price is twice as high, even before any transport cost.
+
+  - id: subsidy-share
+    title: How much of the advantage came from subsidies?
+    skills: [subsidy-role]
+    beyondSlides: true
+    summary: |
+      BYD had a 4,700 dollar per-car cost advantage over Tesla, and only about 5% of it came from government subsidies.
+      Splitting an advantage by its sources shows how much subsidies really mattered.
+    keyFormula: '\text{from subsidies} = s \times \text{advantage}'
+    state: { advantage: 4700, share: 0.05 }
+    derive:
+      - { fn: subsidyShare, in: { advantage: '@advantage', share: '@share' }, out: s }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Cost advantage per car, value: '@advantage' }
+            - { label: Share from subsidies, value: '{=share|pct}' }
+            - { label: From subsidies, value: '@s.part', tone: accent }
+            - { label: From everything else, value: '@s.rest', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{A} = {=advantage|comma},\quad s = {=share|pct}
+        say: The advantage and its subsidy share.
+      - tex: |
+          \anchor{part}{sA} = {=s.part|comma}
+        say: The part that came from subsidies.
+      - tex: |
+          \anchor{rest}{A - sA} = {=s.rest|comma}
+        say: The rest came from other sources.
+    code:
+      lang: python
+      title: Subsidy share
+      source: |
+        def subsidy_share(advantage, share):
+            """Split a cost advantage into its subsidy part and the rest.
+
+            Args:
+                advantage: cost advantage per vehicle.
+                share: share that came from subsidies (0.05 means 5%).
+            Returns:
+                The subsidy part and everything else.
+            Lecture: 4,700 dollars per vehicle against Tesla, 5% from subsidies (case, page 9).
+            """
+            totals = (advantage, share)        # @a:inputs
+            part = advantage * share           # @a:part
+            return part, advantage - part      # @a:rest
+    links:
+      - { anchor: inputs, label: Advantage and share }
+      - { anchor: part, label: Subsidy part }
+      - { anchor: rest, label: Everything else }
+    trace: { fn: subsidyShare, in: { advantage: '@advantage', share: '@share' } }
+    examples: [subsidy-part]
+    tryIt: [subsidy-numeric, subsidy-mcq]
+    errata:
+      - 'The case gives two different subsidy totals for BYD: 3.5 billion dollars in 2018-2022 (page 3) and 2.6 billion dollars in 2008-2022 (page 7). This section uses neither, only the 5% share of the per-car gap against Tesla (page 9).'
+    pitfalls:
+      - Mixing up different subsidy figures in the case. The 5% refers to the per-car gap against Tesla.
+    examTip: The case gives several subsidy numbers for different periods, so always check which one a question uses.

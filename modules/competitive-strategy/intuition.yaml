@@ -1,0 +1,540 @@
+scenes:
+  - id: why-a-strategy
+    title: Why plan at all?
+    goal: What makes one company keep winning customers in many countries while others fade?
+    skills: [strategy-basics]
+    stage:
+      - id: tests
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: t1, label: Customers will pay for it }
+            - { id: t2, label: Few firms have it }
+            - { id: t3, label: Rivals cannot easily copy it }
+            - { id: t4, label: It meets a real need }
+            - { id: t5, label: No rival offers it }
+            - { id: t6, label: It took years of effort to build }
+          bins:
+            - { id: valuable, label: Valuable }
+            - { id: rare, label: Rare }
+            - { id: hard, label: Hard to imitate }
+          solution: { t1: valuable, t2: rare, t3: hard, t4: valuable, t5: rare, t6: hard }
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Netflix**
+
+            Began expanding abroad in 2010, tried limited-time offers to learn local tastes, and partnered to make local content.
+    beats:
+      - say: |
+          Netflix saw early that its home market would fill up, so it began expanding abroad in 2010. It tried
+          limited-time offers to learn local tastes and partnered to make local content. That was a plan, not luck. An
+          **international strategy** is a plan that guides how a firm uses its scarce resources to reach goals abroad.
+        define: [international-strategy]
+      - say: |
+          A good plan builds **competitive advantage**: a unique, valuable position that earns higher profits than rivals.
+          What gives a firm that edge?
+        define: [competitive-advantage]
+        gate:
+          type: predict
+          question: Which is the better base for a lasting advantage?
+          options: [Something rivals can copy in a week, Something rare that rivals find hard to copy, Something every rival already has, Something customers do not want]
+          answer: 1
+          explain: Lasting advantage needs value that customers pay for, rarity and difficulty to copy.
+      - say: |
+          Strengths like that are **core competencies**: special strengths that customers value, rivals lack and others
+          find hard to copy or replace. Sort the clues under the three tests.
+        define: [core-competencies]
+        show: [tests]
+        hide: [note]
+        gate:
+          type: event
+          prompt: Place each clue under the test it passes.
+          target: tests
+          event: solved
+          hint: Value is about customers; rare is about rivals; hard to imitate is about copying.
+      - say: |
+          Finally, **strategic planning** is the process by which an organization decides where it is going, how it will get
+          there and how it will judge success. It spots opportunities and threats, and gives everyone one picture.
+        define: [strategic-planning]
+    takeaway: A strategy builds on competencies that are valuable, rare and hard to copy.
+
+  - id: creating-value
+    title: Creating value for customers
+    goal: When is a product worth making, and who gets the benefit?
+    skills: [value-creation]
+    state: { willingness: 100, price: 70, unitCost: 50 }
+    derive:
+      - { fn: valueCreation, in: { willingness: '@willingness', price: '@price', unitCost: '@unitCost' }, out: v }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Willingness to pay, value: '@willingness' }
+            - { label: Price, value: '@price' }
+            - { label: Unit cost, value: '@unitCost' }
+            - { label: Value created, value: '@v.created', tone: good }
+            - { label: Customer keeps, value: '@v.surplus', tone: accent }
+            - { label: Firm keeps, value: '@v.profit', tone: accent }
+      - id: pr
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Price charged, min: 55, max: 100, step: 5 }
+        bind: { value: price }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: valueCreation, in: { willingness: '@willingness', price: '@price', unitCost: '@unitCost' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Firms succeed by creating **economic value**. **Economic value creation** is the gap between what customers
+          are willing to pay and what a unit costs to make. Customers will pay up to 100 dollars for a product that costs 50.
+        define: [economic-value-creation]
+        gate:
+          type: predict
+          question: How much value is created per unit?
+          answer: { value: 50, tol: 0.01 }
+          explain: 100 − 50 = 50 dollars per unit.
+      - say: Watch the value being shared out at a price of 70.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: |
+          The price decides who keeps what. Move the price until the firm keeps 30 dollars a unit.
+        hide: [player]
+        show: [pr]
+        gate:
+          type: when
+          prompt: Set the price so the firm keeps 30 dollars per unit.
+          when: 'v.profit == 30'
+          hint: Profit is price minus the 50 dollar cost, so the price must be 80.
+      - say: |
+          Going abroad adds costs. The **liability of foreignness** is the extra cost a firm pays simply because it is new
+          to a foreign country. The **liability of newness** is the extra cost of entering a market or industry new to it.
+        define: [liability-of-foreignness, liability-of-newness]
+        hide: [pr]
+      - say: |
+          Part of the foreign cost is learning the rules. **Formal institutions** are laws and regulations.
+          **Informal institutions** are norms, values and customs that guide behavior without being written down.
+        define: [formal-institutions, informal-institutions]
+      - say: |
+          Value is built step by step. The **value chain** is the linked set of activities that add value to the final
+          product, from design to sale.
+        define: [value-chain]
+      - say: |
+          Two ways to win: **cost leadership** keeps costs lower than rivals, and **product differentiation** offers
+          customers more value than rivals while controlling costs.
+        define: [cost-leadership, product-differentiation]
+      - say: Try value creation on new numbers.
+        gate:
+          type: practice
+          template: value-created-numeric
+    takeaway: Value created is willingness to pay minus cost, and price decides who keeps it.
+
+  - id: getting-cheaper
+    title: Getting cheaper as you grow
+    goal: Why can a large producer sell at a price that a small one cannot match?
+    skills: [cost-leadership]
+    state: { fixedCost: 20000, variableCost: 5, units: 1000, firstCost: 100, rate: 0.8, doublings: 2 }
+    derive:
+      - { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' }, out: a }
+      - { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' }, out: l }
+    stage:
+      - id: r1
+        widget: Readout
+        props:
+          items:
+            - { label: Fixed cost, value: '@fixedCost' }
+            - { label: Variable cost per unit, value: '@variableCost' }
+            - { label: Units, value: '@units' }
+            - { label: Fixed cost per unit, value: '@a.spread', format: 2, tone: accent }
+            - { label: Average cost per unit, value: '@a.average', format: 2, tone: good }
+      - id: r2
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: First unit cost, value: '@firstCost' }
+            - { label: Rate per doubling, value: '@rate' }
+            - { label: Doublings, value: '@doublings' }
+            - { label: Cost after, value: '@l.cost', format: 2, tone: good }
+      - id: qty
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Units produced, min: 1000, max: 10000, step: 1000 }
+        bind: { value: units }
+      - id: player1
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' }, roles: { r: r1 }, speed: 0.8 }
+      - id: player2
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' }, roles: { r: r2 }, speed: 0.8 }
+    beats:
+      - say: |
+          A plant has 20,000 dollars of fixed costs, such as rent and machines, and 5 dollars of variable cost per unit.
+          **Economies of scale** are the fall in average cost per unit as the plant gets bigger and output rises.
+        define: [economies-of-scale]
+        gate:
+          type: predict
+          question: What is the average cost per unit when the plant makes 1,000 units?
+          answer: { value: 25, tol: 0.01 }
+          explain: 20,000 ÷ 1,000 = 20 of fixed cost per unit, plus 5 variable, makes 25 dollars.
+      - say: Watch it computed.
+        show: [player1]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player1
+          event: done
+      - say: Now raise the output.
+        hide: [player1]
+        show: [qty]
+        gate:
+          type: when
+          prompt: Raise output until average cost drops below 10 dollars.
+          when: 'a.average < 10'
+          hint: Fixed cost per unit must fall below 5. Try 5,000 units or more.
+      - say: |
+          Repetition also makes work cheaper. The **learning curve** is the drop in cost per unit as a firm repeats a task
+          again and again. Say each doubling of output cuts cost to 80% of what it was. The first unit costs 100.
+        define: [learning-curve]
+        hide: [r1, qty]
+        show: [r2]
+        gate:
+          type: predict
+          question: What does a unit cost after two doublings?
+          answer: { value: 64, tol: 0.01 }
+          explain: 100 × 0.8 = 80, then 80 × 0.8 = 64 dollars.
+      - say: Watch each doubling apply the rate.
+        show: [player2]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player2
+          event: done
+      - say: Average cost on new numbers.
+        gate:
+          type: practice
+          template: avgcost-numeric
+      - say: And a learning curve.
+        gate:
+          type: practice
+          template: learn-numeric
+    takeaway: Bigger output spreads fixed cost, and repetition lowers cost per unit.
+
+  - id: pick-a-strategy
+    title: Standardize or adapt?
+    goal: Should a company sell the same thing everywhere or change it for every country?
+    skills: [strategy-types]
+    data: [strategies]
+    state: { cost: low, adapt: low }
+    derive:
+      - { fn: chooseStrategy, in: { cost: '@cost', adapt: '@adapt' }, out: s }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Cost pressure, value: '{=cost}' }
+            - { label: Pressure to adapt, value: '{=adapt}' }
+            - { label: Strategy, value: '{=s.strategy}', tone: good }
+      - id: costpick
+        widget: Choice
+        region: side
+        props:
+          label: Cost pressure
+          style: segmented
+          options:
+            - { value: low, label: Low }
+            - { value: high, label: High }
+        bind: { value: cost }
+      - id: adaptpick
+        widget: Choice
+        region: side
+        props:
+          label: Pressure to adapt
+          style: segmented
+          options:
+            - { value: low, label: Low }
+            - { value: high, label: High }
+        bind: { value: adapt }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: chooseStrategy, in: { cost: '@cost', adapt: '@adapt' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Two forces pull an international firm in opposite directions. Pressure to cut costs favors selling the same
+          thing everywhere. Pressure to adapt favors changing it for each market. The mix decides the strategy.
+      - say: |
+          With little of either pressure, a firm can do **home replication**: keep product development at home and transfer
+          existing products and processes abroad. The lecture calls this the **home replication strategy**.
+        define: [home-replication-strategy]
+      - say: |
+          When local markets want changes, the **multidomestic strategy** adapts products and services to each market. Set
+          the pressure to adapt high and cost pressure low to see it.
+        define: [multidomestic-strategy]
+        gate:
+          type: when
+          prompt: Set cost pressure to Low and pressure to adapt to High.
+          when: "s.strategy == 'Multidomestic'"
+          hint: Use the two buttons on the right.
+      - say: |
+          When cost pressure is strong and adaptation is limited, the **global strategy** offers standard products worldwide
+          and uses the best locations to cut costs.
+        define: [global-strategy]
+        gate:
+          type: predict
+          question: Cost pressure is high and pressure to adapt is low. Which strategy fits?
+          options: [Home replication, Multidomestic, Global, Transnational]
+          answer: 2
+          explain: Strong cost pressure and little need to adapt point to a global strategy.
+      - say: |
+          When both pressures are strong, the **transnational strategy** standardizes when possible and adapts when necessary.
+          It can lead to a **blue ocean strategy**: creating a new market with little competition.
+        define: [transnational-strategy, blue-ocean-strategy]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to see the rule applied.
+          target: player
+          event: done
+      - say: Pick for a new firm.
+        gate:
+          type: practice
+          template: strategy-mcq
+      - say: A thought to finish.
+        gate:
+          type: reflect
+          prompt: If a transnational strategy fits both pressures, why not use it everywhere?
+          model: |
+            It is hard to run. It asks a firm to standardize and adapt at once, which needs strong coordination, more
+            information and more skilled managers. When only one pressure is strong, a simpler strategy can cost less.
+    takeaway: Cost pressure and pressure to adapt together decide which of four strategies fits.
+
+  - id: mission-and-goals
+    title: Saying where you are going
+    goal: How does a company tell its people what it stands for and what it aims to achieve?
+    skills: [planning-steps]
+    stage:
+      - id: statements
+        widget: DropBins
+        props:
+          check: instant
+          chips:
+            - { id: m1, label: 'To organize the world''s information and make it universally accessible and useful' }
+            - { id: m2, label: 'We envision a financially inclusive world where all people hold the power to improve their lives' }
+            - { id: m3, label: 'Accelerate the company''s growth' }
+          bins:
+            - { id: mission, label: Mission statement }
+            - { id: values, label: Values statement }
+            - { id: objective, label: Objective }
+          solution: { m1: mission, m2: values, m3: objective }
+      - id: knowledge
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: k1, label: A master chef's feel for when a dish is ready }
+            - { id: k2, label: A written recipe }
+            - { id: k3, label: A formula in a spreadsheet }
+            - { id: k4, label: A negotiator's sense of when to stay quiet }
+          bins:
+            - { id: tacit, label: Tacit knowledge }
+            - { id: explicit, label: Explicit knowledge }
+          solution: { k1: tacit, k2: explicit, k3: explicit, k4: tacit }
+    beats:
+      - say: |
+          The planning steps start by looking at the outside world and the firm's own strengths. Then comes direction. A
+          **mission statement** says the organization's purpose and scope. Google's is to organize the world's
+          information and make it universally accessible and useful.
+        define: [mission-statement]
+      - say: |
+          A **vision statement** describes the future position the firm wants if it builds the right strengths.
+          A **values statement** says the beliefs and priorities members should live by. The lecture's example is Kiva.
+        define: [vision-statement, values-statement]
+      - say: |
+          Then **objectives**: goals that direct the firm within its mission and vision. They are best quantified, and become
+          more specific at the operating level. Intel's include accelerating growth.
+        define: [objectives]
+        gate:
+          type: event
+          prompt: Sort the three statements into the right bins.
+          target: statements
+          event: solved
+          hint: Purpose and scope is the mission; a goal to reach is an objective.
+      - say: |
+          Strategy also depends on what the firm knows. **Knowledge management** is the practice of finding, creating,
+          sharing and using valuable knowledge.
+        define: [knowledge-management]
+        hide: [statements]
+        show: [knowledge]
+        gate:
+          type: predict
+          question: Which kind of knowledge is easier to share with a new employee?
+          options: [One that can be written down, One that is hard to put into words]
+          answer: 0
+          explain: Knowledge you can write down or draw can be passed on easily. Knowledge you cannot explain is much harder to transfer.
+      - say: |
+          **Tacit knowledge** is hard to put into words, pictures or formulas. **Explicit knowledge** is easy to share in
+          those forms. Sort the four examples.
+        define: [tacit-knowledge, explicit-knowledge]
+        gate:
+          type: event
+          prompt: Sort each example into tacit or explicit.
+          target: knowledge
+          event: solved
+      - say: One last question.
+        gate:
+          type: reflect
+          prompt: Why does the lecture prefer objectives that are stated in numbers?
+          model: |
+            A number can be checked. It tells managers what to aim for, lets them build strategies to reach it and shows
+            whether they got there. Vague goals cannot be tested.
+    takeaway: Mission, vision, values and objectives set direction, and knowledge is a resource to manage.
+
+  - id: plan-and-budget
+    title: From plan to budget
+    goal: How does a plan turn into numbers a manager can follow?
+    skills: [budgeting]
+    state: { lastSales: 200000, growth: 0.1, costRatio: 0.5, fixedExpenses: 20000 }
+    derive:
+      - { fn: budgetPlan, in: { lastSales: '@lastSales', growth: '@growth', costRatio: '@costRatio', fixedExpenses: '@fixedExpenses' }, out: b }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Last year's sales, value: '@lastSales' }
+            - { label: Forecast sales, value: '@b.forecast', tone: accent }
+            - { label: Expenses, value: '@b.expenses', tone: accent }
+            - { label: Budgeted profit, value: '@b.net', tone: good }
+      - id: gr
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Expected growth (0.1 = 10%), min: 0, max: 0.3, step: 0.05 }
+        bind: { value: growth }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: budgetPlan, in: { lastSales: '@lastSales', growth: '@growth', costRatio: '@costRatio', fixedExpenses: '@fixedExpenses' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          A strategy is useless until it is turned into action. A **tactical plan** spells out in detail how the objectives
+          will be reached. Its numbers come from a forecast and a budget.
+        define: [tactical-plan]
+      - say: |
+          A **sales forecast** is a prediction of future sales. Last year a firm sold 200,000 dollars and expects 10% growth.
+        define: [sales-forecast]
+        gate:
+          type: predict
+          question: What is the sales forecast?
+          answer: { value: 220000, tol: 0.5 }
+          explain: 200,000 × 1.10 = 220,000 dollars.
+      - say: |
+          A **budget** is an itemized projection of income and spending for a future period. Costs are half of sales plus
+          20,000 of fixed expenses. Watch it built.
+        define: [budget]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Now steer growth.
+        hide: [player]
+        show: [gr]
+        gate:
+          type: when
+          prompt: Raise expected growth until the budgeted profit reaches 100,000 dollars.
+          when: 'b.net > 99999'
+          hint: Try 20% growth.
+      - say: |
+          Success is not only about money. A **balanced scorecard** measures strategy with several kinds of measures,
+          not only financial ones, such as resources, people and progress toward the mission.
+        define: [balanced-scorecard]
+      - say: A budget on new numbers.
+        gate:
+          type: practice
+          template: budget-numeric
+    takeaway: A forecast and an itemized budget turn objectives into the numbers a plan needs.
+
+  - id: imagining-futures
+    title: Preparing for several futures
+    goal: How can a company plan when nobody knows what will happen next?
+    skills: [scenarios]
+    data: [scenarios]
+    derive:
+      - { fn: commonActions, in: { scenarios: '@scenarios' }, out: c }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Actions in every story, value: '@c.count', tone: good }
+            - { label: Different actions seen, value: '@c.total' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: commonActions, in: { scenarios: '@scenarios' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          The future is uncertain, so firms tell several stories about it. A **scenario** is one plausible story about how
+          the future might unfold. A fast-food chain pictures a boom, a steady path and a downturn.
+        define: [scenario]
+        gate:
+          type: predict
+          question: The boom story lists expand-fast, hire-local-managers, keep-cost-focus and build-new-kitchens. The downturn story lists delay-new-stores, hire-local-managers and keep-cost-focus. How many actions appear in both?
+          answer: { value: 2, tol: 0.1 }
+          explain: Hire-local-managers and keep-cost-focus appear in both lists.
+      - say: Narrow the lists down, story by story.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: |
+          Some events could badly hurt the firm. A **contingency plan** is prepared in advance for a critical event with a
+          severe impact. Prepare for the best and the worst cases.
+        define: [contingency-plan]
+        hide: [player]
+      - say: |
+          Plans can be built in different directions. **Top-down planning** begins at the highest level and moves down.
+          **Bottom-up planning** begins at the lowest level and moves up.
+        define: [top-down-planning, bottom-up-planning]
+      - say: |
+          When the two disagree, **iterative planning** repeats the top-down or bottom-up process until all the differences
+          are settled.
+        define: [iterative-planning]
+      - say: Try a count on a new set of stories.
+        gate:
+          type: practice
+          template: common-numeric
+      - say: A last thought.
+        gate:
+          type: reflect
+          prompt: Why look for actions that appear in all the scenarios instead of betting on the most likely one?
+          model: |
+            Nobody can be sure which story will come true. Actions that fit every story are safe whichever future arrives,
+            while a bet on one scenario can fail badly if another happens.
+    takeaway: Scenarios help a firm find actions that are safe in every possible future.

@@ -1,0 +1,347 @@
+sections:
+  - id: hierarchy-levels
+    title: Span of control and layers of management
+    skills: [org-dimensions]
+    beyondSlides: true
+    summary: |
+      The span of control is how many people a manager can oversee. A wider span needs fewer managers and fewer layers. A
+      narrow span builds a tall hierarchy.
+    keyFormula: '\text{managers in a layer} = \lceil \text{people below} \div \text{span} \rceil'
+    state: { employees: 1000, span: 10 }
+    derive:
+      - { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' }, out: h }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Employees, value: '@employees' }
+            - { label: Span of control, value: '@span' }
+            - { label: Layers of management, value: '@h.layers', tone: accent }
+            - { label: Managers in all, value: '@h.managers', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{n} = {=employees|comma},\quad s = {=span}
+        say: Employees and span of control.
+      - tex: |
+          \anchor{loop}{n \leftarrow \lceil n / s \rceil} \quad \text{until } n = 1
+        say: Each layer of managers is the people below divided by the span, rounded up.
+      - tex: |
+          \anchor{levels}{\text{layers}} = {=h.layers}, \qquad \text{managers} = {=h.managers|comma}
+        say: Count the layers and add up the managers.
+    code:
+      lang: python
+      title: Layers of management
+      source: |
+        import math
+
+        def hierarchy(employees, span):
+            """Layers of management and managers needed.
+
+            Args:
+                employees: number of employees at the bottom.
+                span: people each manager oversees.
+            Returns:
+                Number of layers and total managers.
+            Lecture: span of control and hierarchy (M10 slide 6).
+            """
+            people = employees                        # @a:inputs
+            layers = 0
+            managers = 0
+            while people > 1:                         # @a:loop
+                people = math.ceil(people / span)
+                layers += 1
+                managers += people
+            return layers, managers                   # @a:levels
+    links:
+      - { anchor: inputs, label: Employees and span }
+      - { anchor: loop, label: One layer of managers }
+      - { anchor: levels, label: Layers and managers }
+    trace: { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' } }
+    examples: [hierarchy-three, hierarchy-two]
+    tryIt: [levels-numeric, managers-numeric, hier-handcalc]
+    pitfalls:
+      - Counting only the first layer of managers.
+    examTip: A narrow span makes a tall hierarchy and slower communication.
+
+  - id: centralization-share
+    title: How centralized are the decisions?
+    skills: [decision-allocation]
+    beyondSlides: true
+    summary: |
+      Centralization means decisions are made at headquarters. A simple measure is the share of important decisions that
+      headquarters makes. The lecture says older, larger multinationals make more decisions there.
+    keyFormula: '\text{share at HQ} = \dfrac{\text{HQ decisions}}{\text{all decisions}}'
+    state: { hq: 30, total: 50 }
+    derive:
+      - { fn: centralization, in: { hq: '@hq', total: '@total' }, out: c }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Decisions at headquarters, value: '@hq' }
+            - { label: All decisions, value: '@total' }
+            - { label: Share at headquarters, value: '{=c.share|pct}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{h} = {=hq},\quad N = {=total}
+        say: Headquarters' decisions out of all decisions.
+      - tex: |
+          \anchor{share}{\text{share}} = \dfrac{h}{N} = {=c.share|pct}
+        say: 'The company is {=c.label}.'
+    code:
+      lang: python
+      title: Centralization share
+      source: |
+        def centralization(hq, total):
+            """Share of decisions made at headquarters.
+
+            Args:
+                hq: decisions made at headquarters.
+                total: all decisions counted.
+            Returns:
+                The share made at headquarters (0 to 1).
+            Lecture: where decisions are made in wholly owned subsidiaries (M10 slides 26-33).
+            """
+            counts = (hq, total)           # @a:inputs
+            return hq / total              # @a:share
+    links:
+      - { anchor: inputs, label: Decision counts }
+      - { anchor: share, label: Share at headquarters }
+    trace: { fn: centralization, in: { hq: '@hq', total: '@total' } }
+    examples: [central-example]
+    tryIt: [central-numeric, central-mcq, central-code]
+    pitfalls:
+      - Dividing by the subsidiaries' decisions instead of all decisions.
+    examTip: Too much centralization can sap the motivation of subsidiary managers.
+
+  - id: structure-facts
+    title: What each structure offers
+    skills: [structure-types]
+    summary: |
+      Each international structure organizes the top level around a different dimension and has its own strength and cost.
+      Knowing the trade-off is how a manager picks the right one.
+    keyFormula: '\text{structure} \mapsto (\text{strength},\ \text{cost})'
+    data: [structures]
+    state: { structure: product }
+    derive:
+      - { fn: structureInfo, in: { structure: '@structure' }, out: s }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Structure, value: '{=structure}' }
+            - { label: Strength, value: '{=s.strength}', tone: good }
+            - { label: Cost, value: '{=s.weakness}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{lookup}{\text{structure}} = \text{ {=structure} }
+        say: Pick a structure.
+      - tex: |
+          \anchor{answer}{(\text{strength},\ \text{cost})}
+        say: 'It offers: {=s.strength}. It costs: {=s.weakness}.'
+    code:
+      lang: python
+      title: Structure facts
+      source: |
+        FACTS = {
+            "product": ("Avoids duplicating product experts", "Duplicates area experts"),
+            "geographic": ("Every country has a manager in touch with headquarters", "Best for low or stable technology"),
+            "matrix": ("Meshes product, region and function", "Multiple reporting lines"),
+        }
+
+        def structure_info(structure):
+            """Strength and cost of an international structure.
+
+            Args:
+                structure: the name of the structure.
+            Returns:
+                A pair of (strength, cost).
+            Lecture: international product, geographic and matrix structures (M10 slides 11-19).
+            """
+            facts = FACTS[structure]       # @a:lookup
+            return facts                   # @a:answer
+    links:
+      - { anchor: lookup, label: Look up the structure }
+      - { anchor: answer, label: Strength and cost }
+    trace: { fn: structureInfo, in: { structure: '@structure' } }
+    examples: [structure-product, structure-geographic, structure-functional]
+    tryIt: [structure-match, matrix-mcq, structure-lookup-mcq]
+    pitfalls:
+      - Calling a matrix and a matrix overlay the same. The overlay avoids double reporting.
+    examTip: Few worldwide firms use a matrix, and fewer organize by function at the top.
+
+  - id: strategy-culture
+    title: Strategy and company culture
+    skills: [strategy-culture]
+    summary: |
+      The lecture links each international strategy to a company culture: home replication to an ethnocentric culture,
+      multidomestic to a polycentric one and transnational to a geocentric one.
+    keyFormula: '\text{strategy} \mapsto \text{culture}'
+    state: { strategy: multidomestic }
+    derive:
+      - { fn: cultureFor, in: { strategy: '@strategy' }, out: k }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Strategy, value: '{=strategy}' }
+            - { label: Culture, value: '{=k.culture}', tone: good }
+            - { label: Idea, value: '{=k.idea}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{lookup}{\text{strategy}} = \text{ {=strategy} }
+        say: Start with the strategy.
+      - tex: |
+          \anchor{answer}{\text{culture}} = {=k.culture|text}
+        say: 'The lecture links it to a {=k.culture} culture.'
+    code:
+      lang: python
+      title: Strategy to culture
+      source: |
+        CULTURE = {
+            "home replication": "Ethnocentric",
+            "multidomestic": "Polycentric",
+            "transnational": "Geocentric",
+        }
+
+        def culture_for(strategy):
+            """Company culture linked to an international strategy.
+
+            Args:
+                strategy: "home replication", "multidomestic" or "transnational".
+            Returns:
+                The name of the culture.
+            Lecture: organizational design and international strategies (M10 slide 25).
+            """
+            culture = CULTURE[strategy]      # @a:lookup
+            return culture                   # @a:answer
+    links:
+      - { anchor: lookup, label: The strategy }
+      - { anchor: answer, label: The culture }
+    trace: { fn: cultureFor, in: { strategy: '@strategy' } }
+    examples: [culture-home, culture-multidomestic, culture-transnational]
+    tryIt: [culture-mcq, strategy-culture-match, culture-code]
+    pitfalls:
+      - Mixing up polycentric (many local centers) and geocentric (one world view).
+    examTip: The global strategy has no named culture on the slide.
+
+  - id: transfer-pricing
+    title: Transfer pricing and taxes
+    skills: [transfer-pricing]
+    summary: |
+      Subsidiaries in countries with different tax rates can shift where profit is booked by setting transfer prices.
+      Moving profit to the lower-tax country raises the group's after-tax profit.
+    keyFormula: '\text{after-tax} = \text{pretax} \times (1 - t)'
+    data: [transfer]
+    state: { alphaPretax: 60, betaPretax: 40, alphaRate: 0.5, betaRate: 0.2 }
+    derive:
+      - { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, out: t }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Alpha after tax, value: '@t.alphaAfter', tone: accent }
+            - { label: Beta after tax, value: '@t.betaAfter', tone: accent }
+            - { label: Group after tax, value: '@t.totalAfter', tone: good }
+            - { label: Group tax, value: '@t.totalTax' }
+    steps:
+      - tex: |
+          \anchor{alpha}{A} = {=alphaPretax}\,(1 - {=alphaRate|2}) = {=t.alphaAfter}
+        say: Alpha, in the high-tax country.
+      - tex: |
+          \anchor{beta}{B} = {=betaPretax}\,(1 - {=betaRate|2}) = {=t.betaAfter}
+        say: Beta, in the low-tax country.
+      - tex: |
+          \anchor{total}{A + B} = {=t.totalAfter}
+        say: 'The lecture''s Table 10.2 gives 62 for the group.'
+    code:
+      lang: python
+      title: Group profit after tax
+      source: |
+        def group_after_tax(a_pretax, b_pretax, a_rate, b_rate):
+            """Combined after-tax profit of two subsidiaries.
+
+            Args:
+                a_pretax: Alpha's profit before tax.
+                b_pretax: Beta's profit before tax.
+                a_rate: Alpha's tax rate.
+                b_rate: Beta's tax rate.
+            Returns:
+                The combined profit after tax.
+            Lecture: Alpha 60 and Beta 40 give 62; Alpha 40 and Beta 60 give 68 (M10 slides 34-35).
+            """
+            alpha = a_pretax * (1 - a_rate)        # @a:alpha
+            beta = b_pretax * (1 - b_rate)         # @a:beta
+            return alpha + beta                    # @a:total
+    links:
+      - { anchor: alpha, label: Alpha after tax }
+      - { anchor: beta, label: Beta after tax }
+      - { anchor: total, label: Group after tax }
+    trace: { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' } }
+    examples: [transfer-table-10-2, transfer-table-10-3, transfer-total-tax, transfer-gain]
+    tryIt: [trans-total-numeric, trans-handcalc, trans-code]
+    pitfalls:
+      - Applying one tax rate to both subsidiaries.
+    examTip: The total pretax profit stays at 100; only the tax bill changes.
+
+  - id: ownership-control
+    title: Control with and without a majority
+    skills: [control-influence]
+    beyondSlides: true
+    summary: |
+      A parent with more than half the voting stock can elect a majority of the board, which makes the company a
+      subsidiary. With half or less, the company is an affiliate, and the parent needs other tools to keep control.
+    keyFormula: '\text{share} > 50\% \Rightarrow \text{subsidiary}'
+    state: { sharePct: 40 }
+    derive:
+      - { fn: ownershipControl, in: { sharePct: '@sharePct' }, out: o }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Voting stock owned (%), value: '@sharePct' }
+            - { label: Type of company, value: '{=o.type}', tone: good }
+            - { label: Ways to keep control, value: '{=o.tools}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{inputs}{p} = {=sharePct}\%
+        say: The parent's share of the voting stock.
+      - tex: |
+          \anchor{type}{\text{type}} = {=o.type|text}
+        say: Above 50% means a subsidiary; otherwise an affiliate.
+      - tex: |
+          \anchor{tools}{\text{tools}}: \text{ {=o.tools} }
+        say: Tools the parent can use.
+    code:
+      lang: python
+      title: Subsidiary or affiliate
+      source: |
+        def company_type(share_pct):
+            """Classify a company by the parent's voting share.
+
+            Args:
+                share_pct: percent of voting stock the parent owns.
+            Returns:
+                The type of company and the tools of control.
+            Lecture: subsidiaries need a majority; affiliates keep control by other means (M10 slides 26 and 38).
+            """
+            owned = share_pct                                                        # @a:inputs
+            kind = "Subsidiary" if share_pct > 50 else "Affiliate"                    # @a:type
+            tools = "board majority" if share_pct > 50 else "contract, finances, technology, people"
+            return kind, tools                                                       # @a:tools
+    links:
+      - { anchor: inputs, label: Share owned }
+      - { anchor: type, label: Type of company }
+      - { anchor: tools, label: Tools of control }
+    trace: { fn: ownershipControl, in: { sharePct: '@sharePct' } }
+    examples: [ownership-majority, ownership-minority]
+    tryIt: [owner-mcq, owner-code]
+    pitfalls:
+      - Assuming no ownership means no control. A management contract can give control.
+    examTip: Outside owners can block moves such as shifting production, so ownership still matters.

@@ -1,0 +1,361 @@
+sections:
+  - id: value-creation
+    title: How much value does a firm create?
+    skills: [strategy-basics, value-creation]
+    beyondSlides: true
+    summary: |
+      Economic value is the gap between what customers will pay and what the product costs to make. The price splits that
+      gap between the customer and the firm. A positive gap is the base of a competitive advantage.
+    keyFormula: '\text{value created} = \text{willingness to pay} - \text{unit cost}'
+    state: { willingness: 100, price: 70, unitCost: 50 }
+    derive:
+      - { fn: valueCreation, in: { willingness: '@willingness', price: '@price', unitCost: '@unitCost' }, out: v }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Willingness to pay, value: '@willingness' }
+            - { label: Price, value: '@price' }
+            - { label: Unit cost, value: '@unitCost' }
+            - { label: Value created, value: '@v.created', tone: good }
+            - { label: Customer keeps, value: '@v.surplus', tone: accent }
+            - { label: Firm keeps, value: '@v.profit', tone: accent }
+    steps:
+      - tex: |
+          \anchor{inputs}{W} = {=willingness},\quad P = {=price},\quad C = {=unitCost}
+        say: What customers will pay, the price and the cost.
+      - tex: |
+          \anchor{created}{V} = W - C = {=v.created}
+        say: The value created per unit.
+      - tex: |
+          \anchor{surplus}{W - P} = {=v.surplus} \qquad \anchor{profit}{P - C} = {=v.profit}
+        say: The price decides who keeps what; the two shares add up to V.
+    code:
+      lang: python
+      title: Economic value creation
+      source: |
+        def value_split(willingness, price, unit_cost):
+            """Value created per unit and how it is shared.
+
+            Args:
+                willingness: the most customers will pay.
+                price: the price the firm charges.
+                unit_cost: the cost to make one unit.
+            Returns:
+                Value created, the customer's share and the firm's share.
+            Lecture: the difference between what customers will pay and unit cost (M9 slide 10).
+            """
+            inputs = (willingness, price, unit_cost)       # @a:inputs
+            created = willingness - unit_cost              # @a:created
+            surplus = willingness - price                  # @a:surplus
+            profit = price - unit_cost                     # @a:profit
+            return created, surplus, profit
+    links:
+      - { anchor: inputs, label: The three numbers }
+      - { anchor: created, label: Value created }
+      - { anchor: surplus, label: Customer's share }
+      - { anchor: profit, label: Firm's share }
+    trace: { fn: valueCreation, in: { willingness: '@willingness', price: '@price', unitCost: '@unitCost' } }
+    examples: [value-created, value-negative]
+    tryIt: [value-created-numeric, surplus-numeric, value-handcalc]
+    pitfalls:
+      - Using the price instead of willingness to pay when measuring value created.
+    examTip: A lower price shifts value to the customer but does not change the value created.
+
+  - id: scale-economies
+    title: Economies of scale
+    skills: [cost-leadership]
+    beyondSlides: true
+    summary: |
+      Average cost per unit falls as output rises, because the same fixed cost is shared by more units. This is a main
+      way to win with cost leadership.
+    keyFormula: '\text{average cost} = \dfrac{F}{q} + v'
+    state: { fixedCost: 20000, variableCost: 5, units: 1000 }
+    derive:
+      - { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' }, out: a }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Fixed cost, value: '@fixedCost' }
+            - { label: Variable cost per unit, value: '@variableCost' }
+            - { label: Units, value: '@units' }
+            - { label: Fixed cost per unit, value: '@a.spread', format: 2, tone: accent }
+            - { label: Average cost per unit, value: '@a.average', format: 2, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{F} = {=fixedCost|comma},\quad v = {=variableCost},\quad q = {=units|comma}
+        say: Fixed cost, variable cost per unit and output.
+      - tex: |
+          \anchor{spread}{F/q} = \dfrac{ {=fixedCost|comma} }{ {=units|comma} } = {=a.spread|comma2}
+        say: The fixed cost shared by each unit.
+      - tex: |
+          \anchor{average}{\text{AC}} = F/q + v = {=a.average|comma2}
+        say: Add the variable cost.
+    code:
+      lang: python
+      title: Average cost
+      source: |
+        def average_cost(fixed, variable, units):
+            """Average cost per unit at a given output.
+
+            Args:
+                fixed: total fixed cost.
+                variable: variable cost per unit.
+                units: units produced.
+            Returns:
+                Fixed cost per unit and average cost per unit.
+            Lecture: average cost falls as output rises (M9 slide 14).
+            """
+            costs = (fixed, variable, units)    # @a:inputs
+            spread = fixed / units              # @a:spread
+            return spread, spread + variable    # @a:average
+    links:
+      - { anchor: inputs, label: Costs and output }
+      - { anchor: spread, label: Fixed cost per unit }
+      - { anchor: average, label: Average cost }
+    trace: { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' } }
+    examples: [average-cost-small, average-cost-large]
+    tryIt: [avgcost-numeric, avgcost-handcalc, avgcost-code]
+    pitfalls:
+      - Dividing the variable cost by units too. It is already per unit.
+    examTip: Ten times the output does not cut average cost to a tenth, because the variable cost stays.
+
+  - id: learning-curve
+    title: The learning curve
+    skills: [cost-leadership]
+    beyondSlides: true
+    summary: |
+      As a firm repeats a task, it gets faster and wastes less. A learning curve says cost per unit falls to a fixed share
+      of its previous level each time cumulative output doubles.
+    keyFormula: '\text{cost} = c_1 \times r^{d}'
+    state: { firstCost: 100, rate: 0.8, doublings: 2 }
+    derive:
+      - { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' }, out: l }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: First unit cost, value: '@firstCost' }
+            - { label: Rate per doubling, value: '@rate' }
+            - { label: Doublings, value: '@doublings' }
+            - { label: Cost after, value: '@l.cost', format: 2, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{c_1} = {=firstCost},\quad r = {=rate}
+        say: The first unit's cost and the rate.
+      - tex: |
+          \anchor{loop}{c \leftarrow c \times r} \quad \text{once per doubling}
+        say: Apply the rate at every doubling.
+      - tex: |
+          \anchor{cost}{c_d} = {=firstCost} \times {=rate}^{ {=doublings} } = {=l.cost|2}
+        say: The cost after the doublings.
+    code:
+      lang: python
+      title: Learning curve
+      source: |
+        def learning_curve(first_cost, rate, doublings):
+            """Cost per unit after output has doubled several times.
+
+            Args:
+                first_cost: cost of the first unit.
+                rate: share of cost kept at each doubling (0.8 means an 80% curve).
+                doublings: number of times cumulative output has doubled.
+            Returns:
+                The cost per unit.
+            Lecture: costs fall as a firm repeats a task over time (M9 slide 14).
+            """
+            cost = first_cost                  # @a:inputs
+            for _ in range(doublings):         # @a:loop
+                cost *= rate
+            return cost                        # @a:cost
+    links:
+      - { anchor: inputs, label: First cost and rate }
+      - { anchor: loop, label: One doubling }
+      - { anchor: cost, label: Cost after }
+    trace: { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' } }
+    examples: [learning-two, learning-three]
+    tryIt: [learn-numeric, learning-order, scale-mcq]
+    pitfalls:
+      - Applying the rate only once instead of once per doubling.
+    examTip: Doubling is of cumulative output, not of yearly output.
+
+  - id: strategy-chooser
+    title: Choosing an international strategy
+    skills: [strategy-types]
+    summary: |
+      The best strategy depends on two pressures: how hard the market pushes to cut costs, and how much local markets want
+      products adapted. The combination points to one of four strategies.
+    keyFormula: '(\text{cost},\ \text{adapt}) \mapsto \text{strategy}'
+    data: [strategies]
+    state: { cost: high, adapt: low }
+    derive:
+      - { fn: chooseStrategy, in: { cost: '@cost', adapt: '@adapt' }, out: s }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Cost pressure, value: '{=cost}' }
+            - { label: Pressure to adapt, value: '{=adapt}' }
+            - { label: Strategy, value: '{=s.strategy}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{(\text{cost},\ \text{adapt})} = (\text{ {=cost} },\ \text{ {=adapt} })
+        say: Rate the two pressures as high or low.
+      - tex: |
+          \anchor{pick}{\text{strategy}} = {=s.strategy|text}
+        say: 'The lecture''s rule picks {=s.strategy}.'
+    code:
+      lang: python
+      title: Strategy chooser
+      source: |
+        STRATEGY = {
+            ("low", "low"): "Home replication",
+            ("low", "high"): "Multidomestic",
+            ("high", "low"): "Global",
+            ("high", "high"): "Transnational",
+        }
+
+        def choose(cost, adapt):
+            """Pick the international strategy that fits the pressures.
+
+            Args:
+                cost: "high" or "low" pressure to cut costs.
+                adapt: "high" or "low" pressure to adapt to local markets.
+            Returns:
+                The name of the strategy.
+            Lecture: the four strategies of M9 slide 23.
+            """
+            pressures = (cost, adapt)         # @a:inputs
+            return STRATEGY[pressures]        # @a:pick
+    links:
+      - { anchor: inputs, label: The two pressures }
+      - { anchor: pick, label: The strategy }
+    trace: { fn: chooseStrategy, in: { cost: '@cost', adapt: '@adapt' } }
+    examples: [strategy-home, strategy-multidomestic, strategy-global, strategy-transnational]
+    tryIt: [strategy-mcq, strategy-match, strategy-code]
+    pitfalls:
+      - Treating a transnational strategy as the best for every firm. It is hard to run.
+    examTip: The home replication cell (low and low) is an inference from the slide text, so state your reasoning in an answer.
+
+  - id: budget-forecast
+    title: From sales forecast to budget
+    skills: [budgeting, planning-steps]
+    beyondSlides: true
+    summary: |
+      A tactical plan needs numbers. First forecast sales, then itemize the expenses, then subtract to get the budgeted
+      profit. This is how a quantified objective turns into a plan.
+    keyFormula: '\text{profit} = F - (\rho F + K)'
+    state: { lastSales: 200000, growth: 0.1, costRatio: 0.5, fixedExpenses: 20000 }
+    derive:
+      - { fn: budgetPlan, in: { lastSales: '@lastSales', growth: '@growth', costRatio: '@costRatio', fixedExpenses: '@fixedExpenses' }, out: b }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Last year's sales, value: '@lastSales' }
+            - { label: Forecast sales, value: '@b.forecast', tone: accent }
+            - { label: Expenses, value: '@b.expenses', tone: accent }
+            - { label: Budgeted profit, value: '@b.net', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{S_0} = {=lastSales|comma},\quad g = {=growth|pct},\quad \rho = {=costRatio|pct},\quad K = {=fixedExpenses|comma}
+        say: Last year's sales, growth, cost share and fixed expenses.
+      - tex: |
+          \anchor{forecast}{F} = S_0\,(1 + g) = {=b.forecast|comma}
+        say: The sales forecast.
+      - tex: |
+          \anchor{expenses}{E} = \rho F + K = {=b.expenses|comma}
+        say: Itemize the expenses.
+      - tex: |
+          \anchor{net}{\text{profit}} = F - E = {=b.net|comma}
+        say: The budgeted profit.
+    code:
+      lang: python
+      title: A simple budget
+      source: |
+        def budget(last_sales, growth, cost_ratio, fixed):
+            """Budgeted profit from a sales forecast.
+
+            Args:
+                last_sales: sales in the last period.
+                growth: expected growth (0.10 means 10%).
+                cost_ratio: share of sales spent on variable costs.
+                fixed: fixed expenses.
+            Returns:
+                Forecast sales, expenses and budgeted profit.
+            Lecture: a sales forecast and an itemized budget (M9 slide 30).
+            """
+            sales = last_sales                          # @a:inputs
+            forecast = sales * (1 + growth)             # @a:forecast
+            expenses = forecast * cost_ratio + fixed    # @a:expenses
+            profit = forecast - expenses                # @a:net
+            return forecast, expenses, profit
+    links:
+      - { anchor: inputs, label: Starting numbers }
+      - { anchor: forecast, label: Sales forecast }
+      - { anchor: expenses, label: Itemized expenses }
+      - { anchor: net, label: Budgeted profit }
+    trace: { fn: budgetPlan, in: { lastSales: '@lastSales', growth: '@growth', costRatio: '@costRatio', fixedExpenses: '@fixedExpenses' } }
+    examples: [budget-example]
+    tryIt: [forecast-numeric, budget-numeric, budget-handcalc]
+    pitfalls:
+      - Applying the cost ratio to last year's sales instead of the forecast.
+    examTip: A budget is only as good as its sales forecast.
+
+  - id: scenario-actions
+    title: Actions that work in every story
+    skills: [scenarios]
+    beyondSlides: true
+    summary: |
+      Scenario planning builds several plausible stories about the future. The last steps look for actions that appear in
+      all of them. Those are safe to start now.
+    keyFormula: 'C = A_1 \cap A_2 \cap \dots \cap A_n'
+    data: [scenarios]
+    derive:
+      - { fn: commonActions, in: { scenarios: '@scenarios' }, out: c }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Actions in every story, value: '@c.count', tone: good }
+            - { label: Different actions seen, value: '@c.total' }
+    steps:
+      - tex: |
+          \anchor{loop}{C \leftarrow C \cap A_s}
+        say: Keep only the actions that also appear in the next story.
+      - tex: |
+          \anchor{common}{|C|} = {=c.count}
+        say: 'Out of {=c.total} different actions, {=c.count} appear in all {=c.stories} stories.'
+    code:
+      lang: python
+      title: Common actions
+      source: |
+        def common_actions(stories):
+            """Actions that appear in every scenario.
+
+            Args:
+                stories: list of lists, one list of actions per scenario.
+            Returns:
+                The set of actions common to all scenarios.
+            Lecture: look for actions you would take in all two or three stories (M9 slide 27).
+            """
+            common = set(stories[0])
+            for story in stories[1:]:                 # @a:loop
+                common = common & set(story)
+            return common                             # @a:common
+    links:
+      - { anchor: loop, label: Narrow down story by story }
+      - { anchor: common, label: Actions in every story }
+    trace: { fn: commonActions, in: { scenarios: '@scenarios' } }
+    examples: [common-actions, common-first]
+    tryIt: [common-numeric, common-code, scenario-order]
+    pitfalls:
+      - Counting actions that appear in only some of the stories.
+    examTip: Common actions are low-regret moves, safe whichever future arrives.

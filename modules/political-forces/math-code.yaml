@@ -1,0 +1,309 @@
+sections:
+  - id: piracy-table
+    title: Reading the piracy table
+    skills: [stability-risk]
+    summary: |
+      Table 5.1 counts piracy incidents by region and year. Adding the regions should give the printed total, and
+      dividing a region by the total gives its share of the danger.
+    keyFormula: '\text{share}_r = \dfrac{\text{incidents}_r}{\text{total}}'
+    data: [piracy]
+    state: { year: '2018' }
+    derive:
+      - { fn: piracyYear, in: { table: '@piracy', year: '@year' }, out: pa }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Africa, value: '@pa.africa' }
+            - { label: Asia, value: '@pa.asia' }
+            - { label: Latin America and the Caribbean, value: '@pa.latam' }
+            - { label: Rest of world, value: '@pa.rest' }
+            - { label: Sum of the regions, value: '@pa.total', tone: good }
+    steps:
+      - tex: |
+          \anchor{start}{\text{running}} = 0
+        say: Start the total at zero.
+      - tex: |
+          \anchor{region}{\text{running}} \leftarrow \text{running} + \text{incidents}_r
+        say: Add one region at a time.
+      - tex: |
+          \anchor{check}{\text{total}} = {=pa.total} \;\overset{?}{=}\; \text{printed} = {=pa.printed}
+        say: 'The table checks out for {=year}: {=pa.matches}.'
+    code:
+      lang: python
+      title: Table 5.1 check
+      source: |
+        def check_year(regions, printed):
+            """Check that the regions of Table 5.1 add to the printed total.
+
+            Args:
+                regions: incidents for Africa, Asia, Latin America, rest of world.
+                printed: the total printed in the table.
+            Returns:
+                True when the regions add to the printed total.
+            Lecture: 2013 gives 79 + 167 + 18 + 0 = 264 (M5 slide 12).
+            """
+            running = 0                       # @a:start
+            for incidents in regions:
+                running += incidents          # @a:region
+            return running == printed         # @a:check
+    links:
+      - { anchor: start, label: Running total }
+      - { anchor: region, label: Add a region }
+      - { anchor: check, label: Compare with the printed total }
+    trace: { fn: piracyYear, in: { table: '@piracy', year: '@year' } }
+    examples: [piracy-2013, piracy-2017, piracy-2018, piracy-2020, piracy-2022, piracy-2013-2018, piracy-2018-2022]
+    tryIt: [piracy-share-numeric, piracy-handcalc, piracy-code]
+    pitfalls:
+      - Dividing by the wrong year's total.
+      - Reading the 2023 row as a full year. It covers only the first nine months.
+    examTip: Piracy hot spots moved over time (Asia, then Africa, then Latin America), so an old table is not a safe guide.
+
+  - id: import-duty
+    title: Ad valorem, specific and compound duties
+    skills: [duties]
+    beyondSlides: true
+    summary: |
+      An ad valorem duty is a percentage of the invoice value. A specific duty is a fixed amount per unit. A compound
+      duty adds the two. Add the duty to the value to get the landed cost.
+    keyFormula: '\text{duty} = r \times V + s \times n'
+    state: { value: 10000, units: 500, adValoremRate: 0.1, specificPerUnit: 2 }
+    derive:
+      - { fn: importDuty, in: { value: '@value', units: '@units', adValoremRate: '@adValoremRate', specificPerUnit: '@specificPerUnit' }, out: d }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Invoice value, value: '@value' }
+            - { label: Ad valorem part, value: '@d.adValorem', tone: accent }
+            - { label: Specific part, value: '@d.specific', tone: accent }
+            - { label: Total duty, value: '@d.duty', tone: good }
+            - { label: Landed cost, value: '@d.landed', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{V} = {=value|comma},\quad n = {=units|comma}
+        say: Start from the invoice value V and the number of units n.
+      - tex: |
+          \anchor{ad-valorem}{r \times V} = {=adValoremRate|pct1} \times {=value|comma} = {=d.adValorem|comma2}
+        say: The ad valorem part is a percentage of value.
+      - tex: |
+          \anchor{specific}{s \times n} = {=specificPerUnit|comma2} \times {=units|comma} = {=d.specific|comma2}
+        say: The specific part is a fixed amount per unit.
+      - tex: |
+          \anchor{duty}{\text{duty}} = {=d.duty|comma2}, \qquad \anchor{landed}{\text{landed cost}} = V + \text{duty} = {=d.landed|comma2}
+        say: 'This is a {=d.kind} duty. Landed cost is the value plus the duty.'
+    code:
+      lang: python
+      title: Import duty
+      source: |
+        def import_duty(value, units, rate, per_unit):
+            """Duty and landed cost of an import.
+
+            Args:
+                value: invoice value of the shipment.
+                units: number of physical units.
+                rate: ad valorem rate (0.10 means 10%).
+                per_unit: specific duty per unit.
+            Returns:
+                The duty and the landed cost.
+            Lecture: ad valorem, specific and compound duties (M5 slide 17).
+            """
+            goods = (value, units)                       # @a:inputs
+            ad_valorem = rate * value                    # @a:ad-valorem
+            specific = per_unit * units                  # @a:specific
+            duty = ad_valorem + specific                 # @a:duty
+            return duty, value + duty                    # @a:landed
+    links:
+      - { anchor: inputs, label: Value and units }
+      - { anchor: ad-valorem, label: Percentage part }
+      - { anchor: specific, label: Per-unit part }
+      - { anchor: duty, label: Total duty }
+      - { anchor: landed, label: Landed cost }
+    trace: { fn: importDuty, in: { value: '@value', units: '@units', adValoremRate: '@adValoremRate', specificPerUnit: '@specificPerUnit' } }
+    examples: [duty-ad-valorem, duty-specific, duty-compound]
+    tryIt: [duty-landed-numeric, duty-handcalc, duty-code]
+    pitfalls:
+      - Multiplying a specific duty by the invoice value instead of the number of units.
+      - Giving the duty alone when asked for the landed cost.
+    examTip: Check which kind of duty you have before you pick the formula.
+
+  - id: variable-levy
+    title: The variable levy
+    skills: [levy]
+    beyondSlides: true
+    summary: |
+      A variable levy is a duty that changes with prices. It equals the gap between the lower world price and the
+      higher price the government supports at home, so imports cost as much as local goods.
+    keyFormula: '\text{levy} = \max(0,\ P_{\text{supported}} - P_{\text{world}})'
+    state: { worldPrice: 300, supportedPrice: 350 }
+    derive:
+      - { fn: variableLevy, in: { worldPrice: '@worldPrice', supportedPrice: '@supportedPrice' }, out: v }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: World price, value: '@worldPrice' }
+            - { label: Supported price, value: '@supportedPrice' }
+            - { label: Levy, value: '@v.levy', tone: accent }
+            - { label: Entry price, value: '@v.entryPrice', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{P_{\text{world}}} = {=worldPrice},\quad P_{\text{supported}} = {=supportedPrice}
+        say: Two prices matter.
+      - tex: |
+          \anchor{levy}{\text{levy}} = P_{\text{supported}} - P_{\text{world}} = {=v.levy}
+        say: The levy fills the gap.
+      - tex: |
+          \anchor{entry}{P_{\text{entry}}} = P_{\text{world}} + \text{levy} = {=v.entryPrice}
+        say: Imports now cost as much as the supported local price.
+    code:
+      lang: python
+      title: Variable levy
+      source: |
+        def variable_levy(world_price, supported_price):
+            """Variable levy and the price at which imports enter.
+
+            Args:
+                world_price: the world market price.
+                supported_price: the government-supported local price.
+            Returns:
+                The levy and the entry price.
+            Lecture: a duty equal to the gap between the world price and the supported price (M5 slide 17).
+            """
+            prices = (world_price, supported_price)             # @a:inputs
+            levy = max(0, supported_price - world_price)        # @a:levy
+            return levy, world_price + levy                     # @a:entry
+    links:
+      - { anchor: inputs, label: The two prices }
+      - { anchor: levy, label: Levy }
+      - { anchor: entry, label: Entry price }
+    trace: { fn: variableLevy, in: { worldPrice: '@worldPrice', supportedPrice: '@supportedPrice' } }
+    examples: [variable-levy-example, variable-levy-none]
+    tryIt: [levy-numeric, levy-code]
+    pitfalls:
+      - Adding the two prices instead of subtracting.
+    examTip: If the world price is already higher than the supported price, no levy is needed.
+
+  - id: protection-cost
+    title: Who pays for protecting jobs
+    skills: [govt-role, protection-cost]
+    beyondSlides: true
+    summary: |
+      Governments often protect jobs with tariffs. The lecture warns that the cost to consumers can be high. Dividing the
+      extra cost to buyers by the number of jobs protected shows the price of each job.
+    keyFormula: '\text{cost per job} = \dfrac{\text{price rise} \times \text{units bought}}{\text{jobs protected}}'
+    state: { risePerUnit: 2, quantity: 50000, jobsProtected: 20 }
+    derive:
+      - { fn: protectionCost, in: { risePerUnit: '@risePerUnit', quantity: '@quantity', jobsProtected: '@jobsProtected' }, out: pc }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Price rise per unit, value: '@risePerUnit' }
+            - { label: Units bought, value: '@quantity' }
+            - { label: Extra cost to buyers, value: '@pc.buyersPay', tone: accent }
+            - { label: Jobs protected, value: '@jobsProtected' }
+            - { label: Cost per job, value: '@pc.perJob', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{\Delta p} = {=risePerUnit},\quad Q = {=quantity|comma}
+        say: A tariff raises the price by a small amount on every unit.
+      - tex: |
+          \anchor{cost}{\text{buyers pay}} = \Delta p \times Q = {=pc.buyersPay|comma}
+        say: Add up what all buyers pay extra.
+      - tex: |
+          \anchor{per-job}{\text{cost per job}} = \dfrac{ {=pc.buyersPay|comma} }{ {=jobsProtected} } = {=pc.perJob|comma}
+        say: Divide by the jobs protected.
+    code:
+      lang: python
+      title: Cost of protection
+      source: |
+        def protection_cost(rise_per_unit, quantity, jobs_protected):
+            """Extra cost to buyers for each job a tariff protects.
+
+            Args:
+                rise_per_unit: how much the tariff raises the price of one unit.
+                quantity: units bought at the higher price.
+                jobs_protected: jobs saved by the tariff.
+            Returns:
+                The total extra cost and the cost per job.
+            Lecture: protecting farm jobs with tariffs is costly for consumers (M5 slide 26).
+            """
+            inputs = (rise_per_unit, quantity)               # @a:inputs
+            buyers_pay = rise_per_unit * quantity            # @a:cost
+            return buyers_pay, buyers_pay / jobs_protected   # @a:per-job
+    links:
+      - { anchor: inputs, label: Price rise and units }
+      - { anchor: cost, label: Total extra cost }
+      - { anchor: per-job, label: Cost per job }
+    trace: { fn: protectionCost, in: { risePerUnit: '@risePerUnit', quantity: '@quantity', jobsProtected: '@jobsProtected' } }
+    examples: [protection-cost-example]
+    tryIt: [protect-numeric, protect-mcq, protect-code]
+    pitfalls:
+      - Counting only the gain to the protected workers and forgetting the cost spread over many buyers.
+    examTip: A small price rise on a big market adds up to a large total cost.
+
+  - id: dumping-test
+    title: Testing for dumping
+    skills: [trade-barriers]
+    beyondSlides: true
+    summary: |
+      A firm is dumping when it sells abroad for less than its cost or less than its price at home. A countervailing
+      duty then cancels out an export subsidy.
+    keyFormula: '\text{dumping} = (P_{\text{export}} < P_{\text{home}}) \ \text{or}\ (P_{\text{export}} < \text{cost})'
+    state: { exportPrice: 90, homePrice: 100, cost: 95 }
+    derive:
+      - { fn: dumpingTest, in: { exportPrice: '@exportPrice', homePrice: '@homePrice', cost: '@cost' }, out: d }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Export price, value: '@exportPrice' }
+            - { label: Home price, value: '@homePrice' }
+            - { label: Cost, value: '@cost' }
+            - { label: Below home price, value: '{=d.belowHome}', tone: accent }
+            - { label: Below cost, value: '{=d.belowCost}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{inputs}{P_{\text{export}}} = {=exportPrice},\ P_{\text{home}} = {=homePrice},\ \text{cost} = {=cost}
+        say: Three prices decide it.
+      - tex: |
+          \anchor{below-home}{P_{\text{export}} < P_{\text{home}}} \;=\; {=d.belowHome}
+        say: First test against the home price.
+      - tex: |
+          \anchor{below-cost}{P_{\text{export}} < \text{cost}} \;=\; {=d.belowCost}
+        say: Then test against the cost.
+    code:
+      lang: python
+      title: Dumping test
+      source: |
+        def is_dumping(export_price, home_price, cost):
+            """Is a product being sold abroad unfairly cheaply?
+
+            Args:
+                export_price: the price charged abroad.
+                home_price: the price charged at home.
+                cost: the cost of production.
+            Returns:
+                True when the export price is below the home price or below cost.
+            Lecture: dumping is selling abroad below cost or below the home price (M5 slide 21).
+            """
+            prices = (export_price, home_price, cost)       # @a:inputs
+            below_home = export_price < home_price          # @a:below-home
+            below_cost = export_price < cost                # @a:below-cost
+            return below_home or below_cost
+    links:
+      - { anchor: inputs, label: The three prices }
+      - { anchor: below-home, label: Below the home price }
+      - { anchor: below-cost, label: Below cost }
+    trace: { fn: dumpingTest, in: { exportPrice: '@exportPrice', homePrice: '@homePrice', cost: '@cost' } }
+    examples: [dumping-yes, dumping-no, countervailing-example]
+    tryIt: [dump-mcq, dump-code]
+    pitfalls:
+      - Calling any low price dumping. It must be below cost or below the home price.
+    examTip: A countervailing duty answers subsidies; an antidumping duty answers dumping.

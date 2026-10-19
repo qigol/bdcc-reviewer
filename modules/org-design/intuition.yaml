@@ -1,0 +1,517 @@
+scenes:
+  - id: designing-an-organization
+    title: Designing a worldwide organization
+    goal: How should a company with thousands of workers in many countries be arranged so it works as one?
+    skills: [org-dimensions]
+    state: { employees: 1000, span: 10 }
+    derive:
+      - { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' }, out: h }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Employees, value: '@employees' }
+            - { label: Span of control, value: '@span' }
+            - { label: Layers of management, value: '@h.layers', tone: accent }
+            - { label: Managers in all, value: '@h.managers', tone: good }
+      - id: spanpick
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Span of control, min: 5, max: 50, step: 5 }
+        bind: { value: span }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          A **multinational corporation** is a company that runs business in more than one country. Getting its far-flung
+          parts to work together takes **organizational design**: deciding how the company should be organized so its
+          worldwide activities fit together efficiently and effectively.
+        define: [multinational-corporation, organizational-design]
+      - say: |
+          Two ways to guide people are rules and sameness. **Formalization** uses rules, policies, procedures and
+          budgets. **Standardization** uses the same approach in every unit.
+        define: [formalization, standardization]
+      - say: |
+          Size forces layers. The **span of control** is the number of employees a manager can effectively oversee. A
+          **hierarchy** arranges the company into levels of authority and responsibility. A company has 1,000 employees and a
+          span of 10.
+        define: [span-of-control, hierarchy]
+        gate:
+          type: predict
+          question: How many layers of management are needed to reach one top manager?
+          answer: { value: 3, tol: 0.1 }
+          explain: 1,000 people need 100 managers, 100 need 10, and 10 need 1. That is three layers.
+      - say: Watch the layers build up.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Now widen the span.
+        hide: [player]
+        show: [spanpick]
+        gate:
+          type: when
+          prompt: Widen the span until only two layers of management are needed.
+          when: 'h.layers <= 2'
+          hint: With 1,000 employees you need a span of at least 32 for two layers. Try 35 or more.
+      - say: |
+          Finally, how units are grouped matters. **Departmentalization** groups people and activities into units by
+          function, product, service, customer or place, to help specialization and coordination.
+        define: [departmentalization]
+      - say: Try a company of your own.
+        gate:
+          type: practice
+          template: levels-numeric
+    takeaway: Span of control sets how many layers a company needs, and grouping and rules shape how it works.
+
+  - id: who-decides
+    title: Who makes the decisions?
+    goal: Should headquarters decide everything, or should the people near the customer decide?
+    skills: [decision-allocation]
+    state: { hq: 30, total: 50 }
+    derive:
+      - { fn: centralization, in: { hq: '@hq', total: '@total' }, out: c }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Decisions at headquarters, value: '@hq' }
+            - { label: All decisions, value: '@total' }
+            - { label: Share at headquarters, value: '{=c.share|pct}', tone: good }
+      - id: hqpick
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Decisions at headquarters, min: 0, max: 50, step: 5 }
+        bind: { value: hq }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: centralization, in: { hq: '@hq', total: '@total' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Every important decision is made somewhere. **Centralization** means making decisions at the top, at
+          headquarters. **Decentralization** means letting lower levels, such as subsidiaries, make them. Headquarters makes
+          30 of 50 decisions.
+        define: [centralization, decentralization]
+        gate:
+          type: predict
+          question: What share of decisions are made at headquarters?
+          answer: { value: 0.6, tol: 0.01 }
+          explain: 30 ÷ 50 = 0.6, which is 60%.
+      - say: Watch the share computed.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Move decisions out to the subsidiaries.
+        hide: [player]
+        show: [hqpick]
+        gate:
+          type: when
+          prompt: Make the company mostly decentralized, with headquarters making 40% or fewer of the decisions.
+          when: 'c.share <= 0.4'
+          hint: Headquarters should make 20 or fewer of the 50 decisions.
+      - say: |
+          Whatever the split, units must work together. **Coordination mechanisms** link the activities of different units
+          and levels. **Control mechanisms** check performance and results, such as formal, informal, output, process and
+          social controls.
+        define: [coordination-mechanisms, control-mechanisms]
+      - say: Calculate on new numbers.
+        gate:
+          type: practice
+          template: central-numeric
+      - say: One more thought.
+        gate:
+          type: reflect
+          prompt: Why shouldn't headquarters make every decision for its subsidiaries?
+          model: |
+            Subsidiary managers know the local culture, customers and rules better. If headquarters decides everything, they lose
+            motivation and loyalty, and decisions slow down. Delegating as much as reasonable keeps managers engaged.
+    takeaway: Decisions can sit at headquarters or be handed down, and every design needs coordination and control.
+
+  - id: structures
+    title: Ways to arrange the top
+    goal: When a company grows abroad, what are the ways to arrange who reports to whom at the top?
+    skills: [structure-types]
+    data: [structures]
+    state: { structure: product }
+    derive:
+      - { fn: structureInfo, in: { structure: '@structure' }, out: s }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Structure, value: '{=structure}' }
+            - { label: Strength, value: '{=s.strength}', tone: good }
+            - { label: Cost, value: '{=s.weakness}', tone: accent }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Structure
+          style: dropdown
+          options:
+            - { value: international-division, label: International division }
+            - { value: product, label: Product }
+            - { value: geographic, label: Geographic region }
+            - { value: functional, label: Functional }
+            - { value: hybrid, label: Hybrid }
+            - { value: matrix, label: Matrix }
+        bind: { value: structure }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: structureInfo, in: { structure: '@structure' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          A company that begins selling abroad often adds an **international division**: a unit at the same level as the
+          domestic division, responsible for all activities outside the home country. As overseas business grows, it is
+          often dropped for something bigger.
+        define: [international-division]
+      - say: |
+          One choice is the **international product structure**: product divisions run their products worldwide. It
+          avoids duplicating product experts but duplicates area experts.
+        define: [product-structure]
+        show: [pick]
+      - say: |
+          Another is the **geographic region structure**: area managers run everything in their region and report to the CEO.
+          Every country is under someone in contact with headquarters. It suits products with low or stable technology.
+        define: [geographic-structure]
+        gate:
+          type: predict
+          question: Which structure avoids duplicating product experts but duplicates area experts?
+          options: [Product structure, Geographic region structure, Matrix, International division]
+          answer: 0
+          explain: A product structure puts product experts in one place but needs area experts in every product division.
+      - say: Look at how the Matrix compares.
+        gate:
+          type: when
+          prompt: Select the Matrix structure from the menu.
+          when: "structure == 'matrix'"
+          hint: Use the Structure menu on the right.
+      - say: |
+          The **global functional structure** is organized by function at the top. Few international companies use it. It
+          suits a narrow, highly integrated product mix, such as oil.
+        define: [functional-structure]
+      - say: |
+          A **hybrid organizational structure** uses more than one dimension at the top level, often a regional company that adds
+          a worldwide product division.
+        define: [hybrid-structure]
+      - say: |
+          A **matrix organization** layers two or more dimensions, so some managers report to two bosses. A **matrix overlay**
+          avoids that: top divisions must listen to a staff of experts from another dimension.
+        define: [matrix-organization, matrix-overlay]
+      - say: |
+          A **strategic business unit** is a self-contained business with its own market and competitors, small enough for
+          one manager to control. Watch the facts looked up.
+        define: [strategic-business-unit]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Match structures to their features.
+        gate:
+          type: practice
+          template: structure-match
+    takeaway: Each structure organizes the top around a different dimension and has its own strength and cost.
+
+  - id: newer-forms
+    title: Newer ways to organize
+    goal: What are companies trying instead of tall, rigid hierarchies?
+    skills: [structure-types]
+    stage:
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          shuffle: true
+          chips:
+            - { id: f1, label: Redesigning structure and systems to improve efficiency }
+            - { id: f2, label: Delivering value using resources outside the firm }
+            - { id: f3, label: Lateral decisions and a strong shared philosophy }
+            - { id: f4, label: Small agile companies coordinated by a small headquarters }
+          bins:
+            - { id: reeng, label: Reengineering }
+            - { id: virtual, label: Virtual corporation }
+            - { id: horizontal, label: Horizontal corporation }
+            - { id: network, label: Dynamic network }
+          solution: { f1: reeng, f2: virtual, f3: horizontal, f4: network }
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Current trends**
+
+            Flatter, flexible, networked.
+    beats:
+      - say: |
+          **Reengineering** means redesigning the structure, hierarchy, systems and processes of an organization to make it more
+          efficient.
+        define: [reengineering]
+      - say: |
+          A **virtual corporation** delivers value to customers using resources outside the firm's boundaries. Remote work
+          and flexible hours, boosted by the pandemic, have helped it grow.
+        define: [virtual-corporation]
+        gate:
+          type: predict
+          question: Which form relies most on resources from outside the firm?
+          options: [Virtual corporation, Functional structure, Reengineering, International division]
+          answer: 0
+          explain: A virtual corporation coordinates economic activity using resources outside its own boundaries.
+      - say: |
+          A **horizontal corporation** is organized around lateral decision-making, horizontal networks and a strong
+          company-wide philosophy. It has been called an anti-organization.
+        define: [horizontal-corporation]
+      - say: |
+          A **dynamic network structure** splits the main functions into smaller, more agile companies coordinated by a
+          downsized headquarters. Sort the four forms.
+        define: [dynamic-network]
+        show: [sorter]
+        hide: [note]
+        gate:
+          type: event
+          prompt: Match each description to its form.
+          target: sorter
+          event: solved
+      - say: A check on the forms.
+        gate:
+          type: practice
+          template: forms-match
+    takeaway: Newer forms flatten hierarchies and use networks, flexible work and outside resources.
+
+  - id: strategy-and-culture
+    title: Strategy shapes culture
+    goal: How does the way a company competes abroad affect how its people think?
+    skills: [strategy-culture]
+    state: { strategy: multidomestic }
+    derive:
+      - { fn: cultureFor, in: { strategy: '@strategy' }, out: k }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Strategy, value: '{=strategy}' }
+            - { label: Culture, value: '{=k.culture}', tone: good }
+            - { label: Idea, value: '{=k.idea}', tone: accent }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Strategy
+          style: dropdown
+          options:
+            - { value: home replication, label: Home replication }
+            - { value: multidomestic, label: Multidomestic }
+            - { value: transnational, label: Transnational }
+        bind: { value: strategy }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: cultureFor, in: { strategy: '@strategy' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Structure follows strategy, and strategy shapes the company's culture. The **home replication strategy** transfers
+          existing products and processes to other markets. It leads to an **ethnocentric culture**, one that treats the
+          home country's ways as the best.
+        define: [home-replication-strategy, ethnocentric-culture]
+      - say: |
+          The **multidomestic strategy** adapts to local preferences, rules and cultures.
+          It leads to a **polycentric culture**, which lets each country follow its own ways.
+        define: [multidomestic-strategy, polycentric-culture]
+      - say: |
+          The **transnational strategy** standardizes when possible and adapts when necessary.
+          It leads to a **geocentric culture**, which takes the best practices from anywhere.
+        define: [transnational-strategy, geocentric-culture]
+        gate:
+          type: predict
+          question: Which culture goes with a multidomestic strategy?
+          options: [Ethnocentric, Polycentric, Geocentric, None]
+          answer: 1
+          explain: Adapting to each country's ways produces a polycentric culture.
+      - say: |
+          The **global strategy** offers standardized products and services around the world. The lecture names no culture for
+          it. Pick the transnational strategy to see its culture.
+        define: [global-strategy]
+        gate:
+          type: when
+          prompt: Select the transnational strategy.
+          when: "strategy == 'transnational'"
+          hint: Use the Strategy menu.
+      - say: Watch the lookup.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Another strategy.
+        gate:
+          type: practice
+          template: culture-mcq
+    takeaway: Home replication goes with an ethnocentric culture, multidomestic with polycentric and transnational with geocentric.
+
+  - id: shifting-profits
+    title: Where the profit shows up
+    goal: How can one company pay less tax simply by changing the prices it charges its own units?
+    skills: [transfer-pricing]
+    data: [transfer]
+    state: { alphaPretax: 60, betaPretax: 40, alphaRate: 0.5, betaRate: 0.2 }
+    derive:
+      - { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, out: t }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Alpha after tax, value: '@t.alphaAfter', tone: accent }
+            - { label: Beta after tax, value: '@t.betaAfter', tone: accent }
+            - { label: Group after tax, value: '@t.totalAfter', tone: good }
+            - { label: Group tax, value: '@t.totalTax' }
+      - id: aslide
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Alpha profit before tax (millions), min: 20, max: 80, step: 10 }
+        bind: { value: alphaPretax }
+      - id: bslide
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Beta profit before tax (millions), min: 20, max: 80, step: 10 }
+        bind: { value: betaPretax }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          A company has two subsidiaries. Alpha earns 60 million dollars and pays 50% tax. Beta earns 40 million and pays
+          20%. **Pretax profit** is profit before tax is taken out, and **after-tax profit** is what remains after the tax is paid.
+        define: [pretax-profit, after-tax-profit]
+        gate:
+          type: predict
+          question: What is the group's combined after-tax profit, in millions?
+          answer: { value: 62, tol: 0.05 }
+          explain: Alpha keeps 60 × 0.5 = 30 and Beta keeps 40 × 0.8 = 32, so 62 million.
+      - say: Watch it worked out.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: |
+          Units of one company sell to each other. **Transfer pricing** sets the prices for goods and services sold
+          between units of the same company, and it also shifts where profit shows up. Move profit toward Beta.
+        define: [transfer-pricing]
+        hide: [player]
+        show: [aslide, bslide]
+        gate:
+          type: when
+          prompt: Set Alpha to 40 million and Beta to 60 million so the group keeps at least 68 million after tax.
+          when: 't.totalAfter > 67.9'
+          hint: Move 20 million of profit from the high-tax subsidiary to the low-tax one.
+      - say: Check the rule behind it.
+        gate:
+          type: practice
+          template: gain-numeric
+      - say: And a full calculation.
+        gate:
+          type: practice
+          template: trans-total-numeric
+      - say: A last question.
+        gate:
+          type: reflect
+          prompt: Should a company be allowed to profit from international transfer pricing?
+          model: |
+            Shareholders gain from lower taxes, and the company follows the rules. But the countries that lose revenue may feel
+            cheated, and the practice can look unfair to rivals who cannot do the same. Governments respond with rules to
+            limit it. The debate is open.
+    takeaway: Moving profit to the lower-tax unit raises the group's after-tax profit, even though total pretax profit is unchanged.
+
+  - id: control-without-ownership
+    title: Control with and without a majority
+    goal: Can a company control a business it does not mostly own?
+    skills: [control-influence]
+    state: { sharePct: 40 }
+    derive:
+      - { fn: ownershipControl, in: { sharePct: '@sharePct' }, out: o }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Voting stock owned (%), value: '@sharePct' }
+            - { label: Type of company, value: '{=o.type}', tone: good }
+            - { label: Ways to keep control, value: '{=o.tools}', tone: accent }
+      - id: share
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Voting stock owned (%), min: 0, max: 100, step: 10 }
+        bind: { value: sharePct }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: ownershipControl, in: { sharePct: '@sharePct' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          A **subsidiary** is a company controlled by a parent that owns enough voting stock to elect a majority of its
+          board. Test the idea with the slider.
+        define: [subsidiary]
+        show: [share]
+        gate:
+          type: when
+          prompt: Set the parent's share high enough for the company to count as a subsidiary.
+          when: "o.type == 'Subsidiary'"
+          hint: More than 50% of the voting stock.
+      - say: |
+          An **affiliate** is a company the parent controls without being a majority owner. The control may come from stock or
+          from other means.
+        define: [affiliate]
+        gate:
+          type: predict
+          question: A parent owns 40% of the voting stock. Is the company a subsidiary or an affiliate?
+          options: [Subsidiary, Affiliate]
+          answer: 1
+          explain: 40% is not a majority, so under the lecture's definitions it is an affiliate.
+      - say: |
+          Two common arrangements. A **joint venture** is a business that two or more companies own and run together. A
+          **management contract** is an agreement under which one company manages another, which can give control without
+          owning the stock.
+        define: [joint-venture, management-contract]
+      - say: Watch the rule applied.
+        hide: [share]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Classify some more companies.
+        gate:
+          type: practice
+          template: owner-mcq
+    takeaway: A majority of voting stock makes a subsidiary, and affiliates can still be controlled by other means.

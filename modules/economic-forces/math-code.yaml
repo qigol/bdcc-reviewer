@@ -1,0 +1,401 @@
+sections:
+  - id: gni-per-capita
+    title: GNI per capita and the income groups
+    skills: [economy-size, development-level]
+    beyondSlides: true
+    summary: |
+      GNI per capita is a nation's income divided by its people. The World Bank sorts countries into income groups by this
+      number, and a country above 13,845 dollars counts as high income, which the lecture calls developed.
+    keyFormula: '\text{GNI per capita} = \dfrac{\text{GNI}}{\text{population}}'
+    state: { gni: 600, population: 40 }
+    derive:
+      - { fn: gniPerCapita, in: { gni: '@gni', population: '@population' }, out: g }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: GNI (billions of dollars), value: '@gni' }
+            - { label: Population (millions), value: '@population' }
+            - { label: GNI per capita (dollars), value: '@g.perCapita', tone: accent }
+            - { label: Income group, value: '{=g.group}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{\text{GNI}} = {=gni|comma}\ \text{billion},\quad \text{population} = {=population|comma}\ \text{million}
+        say: Start with the two totals.
+      - tex: |
+          \anchor{percap}{\text{GNI per capita}} = \dfrac{ {=gni|comma} \times 1000 }{ {=population|comma} } = {=g.perCapita|comma}
+        say: Billions over millions needs a factor of 1,000 to give dollars per person.
+      - tex: |
+          \anchor{group}{\text{group}} = {=g.group|text}
+        say: 'The World Bank cutoffs (slide 8) place this country in the {=g.group} group.'
+    code:
+      lang: python
+      title: GNI per capita and group
+      source: |
+        def gni_per_capita(gni_billions, population_millions):
+            """GNI per person and the World Bank income group.
+
+            Args:
+                gni_billions: gross national income in billions of dollars.
+                population_millions: population in millions of people.
+            Returns:
+                GNI per capita in dollars and the income group.
+            Lecture: cutoffs of 13,845, 4,466 and 1,136 dollars (M7 slide 8).
+            """
+            totals = (gni_billions, population_millions)                  # @a:inputs
+            per_capita = gni_billions * 1000 / population_millions       # @a:percap
+            if per_capita > 13845:
+                group = "High income"                                     # @a:group
+            elif per_capita >= 4466:
+                group = "Upper-middle income"
+            elif per_capita >= 1136:
+                group = "Lower-middle income"
+            else:
+                group = "Low income"
+            return per_capita, group
+    links:
+      - { anchor: inputs, label: GNI and population }
+      - { anchor: percap, label: GNI per person }
+      - { anchor: group, label: Income group }
+    trace: { fn: gniPerCapita, in: { gni: '@gni', population: '@population' } }
+    examples: [gni-per-capita-example, group-norway, group-malaysia, group-india, group-border-high, group-border-lower, group-low]
+    tryIt: [percap-numeric, group-mcq, group-code]
+    pitfalls:
+      - Mixing billions and millions without the factor of 1,000.
+      - Treating exactly 13,845 as high income. The lecture says "over 13,845".
+    examTip: Know the three cutoffs 13,845, 4,466 and 1,136.
+
+  - id: ppp-basket
+    title: Pricing the same basket in two countries
+    skills: [ppp]
+    summary: |
+      Purchasing power parity compares what a basket of goods costs in two countries. The ratio of the two totals is the
+      exchange rate at which the money would buy the same in both.
+    keyFormula: '\text{PPP rate} = \dfrac{\sum \text{local prices}}{\sum \text{dollar prices}}'
+    data: [basket]
+    derive:
+      - { fn: basketPPP, in: { table: '@basket' }, out: b }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Basket in baht, value: '@b.bahtTotal', tone: accent }
+            - { label: Basket in dollars, value: '@b.usdTotal', tone: accent }
+            - { label: Implied baht per dollar, value: '@b.rate', format: 3, tone: good }
+    steps:
+      - tex: |
+          \anchor{loop}{\sum_i p_i^{\text{baht}}} = {=b.bahtTotal|comma} \qquad \sum_i p_i^{\text{USD}} = {=b.usdTotal|comma2}
+        say: Add up the five goods in each currency.
+      - tex: |
+          \anchor{rate}{\text{PPP rate}} = \dfrac{ {=b.bahtTotal|comma} }{ {=b.usdTotal|comma2} } = {=b.rate|3}
+        say: 'The lecture''s basket implies about {=b.rate|2} baht per dollar.'
+    code:
+      lang: python
+      title: PPP from a basket
+      source: |
+        def ppp_rate(goods):
+            """Implied exchange rate from the cost of the same basket in two countries.
+
+            Args:
+                goods: list of (local_price, dollar_price) pairs.
+            Returns:
+                Units of local currency per dollar.
+            Lecture: 1,865 baht against 160.05 dollars (M7 slide 14).
+            """
+            local = 0
+            dollars = 0
+            for local_price, dollar_price in goods:      # @a:loop
+                local += local_price
+                dollars += dollar_price
+            return local / dollars                       # @a:rate
+    links:
+      - { anchor: loop, label: Add up each basket }
+      - { anchor: rate, label: Divide one total by the other }
+    trace: { fn: basketPPP, in: { table: '@basket' } }
+    examples: [basket-totals, basket-rate]
+    tryIt: [basket-numeric, basket-handcalc, basket-order]
+    pitfalls:
+      - Dividing the dollar total by the local total, which gives the wrong direction.
+    examTip: Cheap services such as haircuts make a poor country's PPP income much higher than its Atlas income.
+
+  - id: atlas-vs-ppp
+    title: Atlas income against PPP income
+    skills: [ppp]
+    summary: |
+      The Atlas method converts income at smoothed exchange rates. The PPP method adjusts for local prices. Dividing the
+      PPP figure by the Atlas figure shows how much further money goes in that country.
+    keyFormula: '\text{ratio} = \dfrac{\text{GNI/capita (PPP)}}{\text{GNI/capita (Atlas)}}'
+    data: [gnicap]
+    state: { atlas: 10590, ppp: 36920 }
+    derive:
+      - { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, out: a }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: GNI per capita (Atlas), value: '@atlas' }
+            - { label: GNI per capita (PPP), value: '@ppp' }
+            - { label: Ratio, value: '@a.ratio', format: 2, tone: accent }
+            - { label: Extra dollars at PPP, value: '@a.gap', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{\text{Atlas}} = {=atlas|comma},\quad \text{PPP} = {=ppp|comma}
+        say: Two ways to measure the same income. The example is Turkey in Table 7.2.
+      - tex: |
+          \anchor{ratio}{\text{ratio}} = \dfrac{ {=ppp|comma} }{ {=atlas|comma} } = {=a.ratio|2}
+        say: PPP income is this many times Atlas income.
+      - tex: |
+          \anchor{gap}{\text{gap}} = {=ppp|comma} - {=atlas|comma} = {=a.gap|comma}
+        say: The same income buys this many more dollars' worth of goods.
+    code:
+      lang: python
+      title: PPP against Atlas
+      source: |
+        def ppp_vs_atlas(atlas, ppp):
+            """Compare a country's income at PPP with its income at Atlas rates.
+
+            Args:
+                atlas: GNI per capita at Atlas exchange rates.
+                ppp: GNI per capita at purchasing power parity.
+            Returns:
+                The ratio and the gap in dollars.
+            Lecture: Turkey 10,590 against 36,920 (M7 slide 15).
+            """
+            pair = (atlas, ppp)               # @a:inputs
+            ratio = ppp / atlas               # @a:ratio
+            gap = ppp - atlas                 # @a:gap
+            return ratio, gap
+    links:
+      - { anchor: inputs, label: The two measures }
+      - { anchor: ratio, label: How many times larger }
+      - { anchor: gap, label: Dollar gap }
+    trace: { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' } }
+    examples: [atlas-turkey, atlas-us, atlas-india, atlas-norway]
+    tryIt: [atlas-numeric, ppp-mcq, atlas-code]
+    pitfalls:
+      - Comparing PPP incomes of one country with Atlas incomes of another.
+    examTip: The gap is widest for middle- and low-income countries and narrow for the United States.
+
+  - id: debt-growth
+    title: How fast external debt grew
+    skills: [external-debt]
+    summary: |
+      Table 7.7 shows what developing countries owe abroad. Dividing the 2022 debt by the 1980 debt shows how many times
+      larger it became, and the lecture prints that as a percent.
+    keyFormula: '\text{ratio} = \dfrac{D_{2022}}{D_{1980}}'
+    data: [debt]
+    state: { country: China }
+    derive:
+      - { fn: debtGrowth, in: { table: '@debt', country: '@country' }, out: d }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Debt in 1980 (billions), value: '@d.first' }
+            - { label: Debt in 2022 (billions), value: '@d.last' }
+            - { label: Times larger, value: '@d.ratio', format: 2, tone: accent }
+            - { label: Percent of the 1980 debt, value: '@d.pct', format: 0, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{D_{1980}} = {=d.first|comma},\quad D_{2022} = {=d.last|comma}
+        say: 'Read {=country} in Table 7.7.'
+      - tex: |
+          \anchor{ratio}{\text{ratio}} = \dfrac{ {=d.last|comma} }{ {=d.first|comma} } = {=d.ratio|2}
+        say: The later debt over the earlier debt.
+      - tex: |
+          \anchor{pct}{\text{percent}} = {=d.ratio|2} \times 100 = {=d.pct|comma0}\%
+        say: The slide prints this ratio as a percent of the 1980 debt.
+    code:
+      lang: python
+      title: Debt growth
+      source: |
+        def debt_growth(first, last):
+            """How many times larger external debt became.
+
+            Args:
+                first: debt in 1980, billions of dollars.
+                last: debt in 2022, billions of dollars.
+            Returns:
+                The ratio and the percent of the 1980 debt.
+            Lecture: China 5 to 2,389 gives 47,780% (M7 slide 28).
+            """
+            owed = (first, last)               # @a:inputs
+            ratio = last / first               # @a:ratio
+            return ratio, ratio * 100          # @a:pct
+    links:
+      - { anchor: inputs, label: Debt in the two years }
+      - { anchor: ratio, label: Times larger }
+      - { anchor: pct, label: Percent of the 1980 debt }
+    trace: { fn: debtGrowth, in: { table: '@debt', country: '@country' } }
+    examples: [debt-china, debt-india, debt-mexico, debt-brazil, debt-turkey, debt-indonesia, debt-argentina]
+    tryIt: [debt-numeric, debt-handcalc, debt-code]
+    pitfalls:
+      - Dividing the old debt by the new debt.
+      - Reading the percent as the growth. 2,938% of the 1980 level means 29 times, not 29 times more.
+    examTip: A big jump in debt can be tied to a rising economy, so compare it with income.
+
+  - id: unit-labor-cost
+    title: Unit labor cost
+    skills: [labor-costs]
+    beyondSlides: true
+    summary: |
+      Unit labor cost is the direct labor bill divided by the number of units made. Low or slowly rising unit labor cost
+      may point to a good place to produce, or to a new competitor.
+    keyFormula: '\text{ULC} = \dfrac{\text{total direct labor cost}}{\text{units produced}}'
+    state: { totalLabor: 50000, units: 10000 }
+    derive:
+      - { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, out: u }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Total direct labor cost, value: '@totalLabor' }
+            - { label: Units produced, value: '@units' }
+            - { label: Unit labor cost, value: '@u.ulc', format: 2, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{L} = {=totalLabor|comma},\quad n = {=units|comma}
+        say: The labor bill and the output.
+      - tex: |
+          \anchor{ulc}{\text{ULC}} = \dfrac{L}{n} = \dfrac{ {=totalLabor|comma} }{ {=units|comma} } = {=u.ulc|comma2}
+        say: Labor cost per unit.
+    code:
+      lang: python
+      title: Unit labor cost
+      source: |
+        def unit_labor_cost(total_labor, units):
+            """Direct labor cost per unit made.
+
+            Args:
+                total_labor: total direct labor cost.
+                units: number of units produced.
+            Returns:
+                Labor cost per unit.
+            Lecture: total direct labor costs divided by units produced (M7 slide 23).
+            """
+            bill = (total_labor, units)         # @a:inputs
+            return total_labor / units          # @a:ulc
+    links:
+      - { anchor: inputs, label: Labor bill and units }
+      - { anchor: ulc, label: Cost per unit }
+    trace: { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' } }
+    examples: [ulc-example]
+    tryIt: [ulc-numeric, ulc-mcq, ulc-code]
+    pitfalls:
+      - Comparing wage rates alone. Output per worker matters too.
+    examTip: Changes in unit labor cost come from pay, productivity and exchange rates.
+
+  - id: discretionary-income
+    title: Disposable and discretionary income
+    skills: [inequality-spending]
+    beyondSlides: true
+    summary: |
+      Disposable income is what is left after tax. Discretionary income is what is left after essentials as well. It
+      measures how much households can spend on choices.
+    keyFormula: '\text{discretionary} = \text{income} - \text{taxes} - \text{essentials}'
+    state: { income: 30000, tax: 4000, essentials: 12000 }
+    derive:
+      - { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, out: x }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Income, value: '@income' }
+            - { label: Disposable income, value: '@x.disposable', tone: accent }
+            - { label: Discretionary income, value: '@x.discretionary', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{Y} = {=income|comma},\quad T = {=tax|comma},\quad E = {=essentials|comma}
+        say: Income, taxes and essential purchases.
+      - tex: |
+          \anchor{disposable}{Y_d} = Y - T = {=x.disposable|comma}
+        say: Disposable income is after tax.
+      - tex: |
+          \anchor{discretionary}{Y_{disc}} = Y_d - E = {=x.discretionary|comma}
+        say: Discretionary income is what remains after essentials.
+    code:
+      lang: python
+      title: Discretionary income
+      source: |
+        def discretionary(income, tax, essentials):
+            """Disposable and discretionary income of a household.
+
+            Args:
+                income: total income.
+                tax: taxes paid.
+                essentials: spending on essential purchases.
+            Returns:
+                Disposable income and discretionary income.
+            Lecture: disposable is after tax; discretionary is after essentials (M7 slide 22).
+            """
+            pay = (income, tax)                      # @a:inputs
+            disposable = income - tax                # @a:disposable
+            return disposable, disposable - essentials   # @a:discretionary
+    links:
+      - { anchor: inputs, label: Income and taxes }
+      - { anchor: disposable, label: Disposable income }
+      - { anchor: discretionary, label: Discretionary income }
+    trace: { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' } }
+    examples: [discretionary-example]
+    tryIt: [disc-numeric, disc-handcalc]
+    pitfalls:
+      - Skipping the tax step.
+    examTip: Firms selling non-essentials care most about discretionary income.
+
+  - id: population-density
+    title: Population density
+    skills: [population]
+    beyondSlides: true
+    summary: |
+      Population density tells how crowded a country is: inhabitants per square kilometer. Combined with age and how
+      many live in cities, it shows where customers are.
+    keyFormula: '\text{density} = \dfrac{\text{population}}{\text{area}}'
+    state: { population: 5000000, area: 100000 }
+    derive:
+      - { fn: populationDensity, in: { population: '@population', area: '@area' }, out: p }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Population, value: '@population' }
+            - { label: Area (square kilometers), value: '@area' }
+            - { label: People per square kilometer, value: '@p.density', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{N} = {=population|comma},\quad A = {=area|comma}
+        say: People and land.
+      - tex: |
+          \anchor{density}{\text{density}} = \dfrac{N}{A} = {=p.density|comma2}
+        say: People per square kilometer.
+    code:
+      lang: python
+      title: Population density
+      source: |
+        def population_density(population, area):
+            """People per square kilometer.
+
+            Args:
+                population: number of inhabitants.
+                area: land area in square kilometers.
+            Returns:
+                Inhabitants per square kilometer.
+            Lecture: inhabitants per area unit (M7 slide 33).
+            """
+            land = (population, area)           # @a:inputs
+            return population / area            # @a:density
+    links:
+      - { anchor: inputs, label: People and area }
+      - { anchor: density, label: Density }
+    trace: { fn: populationDensity, in: { population: '@population', area: '@area' } }
+    examples: [density-example]
+    tryIt: [density-numeric, density-order]
+    pitfalls:
+      - Using square miles in one country and square kilometers in another.
+    examTip: A country can be crowded overall yet empty in large regions, so look at distribution too.

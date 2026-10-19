@@ -1,0 +1,609 @@
+sections:
+  - id: regime-shares
+    title: Adding up the exchange rate arrangements
+    skills: [monetary-system]
+    summary: |
+      Table 8.1 lists what share of countries use each arrangement. The four group totals should add to 100%, and each
+      group should equal its parts. Checking that is how you read a table like this.
+    keyFormula: '\text{total} = \text{hard} + \text{soft} + \text{floating} + \text{residual}'
+    data: [regimes]
+    state: { year: '2014' }
+    derive:
+      - { fn: regimeShares, in: { table: '@regimes', year: '@year' }, out: r }
+      - { fn: regimeGrid, in: { table: '@regimes', year: '@year', upTo: 13 }, out: g }
+    live:
+      - { id: grid, widget: Schedule, props: { rows: '@g.rows', columns: ['Share of countries (%)'], title: 'Table 8.1' } }
+    steps:
+      - tex: |
+          G = \anchor{groups}{\{\text{hard},\ \text{soft},\ \text{floating},\ \text{residual}\}}
+        say: The table has four groups. Each one is a share of all countries.
+      - tex: |
+          \anchor{group}{\text{printed}_g} \approx \sum_{s \in g} \text{share}_s
+        say: A group's printed total should match the sum of the arrangements inside it.
+      - tex: |
+          \anchor{total}{\text{total}} = \sum_{g \in G} \text{printed}_g = \anchor{total}{ {=r.total|1} }
+        say: 'Adding the four groups for {=year} gives {=r.total|1}%.'
+    code:
+      lang: python
+      title: Table 8.1 check
+      source: |
+        YEARS = ["2009", "2014", "2019", "2022"]
+
+        def regime_shares(table, year):
+            """Add up the group totals of Table 8.1 for one year.
+
+            Args:
+                table: rows of [level, label, share2009, share2014, share2019, share2022].
+                year: one of "2009", "2014", "2019", "2022".
+            Returns:
+                The list of group totals and their sum.
+            Lecture: 2014 gives 13.1 + 43.5 + 34.0 + 9.4 = 100 (M8 slide 10).
+            """
+            col = YEARS.index(year) + 2
+            groups = []                          # @a:groups
+            for row in table:
+                if row[0] == "group":
+                    groups.append(row[col])      # @a:group
+            total = sum(groups)                  # @a:total
+            return groups, total
+    links:
+      - { anchor: groups, label: The four groups, say: 'Hard peg, soft peg, floating and residual.' }
+      - { anchor: group, label: One group's printed total }
+      - { anchor: total, label: The grand total }
+    trace: { fn: regimeShares, in: { table: '@regimes', year: '@year' } }
+    examples: [regimes-2014, regimes-2014-total, regimes-2019, regimes-2022]
+    tryIt: [regime-sum-numeric]
+    pitfalls:
+      - Adding the arrangements inside a group **and** the group total, which counts the same countries twice.
+    examTip: Know that most countries peg softly or float, and that hard pegs are the smallest of the three groups.
+    errata:
+      - 'The printed 2009 column adds to 90.4%, and its hard-peg parts (6.8 + 6.9) add to 13.7, not 12.2. The 2022 floating parts (18.0 + 18.0) add to 36.0, not 34.0. The module uses the printed values and logs these in the source notes.'
+
+  - id: bid-ask-quote
+    title: Bid, ask, spread and reciprocal
+    skills: [fx-quotes]
+    summary: |
+      A dealer quotes two prices: the bid, where it buys, and the ask, where it sells. The gap is the spread. Flipping a
+      pair gives the reciprocal quote.
+    keyFormula: '\text{spread} = \text{ask} - \text{bid}'
+    data: [fxquotes]
+    state: { bid: 1.0955, ask: 1.0957 }
+    derive:
+      - { fn: spreadQuote, in: { bid: '@bid', ask: '@ask' }, out: q }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Bid, value: '@bid', format: 4 }
+            - { label: Ask, value: '@ask', format: 4 }
+            - { label: Spread, value: '@q.spread', format: 4, tone: accent }
+            - { label: Midpoint, value: '@q.mid', format: 5, tone: accent }
+            - { label: 'Reciprocal bid (1 / ask)', value: '@q.recipBid', format: 4, tone: good }
+            - { label: 'Reciprocal ask (1 / bid)', value: '@q.recipAsk', format: 4, tone: good }
+    steps:
+      - tex: |
+          \text{quote} = (\text{bid},\ \text{ask})
+        say: Every quote has two sides. The dealer buys at the bid and sells at the ask.
+      - tex: |
+          \anchor{spread}{\text{spread}} = \text{ask} - \text{bid} \qquad \anchor{mid}{\text{mid}} = \frac{\text{bid} + \text{ask}}{2}
+        say: The spread is the gap; the midpoint is the average.
+      - tex: |
+          \anchor{recip-bid}{\text{new bid}} = \frac{1}{\text{ask}} \qquad \anchor{recip-ask}{\text{new ask}} = \frac{1}{\text{bid}}
+        say: Flipping the pair swaps the sides too, so the old ask becomes the new bid's denominator.
+      - tex: |
+          \anchor{quote}{\text{EUR/USD}} = {=bid} / {=ask} \;\Rightarrow\; \text{spread} = {=q.spread|5},\ \text{USD/EUR} \approx {=q.recipBid|4} / {=q.recipAsk|4}
+        say: 'Lecture example (Table 8.2): EUR/USD 1.0955 / 1.0957 gives a spread of 0.0002 (2 pips).'
+    code:
+      lang: python
+      title: Reading a quote
+      source: |
+        def quote(bid, ask):
+            """Describe one two-sided currency quote.
+
+            Args:
+                bid: the price at which the dealer buys.
+                ask: the price at which the dealer sells.
+            Returns:
+                spread, midpoint, and the bid and ask of the reciprocal pair.
+            Lecture: EUR/USD 1.0955 / 1.0957 -> spread 0.0002 (M8 slide 18).
+            """
+            price = (bid, ask)                 # @a:quote
+            spread = ask - bid                 # @a:spread
+            mid = (bid + ask) / 2              # @a:mid
+            recip_bid = 1 / ask                # @a:recip-bid
+            recip_ask = 1 / bid                # @a:recip-ask
+            return spread, mid, recip_bid, recip_ask
+    links:
+      - { anchor: quote, label: The two-sided quote }
+      - { anchor: spread, label: Spread }
+      - { anchor: mid, label: Midpoint }
+      - { anchor: recip-bid, label: New bid }
+      - { anchor: recip-ask, label: New ask }
+    trace: { fn: spreadQuote, in: { bid: '@bid', ask: '@ask' } }
+    examples: [eurusd-spread, eurusd-reciprocal, usdjpy-spread, usdcad-spread]
+    tryIt: [spread-numeric, reciprocal-numeric, spread-code]
+    pitfalls:
+      - Dividing by the **bid** when you meant the ask. The new bid comes from the old ask.
+      - Calling the midpoint the spread.
+    examTip: The dealer always buys low (bid) and sells high (ask), so a customer always trades at the worse side.
+
+  - id: convert-fx
+    title: Converting money at the right side of the quote
+    skills: [fx-quotes]
+    beyondSlides: true
+    summary: |
+      To turn one currency into another, pick the right side of the quote. A customer who buys foreign money pays the
+      dealer's ask. A customer who sells foreign money receives the dealer's bid.
+    keyFormula: '\text{amount} \times \text{rate}'
+    state: { amount: 1000, bid: 1.0955, ask: 1.0957, action: buy }
+    derive:
+      - { fn: convertFx, in: { amount: '@amount', bid: '@bid', ask: '@ask', action: '@action' }, out: c }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Rate used, value: '@c.rate', format: 4, tone: accent }
+            - { label: Dollars that change hands, value: '@c.result', format: 2, tone: good }
+    steps:
+      - tex: |
+          \text{customer buys} \Rightarrow \text{ask}, \qquad \text{customer sells} \Rightarrow \text{bid}
+        say: The dealer always takes the side that favors the dealer.
+      - tex: |
+          \anchor{pick}{\text{rate}} = \begin{cases} \text{ask} & \text{customer buys} \\ \text{bid} & \text{customer sells} \end{cases}
+        say: Choose the rate first.
+      - tex: |
+          \anchor{result}{\text{dollars}} = {=amount|comma} \times {=c.rate} = {=c.result|comma2}
+        say: 'Multiply the euros by the rate: {=amount|comma} euros {=action} give {=c.result|comma2} dollars.'
+    code:
+      lang: python
+      title: Converting an amount
+      source: |
+        def convert(amount, bid, ask, action):
+            """Convert foreign money at the dealer's price.
+
+            Args:
+                amount: units of foreign currency.
+                bid: the dealer's buying price.
+                ask: the dealer's selling price.
+                action: "buy" if the customer buys foreign money, else "sell".
+            Returns:
+                The rate used and the amount of home currency.
+            Lecture: the bid and ask rule of slide 21.
+            """
+            rate = ask if action == "buy" else bid     # @a:pick
+            result = amount * rate                     # @a:result
+            return rate, result
+    links:
+      - { anchor: pick, label: Which side of the quote }
+      - { anchor: result, label: Amount times rate }
+    trace: { fn: convertFx, in: { amount: '@amount', bid: '@bid', ask: '@ask', action: '@action' } }
+    examples: [convert-buy, convert-sell]
+    tryIt: [convert-numeric, quote-sides-mcq]
+    pitfalls:
+      - Using the bid when the customer buys. The dealer **sells** to a buyer, so the ask applies.
+    examTip: Ask yourself who the dealer is trading with, then take the price that favors the dealer.
+
+  - id: cross-rate
+    title: Building a cross rate
+    skills: [cross-rates]
+    summary: |
+      When two currencies are both quoted against a third, multiply the two quotes so the shared currency cancels.
+      The result is a cross rate. Bids multiply bids; asks multiply asks.
+    keyFormula: '\text{EUR/GBP} = \text{EUR/USD} \times \text{USD/GBP}'
+    data: [fxquotes]
+    state: { bid1: 1.0955, ask1: 1.0957, bid2: 0.7838, ask2: 0.7839 }
+    derive:
+      - { fn: crossRate, in: { bid1: '@bid1', ask1: '@ask1', bid2: '@bid2', ask2: '@ask2' }, out: x }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: 'EUR/USD bid', value: '@bid1', format: 4 }
+            - { label: 'EUR/USD ask', value: '@ask1', format: 4 }
+            - { label: 'USD/GBP bid', value: '@bid2', format: 4 }
+            - { label: 'USD/GBP ask', value: '@ask2', format: 4 }
+            - { label: 'EUR/GBP bid', value: '@x.bid', format: 4, tone: good }
+            - { label: 'EUR/GBP ask', value: '@x.ask', format: 4, tone: good }
+    steps:
+      - tex: |
+          \underbrace{\frac{\text{USD}}{\text{EUR}}}_{\text{EUR/USD}} \times \underbrace{\frac{\text{GBP}}{\text{USD}}}_{\text{USD/GBP}} = \underbrace{\frac{\text{GBP}}{\text{EUR}}}_{\text{EUR/GBP}}
+        say: Write the two quotes so that the dollars cancel.
+      - tex: |
+          \anchor{inputs}{\text{quotes}} = (\text{EUR/USD},\ \text{USD/GBP})
+        say: Start from the two quotes that share the dollar.
+      - tex: |
+          \anchor{cross-bid}{\text{bid}} = \text{bid}_1 \times \text{bid}_2 = {=bid1} \times {=bid2} = {=x.bid|4}
+        say: Multiply the two bids.
+      - tex: |
+          \anchor{cross-ask}{\text{ask}} = \text{ask}_1 \times \text{ask}_2 = {=ask1} \times {=ask2} = {=x.ask|4}
+        say: Multiply the two asks. The lecture prints EUR/GBP as 0.8587 / 0.8589.
+    code:
+      lang: python
+      title: A cross rate
+      source: |
+        def cross_rate(bid1, ask1, bid2, ask2):
+            """Chain two quotes that share a middle currency.
+
+            Args:
+                bid1, ask1: the first quote, such as EUR/USD.
+                bid2, ask2: the second quote, such as USD/GBP.
+            Returns:
+                The cross bid and cross ask, such as EUR/GBP.
+            Lecture: 1.0955 x 0.7838 = 0.8587 (M8 slide 18).
+            """
+            quotes = (bid1, ask1, bid2, ask2)    # @a:inputs
+            bid = bid1 * bid2                    # @a:cross-bid
+            ask = ask1 * ask2                    # @a:cross-ask
+            return bid, ask
+    links:
+      - { anchor: inputs, label: The two quotes }
+      - { anchor: cross-bid, label: Cross bid }
+      - { anchor: cross-ask, label: Cross ask }
+    trace: { fn: crossRate, in: { bid1: '@bid1', ask1: '@ask1', bid2: '@bid2', ask2: '@ask2' } }
+    examples: [eurgbp-cross]
+    tryIt: [cross-numeric, cross-code]
+    pitfalls:
+      - Dividing the two quotes when one of them points the wrong way. Flip it with the reciprocal first.
+    examTip: Check that the middle currency really cancels before you multiply.
+
+  - id: forward-rate
+    title: The forward rate from interest rates
+    skills: [forward-parity]
+    summary: |
+      Covered interest rate parity says the percentage gap between the forward and the spot rate equals the gap between
+      the two countries' interest rates. A higher home rate puts the foreign currency at a forward premium.
+    keyFormula: 'F = S \times (1 + i_{\text{home}} - i_{\text{foreign}})'
+    state: { spot: 1.25, iHome: 0.05, iForeign: 0.03 }
+    derive:
+      - { fn: forwardRate, in: { spot: '@spot', iHome: '@iHome', iForeign: '@iForeign' }, out: f }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Spot rate, value: '@spot', format: 4 }
+            - { label: Home interest, value: '{=iHome|pct1}' }
+            - { label: Foreign interest, value: '{=iForeign|pct1}' }
+            - { label: Interest gap, value: '{=f.diff|pct1}', tone: accent }
+            - { label: Forward rate, value: '@f.forward', format: 4, tone: good }
+    steps:
+      - tex: |
+          \frac{F - S}{S} = i_{\text{home}} - i_{\text{foreign}}
+        say: The lecture's rule, in symbols. F is the forward rate and S is the spot rate.
+      - tex: |
+          \anchor{diff}{\Delta i} = i_{\text{home}} - i_{\text{foreign}} \quad\Rightarrow\quad \anchor{forward}{F} = S\,(1 + \Delta i)
+        say: Solve for F.
+      - tex: |
+          \anchor{inputs}{S} = {=spot},\ \Delta i = {=f.diff|3},\ \anchor{forward}{F} = {=spot} \times (1 + {=f.diff|3}) = {=f.forward|4}
+        say: 'The foreign currency is at a forward {=f.direction}.'
+    code:
+      lang: python
+      title: Forward rate
+      source: |
+        def forward_rate(spot, i_home, i_foreign):
+            """Forward rate from covered interest rate parity.
+
+            Args:
+                spot: spot rate, home currency per unit of foreign currency.
+                i_home: home nominal interest rate (0.05 means 5%).
+                i_foreign: foreign nominal interest rate.
+            Returns:
+                The forward rate for the same period as the interest rates.
+            Lecture: (F - S) / S equals the interest gap (M8 slide 23).
+            """
+            s = spot                               # @a:inputs
+            diff = i_home - i_foreign              # @a:diff
+            return s * (1 + diff)                  # @a:forward
+    links:
+      - { anchor: inputs, label: Spot rate }
+      - { anchor: diff, label: Interest gap }
+      - { anchor: forward, label: Forward rate }
+    trace: { fn: forwardRate, in: { spot: '@spot', iHome: '@iHome', iForeign: '@iForeign' } }
+    examples: [forward-premium, forward-discount]
+    tryIt: [forward-numeric, forward-handcalc, forward-code]
+    pitfalls:
+      - Subtracting the interest rates the wrong way round.
+      - Forgetting that the forward period must match the interest rate period.
+    examTip: The exact formula divides (1 + home) by (1 + foreign); the slide uses the simpler gap.
+
+  - id: ppp
+    title: Purchasing power parity
+    skills: [ppp]
+    summary: |
+      If prices rise faster at home than abroad, the foreign currency should cost more at home. The expected exchange
+      rate moves by the inflation gap.
+    keyFormula: 'S_1 = S_0 \times (1 + \pi_{\text{home}} - \pi_{\text{foreign}})'
+    state: { spot: 50, piHome: 0.06, piForeign: 0.02 }
+    derive:
+      - { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' }, out: p }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Today's rate, value: '@spot', format: 2 }
+            - { label: Home inflation, value: '{=piHome|pct1}' }
+            - { label: Foreign inflation, value: '{=piForeign|pct1}' }
+            - { label: Inflation gap, value: '{=p.gap|pct1}', tone: accent }
+            - { label: Expected rate, value: '@p.expected', format: 2, tone: good }
+    steps:
+      - tex: |
+          \text{same money} \Rightarrow \text{same goods in both countries}
+        say: Purchasing power parity says money should buy the same basket everywhere.
+      - tex: |
+          \anchor{gap}{\Delta\pi} = \pi_{\text{home}} - \pi_{\text{foreign}}, \qquad \anchor{expected}{S_1} = S_0\,(1 + \Delta\pi)
+        say: The rate moves by the inflation gap.
+      - tex: |
+          \anchor{inputs}{S_0} = {=spot},\ \Delta\pi = {=p.gap|3},\ \anchor{expected}{S_1} = {=spot} \times (1 + {=p.gap|3}) = {=p.expected|3}
+        say: 'With these inflation rates the home currency weakens to {=p.expected|3} per unit of foreign currency.'
+    code:
+      lang: python
+      title: Expected rate under PPP
+      source: |
+        def ppp_rate(spot, pi_home, pi_foreign):
+            """Expected exchange rate when purchasing power stays equal.
+
+            Args:
+                spot: today's rate, home currency per foreign unit.
+                pi_home: home inflation rate (0.06 means 6%).
+                pi_foreign: foreign inflation rate.
+            Returns:
+                The rate expected after one period.
+            Lecture: the rate adjusts so money keeps equal purchasing power (M8 slide 24).
+            """
+            s0 = spot                              # @a:inputs
+            gap = pi_home - pi_foreign             # @a:gap
+            return s0 * (1 + gap)                  # @a:expected
+    links:
+      - { anchor: inputs, label: Today's rate }
+      - { anchor: gap, label: Inflation gap }
+      - { anchor: expected, label: Expected rate }
+    trace: { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' } }
+    examples: [ppp-weaker-home]
+    tryIt: [ppp-numeric, arbitrage-mcq]
+    pitfalls:
+      - Using foreign minus home inflation. Higher **home** inflation weakens the home currency.
+    examTip: PPP is a long-run tendency; actual rates can sit away from it for years.
+
+  - id: fisher
+    title: The Fisher effect
+    skills: [fisher]
+    summary: |
+      Interest rates are quoted before price rises. The real interest rate removes expected inflation, so it shows what a
+      lender really gains.
+    keyFormula: 'r = i - \pi^{e}'
+    state: { nominal: 0.08, inflation: 0.03 }
+    derive:
+      - { fn: fisher, in: { nominal: '@nominal', inflation: '@inflation' }, out: f }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Nominal rate, value: '{=nominal|pct1}' }
+            - { label: Expected inflation, value: '{=inflation|pct1}' }
+            - { label: Real rate, value: '{=f.real|pct1}', tone: good }
+    steps:
+      - tex: |
+          r = i - \pi^{e}
+        say: The real rate equals the nominal rate minus expected inflation.
+      - tex: |
+          \anchor{inputs}{i} = {=nominal|pct1},\quad \pi^{e} = {=inflation|pct1}
+        say: Start from the quoted rate and the expected price rise.
+      - tex: |
+          \anchor{real}{r} = {=nominal|pct1} - {=inflation|pct1} = {=f.real|pct1}
+        say: What is left is the lender's real gain.
+    code:
+      lang: python
+      title: Real interest rate
+      source: |
+        def real_rate(nominal, inflation):
+            """Real interest rate under the Fisher effect.
+
+            Args:
+                nominal: quoted interest rate (0.08 means 8%).
+                inflation: expected inflation rate.
+            Returns:
+                The real interest rate.
+            Lecture: real rate = nominal rate - expected inflation (M8 slide 23).
+            """
+            i = nominal                             # @a:inputs
+            return i - inflation                    # @a:real
+    links:
+      - { anchor: inputs, label: Nominal rate and inflation }
+      - { anchor: real, label: Real rate }
+    trace: { fn: fisher, in: { nominal: '@nominal', inflation: '@inflation' } }
+    examples: [fisher-real]
+    tryIt: [fisher-numeric, fisher-code]
+    pitfalls:
+      - Adding inflation to the nominal rate instead of subtracting it.
+    examTip: A negative real rate means the saver loses buying power even though the balance grows.
+
+  - id: random-walk
+    title: A random walk forecast
+    skills: [forecasting]
+    beyondSlides: true
+    summary: |
+      The random walk view says the best forecast of next month's rate is this month's rate. We score a forecast by its
+      error: the actual value minus the forecast.
+    keyFormula: '\hat{S}_{t+1} = S_t'
+    data: [spotseries]
+    derive:
+      - { fn: randomWalk, in: { series: '@spotseries', window: 3 }, out: rw }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Months scored, value: '@rw.n' }
+            - { label: Random walk average error, value: '@rw.mae', format: 4, tone: accent }
+            - { label: 3-month average error, value: '@rw.maMae', format: 4, tone: accent }
+            - { label: Last error, value: '@rw.lastError', format: 4 }
+    steps:
+      - tex: |
+          \anchor{forecast}{\hat{S}_{t+1}} = S_t
+        say: The forecast is simply the latest value.
+      - tex: |
+          \anchor{error}{e_{t+1}} = S_{t+1} - \hat{S}_{t+1}
+        say: The error says how far off the forecast was.
+      - tex: |
+          \anchor{loop}{\text{MAE}} = \frac{1}{n}\sum_{t} \left|e_t\right| = {=rw.mae|3}
+        say: 'Averaging the size of the errors over {=rw.n} months gives {=rw.mae|3}.'
+    code:
+      lang: python
+      title: Random walk forecast
+      source: |
+        def random_walk(series):
+            """Forecast each month with the month before it.
+
+            Args:
+                series: monthly rates, oldest first.
+            Returns:
+                The average absolute error of the forecasts.
+            Lecture: the best predictor of tomorrow is today (M8 slide 26).
+            """
+            errors = []
+            for t in range(1, len(series)):             # @a:loop
+                forecast = series[t - 1]                # @a:forecast
+                error = series[t] - forecast            # @a:error
+                errors.append(abs(error))
+            return sum(errors) / len(errors)
+    links:
+      - { anchor: loop, label: Score every month }
+      - { anchor: forecast, label: Forecast = last value }
+      - { anchor: error, label: Error }
+    trace: { fn: randomWalk, in: { series: '@spotseries', window: 3 } }
+    examples: [random-walk-demo, random-walk-mae]
+    tryIt: [rw-numeric, forecast-match]
+    pitfalls:
+      - Extending the last move. A random walk assumes no trend.
+    examTip: Even a "useless" forecast like this one is the benchmark every fancier method must beat.
+
+  - id: vat
+    title: Value-added tax along a supply chain
+    skills: [govt-forces]
+    beyondSlides: true
+    summary: |
+      A value-added tax is collected at each step of production, and each firm gets a credit for tax already paid on
+      what it bought. The government in the end receives a share of the final price.
+    keyFormula: '\text{tax paid} = t \times (\text{price} - \text{input price})'
+    state: { rate: 0.12, prices: [100, 150, 250] }
+    derive:
+      - { fn: vatChain, in: { prices: '@prices', rate: '@rate' }, out: v }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Total tax to the government, value: '@v.totalRemit', format: 2, tone: good }
+            - { label: Tax on the final price, value: '@v.finalTax', format: 2, tone: good }
+            - { label: Stage 1 tax, value: '@v.stages.0.remit', format: 2 }
+            - { label: Stage 2 tax, value: '@v.stages.1.remit', format: 2 }
+    steps:
+      - tex: |
+          \anchor{collected}{\text{collected}} = t \times \text{price}
+        say: Each firm adds tax to its sale price.
+      - tex: |
+          \anchor{credit}{\text{credit}} = t \times \text{price paid for inputs}
+        say: It gets back the tax it already paid on what it bought.
+      - tex: |
+          \anchor{remit}{\text{paid}} = \text{collected} - \text{credit}, \qquad \sum \text{paid} = t \times \text{final price}
+        say: The payments from all stages add up to the tax on the final price.
+      - tex: |
+          \anchor{loop}{\sum \text{paid}} = {=v.totalRemit|2} = {=rate|pct} \times {=v.finalTax|2}\ \text{(tax on the last price)}
+        say: 'With these prices the government collects {=v.totalRemit|2} in all.'
+    code:
+      lang: python
+      title: VAT chain
+      source: |
+        def vat_chain(prices, rate):
+            """Tax each firm pays to the government along a supply chain.
+
+            Args:
+                prices: the sale price at each stage, first stage first.
+                rate: the tax rate (0.12 means 12%).
+            Returns:
+                The list of tax payments and their total.
+            Lecture: tax is collected at each step and credited back (M8 slide 30 notes).
+            """
+            paid = []
+            before = 0
+            for price in prices:                         # @a:loop
+                collected = rate * price                 # @a:collected
+                credit = rate * before                   # @a:credit
+                paid.append(collected - credit)          # @a:remit
+                before = price
+            return paid, sum(paid)
+    links:
+      - { anchor: loop, label: Each stage in turn }
+      - { anchor: collected, label: Tax collected }
+      - { anchor: credit, label: Credit for earlier tax }
+      - { anchor: remit, label: Tax paid to the government }
+    trace: { fn: vatChain, in: { prices: '@prices', rate: '@rate' } }
+    examples: [vat-chain]
+    tryIt: [vat-numeric, tax-match]
+    pitfalls:
+      - Skipping the credit, which taxes the same value more than once.
+    examTip: The sum of the tax paid at all stages always equals the rate times the final price.
+
+  - id: bop-balance
+    title: Balancing the balance of payments
+    skills: [bop]
+    summary: |
+      The balance of payments uses double-entry bookkeeping, so the whole record adds to zero. A deficit in the
+      current account is matched by a surplus in the capital account (or by a change in reserves).
+    keyFormula: '\text{current} + \text{capital} + \text{reserves} = 0'
+    data: [bopdemo]
+    derive:
+      - { fn: bopSummary, in: { table: '@bopdemo' }, out: b }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Current account, value: '@b.current', tone: accent }
+            - { label: Capital account, value: '@b.capital', tone: accent }
+            - { label: Official reserves, value: '@b.official', tone: accent }
+            - { label: Total, value: '@b.net', tone: good }
+    steps:
+      - tex: |
+          \text{payments from abroad} = +,\qquad \text{payments to abroad} = -
+        say: Credits come in; debits go out.
+      - tex: |
+          \anchor{current}{\text{current}} = \text{exports} - \text{imports} = {=b.current}, \quad \anchor{capital}{\text{capital}} = \text{investment in} - \text{investment abroad} = {=b.capital}
+        say: Add the lines of each account.
+      - tex: |
+          \anchor{official}{\text{reserves}} = -(\text{current} + \text{capital}) = {=b.official}, \qquad \anchor{net}{\text{total}} = {=b.net}
+        say: Reserves are what is left over, so the total is zero.
+    code:
+      lang: python
+      title: Balance of payments
+      source: |
+        def bop_summary(lines):
+            """Add up a country's payments record.
+
+            Args:
+                lines: pairs of (account, amount); credits positive, debits negative.
+            Returns:
+                The current, capital and official reserves totals.
+            Lecture: a current account deficit equals a capital account surplus (M8 slide 36).
+            """
+            current = sum(a for acc, a in lines if acc == "current")     # @a:current
+            capital = sum(a for acc, a in lines if acc == "capital")     # @a:capital
+            official = -(current + capital)                              # @a:official
+            net = current + capital + official                           # @a:net
+            return current, capital, official, net
+    links:
+      - { anchor: current, label: Current account }
+      - { anchor: capital, label: Capital account }
+      - { anchor: official, label: Official reserves }
+      - { anchor: net, label: The total }
+    trace: { fn: bopSummary, in: { table: '@bopdemo' } }
+    examples: [bop-balance]
+    tryIt: [bop-numeric, bop-code]
+    pitfalls:
+      - Forgetting that a payment **to** another country is a debit (negative).
+    examTip: A deficit alone is not bad news. Look at the whole picture, including what the capital account shows.
