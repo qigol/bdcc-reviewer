@@ -1,0 +1,536 @@
+templates:
+  # ------------------------------------------------------------------ org-dimensions
+  - id: levels-numeric
+    type: numeric
+    skills: [org-dimensions]
+    difficulty: 1
+    tags: [math]
+    generator: hierQ
+    lessonRef: { tab: math-code, id: hierarchy-levels }
+    prompt: |
+      A company has **{=employees|comma}** employees and every manager oversees **{=span}** people (including other managers). How many layers of management are needed to reach a single top manager?
+    answer: { var: layers, tol: 0.1 }
+    misconceptions:
+      - { var: wrongSpan, feedback: 'That is the span itself. Count how many times you must divide by the span before you reach one person.' }
+      - { var: wrongDiv, feedback: 'That is the number of managers in the first layer only. Keep going up until one manager remains.' }
+    hints:
+      - Each layer of managers is the layer below divided by the span.
+      - Keep dividing by the span until you reach 1. Count the steps.
+    explanation: |
+      {=employees|comma} → ... → 1 takes **{=layers}** divisions by {=span}.
+
+  - id: managers-numeric
+    type: numeric
+    skills: [org-dimensions]
+    difficulty: 2
+    tags: [math]
+    generator: hierQ
+    lessonRef: { tab: math-code, id: hierarchy-levels }
+    prompt: |
+      A company has **{=employees|comma}** employees and a span of control of **{=span}**. How many managers does it need in all, counting every layer up to the single top manager?
+    answer: { var: managers, tol: 0.5 }
+    misconceptions:
+      - { var: wrongDiv, feedback: 'That counts only the first layer of managers. Managers need managers too.' }
+      - { var: layers, feedback: 'That is the number of layers, not the number of managers.' }
+    hints:
+      - Find the managers in the first layer, then the managers needed to oversee them.
+      - Add up every layer.
+    explanation: |
+      Adding every layer of managers gives **{=managers}**.
+
+  - id: hier-handcalc
+    type: hand-calc
+    skills: [org-dimensions]
+    difficulty: 2
+    tags: [math]
+    generator: hierQ
+    lessonRef: { tab: math-code, id: hierarchy-levels }
+    prompt: |
+      **{=employees|comma}** employees, span of control **{=span}**.
+    steps:
+      - prompt: How many managers oversee the employees directly (the first layer)?
+        answer: { var: wrongDiv, tol: 0.5 }
+        misconceptions:
+          - { var: managers, feedback: 'That counts every layer. Only the first layer is asked.' }
+        hint: Employees divided by the span.
+      - prompt: How many layers of management are there in all?
+        answer: { var: layers, tol: 0.1 }
+        misconceptions:
+          - { var: wrongSpan, feedback: 'That is the span.' }
+        hint: Keep dividing by the span until one is left.
+      - prompt: How many managers are there in all?
+        answer: { var: managers, tol: 0.5 }
+        misconceptions:
+          - { var: wrongDiv, feedback: 'You counted only the first layer.' }
+        hint: Add the managers of every layer.
+    hints:
+      - Go layer by layer.
+    explanation: |
+      First layer {=wrongDiv}; {=layers} layers; {=managers} managers in all.
+
+  - id: levels-code
+    type: code-fill
+    skills: [org-dimensions]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: hierarchy-levels }
+    prompt: Complete the hierarchy function.
+    code: |
+      import math
+
+      def layers(employees, span):
+          people = employees
+          count = 0
+          while people > 1:
+              people = math.ceil(people / __BLANK_1__)
+              count += __BLANK_2__
+          return count
+    blanks:
+      '1': { accept: ['span'] }
+      '2': { accept: ['1'] }
+    hints:
+      - Each layer divides the people by the span.
+    explanation: Each pass of the loop adds one layer of managers.
+
+  - id: org-match
+    type: match
+    skills: [org-dimensions]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: designing-an-organization }
+    prompt: Match each term to its meaning.
+    pairs:
+      - ['[[formalization|Formalization]]', 'Using rules, policies and procedures']
+      - ['[[standardization|Standardization]]', 'Using the same approach across units']
+      - ['[[span-of-control|Span of control]]', 'How many employees a manager can effectively oversee']
+      - ['[[departmentalization|Departmentalization]]', 'Grouping people into units by function, product, customer or place']
+    hints:
+      - Which one counts people?
+    explanation: These are building blocks of organizational structure.
+
+  - id: span-mcq
+    type: mcq
+    skills: [org-dimensions]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: designing-an-organization }
+    prompt: A company widens its span of control from 5 to 10. What happens to the number of layers of management it needs?
+    options:
+      - It falls, because each manager oversees more people
+      - It rises
+      - It stays the same
+      - It cannot be known
+    answer: 0
+    hints:
+      - Wider spans need fewer managers.
+    explanation: A wider span means fewer managers at each layer and fewer layers overall.
+
+  # ------------------------------------------------------------------ decision-allocation
+  - id: central-numeric
+    type: numeric
+    skills: [decision-allocation]
+    difficulty: 1
+    tags: [math]
+    generator: centralQ
+    lessonRef: { tab: math-code, id: centralization-share }
+    prompt: |
+      Of **{=total}** important decisions, headquarters makes **{=hq}**. What share is made at headquarters? (Decimal or percent.)
+    answer: { var: share, tol: 0.005, accept: [decimal, percent] }
+    misconceptions:
+      - { var: wrongLocal, feedback: 'That is the share made by the subsidiaries. Divide headquarters'' decisions by the total.' }
+      - { var: wrongRatio, feedback: 'You divided by the subsidiaries'' decisions. Divide by the total.' }
+    hints:
+      - A share is part over whole.
+    explanation: |
+      $ {=hq} / {=total} = {=share|pct}$, so decision making is {=label}.
+
+  - id: central-mcq
+    type: mcq
+    skills: [decision-allocation]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: who-decides }
+    prompt: According to the lecture, in older and larger multinationals decisions tend to be…
+    options:
+      - Made more at headquarters
+      - Made more at subsidiaries
+      - Made at random
+      - Made by customers
+    answer: 0
+    hints:
+      - Experience at headquarters builds up with age.
+    explanation: The longer a company has been a multinational, the more experienced executives and policies it has at headquarters, and the more decisions are made there.
+
+  - id: mechanisms-match
+    type: match
+    skills: [decision-allocation]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: who-decides }
+    prompt: Match each term to its meaning.
+    pairs:
+      - ['[[centralization|Centralization]]', 'Decisions made at the top']
+      - ['[[decentralization|Decentralization]]', 'Decisions made at lower levels such as subsidiaries']
+      - ['[[coordination-mechanisms|Coordination mechanisms]]', 'Ways of linking units and levels']
+      - ['[[control-mechanisms|Control mechanisms]]', 'Ways of checking performance and results']
+    hints:
+      - Coordination links; control checks.
+    explanation: A company needs both coordination and control, however decisions are divided.
+
+  - id: central-code
+    type: code-fill
+    skills: [decision-allocation]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: centralization-share }
+    prompt: Complete the centralization function.
+    code: |
+      def centralization(hq, total):
+          return __BLANK_1__ / __BLANK_2__
+    blanks:
+      '1': { accept: ['hq'] }
+      '2': { accept: ['total'] }
+    hints:
+      - Part over whole.
+    explanation: The share at headquarters is its decisions divided by all decisions.
+
+  # ------------------------------------------------------------------ structure-types
+  - id: structure-match
+    type: match
+    skills: [structure-types]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: Match each structure to what the lecture says about it.
+    pairs:
+      - ['[[product-structure|Product structure]]', 'Avoids duplicating product experts but duplicates area experts']
+      - ['[[geographic-structure|Geographic region structure]]', 'Every country is under someone in contact with headquarters']
+      - ['[[functional-structure|Functional structure]]', 'Suits a narrow, highly integrated product mix such as oil']
+      - ['[[matrix-organization|Matrix organization]]', 'Meshes dimensions but has multiple reporting lines']
+    hints:
+      - Which one gives some managers two bosses?
+    explanation: Each structure organizes the top level around a different dimension.
+
+  - id: growth-order
+    type: order
+    skills: [structure-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: Put the usual path of a growing multinational in order.
+    items:
+      - The company sells only at home
+      - Overseas business begins and an international division is formed
+      - Overseas operations grow
+      - The international division gives way to a worldwide structure by product, region, function or customer
+    hints:
+      - The international division comes first because it is the simplest step.
+    explanation: As overseas operations grow, companies often drop the international division for a worldwide structure.
+
+  - id: matrix-mcq
+    type: mcq
+    skills: [structure-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: Why have most worldwide companies avoided the matrix form?
+    options:
+      - Its multiple reporting relationships cause difficulties
+      - It uses no managers
+      - It only works for oil companies
+      - It forbids international sales
+    answer: 0
+    hints:
+      - Think about having two bosses.
+    explanation: The lecture says the disadvantages of multiple reporting relationships kept most worldwide companies from adopting it.
+
+  - id: structure-lookup-mcq
+    type: mcq
+    skills: [structure-types]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: structure-facts }
+    prompt: Which structure does the lecture say is popular with companies that make products with a low or stable technological content?
+    options:
+      - Geographic region structure
+      - Matrix organization
+      - Global functional structure
+      - Virtual corporation
+    answer: 0
+    hints:
+      - It puts area managers in charge.
+    explanation: The geographic region structure simplifies directing worldwide operations and suits products with low or stable technology.
+
+  - id: forms-match
+    type: match
+    skills: [structure-types]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: newer-forms }
+    prompt: Match each newer form to its idea.
+    pairs:
+      - ['[[reengineering|Reengineering]]', 'Redesigning structure and processes for efficiency']
+      - ['[[virtual-corporation|Virtual corporation]]', 'Delivers value using resources outside the firm''s boundaries']
+      - ['[[horizontal-corporation|Horizontal corporation]]', 'Lateral decisions and strong shared philosophy']
+      - ['[[dynamic-network|Dynamic network]]', 'Small agile companies coordinated by a small headquarters']
+    hints:
+      - Which one uses outside resources?
+    explanation: These forms move away from tall hierarchies toward networks.
+
+  - id: structure-multi
+    type: multi
+    skills: [structure-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: Which statements about international structures are true?
+    options:
+      - As overseas operations grow, companies often drop the international division
+      - A product structure avoids duplicating product experts
+      - A hybrid structure often arises when a regional company adds a worldwide product division
+      - A strategic business unit is small enough for one manager to control
+      - A matrix overlay requires double reporting
+    answer: [0, 1, 2, 3]
+    hints:
+      - The overlay was invented to avoid double reporting.
+    explanation: A matrix overlay lets top divisions heed a staff of experts without double reporting.
+
+  # ------------------------------------------------------------------ strategy-culture
+  - id: culture-mcq
+    type: mcq
+    skills: [strategy-culture]
+    difficulty: 1
+    tags: [math]
+    generator: cultureQ
+    lessonRef: { tab: math-code, id: strategy-culture }
+    prompt: |
+      A company follows a **{=strategy}** strategy. Which company culture does the lecture link to it?
+    hints:
+      - Ethnocentric, polycentric and geocentric are the home, local and global views.
+    explanation: |
+      A {=strategy} strategy leads to a **{=culture}** culture.
+
+  - id: strategy-culture-match
+    type: match
+    skills: [strategy-culture]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: strategy-and-culture }
+    prompt: Match each strategy to what it does.
+    pairs:
+      - ['[[home-replication-strategy|Home replication]]', 'Transfers existing products and processes']
+      - ['[[global-strategy|Global]]', 'Offers standardized products worldwide']
+      - ['[[multidomestic-strategy|Multidomestic]]', 'Adapts to local preferences, rules and cultures']
+      - ['[[transnational-strategy|Transnational]]', 'Standardizes when possible and adapts when necessary']
+    hints:
+      - Which one adapts the most?
+    explanation: The four strategies sit on a line between standardizing and adapting.
+
+  - id: culture-code
+    type: code-fill
+    skills: [strategy-culture]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: strategy-culture }
+    prompt: Complete the strategy to culture lookup.
+    code: |
+      CULTURE = {"home replication": "Ethnocentric", "multidomestic": "Polycentric", "transnational": "Geocentric"}
+
+      def culture_for(strategy):
+          return CULTURE[__BLANK_1__]
+    blanks:
+      '1': { accept: ['strategy'] }
+    hints:
+      - The key is the strategy.
+    explanation: A dictionary maps each strategy to its culture.
+
+  # ------------------------------------------------------------------ transfer-pricing
+  - id: trans-total-numeric
+    type: numeric
+    skills: [transfer-pricing]
+    difficulty: 2
+    tags: [math]
+    generator: transQ
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: |
+      Subsidiary Alpha earns **{=alphaPretax}** million before tax at a rate of **{=alphaRate|pct}**. Subsidiary Beta earns **{=betaPretax}** million before tax at **{=betaRate|pct}**. What is the combined after-tax profit, in millions?
+    answer: { var: totalAfter, tol: 0.05 }
+    misconceptions:
+      - { var: wrongPretax, feedback: 'That is the profit before tax. Take each firm''s tax away first.' }
+      - { var: wrongSwapRates, feedback: 'You used each firm''s tax rate on the other firm''s profit. Match the rate to the right firm.' }
+    hints:
+      - After-tax profit is pretax profit times one minus the tax rate.
+      - Work out each firm separately, then add.
+    explanation: |
+      Alpha keeps {=alphaPretax} − {=alphaTax} and Beta keeps {=betaPretax} − {=betaTax}. Together {=totalAfter|2} million.
+
+  - id: trans-tax-numeric
+    type: numeric
+    skills: [transfer-pricing]
+    difficulty: 2
+    tags: [math]
+    generator: transQ
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: |
+      Alpha earns **{=alphaPretax}** million at a **{=alphaRate|pct}** tax rate and Beta earns **{=betaPretax}** million at **{=betaRate|pct}**. What is the total tax paid by both, in millions?
+    answer: { var: totalTax, tol: 0.05 }
+    misconceptions:
+      - { var: alphaTax, feedback: 'That is Alpha''s tax only. Add Beta''s tax.' }
+      - { var: wrongPretax, feedback: 'That is the profit before tax. Tax is a share of it.' }
+    hints:
+      - Tax is the rate times the pretax profit.
+      - Add the two firms' taxes.
+    explanation: |
+      Alpha pays {=alphaTax|2}; Beta pays {=betaTax|2}. Total {=totalTax|2} million.
+
+  - id: gain-numeric
+    type: numeric
+    skills: [transfer-pricing]
+    difficulty: 3
+    tags: [math]
+    generator: transQ
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: |
+      Transfer pricing moves **{=shift}** million of profit from Alpha (tax rate **{=alphaRate|pct}**) to Beta (tax rate **{=betaRate|pct}**). By how many millions does the group's after-tax profit rise?
+    answer: { var: gain, tol: 0.05 }
+    misconceptions:
+      - { var: wrongShiftAll, feedback: 'The whole amount moved is not the gain. Only the difference in tax rates is saved.' }
+      - { var: wrongSumRates, feedback: 'You added the tax rates. The saving comes from their **difference**.' }
+    hints:
+      - The moved profit is taxed at a lower rate in Beta.
+      - Gain = amount moved times the difference in tax rates.
+    explanation: |
+      $ {=shift} \times ({=alphaRate|2} - {=betaRate|2}) = {=gain|2}$ million.
+
+  - id: trans-handcalc
+    type: hand-calc
+    skills: [transfer-pricing]
+    difficulty: 3
+    tags: [math]
+    generator: transQ
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: |
+      Alpha: **{=alphaPretax}** million at **{=alphaRate|pct}**. Beta: **{=betaPretax}** million at **{=betaRate|pct}**.
+    steps:
+      - prompt: How much tax does Alpha pay (millions)?
+        answer: { var: alphaTax, tol: 0.05 }
+        misconceptions:
+          - { var: betaTax, feedback: 'That is Beta''s tax.' }
+        hint: Rate times Alpha's pretax profit.
+      - prompt: How much tax does Beta pay (millions)?
+        answer: { var: betaTax, tol: 0.05 }
+        misconceptions:
+          - { var: alphaTax, feedback: 'That is Alpha''s tax.' }
+        hint: Rate times Beta's pretax profit.
+      - prompt: What is the combined after-tax profit (millions)?
+        answer: { var: totalAfter, tol: 0.05 }
+        misconceptions:
+          - { var: wrongPretax, feedback: 'Take the taxes away.' }
+        hint: Total pretax minus both taxes.
+    hints:
+      - Alpha, then Beta, then the total.
+    explanation: |
+      Alpha tax {=alphaTax|2}; Beta tax {=betaTax|2}; after-tax total {=totalAfter|2}.
+
+  - id: trans-code
+    type: code-fill
+    skills: [transfer-pricing]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: Complete the after-tax profit function.
+    code: |
+      def after_tax(pretax, rate):
+          return pretax * (1 - __BLANK_1__)
+
+      def group_after_tax(a_pretax, a_rate, b_pretax, b_rate):
+          return after_tax(a_pretax, a_rate) + after_tax(__BLANK_2__, b_rate)
+    blanks:
+      '1': { accept: ['rate'] }
+      '2': { accept: ['b_pretax'] }
+    hints:
+      - Each firm keeps what remains after its own tax.
+    explanation: Each firm's after-tax profit uses its own pretax profit and tax rate.
+
+  - id: transfer-order
+    type: order
+    skills: [transfer-pricing]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: Put the steps of checking a transfer pricing plan in order.
+    items:
+      - Find each subsidiary's pretax profit
+      - Apply each country's tax rate to its subsidiary
+      - Add the two after-tax profits
+      - Compare the total with the total from the other plan
+    hints:
+      - Taxes come before the totals.
+    explanation: The plan with the higher combined after-tax profit saves tax for the group.
+
+  # ------------------------------------------------------------------ control-influence
+  - id: owner-mcq
+    type: mcq
+    skills: [control-influence]
+    difficulty: 1
+    tags: [math]
+    generator: ownerQ
+    lessonRef: { tab: math-code, id: ownership-control }
+    prompt: |
+      A parent owns **{=sharePct}%** of a company's voting stock. Under the lecture's definitions, is the company a subsidiary or an affiliate?
+    hints:
+      - A subsidiary needs enough votes to elect a majority of the board.
+    explanation: |
+      With {=sharePct}% of the voting stock the company is a **{=type}**.
+
+  - id: control-multi
+    type: multi
+    skills: [control-influence]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: control-without-ownership }
+    prompt: Which are ways a parent can keep control of a company it owns less than half of?
+    options:
+      - Drawing up a management contract
+      - Retaining control of finances
+      - Retaining control of technology
+      - Placing its own people in key executive jobs
+      - Owning no connection at all
+    answer: [0, 1, 2, 3]
+    hints:
+      - The lecture lists four tools.
+    explanation: A management contract, finances, technology and key people can give control without a majority of the votes.
+
+  - id: affiliate-match
+    type: match
+    skills: [control-influence]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: control-without-ownership }
+    prompt: Match each term to its meaning.
+    pairs:
+      - ['[[subsidiary|Subsidiary]]', 'The parent can elect a majority of the board']
+      - ['[[affiliate|Affiliate]]', 'Controlled without majority ownership']
+      - ['[[joint-venture|Joint venture]]', 'Owned and run by two or more companies']
+      - ['[[management-contract|Management contract]]', 'An agreement under which one firm manages another']
+    hints:
+      - Which one is about votes?
+    explanation: The words differ by how much ownership the parent has and how it controls.
+
+  - id: owner-code
+    type: code-fill
+    skills: [control-influence]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: ownership-control }
+    prompt: Complete the ownership function.
+    code: |
+      def company_type(share_pct):
+          if share_pct __BLANK_1__ 50:
+              return "Subsidiary"
+          return "Affiliate"
+    blanks:
+      '1': { accept: ['>'] }
+    hints:
+      - A majority is more than half.
+    explanation: More than 50 percent of the voting stock gives a majority.

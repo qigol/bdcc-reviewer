@@ -1,0 +1,540 @@
+templates:
+  # ------------------------------------------------------------------ economy-size
+  - id: percap-numeric
+    type: numeric
+    skills: [economy-size]
+    difficulty: 1
+    tags: [math]
+    generator: perCapQ
+    lessonRef: { tab: math-code, id: gni-per-capita }
+    prompt: |
+      A country's gross national income is **{=gni|comma} billion dollars** and it has **{=population} million** people. What is its GNI per capita, in dollars?
+    answer: { var: perCapita, tol: 5 }
+    misconceptions:
+      - { var: wrongNoScale, feedback: 'The units differ. Billions divided by millions needs a factor of 1,000 to give dollars.' }
+      - { var: wrongInverse, feedback: 'You divided population by income. Per capita means income divided by people.' }
+    hints:
+      - Per capita means per person.
+      - Billions over millions gives thousands. Multiply GNI by 1,000, then divide by the population.
+    explanation: |
+      $ {=gni|comma} \times 1000 \div {=population} = {=perCapita|comma}$ dollars per person.
+
+  - id: gdp-gni-match
+    type: match
+    skills: [economy-size]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: reading-an-economy }
+    prompt: Match each measure to what it counts.
+    pairs:
+      - ['[[gdp|GDP]]', 'Value of goods and services produced inside the country in a year']
+      - ['[[gni|GNI]]', 'Income earned by the nation''s residents, including income from abroad']
+      - ['[[gni-per-capita|GNI per capita]]', 'GNI divided by population']
+      - ['[[underground-economy|Underground economy]]', 'Income that official statistics miss']
+    hints:
+      - Which two measure income, and which one measures production?
+    explanation: GDP counts what is produced at home. GNI counts what residents earn, wherever they earn it.
+
+  - id: growth-mcq
+    type: mcq
+    skills: [economy-size]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: reading-an-economy }
+    prompt: Why should managers look at growth rates and not only GNI per capita?
+    options:
+      - GNI per capita is only a snapshot, while rapid, rising growth suggests growing consumer demand
+      - Growth rates replace the need to know the country's size
+      - GNI per capita is always wrong
+      - Growth rates are never affected by events
+    answer: 0
+    hints:
+      - A snapshot shows one moment.
+    explanation: The lecture says GNI and GNI per capita are snapshots, and that rapid, rising growth implies consumer demand.
+
+  - id: underground-mcq
+    type: mcq
+    skills: [economy-size]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: reading-an-economy }
+    prompt: A street vendor is paid in cash and never reports the income. This income belongs to the…
+    options:
+      - Underground economy
+      - Gross domestic product
+      - External debt
+      - Atlas conversion factor
+    answer: 0
+    hints:
+      - Official statistics do not count it.
+    explanation: Unreported or underreported income is part of the underground economy.
+
+  # ------------------------------------------------------------------ development-level
+  - id: group-mcq
+    type: mcq
+    skills: [development-level]
+    difficulty: 1
+    tags: [math]
+    generator: classQ
+    lessonRef: { tab: math-code, id: gni-per-capita }
+    prompt: |
+      A country has GNI per capita of **{=perCapita|comma} dollars**. Under the World Bank's cutoffs in the lecture, which group is it in?
+    hints:
+      - High income is over 13,845.
+      - Upper-middle starts at 4,466, lower-middle at 1,136.
+    explanation: |
+      {=perCapita|comma} dollars puts the country in the **{=group}** group.
+
+  - id: group-code
+    type: code-fill
+    skills: [development-level]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: gni-per-capita }
+    prompt: Complete the income group function.
+    code: |
+      def income_group(per_capita):
+          if per_capita > __BLANK_1__:
+              return "High income"
+          if per_capita >= 4466:
+              return "Upper-middle income"
+          if per_capita >= __BLANK_2__:
+              return "Lower-middle income"
+          return "Low income"
+    blanks:
+      '1': { accept: ['13845'] }
+      '2': { accept: ['1136'] }
+    hints:
+      - High income is over 13,845 dollars.
+      - Lower-middle starts at 1,136.
+    explanation: The cutoffs are 13,845, 4,466 and 1,136 dollars of GNI per capita.
+
+  - id: developed-multi
+    type: multi
+    skills: [development-level]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: rich-and-poor }
+    prompt: Which are typical of a developed economy?
+    options:
+      - GNI per capita above 13,845 dollars
+      - A very small share of output from agriculture
+      - Well-established governmental and legal systems
+      - Widespread malnutrition
+      - High illiteracy
+    answer: [0, 1, 2]
+    hints:
+      - The last two describe developing economies.
+    explanation: Developed economies have high incomes, little farming in output, strong institutions and good education and health.
+
+  - id: dev-match
+    type: match
+    skills: [development-level]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: rich-and-poor }
+    prompt: Match each term to its meaning.
+    pairs:
+      - ['[[developed-economy|Developed economy]]', 'High income and the most advanced infrastructure']
+      - ['[[developing-economy|Developing economy]]', 'Lower income and less advanced infrastructure']
+      - ['[[emerging-market-economy|Emerging market]]', 'Low to middle income, moving toward developed status']
+    hints:
+      - India and China are examples of the last one.
+    explanation: Emerging markets are in transition between developing and developed.
+
+  # ------------------------------------------------------------------ ppp
+  - id: basket-numeric
+    type: numeric
+    skills: [ppp]
+    difficulty: 1
+    tags: [math]
+    generator: basketQ
+    lessonRef: { tab: math-code, id: ppp-basket }
+    prompt: |
+      The same basket of goods costs **{=usdText} dollars** item by item in the United States and **{=localText}** in local currency at home. How many units of local currency does PPP imply for one dollar?
+    answer: { var: rate, tol: 0.01 }
+    misconceptions:
+      - { var: wrongInverse, feedback: 'You flipped the ratio. Divide the local-currency total by the dollar total.' }
+      - { var: wrongProduct, feedback: 'You multiplied the totals. The implied rate is their ratio.' }
+    hints:
+      - Add up each basket first.
+      - Local total divided by dollar total.
+    explanation: |
+      Dollar total {=usdTotal}, local total {=localTotal}. Rate $= {=localTotal} / {=usdTotal} = {=rate}$.
+
+  - id: basket-handcalc
+    type: hand-calc
+    skills: [ppp]
+    difficulty: 2
+    tags: [math]
+    generator: basketQ
+    lessonRef: { tab: math-code, id: ppp-basket }
+    prompt: |
+      Three goods cost **{=usdText}** dollars in the United States and **{=localText}** in local currency at home.
+    steps:
+      - prompt: What does the basket cost in dollars?
+        answer: { var: usdTotal, tol: 0.05 }
+        misconceptions:
+          - { var: localTotal, feedback: 'That is the local-currency total.' }
+        hint: Add the dollar prices.
+      - prompt: What does the basket cost in local currency?
+        answer: { var: localTotal, tol: 0.05 }
+        misconceptions:
+          - { var: usdTotal, feedback: 'That is the dollar total.' }
+        hint: Add the local prices.
+      - prompt: How much local currency does PPP imply per dollar?
+        answer: { var: rate, tol: 0.01 }
+        misconceptions:
+          - { var: wrongInverse, feedback: 'Local over dollars, not the other way.' }
+        hint: Divide the local total by the dollar total.
+    hints:
+      - Total each basket, then divide.
+    explanation: |
+      Dollars {=usdTotal}; local {=localTotal}; rate {=rate}.
+
+  - id: atlas-numeric
+    type: numeric
+    skills: [ppp]
+    difficulty: 2
+    tags: [math]
+    generator: atlasQ
+    lessonRef: { tab: math-code, id: atlas-vs-ppp }
+    prompt: |
+      **{=country}** has GNI per capita of **{=atlas|comma}** dollars at Atlas exchange rates and **{=ppp|comma}** dollars at purchasing power parity. How many times as large is the PPP figure?
+    answer: { var: ratio, tol: 0.02 }
+    misconceptions:
+      - { var: wrongInverse, feedback: 'You divided Atlas by PPP. Put the PPP figure on top.' }
+      - { var: wrongPct, feedback: 'That is the extra beyond the Atlas figure. The question asks how many times as large it is.' }
+    hints:
+      - Which figure is being compared with which?
+      - PPP divided by Atlas.
+    explanation: |
+      $ {=ppp|comma} / {=atlas|comma} = {=ratio|2}$. Money goes {=ratio|2} times as far.
+
+  - id: ppp-mcq
+    type: mcq
+    skills: [ppp]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: same-money-different-baskets }
+    prompt: Why is a poorer country's GNI per capita usually higher at PPP than at Atlas exchange rates?
+    options:
+      - Local goods and services cost much less there, so the same money buys more
+      - Its currency is always worth more
+      - PPP ignores prices
+      - The Atlas method adds extra income
+    answer: 0
+    hints:
+      - Think of what a dollar buys in a low-price country.
+    explanation: PPP adjusts for what money actually buys. Where prices are low, incomes go further.
+
+  - id: atlas-code
+    type: code-fill
+    skills: [ppp]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: atlas-vs-ppp }
+    prompt: Complete the ratio function.
+    code: |
+      def ppp_ratio(atlas, ppp):
+          return __BLANK_1__ / __BLANK_2__
+    blanks:
+      '1': { accept: ['ppp'] }
+      '2': { accept: ['atlas'] }
+    hints:
+      - PPP is the figure being compared.
+    explanation: The ratio puts the PPP figure over the Atlas figure.
+
+  - id: basket-order
+    type: order
+    skills: [ppp]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: ppp-basket }
+    prompt: Put the steps of finding a PPP exchange rate in order.
+    items:
+      - Choose a basket of goods that people buy in both countries
+      - Price the basket in each country's currency
+      - Add up each basket
+      - Divide one total by the other to get the implied rate
+    hints:
+      - You cannot divide before you have totals.
+    explanation: PPP compares the cost of the same basket in two currencies.
+
+  # ------------------------------------------------------------------ inequality-spending
+  - id: disc-numeric
+    type: numeric
+    skills: [inequality-spending]
+    difficulty: 1
+    tags: [math]
+    generator: discQ
+    lessonRef: { tab: math-code, id: discretionary-income }
+    prompt: |
+      A household earns **{=income|comma}** dollars, pays **{=tax|comma}** in taxes and spends **{=essentials|comma}** on essentials. How much discretionary income is left?
+    answer: { var: free, tol: 0.5 }
+    misconceptions:
+      - { var: wrongNoTax, feedback: 'You forgot the taxes. Discretionary income starts from income after tax.' }
+      - { var: disposable, feedback: 'That is disposable income. Subtract the essentials as well.' }
+    hints:
+      - Disposable income is after tax. Discretionary is after essentials too.
+      - Income minus tax minus essentials.
+    explanation: |
+      Disposable $= {=income|comma} - {=tax|comma} = {=disposable|comma}$. Discretionary $= {=disposable|comma} - {=essentials|comma} = {=free|comma}$.
+
+  - id: disc-handcalc
+    type: hand-calc
+    skills: [inequality-spending]
+    difficulty: 2
+    tags: [math]
+    generator: discQ
+    lessonRef: { tab: math-code, id: discretionary-income }
+    prompt: |
+      Income **{=income|comma}**, taxes **{=tax|comma}**, essentials **{=essentials|comma}**.
+    steps:
+      - prompt: What is disposable income?
+        answer: { var: disposable, tol: 0.5 }
+        misconceptions:
+          - { var: free, feedback: 'That also takes away the essentials.' }
+        hint: Income minus taxes.
+      - prompt: What is discretionary income?
+        answer: { var: free, tol: 0.5 }
+        misconceptions:
+          - { var: disposable, feedback: 'Subtract the essentials from disposable income.' }
+        hint: Disposable minus essentials.
+    hints:
+      - Taxes first, then essentials.
+    explanation: |
+      Disposable {=disposable|comma}; discretionary {=free|comma}.
+
+  - id: gini-mcq
+    type: mcq
+    skills: [inequality-spending]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: inequality-and-spending }
+    prompt: What does the Gini index measure?
+    options:
+      - How equally family income is distributed in a country
+      - How fast a country is growing
+      - How much a country owes abroad
+      - The size of the underground economy
+    answer: 0
+    hints:
+      - Think of how a cake is divided.
+    explanation: The Gini index measures how equally family income is shared within a country.
+
+  - id: spending-match
+    type: match
+    skills: [inequality-spending]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: inequality-and-spending }
+    prompt: Match each term to its meaning.
+    pairs:
+      - ['[[income-distribution|Income distribution]]', 'How a nation''s income is shared among its people']
+      - ['[[disposable-income|Disposable income]]', 'Income after tax']
+      - ['[[discretionary-income|Discretionary income]]', 'Income left after tax and essential purchases']
+      - ['[[gini-index|Gini index]]', 'A measure of how equal family incomes are']
+    hints:
+      - Disposable comes before discretionary.
+    explanation: Each term describes a step in how income gets divided and spent.
+
+  # ------------------------------------------------------------------ labor-costs
+  - id: ulc-numeric
+    type: numeric
+    skills: [labor-costs]
+    difficulty: 1
+    tags: [math]
+    generator: ulcQ
+    lessonRef: { tab: math-code, id: unit-labor-cost }
+    prompt: |
+      A factory pays **{=totalLabor|comma}** dollars of direct labor to make **{=units|comma}** units. What is the unit labor cost?
+    answer: { var: ulc, tol: 0.01 }
+    misconceptions:
+      - { var: wrongInverse, feedback: 'You divided units by cost. Unit labor cost is cost per unit.' }
+      - { var: wrongTotal, feedback: 'That is the total. Divide by the number of units.' }
+    hints:
+      - Cost per unit means cost divided by units.
+    explanation: |
+      $ {=totalLabor|comma} / {=units|comma} = {=ulc}$ dollars per unit.
+
+  - id: ulc-mcq
+    type: mcq
+    skills: [labor-costs]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: labor-and-debt }
+    prompt: Wages in a country rise 10%, but output per worker also rises 10%. What happens to unit labor cost?
+    options:
+      - It stays about the same
+      - It rises 10%
+      - It falls 10%
+      - It doubles
+    answer: 0
+    hints:
+      - Unit labor cost depends on pay and output together.
+    explanation: When pay and productivity rise by the same share, the labor cost per unit does not change.
+
+  - id: ulc-code
+    type: code-fill
+    skills: [labor-costs]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: unit-labor-cost }
+    prompt: Complete the unit labor cost function.
+    code: |
+      def unit_labor_cost(total_labor, units):
+          return total_labor __BLANK_1__ units
+    blanks:
+      '1': { accept: ['/'] }
+    hints:
+      - Cost per unit uses division.
+    explanation: Unit labor cost is total direct labor cost divided by units produced.
+
+  # ------------------------------------------------------------------ external-debt
+  - id: debt-numeric
+    type: numeric
+    skills: [external-debt]
+    difficulty: 2
+    tags: [math]
+    generator: debtQ
+    lessonRef: { tab: math-code, id: debt-growth }
+    prompt: |
+      **{=country}** owed **{=first} billion** dollars abroad in 1980 and **{=last} billion** in 2022. How many times as large was the 2022 debt as the 1980 debt?
+    answer: { var: ratio, tol: 0.05 }
+    misconceptions:
+      - { var: wrongInverse, feedback: 'You divided the old debt by the new one. Put the later figure on top.' }
+      - { var: pct, feedback: 'That is the same ratio written as a percent. Give the number of times (a plain ratio).' }
+    hints:
+      - Compare the later debt with the earlier debt.
+      - 2022 debt divided by 1980 debt.
+    explanation: |
+      $ {=last} / {=first} = {=ratio|2}$ times, or {=pct|comma0}% of the 1980 debt.
+
+  - id: debt-handcalc
+    type: hand-calc
+    skills: [external-debt]
+    difficulty: 2
+    tags: [math]
+    generator: debtQ
+    lessonRef: { tab: math-code, id: debt-growth }
+    prompt: |
+      **{=country}**'s external debt was **{=first} billion** dollars in 1980 and **{=last} billion** in 2022.
+    steps:
+      - prompt: By how many billion dollars did the debt grow?
+        answer: { var: increase, tol: 0.5 }
+        misconceptions:
+          - { var: last, feedback: 'That is the 2022 level. Subtract the 1980 debt.' }
+        hint: Later minus earlier.
+      - prompt: How many times as large was the 2022 debt?
+        answer: { var: ratio, tol: 0.05 }
+        misconceptions:
+          - { var: wrongInverse, feedback: 'Put the later debt on top.' }
+        hint: Later divided by earlier.
+    hints:
+      - Difference first, then ratio.
+    explanation: |
+      Increase {=increase} billion. Ratio {=ratio|2}.
+
+  - id: debt-mcq
+    type: mcq
+    skills: [external-debt]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: labor-and-debt }
+    prompt: How can a large foreign debt hurt a company that wants to sell in that country?
+    options:
+      - The government may restrict imports to save foreign currency for debt payments
+      - Foreign debt makes imports free
+      - It guarantees stable prices
+      - It removes all exchange controls
+    answer: 0
+    hints:
+      - Think about what the debt is paid in.
+    explanation: Indebted governments may limit imports to conserve foreign exchange, and scarcity of foreign currency can hinder exporters.
+
+  - id: debt-code
+    type: code-fill
+    skills: [external-debt]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: debt-growth }
+    prompt: Complete the debt growth function.
+    code: |
+      def debt_ratio(first, last):
+          return __BLANK_1__ / __BLANK_2__
+    blanks:
+      '1': { accept: ['last'] }
+      '2': { accept: ['first'] }
+    hints:
+      - How many times larger means later over earlier.
+    explanation: The ratio puts the later debt over the earlier debt.
+
+  # ------------------------------------------------------------------ population
+  - id: density-numeric
+    type: numeric
+    skills: [population]
+    difficulty: 1
+    tags: [math]
+    generator: densityQ
+    lessonRef: { tab: math-code, id: population-density }
+    prompt: |
+      A country has **{=population|comma}** people on **{=area|comma}** square kilometers. What is its population density, in people per square kilometer?
+    answer: { var: density, tol: 0.5 }
+    misconceptions:
+      - { var: wrongInverse, feedback: 'You divided area by people. Density is people per area.' }
+      - { var: wrongRaw, feedback: 'That is the population itself. Divide it by the area.' }
+    hints:
+      - Density is people per unit of land.
+    explanation: |
+      $ {=population|comma} / {=area|comma} = {=density}$ people per square kilometer.
+
+  - id: pop-mcq
+    type: mcq
+    skills: [population]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: people-as-a-market }
+    prompt: Why is population size alone a poor sign of market strength?
+    options:
+      - A big population with low incomes has little buying power
+      - Population never changes
+      - Population only matters in cities
+      - Big populations always have high income
+    answer: 0
+    hints:
+      - Think about how much people can spend.
+    explanation: The lecture says population size alone is a poor indicator of economic strength and market potential.
+
+  - id: pop-multi
+    type: multi
+    skills: [population]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: people-as-a-market }
+    prompt: Which statements about population fit the lecture?
+    options:
+      - Developing countries generally have younger populations than industrial countries
+      - Early retirement and longer lives strain social security systems
+      - A rural-to-urban shift moves people from the countryside to cities
+      - Industrial countries always have the youngest populations
+    answer: [0, 1, 2]
+    hints:
+      - Which option says always?
+    explanation: Age and location shape what people buy and who works, which is why managers study them.
+
+  - id: density-order
+    type: order
+    skills: [population]
+    difficulty: 1
+    tags: [math]
+    lessonRef: { tab: math-code, id: population-density }
+    prompt: Put the steps for finding population density in order.
+    items:
+      - Find the number of inhabitants
+      - Find the area in square kilometers
+      - Divide the number of inhabitants by the area
+      - State the answer as people per square kilometer
+    hints:
+      - You need both numbers before dividing.
+    explanation: Density is inhabitants divided by area.

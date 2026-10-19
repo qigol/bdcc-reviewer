@@ -1,0 +1,143 @@
+intro: |
+  Spotify's chief content officer has to answer three questions after Taylor Swift's takedown: change the policy, stop other
+  artists leaving, and respond in public. This tab puts numbers behind each so you can decide.
+case:
+  id: spotify-decision
+  title: How should Spotify respond?
+  story: |
+    It is November 2014. Spotify has **50 million** active users and **12.5 million** paying subscribers. Taylor Swift was on
+    track to earn about **6 million** dollars from Spotify this year, out of about **1 billion** dollars of royalties.
+    Spotify pays labels about 70% of revenue by share of streams. Big Machine Records has asked for the new album to be paid
+    only and kept out of the US. Spotify said no, and the label ordered the whole catalogue removed.
+  data: [usformats, financials]
+  state:
+    part: 12.5
+    whole: 50
+    revenue: 100
+    payoutRate: 0.7
+    streamShare: 0.05
+    artistCut: 0.2
+    swift: 6
+    royalties: 1000
+    year: '2013'
+    before: 430
+    after: 747
+  derive:
+    - { fn: shareOf, in: { part: '@part', whole: '@whole' }, out: conv }
+    - { fn: shareOf, in: { part: '@swift', whole: '@royalties' }, out: weight }
+    - { fn: royaltyPayout, in: { revenue: '@revenue', payoutRate: '@payoutRate', streamShare: '@streamShare', artistCut: '@artistCut' }, out: p }
+    - { fn: formatShares, in: { table: '@usformats', year: '@year' }, out: f }
+    - { fn: growthPct, in: { before: '@before', after: '@after' }, out: g }
+  cells:
+    - id: scale
+      title: How big is Spotify?
+      say: |
+        One in four active users pays, and revenue grew by about 74% in a year. The company is large but still loses money.
+      stage:
+        - id: scale-r
+          widget: Readout
+          props:
+            items:
+              - { label: Share of users who pay, value: '{=conv.share|pct1}', tone: good }
+              - { label: Revenue growth, value: '{=g.pct|pct1}', tone: good }
+      decision:
+        prompt: Spotify loses money despite fast growth. What does that suggest about how it should treat a star's demands?
+        type: mcq
+        options: ['Every star matters, because growth depends on a full catalogue', 'Stars do not matter at all', 'It should raise prices immediately', 'It should end the free tier']
+        answer: 0
+        model: Growth in subscribers depends on a catalogue that people expect to be complete. Losing a major artist could slow growth just when the company needs it to turn profitable.
+    - id: swift-weight
+      title: How much does Swift matter in money terms?
+      say: |
+        About 6 million dollars of roughly 1 billion in projected royalties is a small share of what Spotify pays. Her
+        importance is larger than her payout.
+      stage:
+        - id: weight-r
+          widget: Readout
+          props:
+            items:
+              - { label: Swift's payout (millions), value: '@swift' }
+              - { label: All royalties (millions), value: '@royalties' }
+              - { label: Swift's share, value: '{=weight.share|pct1}', tone: accent }
+      decision:
+        prompt: If Swift is only about 0.6% of payouts, why might losing her still hurt Spotify?
+        type: open
+        model: |
+          Her fans may leave or use other services, other artists may follow her, and her absence weakens the claim that Spotify
+          has all the music. The harm is to reputation and to the platform's value, not just to the payout.
+    - id: payouts
+      title: What does an artist actually earn?
+      say: |
+        Follow 100 million of revenue through a 5% stream share and a 20% artist cut. Artists see only a small slice of what
+        listeners pay.
+      stage:
+        - id: pay-r
+          widget: Readout
+          props:
+            items:
+              - { label: Pool for rights holders, value: '@p.pool', tone: accent }
+              - { label: One rights holder gets, value: '@p.holder', tone: accent }
+              - { label: The artist gets, value: '@p.artist', tone: good }
+      decision:
+        prompt: 'Which change would raise an artist''s income the most: a bigger stream share, a higher artist cut, or a higher payout rate? Explain.'
+        type: open
+        model: |
+          Each factor multiplies the artist's income, so a 10% rise in any one raises it by 10%. In practice only the artist's cut
+          is negotiated with the label; the payout rate is negotiated between Spotify and the labels, and the stream share
+          depends on popularity.
+    - id: streaming-share
+      title: Is streaming the future?
+      say: |
+        Streaming grew from about 8% to about 21% of US recorded music revenue between 2010 and 2013, while CDs fell.
+      stage:
+        - id: stream-r
+          widget: Readout
+          props:
+            items:
+              - { label: Streaming share in 2013, value: '{=f.share|pct1}', tone: good }
+              - { label: Total revenue in 2013 (millions), value: '@f.total' }
+      decision:
+        prompt: What does this trend suggest about holding Swift's music back from streaming in order to protect sales?
+        type: mcq
+        options: ['Sales are shrinking, so withholding music may protect less than it costs', 'Sales are growing fast, so withholding is clearly right', 'Streaming will disappear', 'Nothing can be said']
+        answer: 0
+        model: With CD revenue falling about 37% from 2010 to 2013 and streaming rising, holding back may protect a shrinking market while giving up growing income and fans.
+    - id: public-response
+      title: What should Spotify say in public?
+      say: |
+        News of the takedown will spread. Spotify must decide whether to change policy, defend it, or find a compromise.
+      stage:
+        - id: beyond-note
+          widget: Callout
+          props:
+            kind: beyond
+            title: Beyond the case
+            body: The case ends before Spotify answers. The options here are for debate and are not what the company actually did.
+      decision:
+        prompt: Write a short plan for Spotify's response to Swift and Big Machine Records, and name one risk.
+        type: open
+        model: |
+          A balanced plan might defend the same-music-everywhere policy while offering to talk about options such as a short
+          paid-only window for new releases, explain how much artists earn, and invite Swift back. A risk is that bending the
+          rules for one superstar invites every other artist to ask for the same.
+explainBack:
+  prompt: |
+    Explain to a friend how Spotify's money flows from listeners to artists, and why a single superstar leaving matters even
+    though she is a small part of payouts.
+  rubric:
+    - Describes the 70% payout, the stream share and the artist cut
+    - Mentions conversion from free to paid users
+    - Explains the platform-wide risk of one star pulling out
+atScale:
+  title: In practice
+  body: |
+    Streaming platforms negotiate licences with labels and publishers every few years, and the terms are private. Data teams
+    watch streams by country, since payouts are calculated by country. Labels decide how much to share with artists, so many
+    artists see little detail, which is why transparency in royalties is a recurring debate.
+tradeoffs:
+  title: Spotify's possible responses
+  columns: [Option, Benefit, Risk]
+  rows:
+    - [Keep the policy, 'Consistent for all artists and fans', 'Lose Swift and possibly others']
+    - [Allow paid-only windows, 'Keeps stars and may raise sales', 'Weakens the free tier funnel']
+    - [Allow market restrictions, 'Protects home album sales', 'Complex rights and more piracy']

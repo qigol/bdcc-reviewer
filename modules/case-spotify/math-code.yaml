@@ -1,0 +1,405 @@
+sections:
+  - id: us-formats
+    title: US music revenue by kind of format
+    skills: [music-economics]
+    summary: |
+      Exhibit 2a lists US recorded-music revenue by format. Grouping the rows into physical, downloads and streaming shows
+      how fast streaming grew as a share of the total.
+    keyFormula: '\text{streaming share} = \dfrac{\text{paid} + \text{ad-supported}}{\text{total}}'
+    data: [usformats]
+    state: { year: '2013' }
+    derive:
+      - { fn: formatShares, in: { table: '@usformats', year: '@year' }, out: f }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Physical (millions), value: '@f.physical' }
+            - { label: Downloads (millions), value: '@f.downloads' }
+            - { label: Streaming (millions), value: '@f.streaming' }
+            - { label: Total (millions), value: '@f.total', tone: accent }
+            - { label: Streaming share, value: '{=f.share|pct1}', tone: good }
+    steps:
+      - tex: |
+          \anchor{physical}{P} = \text{CD} + \text{CD single} = {=f.physical|comma}
+        say: Add the physical rows.
+      - tex: |
+          \anchor{downloads}{D} = \text{single} + \text{album} = {=f.downloads|comma}
+        say: Add the download rows.
+      - tex: |
+          \anchor{streaming}{S} = \text{paid} + \text{ad-supported} = {=f.streaming|comma}
+        say: Add the streaming rows.
+      - tex: |
+          \anchor{share}{\dfrac{S}{P + D + S}} = \dfrac{ {=f.streaming|comma} }{ {=f.total|comma} } = {=f.share|pct1}
+        say: Streaming's share of the total for the year.
+    code:
+      lang: python
+      title: Streaming share
+      source: |
+        def streaming_share(cd, cd_single, dl_single, dl_album, paid, ad):
+            """Streaming's share of US recorded music revenue.
+
+            Args:
+                cd, cd_single: physical revenues in millions.
+                dl_single, dl_album: download revenues in millions.
+                paid, ad: paid subscription and ad-supported streaming revenues.
+            Returns:
+                Physical, downloads, streaming and the streaming share.
+            Lecture: Exhibit 2a, 2010 to 2013 (Spotify case, page 12).
+            """
+            physical = cd + cd_single                  # @a:physical
+            downloads = dl_single + dl_album           # @a:downloads
+            streaming = paid + ad                      # @a:streaming
+            share = streaming / (physical + downloads + streaming)    # @a:share
+            return physical, downloads, streaming, share
+    links:
+      - { anchor: physical, label: Physical }
+      - { anchor: downloads, label: Downloads }
+      - { anchor: streaming, label: Streaming }
+      - { anchor: share, label: Streaming share }
+    trace: { fn: formatShares, in: { table: '@usformats', year: '@year' } }
+    examples: [formats-2010, formats-2011, formats-2012, formats-2013]
+    tryIt: [format-share-numeric, format-total-numeric, format-handcalc]
+    pitfalls:
+      - Counting only paid subscriptions as streaming. The ad-supported row is streaming too.
+    examTip: Streaming rose from about 8% to about 21% of US recorded revenue between 2010 and 2013.
+
+  - id: growth-pct
+    title: Percentage change
+    skills: [growth-metrics]
+    summary: |
+      The case reports Spotify's revenue rising from 430 to 747 million euros, or 74%. A percentage change is the change
+      divided by where you started.
+    keyFormula: '\text{percent change} = \dfrac{\text{after} - \text{before}}{\text{before}}'
+    data: [financials]
+    state: { before: 430, after: 747 }
+    derive:
+      - { fn: growthPct, in: { before: '@before', after: '@after' }, out: g }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Before, value: '@before' }
+            - { label: After, value: '@after' }
+            - { label: Change, value: '@g.change', tone: accent }
+            - { label: Percent change, value: '{=g.pct|pct1}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{x_0} = {=before|comma},\quad x_1 = {=after|comma}
+        say: The numbers at the start and the end.
+      - tex: |
+          \anchor{change}{x_1 - x_0} = {=g.change|comma}
+        say: The change.
+      - tex: |
+          \anchor{pct}{\dfrac{x_1 - x_0}{x_0}} = {=g.pct|pct1}
+        say: The change as a share of the start.
+    code:
+      lang: python
+      title: Percentage change
+      source: |
+        def percent_change(before, after):
+            """Percentage change from one value to another.
+
+            Args:
+                before: the starting value.
+                after: the ending value.
+            Returns:
+                The change and the percentage change.
+            Lecture: revenues of 430 and 747 million euros rose 74% (Spotify case, Exhibit 3a).
+            """
+            values = (before, after)                 # @a:inputs
+            change = after - before                  # @a:change
+            return change, change / abs(before)      # @a:pct
+    links:
+      - { anchor: inputs, label: Before and after }
+      - { anchor: change, label: Change }
+      - { anchor: pct, label: Percentage change }
+    trace: { fn: growthPct, in: { before: '@before', after: '@after' } }
+    examples: [revenue-growth, subscription-growth, advertising-growth, operating-result, digital-growth, cd-decline, premium-growth]
+    tryIt: [growth-pct-numeric, growth-change-numeric, growth-handcalc]
+    pitfalls:
+      - Dividing by the later number.
+    examTip: Divide by the starting value and keep the sign, because a negative result means a fall.
+
+  - id: subscription-revenue
+    title: Subscription revenue
+    skills: [business-model]
+    beyondSlides: true
+    summary: |
+      A subscription service earns the monthly price from each paying subscriber. Multiplying by the number of months gives
+      the revenue for the period. The 12.5 million subscribers at 9.99 dollars show the scale.
+    keyFormula: '\text{revenue} = \text{subscribers} \times \text{price} \times \text{months}'
+    state: { subscribers: 12.5, price: 9.99, months: 12 }
+    derive:
+      - { fn: subscriptionRevenue, in: { subscribers: '@subscribers', price: '@price', months: '@months' }, out: s }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Subscribers (millions), value: '@subscribers' }
+            - { label: Monthly price (dollars), value: '@price' }
+            - { label: Revenue (millions of dollars), value: '@s.revenue', format: 1, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{n} = {=subscribers},\quad p = {=price},\quad m = {=months}
+        say: Subscribers, price and months.
+      - tex: |
+          \anchor{revenue}{n \times p \times m} = {=s.revenue|comma2}
+        say: The revenue in millions of dollars.
+    code:
+      lang: python
+      title: Subscription revenue
+      source: |
+        def subscription_revenue(subscribers, price, months):
+            """Subscription revenue for a period.
+
+            Args:
+                subscribers: paying subscribers, in millions.
+                price: monthly price in dollars.
+                months: number of months.
+            Returns:
+                Revenue in millions of dollars.
+            Lecture: 12.5 million paying subscribers at 9.99 dollars a month (Spotify case, page 1).
+            """
+            n = (subscribers, price, months)            # @a:inputs
+            return subscribers * price * months         # @a:revenue
+    links:
+      - { anchor: inputs, label: 'Subscribers, price and months' }
+      - { anchor: revenue, label: Revenue }
+    trace: { fn: subscriptionRevenue, in: { subscribers: '@subscribers', price: '@price', months: '@months' } }
+    examples: [subscription-annual]
+    tryIt: [sub-revenue-numeric, sub-code]
+    pitfalls:
+      - Forgetting to multiply by the number of months.
+    examTip: This assumes every subscriber pays the full price, so real revenue may be lower.
+
+  - id: share-of
+    title: A part as a share of a whole
+    skills: [business-model, swift-takedown]
+    summary: |
+      Many numbers in the case are shares: paying users among all users, physical sales among all music revenue, and
+      Taylor Swift's payouts among all of Spotify's royalties.
+    keyFormula: '\text{share} = \dfrac{\text{part}}{\text{whole}}'
+    data: [worldrev]
+    state: { part: 12.5, whole: 50 }
+    derive:
+      - { fn: shareOf, in: { part: '@part', whole: '@whole' }, out: s }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Part, value: '@part' }
+            - { label: Whole, value: '@whole' }
+            - { label: Share, value: '{=s.share|pct1}', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{a} = {=part|comma},\quad w = {=whole|comma}
+        say: The part and the whole. The example is paying users out of active users.
+      - tex: |
+          \anchor{share}{\dfrac{a}{w}} = {=s.share|pct1}
+        say: One in four of Spotify's active users paid.
+    code:
+      lang: python
+      title: Share
+      source: |
+        def share(part, whole):
+            """A part as a fraction of a whole.
+
+            Args:
+                part: the part.
+                whole: the whole it belongs to.
+            Returns:
+                The share, between 0 and 1.
+            Lecture: 12.5 million paying out of 50 million active users (Spotify case, page 1).
+            """
+            numbers = (part, whole)         # @a:inputs
+            return part / whole             # @a:share
+    links:
+      - { anchor: inputs, label: Part and whole }
+      - { anchor: share, label: Share }
+    trace: { fn: shareOf, in: { part: '@part', whole: '@whole' } }
+    examples: [conversion, physical-share, performance-share, swift-weight]
+    tryIt: [conversion-numeric, share-code, swift-weight-numeric]
+    pitfalls:
+      - Mixing units, such as millions with billions.
+    examTip: Swift's 6 million is only 0.6% of the 1 billion Spotify expected to pay out in 2014.
+
+  - id: royalty-chain
+    title: From revenue to an artist's pay
+    skills: [royalty-model]
+    summary: |
+      Spotify pays about 70% of its revenue to rights holders, in proportion to the share of streams. The rights holder
+      then pays its artists the cut in their contracts, usually 15% to 20%.
+    keyFormula: '\text{artist} = r \times q \times s \times a'
+    state: { revenue: 100, payoutRate: 0.7, streamShare: 0.05, artistCut: 0.2 }
+    derive:
+      - { fn: royaltyPayout, in: { revenue: '@revenue', payoutRate: '@payoutRate', streamShare: '@streamShare', artistCut: '@artistCut' }, out: p }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Revenue (millions), value: '@revenue' }
+            - { label: Pool for rights holders, value: '@p.pool', tone: accent }
+            - { label: One rights holder gets, value: '@p.holder', tone: accent }
+            - { label: The artist gets, value: '@p.artist', tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{R} = {=revenue|comma},\ \rho = {=payoutRate|pct},\ q = {=streamShare|pct},\ a = {=artistCut|pct}
+        say: Revenue, payout rate, stream share and artist cut.
+      - tex: |
+          \anchor{pool}{\rho R} = {=p.pool|comma2}
+        say: The pool paid to rights holders.
+      - tex: |
+          \anchor{holder}{q \rho R} = {=p.holder|comma2}
+        say: One rights holder's share of the pool.
+      - tex: |
+          \anchor{artist}{a q \rho R} = {=p.artist|comma2}
+        say: The artist's part.
+    code:
+      lang: python
+      title: The royalty chain
+      source: |
+        def royalty_chain(revenue, payout_rate, stream_share, artist_cut):
+            """Follow money from Spotify's revenue to an artist.
+
+            Args:
+                revenue: Spotify's revenue for the period.
+                payout_rate: share of revenue paid to rights holders (about 0.7).
+                stream_share: the rights holder's share of all streams.
+                artist_cut: the artist's share of what the rights holder gets.
+            Returns:
+                The pool, the rights holder's payment and the artist's payment.
+            Lecture: a 70/30 split and a stream-based share (Spotify case, pages 5-6).
+            """
+            inputs = (revenue, payout_rate)            # @a:inputs
+            pool = revenue * payout_rate               # @a:pool
+            holder = pool * stream_share               # @a:holder
+            artist = holder * artist_cut               # @a:artist
+            return pool, holder, artist
+    links:
+      - { anchor: inputs, label: The four inputs }
+      - { anchor: pool, label: The pool }
+      - { anchor: holder, label: The rights holder }
+      - { anchor: artist, label: The artist }
+    trace: { fn: royaltyPayout, in: { revenue: '@revenue', payoutRate: '@payoutRate', streamShare: '@streamShare', artistCut: '@artistCut' } }
+    examples: [royalty-example]
+    tryIt: [pool-numeric, holder-numeric, royalty-handcalc]
+    errata:
+      - 'The case quotes an artist who earned under 200 dollars from 600,000 streams over 18 months. At 0.006 to 0.008 dollars per stream the label would receive 3,600 to 4,800 dollars, and a 15% to 20% artist cut would give 540 to 960 dollars. The gap shows how contracts, advances and overheads can cut artists'' pay; it is not a calculation to reproduce.'
+    pitfalls:
+      - Applying the stream share to all revenue instead of the 70% pool.
+    examTip: Contracts are secret, so the real splits may differ from the average figures in the case.
+
+  - id: stream-counts
+    title: How many streams make a payout?
+    skills: [royalty-model]
+    summary: |
+      Spotify paid an average of 0.006 to 0.008 dollars per stream. Dividing a payout by that rate shows how many plays
+      lie behind it.
+    keyFormula: '\text{streams} = \dfrac{\text{payout}}{\text{pay per stream}}'
+    state: { payout: 500000, perStream: 0.007 }
+    derive:
+      - { fn: streamsFor, in: { payout: '@payout', perStream: '@perStream' }, out: n }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Payout (dollars), value: '@payout' }
+            - { label: Pay per stream (dollars), value: '@perStream', format: 4 }
+            - { label: Streams, value: '@n.streams', format: 0, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{P} = {=payout|comma},\quad r = {=perStream|3}
+        say: A monthly payout and a rate per stream.
+      - tex: |
+          \anchor{streams}{P / r} = {=n.streams|comma0}
+        say: 'Swift''s 500,000 dollars a month stands for roughly 71 million streams a month.'
+    code:
+      lang: python
+      title: Streams behind a payout
+      source: |
+        def streams_for(payout, per_stream):
+            """Number of streams that make up a payout.
+
+            Args:
+                payout: the amount paid, in dollars.
+                per_stream: the average pay per stream, in dollars.
+            Returns:
+                The number of streams.
+            Lecture: 500,000 dollars a month for Swift at 0.006 to 0.008 per stream (Spotify case, pages 6 and 8).
+            """
+            money = (payout, per_stream)        # @a:inputs
+            return payout / per_stream          # @a:streams
+    links:
+      - { anchor: inputs, label: Payout and rate }
+      - { anchor: streams, label: Number of streams }
+    trace: { fn: streamsFor, in: { payout: '@payout', perStream: '@perStream' } }
+    examples: [swift-streams, swift-streams-low, swift-streams-high]
+    tryIt: [streams-numeric]
+    pitfalls:
+      - Multiplying the payout by the rate.
+    examTip: A range of rates gives a range of stream counts, so quote both ends.
+
+  - id: download-vs-stream
+    title: One download against many streams
+    skills: [streams-vs-sales]
+    summary: |
+      A 0.99 dollar download pays the label about 70% of the price after the retailer's 30%. Dividing by the pay per stream
+      shows how many plays match one sale.
+    keyFormula: '\text{streams} = \dfrac{p\,(1 - c)}{r}'
+    state: { price: 0.99, retailerCut: 0.3, perStream: 0.007 }
+    derive:
+      - { fn: downloadVsStream, in: { price: '@price', retailerCut: '@retailerCut', perStream: '@perStream' }, out: d }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Download price, value: '@price' }
+            - { label: Label gets, value: '@d.net', format: 3, tone: accent }
+            - { label: Pay per stream, value: '@perStream', format: 4 }
+            - { label: Streams to match, value: '@d.streams', format: 1, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{p} = {=price},\quad c = {=retailerCut|pct},\quad r = {=perStream|3}
+        say: The download price, the retailer's cut and the pay per stream.
+      - tex: |
+          \anchor{net}{p(1 - c)} = {=d.net|3}
+        say: What the label receives from one sale.
+      - tex: |
+          \anchor{streams}{\dfrac{p(1 - c)}{r}} = {=d.streams|1}
+        say: 'About a hundred streams equal one download.'
+    code:
+      lang: python
+      title: Streams per download
+      source: |
+        def streams_per_download(price, retailer_cut, per_stream):
+            """How many streams earn the label as much as one download.
+
+            Args:
+                price: the download price in dollars.
+                retailer_cut: share kept by the retailer (0.3 means 30%).
+                per_stream: average pay per stream in dollars.
+            Returns:
+                The label's income per sale and the streams needed to match it.
+            Lecture: iTunes keeps 30%; streams pay 0.006 to 0.008 (Spotify case, pages 2 and 6).
+            """
+            sale = (price, retailer_cut)                 # @a:inputs
+            net = price * (1 - retailer_cut)             # @a:net
+            return net, net / per_stream                 # @a:streams
+    links:
+      - { anchor: inputs, label: 'Price, cut and rate' }
+      - { anchor: net, label: The label's income }
+      - { anchor: streams, label: Streams to match }
+    trace: { fn: downloadVsStream, in: { price: '@price', retailerCut: '@retailerCut', perStream: '@perStream' } }
+    examples: [download-vs-stream-mid, download-vs-stream-low]
+    tryIt: [stream-equiv-numeric, net-numeric, dl-code]
+    pitfalls:
+      - Forgetting the retailer's 30%.
+    examTip: The label then shares with its artist, so the artist needs even more streams than the label does.

@@ -1,0 +1,124 @@
+examples:
+  - id: regimes-2014
+    source: 'M8, slide 10 (Table 8.1, 2014)'
+    fn: regimeShares
+    in: { table: '@regimes', year: '2014' }
+    expect: { hard: 13.1, soft: 43.5, floating: 34.0, residual: 9.4 }
+    tol: 0.05
+  - id: regimes-2014-total
+    source: 'M8, slide 10 (Table 8.1, 2014)'
+    fn: regimeShares
+    in: { table: '@regimes', year: '2014' }
+    expect: { total: 100, hardSubSum: 13.1, floatSubSum: 34.0 }
+    tol: 0.1
+  - id: regimes-2019
+    source: 'M8, slide 10 (Table 8.1, 2019)'
+    fn: regimeShares
+    in: { table: '@regimes', year: '2019' }
+    expect: { total: 100, hardSubSum: 12.5, softSubSum: 46.4 }
+    tol: 0.15
+  - id: regimes-2022
+    source: 'M8, slide 10 (Table 8.1, 2022)'
+    fn: regimeShares
+    in: { table: '@regimes', year: '2022' }
+    expect: { hard: 13.4, hardSubSum: 13.4, softSubSum: 46.9, total: 100 }
+    tol: 0.1
+  - id: regimes-2009-errata
+    source: 'M8, slide 10 (Table 8.1, 2009)'
+    fn: regimeShares
+    in: { table: '@regimes', year: '2009' }
+    expect: { hard: 12.2, soft: 34.6, floating: 34.7, residual: 8.9, total: 90.4 }
+    tol: 0.05
+    note: The printed 2009 column adds to 90.4, not 100. Logged as errata in SOURCE_NOTES.
+  - id: eurusd-spread
+    source: 'M8, slide 18 (Table 8.2)'
+    fn: spreadQuote
+    in: { bid: 1.0955, ask: 1.0957 }
+    expect: { spread: 0.0002, pips: 2, mid: 1.0956 }
+    tol: 0.00005
+  - id: eurusd-reciprocal
+    source: 'M8, slide 18 (Table 8.2): USD/EUR 0.9126 / 0.9128'
+    fn: spreadQuote
+    in: { bid: 1.0955, ask: 1.0957 }
+    expect: { recipBid: 0.9126, recipAsk: 0.9128 }
+    tol: 0.0002
+    note: The reciprocal of the ask gives the new bid; the slide's last digit differs by at most 1 in the fourth decimal.
+  - id: usdjpy-spread
+    source: 'M8, slide 18 (Table 8.2)'
+    fn: spreadQuote
+    in: { bid: 143.94, ask: 143.96 }
+    expect: { spread: 0.02, mid: 143.95 }
+    tol: 0.005
+  - id: usdcad-spread
+    source: 'M8, slide 18 (Table 8.2)'
+    fn: spreadQuote
+    in: { bid: 1.3347, ask: 1.3349 }
+    expect: { spread: 0.0002 }
+    tol: 0.00005
+  - id: eurgbp-cross
+    source: 'M8, slide 18 (Table 8.2): EUR/GBP 0.8587 / 0.8589'
+    fn: crossRate
+    in: { bid1: 1.0955, ask1: 1.0957, bid2: 0.7838, ask2: 0.7839 }
+    expect: { bid: 0.8587, ask: 0.8589 }
+    tol: 0.0002
+    note: EUR/USD times USD/GBP reproduces the printed EUR/GBP quote.
+  - id: convert-buy
+    source: 'Beyond the slides: the bid and ask rule of slide 21'
+    fn: convertFx
+    in: { amount: 1000, bid: 1.0955, ask: 1.0957, action: buy }
+    expect: { rate: 1.0957, result: 1095.7 }
+    tol: 0.01
+  - id: convert-sell
+    source: 'Beyond the slides: the bid and ask rule of slide 21'
+    fn: convertFx
+    in: { amount: 1000, bid: 1.0955, ask: 1.0957, action: sell }
+    expect: { rate: 1.0955, result: 1095.5 }
+    tol: 0.01
+  - id: forward-premium
+    source: 'M8, slide 23: forward-spot gap equals the interest gap'
+    fn: forwardRate
+    in: { spot: 1.25, iHome: 0.05, iForeign: 0.03 }
+    expect: { diff: 0.02, forward: 1.275, direction: premium }
+    tol: 0.0005
+  - id: forward-discount
+    source: 'M8, slide 23: forward-spot gap equals the interest gap'
+    fn: forwardRate
+    in: { spot: 2, iHome: 0.02, iForeign: 0.04 }
+    expect: { diff: -0.02, forward: 1.96, direction: discount }
+    tol: 0.0005
+  - id: ppp-weaker-home
+    source: 'M8, slide 24: exchange rate adjusts for equal purchasing power'
+    fn: pppRate
+    in: { spot: 50, piHome: 0.06, piForeign: 0.02 }
+    expect: { gap: 0.04, expected: 52 }
+    tol: 0.005
+  - id: fisher-real
+    source: 'M8, slide 23: real rate = nominal - expected inflation'
+    fn: fisher
+    in: { nominal: 0.08, inflation: 0.03 }
+    expect: { real: 0.05 }
+    tol: 0.0005
+  - id: random-walk-demo
+    source: 'M8, slide 26: best predictor of tomorrow is today'
+    fn: randomWalk
+    in: { series: '@spotseries', window: 3 }
+    expect: { n: 5, firstForecast: 1.1 }
+    tol: 0.0005
+  - id: random-walk-mae
+    source: 'M8, slide 26: best predictor of tomorrow is today'
+    fn: randomWalk
+    in: { series: '@spotseries', window: 3 }
+    expect: { mae: 0.02 }
+    tol: 0.0005
+  - id: vat-chain
+    source: 'M8, slide 30 notes: value-added tax is collected at each step and credited back'
+    fn: vatChain
+    in: { prices: [100, 150, 250], rate: 0.12 }
+    expect: { totalRemit: 30, finalTax: 30 }
+    tol: 0.005
+  - id: bop-balance
+    source: 'M8, slides 34-36: a current account deficit equals a capital account surplus'
+    fn: bopSummary
+    in: { table: '@bopdemo' }
+    expect: { current: -30, capital: 30, official: 0, net: 0 }
+    tol: 0.0005

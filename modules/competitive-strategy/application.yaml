@@ -1,0 +1,153 @@
+intro: |
+  Strategy is a chain of choices: where value comes from, how costs fall, how much to adapt, what to budget and which
+  futures to prepare for. This case follows one growing restaurant chain through all five.
+case:
+  id: burger-chain
+  title: A Cebu burger chain goes abroad
+  story: |
+    Mabuhay Burgers wants to enter Asia and the United States. Customers will pay up to **100 dollars** for its
+    signature burger, the price is set at **70** and it costs **50** to make. Fixed kitchen costs are **20,000** a month
+    with **5** of variable cost per burger. Local tastes differ a lot, but the chain also wants low costs. Last year's
+    sales were **200,000** and management expects **10%** growth.
+  data: [scenarios, strategies]
+  state:
+    willingness: 100
+    price: 70
+    unitCost: 50
+    fixedCost: 20000
+    variableCost: 5
+    units: 1000
+    cost: high
+    adapt: high
+    lastSales: 200000
+    growth: 0.1
+    costRatio: 0.5
+    fixedExpenses: 20000
+  derive:
+    - { fn: valueCreation, in: { willingness: '@willingness', price: '@price', unitCost: '@unitCost' }, out: v }
+    - { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' }, out: a }
+    - { fn: chooseStrategy, in: { cost: '@cost', adapt: '@adapt' }, out: s }
+    - { fn: budgetPlan, in: { lastSales: '@lastSales', growth: '@growth', costRatio: '@costRatio', fixedExpenses: '@fixedExpenses' }, out: b }
+    - { fn: commonActions, in: { scenarios: '@scenarios' }, out: c }
+  cells:
+    - id: where-value
+      title: Where does the value come from?
+      say: |
+        The burger creates value only if customers will pay more than it costs to make. The price decides how that value is
+        shared between the customer and the chain.
+      stage:
+        - id: value-r
+          widget: Readout
+          props:
+            items:
+              - { label: Value created, value: '@v.created', tone: good }
+              - { label: Customer keeps, value: '@v.surplus', tone: accent }
+              - { label: Chain keeps, value: '@v.profit', tone: accent }
+      decision:
+        prompt: Management considers raising the price to 90. What happens to the value created?
+        type: mcq
+        options: [It stays 50 but more goes to the chain, It rises to 70, It falls to 10, It doubles]
+        answer: 0
+        model: Value created is willingness to pay minus cost (50). A higher price only shifts who keeps it. At 90 the chain keeps 40 and the customer 10, though some customers may stop buying.
+    - id: cheaper-kitchens
+      title: Does size lower the cost?
+      say: |
+        A central kitchen has fixed costs of 20,000. At 1,000 burgers a month the average cost is high; more volume would
+        spread the fixed cost.
+      stage:
+        - id: scale-r
+          widget: Readout
+          props:
+            items:
+              - { label: Fixed cost per burger, value: '@a.spread', format: 2, tone: accent }
+              - { label: Average cost per burger, value: '@a.average', format: 2, tone: good }
+      decision:
+        prompt: Volume rises tenfold to 10,000 burgers. Will average cost fall to a tenth?
+        type: mcq
+        options: [No. The variable cost stays 5 per burger so the fall is smaller, Yes. Everything falls to a tenth, No. Average cost rises, It cannot be known]
+        answer: 0
+        model: Fixed cost per burger falls from 20 to 2, so the average falls from 25 to 7. The variable 5 does not shrink, so cost falls by much less than a tenth.
+    - id: adapt-or-not
+      title: Adapt the menu or keep it standard?
+      say: |
+        Tastes differ across Asia, but low costs matter too. Both pressures are strong, which points to one of the four
+        strategies.
+      stage:
+        - id: strat-r
+          widget: Readout
+          props:
+            items:
+              - { label: Cost pressure, value: '{=cost}' }
+              - { label: Pressure to adapt, value: '{=adapt}' }
+              - { label: Strategy, value: '{=s.strategy}', tone: good }
+      decision:
+        prompt: Which strategy does the lecture suggest when both pressures are high, and what is the risk?
+        type: open
+        model: |
+          A transnational strategy: standardize when possible (central kitchen, shared recipes) and adapt when necessary
+          (local sauces and menus). The risk is complexity, because it needs strong coordination between headquarters and
+          local teams.
+    - id: budget-next-year
+      title: What should next year's budget say?
+      say: |
+        With 10% growth, costs at half of sales and fixed expenses of 20,000, the budget shows what profit management should
+        plan for.
+      stage:
+        - id: budget-r
+          widget: Readout
+          props:
+            items:
+              - { label: Forecast sales, value: '@b.forecast', tone: accent }
+              - { label: Expenses, value: '@b.expenses', tone: accent }
+              - { label: Budgeted profit, value: '@b.net', tone: good }
+      decision:
+        prompt: If growth turns out to be only 5%, will budgeted profit be higher or lower than the plan?
+        type: mcq
+        options: [Lower, Higher, The same, Cannot be known]
+        answer: 0
+        model: At 5% growth, sales are 210,000, expenses 125,000 and profit 85,000, below the 90,000 plan.
+    - id: futures
+      title: Which moves work in every future?
+      say: |
+        The team writes three stories: a boom, a steady path and a downturn, each with its own actions. They look for the
+        moves that appear in all three.
+      stage:
+        - id: scen-r
+          widget: Readout
+          props:
+            items:
+              - { label: Actions in every story, value: '@c.count', tone: good }
+              - { label: Different actions seen, value: '@c.total' }
+        - id: beyond-note
+          widget: Callout
+          props:
+            kind: beyond
+            title: Beyond the slides
+            body: The actions and numbers in this case are made up to practice the lecture's ideas. The lecture's own case is Jollibee.
+      decision:
+        prompt: Hiring local managers and keeping a cost focus appear in every story. What should management do first, and why?
+        type: open
+        model: |
+          Start with those two moves. They are safe whichever future arrives, so they carry little regret. Hold back the
+          moves that only suit one scenario, such as fast expansion, until it is clear which story is unfolding.
+explainBack:
+  prompt: |
+    Explain to a friend how a chain decides between standardizing and adapting, and why it plans for several futures
+    instead of one.
+  rubric:
+    - Names the two pressures, cost and adaptation
+    - Links the combination to one of the four strategies
+    - Says scenarios help find actions that work in every future
+atScale:
+  title: In practice
+  body: |
+    Large companies run strategic planning as a yearly cycle with quarterly reviews. Corporate teams set objectives, business
+    units build bottom-up plans, and both sides iterate until the budgets agree. Many firms use a balanced scorecard to
+    track money, customers, internal processes and learning, and they refresh their scenarios each year.
+tradeoffs:
+  title: Entry strategies compared
+  columns: [Strategy, Strength, Weakness]
+  rows:
+    - [Global, 'Lowest cost through standard products', 'Misses local tastes']
+    - [Multidomestic, 'Fits each market', 'Higher cost, less scale']
+    - [Transnational, 'Standard where possible, local where needed', 'Hard to coordinate']

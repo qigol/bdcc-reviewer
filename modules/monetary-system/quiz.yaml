@@ -1,0 +1,672 @@
+templates:
+  # ------------------------------------------------------------------ monetary-system
+  - id: eras-order
+    type: order
+    skills: [monetary-system]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: from-gold-to-floating }
+    prompt: Put these money systems in the order they appeared.
+    items:
+      - The gold standard
+      - The Bretton Woods system (1945 to 1971)
+      - Floating exchange rates after the Jamaica Agreement
+    hints:
+      - Which system tied money to a metal?
+      - Bretton Woods ended in 1971.
+    explanation: Money was first tied to gold, then to gold and the dollar at Bretton Woods, and then the major currencies were allowed to float.
+
+  - id: hard-peg-mcq
+    type: mcq
+    skills: [monetary-system]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: peg-or-float }
+    prompt: Which arrangement is a **hard peg**?
+    options:
+      - A country uses another country's currency as its own money
+      - A rate that slides a little each month
+      - A rate that moves inside a wide band
+      - A rate set freely by the market
+    answer: 0
+    hints:
+      - Hard means there is almost no room for the rate to move.
+    explanation: Using another currency outright (no separate legal tender) or a currency board are the hard pegs. Crawling pegs and bands are soft pegs; free markets are floating.
+
+  - id: triffin-mcq
+    type: mcq
+    skills: [monetary-system]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: from-gold-to-floating }
+    prompt: What is the Triffin paradox?
+    options:
+      - The country whose money is the world's reserve must run deficits to supply it, which erodes trust in that money
+      - Gold becomes cheaper as more countries adopt the gold standard
+      - A fixed rate always becomes a floating rate after ten years
+      - Reserve currencies never lose value
+    answer: 0
+    hints:
+      - The world needs to hold lots of that currency. How does it get there?
+    explanation: To supply the world with reserves, the reserve country must send out more of its money than it takes in. Over time that weakens confidence in it.
+
+  - id: money-types-match
+    type: match
+    skills: [monetary-system]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: new-kinds-of-money }
+    prompt: Match each kind of money to its description.
+    pairs:
+      - ['[[fiat-currency|Fiat currency]]', 'Government money with no gold or silver behind it']
+      - ['[[cryptocurrency|Cryptocurrency]]', 'Digital money secured by code and run without a central authority']
+      - ['[[stablecoin|Stablecoin]]', 'A digital coin that pegs its value to another asset']
+      - ['[[cbdc|CBDC]]', 'A digital version of the official currency, issued by the central bank']
+    hints:
+      - Which of the four is issued by a central bank?
+    explanation: The four differ by who issues them and what backs them.
+
+  - id: regime-sum-numeric
+    type: numeric
+    skills: [monetary-system]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: regime-shares }
+    prompt: |
+      In 2022, 13.4% of countries used a hard peg. Of those, 7.2% used no separate legal tender. What percent used a currency board?
+    answer: { value: 6.2, tol: 0.05 }
+    misconceptions:
+      - { value: 20.6, feedback: 'That is the conventional peg, a soft peg. A hard peg splits into just two arrangements.' }
+      - { value: 13.4, feedback: 'That is the whole hard-peg group. Take away the part already named.' }
+    hints:
+      - The group total is the sum of its parts.
+      - 'Subtract: 13.4 minus 7.2.'
+    explanation: '$13.4 - 7.2 = 6.2$. A hard peg is either no separate legal tender or a currency board.'
+
+  # ------------------------------------------------------------------ fx-quotes
+  - id: spread-numeric
+    type: numeric
+    skills: [fx-quotes]
+    difficulty: 1
+    tags: [math]
+    generator: spreadQ
+    lessonRef: { tab: math-code, id: bid-ask-quote }
+    prompt: A bank quotes EUR/USD at **{=bid} / {=ask}** (bid / ask). What is the spread, in pips? (One pip is 0.0001.)
+    answer: { var: pips, tol: 0.05 }
+    misconceptions:
+      - { var: wrongMid, feedback: 'That is the midpoint, the average of bid and ask. The spread is the **gap** between them.' }
+      - { var: wrongSum, feedback: 'You added bid and ask. Subtract the bid from the ask.' }
+    hints:
+      - The spread is the gap between two prices.
+      - Ask minus bid, then count how many 0.0001 steps fit in it.
+    explanation: |
+      Spread $= {=ask} - {=bid} = {=spread|4}$, which is **{=pips} pips**.
+
+  - id: quote-handcalc
+    type: hand-calc
+    skills: [fx-quotes]
+    difficulty: 2
+    tags: [math]
+    generator: spreadQ
+    lessonRef: { tab: math-code, id: bid-ask-quote }
+    prompt: A bank quotes EUR/USD at **{=bid} / {=ask}**. Work through the quote.
+    steps:
+      - prompt: What is the spread (ask minus bid)?
+        answer: { var: spread, tol: 0.00005 }
+        misconceptions:
+          - { var: wrongSum, feedback: 'Subtract, do not add.' }
+        hint: Ask minus bid.
+      - prompt: What is the midpoint (the average of bid and ask)?
+        answer: { var: mid, tol: 0.00005 }
+        misconceptions:
+          - { var: wrongSum, feedback: 'That is the sum. Divide it by 2 for the average.' }
+        hint: Add the two prices and halve.
+    hints:
+      - Take the steps one at a time.
+    explanation: |
+      Spread $= {=spread|4}$. Midpoint $= ({=bid} + {=ask})/2 = {=mid|5}$.
+
+  - id: reciprocal-numeric
+    type: numeric
+    skills: [fx-quotes]
+    difficulty: 1
+    tags: [math]
+    generator: reciprocalQ
+    lessonRef: { tab: intuition, id: reading-a-quote }
+    prompt: One euro costs **{=rate} dollars** (EUR/USD = {=rate}). How many euros does one dollar buy?
+    answer: { var: flip, tol: 0.005 }
+    misconceptions:
+      - { var: wrongSame, feedback: 'That repeats the quote. Flip the pair: divide 1 by the rate.' }
+      - { var: wrongOneMinus, feedback: 'Subtracting from 1 does not reverse a rate. Divide 1 by it.' }
+    hints:
+      - If a euro is worth more than a dollar, a dollar buys less than one euro.
+      - Divide 1 by the rate.
+    explanation: |
+      $1 / {=rate} = {=flip}$ euros per dollar.
+
+  - id: convert-numeric
+    type: numeric
+    skills: [fx-quotes]
+    difficulty: 2
+    tags: [math]
+    generator: convertQ
+    lessonRef: { tab: math-code, id: convert-fx }
+    prompt: |
+      A bank quotes dollars per euro at **bid {=bid} / ask {=ask}**. A customer {=verb} {=amount} euros. How many dollars change hands?
+    answer: { var: result, tol: 0.05 }
+    misconceptions:
+      - { var: wrong, feedback: 'You used the wrong side of the quote. The bank sells at the ask and buys at the bid.' }
+      - { var: wrongDiv, feedback: 'You divided. The quote is dollars per euro, so multiply the euros by it.' }
+    hints:
+      - When the customer buys euros, the bank is selling. Which price does a seller use?
+      - Multiply the euros by that price.
+    explanation: |
+      The customer {=verb} euros, so the bank uses the **{=side}** price, {=rate}. Dollars $= {=amount|comma} \times {=rate} = {=result|comma2}$.
+
+  - id: quote-sides-mcq
+    type: mcq
+    skills: [fx-quotes]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: reading-a-quote }
+    prompt: At a currency desk the ask price is always higher than the bid price. Why?
+    options:
+      - The gap is the dealer's fee for making the trade
+      - The ask is quoted in a different currency
+      - Prices drift upward during the day
+      - The bid is the price after tax
+    answer: 0
+    hints:
+      - The dealer buys at one price and sells at the other.
+    explanation: The dealer buys at the lower bid and sells at the higher ask, and keeps the difference.
+
+  - id: spread-code
+    type: code-fill
+    skills: [fx-quotes]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: bid-ask-quote }
+    prompt: Complete the function for the spread and the midpoint.
+    code: |
+      def spread_and_mid(bid, ask):
+          spread = ask - __BLANK_1__
+          mid = (bid + ask) / __BLANK_2__
+          return spread, mid
+    blanks:
+      '1': { accept: ['bid'] }
+      '2': { accept: ['2'] }
+    hints:
+      - The spread is the ask minus what?
+    explanation: The spread is the ask minus the bid, and the midpoint is their average.
+
+  # ------------------------------------------------------------------ cross-rates
+  - id: cross-numeric
+    type: numeric
+    skills: [cross-rates]
+    difficulty: 1
+    tags: [math]
+    generator: crossQ
+    lessonRef: { tab: math-code, id: cross-rate }
+    prompt: EUR/USD is **{=a}** and USD/GBP is **{=b}**. What is EUR/GBP?
+    answer: { var: cross, tol: 0.005 }
+    misconceptions:
+      - { var: wrongDiv, feedback: 'You divided. Chain the two quotes by multiplying them.' }
+      - { var: wrongAdd, feedback: 'Rates are ratios, not amounts. Multiply them.' }
+    hints:
+      - Write each quote as "this currency per that currency" and look for the one that cancels.
+      - Euro per dollar times dollar per pound. Multiply.
+    explanation: |
+      The dollars cancel: EUR/GBP $= {=a} \times {=b} = {=cross|3}$.
+
+  - id: cross-handcalc
+    type: hand-calc
+    skills: [cross-rates]
+    difficulty: 3
+    tags: [math]
+    generator: crossQ
+    lessonRef: { tab: math-code, id: cross-rate }
+    prompt: |
+      EUR/USD is **{=bid1} / {=ask1}** and USD/GBP is **{=bid2} / {=ask2}**. Find the EUR/GBP cross rate.
+    steps:
+      - prompt: What is the cross **bid**? (Bid times bid.)
+        answer: { var: cross, tol: 0.005 }
+        misconceptions:
+          - { var: wrongDiv, feedback: 'Multiply the two bids; do not divide.' }
+        hint: Use the two bid prices only.
+      - prompt: What is the cross **ask**? (Ask times ask.)
+        answer: { var: crossAsk, tol: 0.005 }
+        misconceptions:
+          - { var: wrongDiv, feedback: 'Multiply the two asks; do not divide.' }
+        hint: Use the two ask prices only.
+    hints:
+      - Do the bid side, then the ask side.
+    explanation: |
+      Cross bid $= {=bid1} \times {=bid2} = {=cross|4}$. Cross ask $= {=ask1} \times {=ask2} = {=crossAsk|4}$.
+
+  - id: cross-steps-order
+    type: order
+    skills: [cross-rates]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: cross-rate }
+    prompt: Put the steps for building a cross rate in order.
+    items:
+      - Write the pair you want, for example EUR/GBP
+      - Find two quotes that share a middle currency, such as EUR/USD and USD/GBP
+      - Multiply the bids to get the cross bid
+      - Multiply the asks to get the cross ask
+    hints:
+      - You need the shared currency before you can multiply.
+    explanation: The shared currency cancels when the two quotes are multiplied; bids go with bids and asks with asks.
+
+  - id: cross-code
+    type: code-fill
+    skills: [cross-rates]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: cross-rate }
+    prompt: Complete the cross rate function.
+    code: |
+      def cross_rate(bid1, ask1, bid2, ask2):
+          bid = bid1 __BLANK_1__ bid2
+          ask = ask1 * __BLANK_2__
+          return bid, ask
+    blanks:
+      '1': { accept: ['*'] }
+      '2': { accept: ['ask2'] }
+    hints:
+      - Chain the quotes with multiplication.
+    explanation: Bids multiply bids and asks multiply asks.
+
+  # ------------------------------------------------------------------ forward-parity
+  - id: forward-numeric
+    type: numeric
+    skills: [forward-parity]
+    difficulty: 2
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: forward-rate }
+    prompt: |
+      The spot rate is **{=spot} dollars per euro**. One-year interest is **{=iHome|pct}** in the United States (home) and **{=iForeign|pct}** in the euro area. What one-year forward rate does covered interest parity give?
+    answer: { var: forward, tol: 0.005 }
+    misconceptions:
+      - { var: wrongSwap, feedback: 'You took foreign minus home. Use the home rate minus the foreign rate.' }
+      - { var: wrongAdd, feedback: 'You added the interest rates. Subtract the foreign rate from the home rate.' }
+    hints:
+      - The forward-spot gap, as a share of spot, equals the interest rate gap.
+      - Forward = spot times one plus (home rate minus foreign rate).
+    explanation: |
+      The gap is $ {=iHome|pct} - {=iForeign|pct} = {=diff|pct}$. Forward $= {=spot} \times (1 + {=diff|3}) = {=forward|4}$.
+
+  - id: forward-handcalc
+    type: hand-calc
+    skills: [forward-parity]
+    difficulty: 3
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: forward-rate }
+    prompt: |
+      Spot is **{=spot}** dollars per euro. Home (U.S.) interest is **{=iHome|pct}** and foreign (euro) interest is **{=iForeign|pct}**.
+    steps:
+      - prompt: What is the interest rate gap (home minus foreign), as a decimal?
+        answer: { var: diff, tol: 0.0005 }
+        misconceptions:
+          - { var: wrongAdd, feedback: 'Subtract; do not add.' }
+        hint: Home minus foreign.
+      - prompt: What is the forward rate?
+        answer: { var: forward, tol: 0.005 }
+        misconceptions:
+          - { var: wrongSwap, feedback: 'Check the sign of the gap.' }
+        hint: Forward = spot times (1 plus the gap).
+    hints:
+      - Find the gap first.
+    explanation: |
+      Gap $= {=diff|3}$. Forward $= {=spot} \times (1 + {=diff|3}) = {=forward|4}$.
+
+  - id: forward-direction-mcq
+    type: mcq
+    skills: [forward-parity]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: interest-and-forwards }
+    prompt: Home interest rates are higher than foreign interest rates. The foreign currency should trade at a forward…
+    options:
+      - Premium (forward rate above spot)
+      - Discount (forward rate below spot)
+      - Parity (forward rate equal to spot)
+      - It depends only on inflation
+    answer: 0
+    hints:
+      - Rate gap = home minus foreign. Is it positive?
+    explanation: A positive gap raises the forward rate above spot, so the foreign currency is at a premium. Otherwise lenders could earn a risk-free profit by arbitrage.
+
+  - id: forward-code
+    type: code-fill
+    skills: [forward-parity]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: forward-rate }
+    prompt: Complete the forward rate function.
+    code: |
+      def forward_rate(spot, i_home, i_foreign):
+          diff = i_home - __BLANK_1__
+          return spot * (1 + __BLANK_2__)
+    blanks:
+      '1': { accept: ['i_foreign'] }
+      '2': { accept: ['diff'] }
+    hints:
+      - The gap compares the two interest rates.
+    explanation: The forward is the spot rate scaled by one plus the interest rate gap.
+
+  # ------------------------------------------------------------------ ppp
+  - id: ppp-numeric
+    type: numeric
+    skills: [ppp]
+    difficulty: 2
+    tags: [math]
+    generator: pppQ
+    lessonRef: { tab: math-code, id: ppp }
+    prompt: |
+      Today's rate is **{=spot}** units of home currency per unit of foreign currency. Home prices will rise **{=piHome|pct}** a year and foreign prices **{=piForeign|pct}**. By purchasing power parity, what is the expected rate in a year?
+    answer: { var: expected, tol: 0.01 }
+    misconceptions:
+      - { var: wrongSwap, feedback: 'You used foreign minus home. Home inflation higher than foreign inflation raises the price of foreign money at home.' }
+      - { var: spot, feedback: 'That is today''s rate. Apply the inflation gap to it.' }
+    hints:
+      - Find the inflation gap, home minus foreign.
+      - Multiply today's rate by one plus the gap.
+    explanation: |
+      Gap $= {=gap|pct}$. Expected rate $= {=spot} \times (1 + {=gap|3}) = {=expected|3}$.
+
+  - id: arbitrage-mcq
+    type: mcq
+    skills: [ppp]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: why-prices-differ }
+    prompt: Which action is **arbitrage**?
+    options:
+      - Buying a good where it is cheap and selling it where it is dear at the same moment, with no risk
+      - Holding a currency for a year hoping it rises
+      - Printing more money
+      - Paying a tax on foreign income
+    answer: 0
+    hints:
+      - Look for "same moment" and "no risk".
+    explanation: Arbitrage needs two prices for the same thing at once. Buying and selling at the same time locks in the profit.
+
+  - id: law-one-price-mcq
+    type: mcq
+    skills: [ppp]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-prices-differ }
+    prompt: A phone costs the equivalent of $500 in one country and $400 in another, with easy shipping. What does the law of one price predict?
+    options:
+      - Buyers will move goods from the cheap place to the dear place until the prices meet
+      - The prices will stay different forever
+      - The cheaper country bans the phone
+      - Both prices will rise together
+    answer: 0
+    hints:
+      - Who profits from the gap?
+    explanation: Buying cheap and selling dear pushes the two prices together. That is the pressure behind purchasing power parity.
+
+  # ------------------------------------------------------------------ fisher
+  - id: fisher-numeric
+    type: numeric
+    skills: [fisher]
+    difficulty: 1
+    tags: [math]
+    generator: fisherQ
+    lessonRef: { tab: math-code, id: fisher }
+    prompt: A bank pays **{=nominal|pct}** interest a year and prices are expected to rise **{=inflation|pct}**. What is the real interest rate? (Answer as a percentage.)
+    answer: { var: real, tol: 0.0005, accept: [decimal, percent] }
+    misconceptions:
+      - { var: wrongAdd, feedback: 'You added. Rising prices take away buying power, so subtract inflation.' }
+      - { var: wrongRatio, feedback: 'You divided. Subtract expected inflation from the nominal rate.' }
+    hints:
+      - Which rate is "before" price rises and which is "after"?
+      - Real = nominal minus expected inflation.
+    explanation: |
+      Real rate $= {=nominal|pct} - {=inflation|pct} = {=real|pct}$.
+
+  - id: fisher-mcq
+    type: mcq
+    skills: [fisher]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: interest-and-forwards }
+    prompt: Savings pay 4% and prices rise 6%. What happens to the saver's buying power?
+    options:
+      - It falls, because the real rate is negative
+      - It rises by 10%
+      - It stays the same
+      - It rises by 4%
+    answer: 0
+    hints:
+      - Real = nominal minus inflation.
+    explanation: The real rate is $4\% - 6\% = -2\%$. The saver can buy less after a year.
+
+  - id: fisher-code
+    type: code-fill
+    skills: [fisher]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: fisher }
+    prompt: Complete the real rate function.
+    code: |
+      def real_rate(nominal, inflation):
+          return nominal __BLANK_1__ inflation
+    blanks:
+      '1': { accept: ['-'] }
+    hints:
+      - Inflation reduces the benefit of interest.
+    explanation: The real rate is the nominal rate minus expected inflation.
+
+  # ------------------------------------------------------------------ forecasting
+  - id: rw-numeric
+    type: numeric
+    skills: [forecasting]
+    difficulty: 1
+    tags: [math]
+    generator: randomWalkQ
+    lessonRef: { tab: math-code, id: random-walk }
+    prompt: |
+      A rate was **{=seriesText}** over the last months (oldest first). What does a random walk forecast for next month?
+    answer: { var: forecast, tol: 0.005 }
+    misconceptions:
+      - { var: wrongTrend, feedback: 'That continues the last move. A random walk predicts no move at all.' }
+      - { var: wrongMean, feedback: 'That is the average of the whole series. Use only the latest value.' }
+    hints:
+      - A random walk says the best guess for tomorrow is today.
+    explanation: |
+      The forecast is the latest value, **{=forecast}**.
+
+  - id: forecast-match
+    type: match
+    skills: [forecasting]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: forecasting-rates }
+    prompt: Match each forecasting approach to its idea.
+    pairs:
+      - ['[[efficient-market|Efficient market]]', 'Prices already reflect all relevant information']
+      - ['[[random-walk|Random walk]]', 'The best prediction of tomorrow is today']
+      - ['[[fundamental-approach|Fundamental approach]]', 'Models of inflation, interest rates and trade']
+      - ['[[technical-analysis|Technical analysis]]', 'Past price trends projected forward']
+    hints:
+      - Which one uses charts of past prices?
+    explanation: The first two say forecasting is hopeless; the last two try to do it from the economy or from price patterns.
+
+  - id: forecast-multi
+    type: multi
+    skills: [forecasting]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: forecasting-rates }
+    prompt: Which statements fit the random walk view of exchange rates?
+    options:
+      - Yesterday's change does not help predict tomorrow's change
+      - Today's rate is the best single guess for tomorrow's rate
+      - Studying chart patterns reliably beats the market
+      - Large unexpected news can move rates in either direction
+    answer: [0, 1, 3]
+    hints:
+      - Which statements say patterns do not help?
+    explanation: A random walk allows surprises, but it says patterns in past prices do not give a reliable edge.
+
+  # ------------------------------------------------------------------ govt-forces
+  - id: vat-numeric
+    type: numeric
+    skills: [govt-forces]
+    difficulty: 2
+    tags: [math]
+    generator: vatQ
+    lessonRef: { tab: math-code, id: vat }
+    prompt: |
+      A product passes through firms that sell it at **{=pricesText}** in turn. The value-added tax rate is **{=rate|pct}**. How much tax does the firm at stage **{=stage}** (selling at {=price}) pay to the government?
+    answer: { var: remit, tol: 0.01 }
+    misconceptions:
+      - { var: wrongFull, feedback: 'That is the tax collected on the whole sale. The firm gets a credit for the tax already paid on what it bought.' }
+    hints:
+      - Value added = this firm's price minus the price it paid.
+      - Tax paid = rate times the value added.
+    explanation: |
+      The firm added {=price} − {=prevPrice} of value, so it pays $ {=rate|pct} \times ({=price} - {=prevPrice}) = {=remit|2}$.
+
+  - id: tax-match
+    type: match
+    skills: [govt-forces]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: governments-step-in }
+    prompt: Match each tax to how it works.
+    pairs:
+      - ['[[income-tax|Income tax]]', 'A direct tax on what people and companies earn']
+      - ['[[value-added-tax|Value-added tax]]', 'A sales tax collected at each step, credited against earlier payments']
+      - ['[[withholding-tax|Withholding tax]]', 'Tax taken at the source from passive income such as interest']
+    hints:
+      - Which one is paid again at every stage of production?
+    explanation: Income tax is on earnings; VAT is on value added at each step; withholding tax is taken from passive income as it is paid.
+
+  - id: controls-mcq
+    type: mcq
+    skills: [govt-forces]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: governments-step-in }
+    prompt: Why do some governments impose currency exchange controls?
+    options:
+      - To manage their foreign reserves
+      - To raise the price of gold
+      - To make their currency convertible
+      - To lower inflation directly
+    answer: 0
+    hints:
+      - What does a country run short of when too many people want foreign money?
+    explanation: Controls restrict who can buy foreign money so that the central bank's reserves are not drained. The currency then becomes nonconvertible, with an official rate usually above the free-market rate.
+
+  - id: convertible-mcq
+    type: mcq
+    skills: [govt-forces]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: governments-step-in }
+    prompt: A country fixes its currency at a rate above the free-market value and rations foreign money. This currency is…
+    options:
+      - Nonconvertible
+      - Convertible
+      - Free floating
+      - A stablecoin
+    answer: 0
+    hints:
+      - Can people swap it freely for other currencies?
+    explanation: A currency whose value is fixed by the government above its free-market value, with exchange controls, is nonconvertible.
+
+  # ------------------------------------------------------------------ bop
+  - id: bop-numeric
+    type: numeric
+    skills: [bop]
+    difficulty: 2
+    tags: [math]
+    generator: bopQ
+    lessonRef: { tab: math-code, id: bop-balance }
+    prompt: |
+      A country had exports of **{=exp}**, imports of **{=imp}**, foreign investment into the country of **{=inv}** and investment abroad of **{=out}** (all in billions). Official reserves must fill the rest so everything adds to zero. What is the official reserves entry? (Use a minus sign for a negative number.)
+    answer: { var: official, tol: 0.5 }
+    misconceptions:
+      - { var: wrongNet, feedback: 'The reserves entry has the **opposite sign** of current plus capital.' }
+      - { var: current, feedback: 'That is only the current account. Include the capital account too.' }
+    hints:
+      - Current = exports minus imports. Capital = investment in minus investment abroad.
+      - Reserves = minus (current plus capital).
+    explanation: |
+      Current $= {=exp} - {=imp} = {=current}$. Capital $= {=inv} - {=out} = {=capital}$. Reserves $= -({=current} + {=capital}) = {=official}$.
+
+  - id: bop-mcq
+    type: mcq
+    skills: [bop]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: balance-of-payments }
+    prompt: A country runs a deficit in its current account and its official reserves do not change. What must be true of its capital account?
+    options:
+      - It shows an equal surplus
+      - It shows an equal deficit
+      - It is empty
+      - It cannot be known
+    answer: 0
+    hints:
+      - The whole record adds to zero.
+    explanation: Money that flows out through the current account must flow back in through the capital account, so the two offset.
+
+  - id: bop-sides-mcq
+    type: mcq
+    skills: [bop]
+    difficulty: 2
+    tags: [term]
+    lessonRef: { tab: intuition, id: balance-of-payments }
+    prompt: In the balance of payments, a payment **from** another country to us is recorded as…
+    options:
+      - A credit
+      - A debit
+      - A loan
+      - A reserve
+    answer: 0
+    hints:
+      - Think of money coming in.
+    explanation: Payments from other countries are credits; payments to other countries are debits.
+
+  - id: bop-code
+    type: code-fill
+    skills: [bop]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: bop-balance }
+    prompt: Complete the function that finds the official reserves entry.
+    code: |
+      def official_reserves(current, capital):
+          return __BLANK_1__ (current + capital)
+    blanks:
+      '1': { accept: ['-'] }
+    hints:
+      - All three accounts must add to zero.
+    explanation: Reserves take the opposite sign of the other two accounts combined, so the total is zero.
+
+  - id: bop-order
+    type: order
+    skills: [bop]
+    difficulty: 3
+    tags: [math]
+    lessonRef: { tab: math-code, id: bop-balance }
+    prompt: Put the steps of balancing a country's payments record in order.
+    items:
+      - Record every payment from abroad as a credit and every payment abroad as a debit
+      - Add up the current account lines
+      - Add up the capital account lines
+      - Set official reserves to the opposite of the two sums together
+      - Check that all three accounts add to zero
+    hints:
+      - Reserves are the last piece because they depend on the other two.
+    explanation: Reserves are the balancing item, so they come after the other accounts have been added up.

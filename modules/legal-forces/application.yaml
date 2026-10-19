@@ -1,0 +1,138 @@
+intro: |
+  Legal forces turn into line items on every export deal: which law applies, which term sets the price, and how clean the
+  partner's country looks. This case follows one exporter through all three.
+case:
+  id: coffee-exporter
+  title: A Batangas coffee roaster sells to Germany
+  story: |
+    Kape Batangas roasts coffee and sells a container to a buyer in Germany. The goods cost **20,000 dollars** on board the
+    ship. Freight to Hamburg is **2,000** and insurance **300**. The buyer asks for a **CIF** quote. The roaster also
+    wants to know how trustworthy the buyer's country looks and how to protect its blend.
+  data: [cpi]
+  state:
+    fob: 20000
+    freight: 2000
+    insurance: 300
+    loading: 500
+    term: CIF
+    country: Germany
+    from: '1999'
+    to: '2022'
+  derive:
+    - { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, out: i }
+    - { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, out: c }
+  cells:
+    - id: quote-price
+      title: What goes into a CIF quote?
+      say: |
+        Under CIF the seller covers the goods, the freight and the insurance to the named port. The risk still passes
+        to the buyer once the goods are on board.
+      stage:
+        - id: quote-r
+          widget: Readout
+          props:
+            items:
+              - { label: Goods on board (FOB price), value: '@fob' }
+              - { label: Freight, value: '@freight' }
+              - { label: Insurance, value: '@insurance' }
+              - { label: CIF quote, value: '@i.price', tone: good }
+      decision:
+        prompt: Who bears the risk if the container is damaged at sea after it was loaded?
+        type: mcq
+        options: [The buyer, The seller, The shipping port, The bank]
+        answer: 0
+        model: Under CIF the risk passes to the buyer once the goods are on board, even though the seller bought the insurance.
+    - id: other-terms
+      title: What if the buyer wanted a different term?
+      say: |
+        Under CFR the buyer would buy the insurance. Under FAS the buyer would also pay for loading. The goods and the
+        costs are the same, but the seller's quote and risk change.
+      stage:
+        - id: terms-note
+          widget: Text
+          props:
+            body: |
+              **Same costs, different quotes**
+
+              FAS < FOB < CFR < CIF
+      decision:
+        prompt: Which term gives the lowest quoted price for the same goods?
+        type: mcq
+        options: [FAS, FOB, CFR, CIF]
+        answer: 0
+        model: FAS stops at the ship's side, so the seller quotes the least. The buyer pays the loading, freight and insurance.
+    - id: partner-country
+      title: How does the buyer's country rank?
+      say: |
+        The roaster looks at Germany's rank in the Corruption Perceptions Index in 1999 and 2022. A steady, low rank
+        suggests clear laws and fair dealing.
+      stage:
+        - id: cpi-r
+          widget: Readout
+          props:
+            items:
+              - { label: Rank in 1999, value: '@c.earlier', tone: accent }
+              - { label: Rank in 2022, value: '@c.later', tone: accent }
+              - { label: Places gained (negative = lost), value: '@c.change', tone: good }
+      decision:
+        prompt: Germany went from 14 to 9. What does that suggest about doing business there?
+        type: mcq
+        options: [The country is seen as getting cleaner, so legal risk looks low, The country is getting more corrupt, Nothing can be learned from ranks, The ranking is about trade names]
+        answer: 0
+        model: A fall in the rank number means the country is seen as less corrupt. Combined with an established legal system, that lowers risk.
+    - id: protect-blend
+      title: Protecting the blend
+      say: |
+        The roaster's recipe is its edge. It can keep it as a trade secret, register its logo as a trademark, and
+        copyright its packaging artwork.
+      stage:
+        - id: ip-note
+          widget: Text
+          props:
+            body: |
+              **Recipe** → trade secret. **Logo** → trademark. **Artwork** → copyright.
+      decision:
+        prompt: The roaster asks whether to patent its roasting process or keep it secret. Give one reason for each choice.
+        type: open
+        model: |
+          A patent gives exclusive rights but publishes the method and ends after a time. A trade secret lasts as long as it
+          stays secret and needs no registration, but it is lost if a rival works it out independently or someone leaks it.
+    - id: contract-clauses
+      title: Writing the contract
+      say: |
+        Finally, the contract should name which law governs it and where disputes will be settled, and possibly require
+        arbitration.
+      stage:
+        - id: beyond-note
+          widget: Callout
+          props:
+            kind: beyond
+            title: Beyond the slides
+            body: Real export contracts also cover payment terms, letters of credit and inspection. The lecture covers the clauses and the choice between court and arbitration.
+      decision:
+        prompt: The buyer suggests German courts. The roaster would rather use arbitration. What is the strongest argument for arbitration?
+        type: mcq
+        options: [It is usually quicker, cheaper and more private, German courts cannot hear contracts, Arbitration decisions are enforced by a world court, Arbitration avoids having a contract]
+        answer: 0
+        model: Arbitration is quicker, cheaper and more private. No world court exists to enforce a ruling, so having an agreed process matters.
+explainBack:
+  prompt: |
+    Explain to a friend how the choice of Incoterm changes the seller's price and risk, and why a contract names a law and a
+    place for disputes.
+  rubric:
+    - Describes what FAS, FOB, CFR and CIF add to the price
+    - Says that risk passes on board (or alongside) the ship
+    - Names the choice-of-law and choice-of-forum clauses
+atScale:
+  title: In practice
+  body: |
+    Exporters work with freight forwarders and customs brokers who set up the shipping, insurance and paperwork. Banks
+    often confirm payment with a letter of credit. Firms register trademarks in each market, usually through the World
+    Intellectual Property Organization's Madrid system, and keep compliance programs against bribery.
+tradeoffs:
+  title: Settling a dispute
+  columns: [Option, Strength, Weakness]
+  rows:
+    - [Court, 'Binding in the chosen country', 'Slow, public and costly']
+    - [Arbitration, 'Quicker, cheaper, private', 'Limited appeal']
+    - [Negotiation, 'Cheap and keeps the relationship', 'No guaranteed result']

@@ -1,0 +1,151 @@
+intro: |
+  Exchange rates decide whether an export deal makes money. This case follows one small exporter from reading a quote to
+  locking in a price, using every idea in the module.
+case:
+  id: cebu-exporter
+  title: A Cebu furniture maker gets paid in euros
+  story: |
+    Mactan Rattan Co. sells woven chairs to a buyer in Germany. The buyer will pay **200,000 euros** in one year. The
+    company counts its money in U.S. dollars. Today the bank quotes **1.0955 / 1.0957** dollars per euro, U.S. interest
+    is **5%** and euro-area interest is **3%**. The owner must decide what to do about the exchange rate.
+  data: [fxquotes]
+  state:
+    amount: 200000
+    bid: 1.0955
+    ask: 1.0957
+    bid2: 0.7838
+    ask2: 0.7839
+    spot: 1.0956
+    iHome: 0.05
+    iForeign: 0.03
+    piHome: 0.04
+    piForeign: 0.02
+  derive:
+    - { fn: spreadQuote, in: { bid: '@bid', ask: '@ask' }, out: q }
+    - { fn: convertFx, in: { amount: '@amount', bid: '@bid', ask: '@ask', action: sell }, out: c }
+    - { fn: crossRate, in: { bid1: '@bid', ask1: '@ask', bid2: '@bid2', ask2: '@ask2' }, out: x }
+    - { fn: forwardRate, in: { spot: '@spot', iHome: '@iHome', iForeign: '@iForeign' }, out: f }
+    - { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' }, out: p }
+  cells:
+    - id: read-quote
+      title: Read the quote
+      say: |
+        The bank's price has a bid and an ask. The spread is the dealer's fee. A tight spread means the market is deep and
+        the fee is small.
+      stage:
+        - id: read-r
+          widget: Readout
+          props:
+            items:
+              - { label: Bid, value: '@bid', format: 4 }
+              - { label: Ask, value: '@ask', format: 4 }
+              - { label: Spread (dollars), value: '@q.spread', format: 4, tone: accent }
+              - { label: Midpoint, value: '@q.mid', format: 5, tone: accent }
+    - id: sell-euros
+      title: Cash the euros today
+      say: |
+        Suppose the buyer paid today. The company would **sell** euros, so the bank buys them at its bid.
+      stage:
+        - id: sell-r
+          widget: Readout
+          props:
+            items:
+              - { label: Rate used, value: '@c.rate', format: 4 }
+              - { label: Dollars received, value: '@c.result', format: 2, tone: good }
+      decision:
+        prompt: Which price does the exporter get when it sells euros to the bank?
+        type: mcq
+        options: [The bid, The ask, The midpoint, The spread]
+        answer: 0
+        model: The bank buys euros at its bid, the lower price. The customer always trades at the worse side.
+    - id: cross-pound
+      title: A pound-priced competitor
+      say: |
+        A rival quotes the German buyer in pounds. To compare, the owner builds the euro-pound cross rate from the two
+        dollar quotes.
+      stage:
+        - id: cross-r
+          widget: Readout
+          props:
+            items:
+              - { label: 'EUR/USD bid', value: '@bid', format: 4 }
+              - { label: 'USD/GBP bid', value: '@bid2', format: 4 }
+              - { label: 'EUR/GBP bid', value: '@x.bid', format: 4, tone: good }
+              - { label: 'EUR/GBP ask', value: '@x.ask', format: 4, tone: good }
+    - id: lock-rate
+      title: Lock the rate a year ahead
+      say: |
+        A bank offers a one-year forward contract. By covered interest parity, the forward is the spot rate moved by the
+        interest gap (5% minus 3%).
+      stage:
+        - id: lock-r
+          widget: Readout
+          props:
+            items:
+              - { label: Spot, value: '@spot', format: 4 }
+              - { label: Interest gap, value: '{=f.diff|pct1}', tone: accent }
+              - { label: One-year forward, value: '@f.forward', format: 4, tone: good }
+      decision:
+        prompt: The forward rate is above spot. What does that mean for the euros the company will receive?
+        type: mcq
+        options: [Locking in gives more dollars than today's spot would, A forward always loses money, The euro is at a forward discount, Nothing changes]
+        answer: 0
+        model: Home interest is above euro interest, so the euro trades at a forward premium. Selling euros forward at that higher rate gives more dollars per euro than spot.
+    - id: inflation-check
+      title: Will the euro really be that strong?
+      say: |
+        The owner doubts the forward rate. If U.S. prices rise 4% and euro-area prices rise 2%, purchasing power parity
+        gives a different expected rate.
+      stage:
+        - id: infl-r
+          widget: Readout
+          props:
+            items:
+              - { label: Inflation gap, value: '{=p.gap|pct1}', tone: accent }
+              - { label: Rate expected by PPP, value: '@p.expected', format: 4, tone: good }
+              - { label: Forward rate, value: '@f.forward', format: 4 }
+      decision:
+        prompt: Should the owner lock in the forward rate or wait for the spot rate? Give one reason.
+        type: open
+        model: |
+          Locking in removes the risk and gives a rate near what parity and inflation suggest. Waiting is a bet that the euro
+          will be even stronger, and a random walk view says no one can reliably tell. A small firm usually prefers certainty.
+    - id: bigger-picture
+      title: Beyond the firm
+      say: |
+        Many exporters locking in euros affect the country too. Their sales show up as credits in the current account.
+      stage:
+        - id: beyond-note
+          widget: Callout
+          props:
+            kind: beyond
+            title: Beyond the slides
+            body: Real treasury teams combine forwards, invoicing in their own currency and matching euro costs against euro sales (a natural hedge). The lecture covers only the forward idea.
+      decision:
+        prompt: If many exporters sell more abroad, which part of the balance of payments improves first?
+        type: mcq
+        options: [The current account, The capital account only, Official reserves only, None of them]
+        answer: 0
+        model: Exports of goods are credits in the current account, so it improves first.
+explainBack:
+  prompt: |
+    Explain to a friend why the exporter is quoted two prices, how the forward rate is chosen, and what could still make
+    the euro end up weaker than the forward rate.
+  rubric:
+    - Names the bid and ask and who trades at which
+    - States that the forward rate follows the interest rate gap
+    - Gives a reason the future spot rate could differ, such as inflation, news or policy
+atScale:
+  title: In practice
+  body: |
+    Companies seldom trade currency by hand. A **treasury** team sets a hedging policy (for example, hedge half of expected
+    euro income), and the bank's trading platform streams live bid and ask prices. Forward contracts are confirmed over
+    SWIFT, the banks' secure messaging system. Large payments in dollars settle through systems such as CHIPS and Fedwire.
+    Controls and taxes (withholding tax on interest, VAT on goods) are checked by finance staff before payments leave.
+tradeoffs:
+  title: Ways to handle euro income
+  columns: [Option, What you get, Risk]
+  rows:
+    - [Do nothing, 'The spot rate on the day you are paid', 'The euro may fall']
+    - [Forward contract, 'A known rate today', 'You miss out if the euro rises']
+    - [Invoice in dollars, 'No currency risk for you', 'The buyer carries it and may push back']

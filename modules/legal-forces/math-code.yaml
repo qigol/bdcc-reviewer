@@ -1,0 +1,188 @@
+sections:
+  - id: cpi-ranks
+    title: Reading the Corruption Perceptions Index
+    skills: [legal-systems, corruption-index]
+    summary: |
+      The Corruption Perceptions Index ranks countries from 1, seen as least corrupt, downward. A smaller number is
+      better, so a rank that falls is an improvement. Compare two years to see which way a country moved.
+    keyFormula: '\text{change} = \text{rank}_{\text{earlier}} - \text{rank}_{\text{later}}'
+    data: [cpi]
+    state: { country: France, from: '1999', to: '2022' }
+    derive:
+      - { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, out: c }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Rank in the earlier year, value: '@c.earlier', tone: accent }
+            - { label: Rank in the later year, value: '@c.later', tone: accent }
+            - { label: Places gained (negative = lost), value: '@c.change', tone: good }
+    steps:
+      - tex: |
+          \anchor{earlier}{\text{rank}_{\text{earlier}}} = {=c.earlier}
+        say: 'Read {=country} in {=from}.'
+      - tex: |
+          \anchor{later}{\text{rank}_{\text{later}}} = {=c.later}
+        say: 'Read {=country} in {=to}.'
+      - tex: |
+          \anchor{change}{\text{change}} = {=c.earlier} - {=c.later} = {=c.change}
+        say: 'A positive change means the country moved toward rank 1: it {=c.direction}.'
+    code:
+      lang: python
+      title: Rank change
+      source: |
+        def rank_change(table, country, year_from, year_to):
+            """How many places a country moved in the Corruption Perceptions Index.
+
+            Args:
+                table: dict of country -> {year: rank}.
+                country: the country's name.
+                year_from: the earlier year.
+                year_to: the later year.
+            Returns:
+                Places gained; positive means the rank number fell (an improvement).
+            Lecture: France 22 in 1999, 21 in 2022 (M6 slide 32).
+            """
+            earlier = table[country][year_from]     # @a:earlier
+            later = table[country][year_to]         # @a:later
+            return earlier - later                  # @a:change
+    links:
+      - { anchor: earlier, label: Earlier rank }
+      - { anchor: later, label: Later rank }
+      - { anchor: change, label: Places gained }
+    trace: { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' } }
+    examples: [cpi-denmark, cpi-france, cpi-japan, cpi-china, cpi-mexico, cpi-canada, cpi-nigeria, cpi-best-2022, cpi-best-2009]
+    tryIt: [cpi-change-numeric, cpi-handcalc, cpi-code]
+    pitfalls:
+      - Treating a bigger rank number as better. Rank 1 is the best.
+      - Subtracting in the wrong order, which flips the sign.
+    examTip: Strong rule of law and low corruption go together, but rankings are perceptions and can change fast.
+
+  - id: which-law
+    title: Which rule applies?
+    skills: [ip-rights, national-laws]
+    summary: |
+      A manager facing a legal question first asks which rule covers it. Creations are protected by intellectual property
+      rights, and conduct is governed by national laws such as antitrust, tort and accounting rules.
+    keyFormula: '\text{situation} \rightarrow \text{rule}'
+    state: { issue: invention }
+    derive:
+      - { fn: whichLaw, in: { issue: '@issue' }, out: w }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Situation, value: '{=issue}' }
+            - { label: Rule that applies, value: '{=w.law}', tone: good }
+            - { label: Area of law, value: '{=w.area}', tone: accent }
+    steps:
+      - tex: |
+          \anchor{lookup}{\text{situation}} \;\mapsto\; \text{rule}
+        say: Each situation matches one rule.
+      - tex: |
+          \anchor{answer}{\text{rule}} = {=w.law|text}
+        say: 'The rule is {=w.law}.'
+    code:
+      lang: python
+      title: A rule lookup
+      source: |
+        RULES = {
+            "invention": "Patent",
+            "brand-sign": "Trademark",
+            "confidential-info": "Trade secret",
+            "price-fixing": "Antitrust law",
+            "product-harm": "Strict liability",
+        }
+
+        def which_law(issue):
+            """Look up the rule that covers a situation.
+
+            Args:
+                issue: a short label for the situation.
+            Returns:
+                The name of the rule that applies.
+            Lecture: patents, trademarks, trade secrets, antitrust law and strict liability (M6 slides 17-28).
+            """
+            law = RULES[issue]       # @a:lookup
+            return law               # @a:answer
+    links:
+      - { anchor: lookup, label: Match the situation }
+      - { anchor: answer, label: The rule }
+    trace: { fn: whichLaw, in: { issue: '@issue' } }
+    examples: [law-invention, law-secret, law-price-fixing, law-product-harm, law-scandal]
+    tryIt: [ip-match, accounting-match, law-code]
+    pitfalls:
+      - Mixing up a trademark (a sign for a product) with a trade name (the business's name).
+    examTip: A trade secret is protected by keeping it confidential, so it needs no registration.
+
+  - id: incoterm-price
+    title: What an Incoterm puts in the price
+    skills: [intl-law, incoterms]
+    beyondSlides: true
+    summary: |
+      Each Incoterm says how far the seller's costs go. FOB stops at the ship's rail, CFR adds freight and CIF adds
+      freight and insurance. FAS stops even earlier, alongside the ship. The buyer pays the rest.
+    keyFormula: '\text{CIF} = \text{FOB} + \text{freight} + \text{insurance}'
+    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: CIF }
+    derive:
+      - { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, out: i }
+    live:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Goods on board (FOB price), value: '@fob' }
+            - { label: Freight, value: '@freight' }
+            - { label: Insurance, value: '@insurance' }
+            - { label: Price quoted by the seller, value: '@i.price', tone: good }
+            - { label: Buyer pays on top, value: '@i.buyerExtra', tone: accent }
+    steps:
+      - tex: |
+          \anchor{fob}{P_{\text{FOB}}} = {=fob|comma}
+        say: Start from the price of goods placed on board.
+      - tex: |
+          \anchor{freight}{+ \text{freight}} \text{ if CFR or CIF} \qquad \anchor{insurance}{+ \text{insurance}} \text{ if CIF}
+        say: The term decides what the seller adds.
+      - tex: |
+          \anchor{price}{ P_{ {=term|text} } } = {=i.price|comma}, \qquad \text{buyer pays } {=i.buyerExtra|comma} \text{ more}
+        say: 'Risk passes {=i.riskPassesAt}.'
+    code:
+      lang: python
+      title: Incoterm price
+      source: |
+        def incoterm_price(fob, freight, insurance, loading, term):
+            """Price quoted under an Incoterm, and what the buyer still pays.
+
+            Args:
+                fob: price of the goods on board the ship.
+                freight: cost of shipping to the destination port.
+                insurance: cost of insuring the goods.
+                loading: cost of loading, which FAS leaves to the buyer.
+                term: "FAS", "FOB", "CFR" or "CIF".
+            Returns:
+                The quoted price and the extra the buyer pays.
+            Lecture: the four Incoterms of Table 6.2 (M6 slide 25).
+            """
+            price = fob                                  # @a:fob
+            if term == "FAS":
+                price -= loading
+            if term in ("CFR", "CIF"):
+                price += freight                         # @a:freight
+            if term == "CIF":
+                price += insurance                       # @a:insurance
+            total = fob + freight + insurance
+            return price, total - price                  # @a:price
+    links:
+      - { anchor: fob, label: FOB price }
+      - { anchor: freight, label: Freight added by CFR and CIF }
+      - { anchor: insurance, label: Insurance added by CIF }
+      - { anchor: price, label: Quoted price }
+    trace: { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' } }
+    examples: [incoterm-fob, incoterm-fas, incoterm-cfr, incoterm-cif]
+    tryIt: [inco-price-numeric, inco-fas-numeric, inco-code]
+    pitfalls:
+      - Forgetting that CFR leaves the insurance to the buyer.
+      - Assuming risk passes at the destination. It passes at the ship.
+    examTip: Risk passes alongside the ship for FAS and on board for FOB, CFR and CIF.

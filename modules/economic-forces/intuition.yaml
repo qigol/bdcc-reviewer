@@ -1,0 +1,455 @@
+scenes:
+  - id: reading-an-economy
+    title: Reading an economy
+    goal: How can a company tell how big and how rich a country's market is before it enters?
+    skills: [economy-size]
+    state: { gni: 600, population: 40 }
+    derive:
+      - { fn: gniPerCapita, in: { gni: '@gni', population: '@population' }, out: g }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: GNI (billions of dollars), value: '@gni' }
+            - { label: Population (millions), value: '@population' }
+            - { label: GNI per capita (dollars), value: '@g.perCapita', tone: accent }
+            - { label: Income group, value: '{=g.group}', tone: good }
+      - id: pop
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Population (millions), min: 10, max: 100, step: 10 }
+        bind: { value: population }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: gniPerCapita, in: { gni: '@gni', population: '@population' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          A company selling abroad faces forces it cannot control. The **foreign environment** is all the forces outside the
+          home country that surround and affect the firm. The **international environment** is how home and foreign forces
+          act on each other.
+        define: [foreign-environment, international-environment]
+      - say: |
+          To judge a market, start with its size. **Gross domestic product**, or GDP, is the money value of everything
+          produced inside a country in a year. **Gross national income**, or GNI, is the income earned by its residents,
+          including income from abroad.
+        define: [gdp, gni]
+      - say: |
+          Size alone can fool you. **GNI per capita** divides GNI by the number of people, a rough sign of how advanced
+          the economy is. A country with 600 billion dollars of GNI and 40 million people is the example.
+        define: [gni-per-capita]
+        gate:
+          type: predict
+          question: What is GNI per capita, in dollars?
+          answer: { value: 15000, tol: 5 }
+          explain: 600 billion × 1,000 ÷ 40 million = 15,000 dollars per person.
+      - say: Watch the division being done.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: |
+          Now change the population. More people sharing the same income means less for each.
+        hide: [player]
+        show: [pop]
+        gate:
+          type: when
+          prompt: Raise the population until GNI per capita falls below 10,000 dollars.
+          when: 'g.perCapita < 10000'
+          hint: Try 70 million or more.
+      - say: |
+          Two cautions. The **economic growth rate** shows how fast income is rising, which hints at growing demand.
+          The **underground economy** is income that official statistics miss, such as unreported cash work.
+        define: [economic-growth-rate, underground-economy]
+      - say: Now try one with new numbers.
+        gate:
+          type: practice
+          template: percap-numeric
+    takeaway: GNI per capita shows how rich a market is, while growth and the underground economy fill in the picture.
+
+  - id: rich-and-poor
+    title: Rich, poor and in between
+    goal: How do we sort countries by how well off they are?
+    skills: [development-level]
+    stage:
+      - id: sorter
+        widget: DropBins
+        props:
+          check: instant
+          shuffle: true
+          chips:
+            - { id: c1, label: 'Norway (95,510 dollars per person)' }
+            - { id: c2, label: 'Saudi Arabia (27,590)' }
+            - { id: c3, label: 'Malaysia (11,780)' }
+            - { id: c4, label: 'Mexico (10,410)' }
+            - { id: c5, label: 'India (2,380)' }
+            - { id: c6, label: 'Nigeria (2,140)' }
+          bins:
+            - { id: high, label: High income (over 13845) }
+            - { id: um, label: Upper-middle (4466 up to 13845) }
+            - { id: lm, label: Lower-middle (1136 up to 4465) }
+          solution: { c1: high, c2: high, c3: um, c4: um, c5: lm, c6: lm }
+    beats:
+      - say: |
+          The World Bank groups countries by GNI per capita. Over 13,845 dollars is high income. From 4,466 up to 13,845 is
+          upper-middle. From 1,136 up to 4,465 is lower-middle. Below 1,136 is low income.
+      - say: |
+          High-income industrial countries are **developed economies**: high living standards, advanced production, strong
+          legal systems, good schools and health care, and very little of output from farming.
+        define: [developed-economy]
+        gate:
+          type: predict
+          question: Which country in the sorter is above the high-income cutoff of 13,845?
+          options: [Norway, Mexico, India, Nigeria]
+          answer: 0
+          explain: Norway's GNI per capita is 95,510 dollars, far above the cutoff.
+      - say: |
+          **Developing economies** have lower incomes, less advanced infrastructure, lower living standards and often an
+          unequal sharing of income with a very small middle class.
+        define: [developing-economy]
+      - say: |
+          In between are **emerging market economies**: low to middle incomes that are moving toward developed status.
+          India and China are the lecture's examples. Sort the six countries by group.
+        define: [emerging-market-economy]
+        gate:
+          type: event
+          prompt: Place every country in its income group.
+          target: sorter
+          event: solved
+          hint: Compare each number with the three cutoffs.
+      - say: Classify a new one.
+        gate:
+          type: practice
+          template: group-mcq
+      - say: One more thought.
+        gate:
+          type: reflect
+          prompt: Why shouldn't a manager rely on GNI per capita alone when judging a market?
+          model: |
+            It is an average. It hides how unequal incomes are, ignores the underground economy and says nothing about
+            growth, prices or how people actually spend. A country with a low average may still have a large, wealthy
+            group of buyers.
+    takeaway: GNI per capita sorts countries into income groups, but a market needs more than one number.
+
+  - id: same-money-different-baskets
+    title: Same money, different baskets
+    goal: Why does a dollar of income go much further in some countries than in others?
+    skills: [ppp]
+    data: [basket]
+    state: { atlas: 10590, ppp: 36920 }
+    derive:
+      - { fn: basketPPP, in: { table: '@basket' }, out: b }
+      - { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, out: a }
+    stage:
+      - id: r1
+        widget: Readout
+        props:
+          items:
+            - { label: Basket in baht, value: '@b.bahtTotal', tone: accent }
+            - { label: Basket in dollars, value: '@b.usdTotal', tone: accent }
+            - { label: Implied baht per dollar, value: '@b.rate', format: 3, tone: good }
+      - id: r2
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: 'Turkey: Atlas income', value: '@atlas' }
+            - { label: 'Turkey: PPP income', value: '@ppp' }
+            - { label: Ratio, value: '@a.ratio', format: 2, tone: accent }
+            - { label: Extra dollars at PPP, value: '@a.gap', tone: good }
+      - id: player1
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: basketPPP, in: { table: '@basket' }, roles: { r: r1 }, speed: 0.8 }
+      - id: player2
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, roles: { r: r2 }, speed: 0.8 }
+    beats:
+      - say: |
+          To compare incomes, we turn each into dollars with an **exchange rate**: the price of one currency in another.
+          But a market rate only reflects trading, not what money can buy in the shops.
+        define: [exchange-rate]
+      - say: |
+          **Purchasing power parity**, or PPP, adjusts the exchange rate so the two currencies buy the same goods. The
+          lecture prices five goods in Thailand (in baht) and the United States (in dollars): soap, rice, shoes, a dress
+          and socks.
+        define: [purchasing-power-parity]
+        gate:
+          type: predict
+          question: The baskets cost 1,865 baht and 160.05 dollars. Roughly how many baht per dollar does PPP imply?
+          answer: { value: 11.65, tol: 0.05 }
+          explain: 1,865 ÷ 160.05 = 11.65 baht per dollar.
+      - say: Add the baskets good by good.
+        show: [player1]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player1
+          event: done
+      - say: |
+          Two more ideas. **Inflation** is a sustained rise in prices. The **Atlas conversion factor** is the World Bank's
+          exchange rate: an average over three years, adjusted for inflation, to smooth out swings.
+        define: [inflation, atlas-conversion-factor]
+        hide: [r1, player1]
+        show: [r2]
+      - say: |
+          Turkey's income is 10,590 dollars at Atlas rates but 36,920 dollars at PPP. Estimate how many times as large.
+        gate:
+          type: predict
+          question: How many times as large is Turkey's PPP income as its Atlas income?
+          answer: { value: 3.49, tol: 0.03 }
+          explain: 36,920 ÷ 10,590 = 3.49. Local prices are low, so money goes about three and a half times as far.
+      - say: Watch the ratio and gap being worked out.
+        show: [player2]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player2
+          event: done
+      - say: A basket on your own.
+        gate:
+          type: practice
+          template: basket-numeric
+      - say: And a comparison of two measures.
+        gate:
+          type: practice
+          template: atlas-numeric
+    takeaway: PPP asks what money actually buys, so low-price countries look richer at PPP than at market exchange rates.
+
+  - id: inequality-and-spending
+    title: Who can afford what
+    goal: Beyond averages, how can a firm tell how much money households have to spend on choices?
+    skills: [inequality-spending]
+    state: { income: 30000, tax: 4000, essentials: 12000 }
+    derive:
+      - { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, out: x }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Income, value: '@income' }
+            - { label: Disposable income, value: '@x.disposable', tone: accent }
+            - { label: Discretionary income, value: '@x.discretionary', tone: good }
+      - id: ess
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Essential purchases, min: 4000, max: 20000, step: 2000 }
+        bind: { value: essentials }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Two countries can have the same average income and very different markets. **Income distribution** is how a
+          nation's income is shared among its people.
+        define: [income-distribution]
+      - say: |
+          The **Gini index** measures how equally family income is shared. It varies widely around the world, and a higher
+          value means less equality.
+        define: [gini-index]
+      - say: |
+          For one household, what matters is what is left to spend. **Disposable income** is income after tax. A household
+          earns 30,000 dollars and pays 4,000 in tax.
+        define: [disposable-income]
+        gate:
+          type: predict
+          question: What is the household's disposable income?
+          answer: { value: 26000, tol: 0.5 }
+          explain: 30,000 − 4,000 = 26,000 dollars.
+      - say: |
+          Subtract essentials such as food and housing and you get **discretionary income**: what can be spent on choices.
+          That is what firms selling non-essentials care about most.
+        define: [discretionary-income]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Now change the essentials.
+        hide: [player]
+        show: [ess]
+        gate:
+          type: when
+          prompt: Cut essential spending until discretionary income reaches 18,000 dollars.
+          when: 'x.discretionary >= 18000'
+          hint: Disposable income is 26,000. Essentials of 8,000 leave 18,000.
+      - say: One more on your own.
+        gate:
+          type: practice
+          template: disc-numeric
+    takeaway: Discretionary income is income after tax and essentials, and shows who can buy non-essentials.
+
+  - id: labor-and-debt
+    title: What labor costs and what countries owe
+    goal: How does a company compare factory costs across countries and judge a country's money troubles?
+    skills: [labor-costs, external-debt]
+    data: [debt]
+    state: { totalLabor: 50000, units: 10000, country: China }
+    derive:
+      - { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, out: u }
+      - { fn: debtGrowth, in: { table: '@debt', country: '@country' }, out: d }
+    stage:
+      - id: r1
+        widget: Readout
+        props:
+          items:
+            - { label: Total direct labor cost, value: '@totalLabor' }
+            - { label: Units produced, value: '@units' }
+            - { label: Unit labor cost, value: '@u.ulc', format: 2, tone: good }
+      - id: r2
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Debt in 1980 (billions), value: '@d.first' }
+            - { label: Debt in 2022 (billions), value: '@d.last' }
+            - { label: Times larger, value: '@d.ratio', format: 2, tone: accent }
+            - { label: Percent of the 1980 debt, value: '@d.pct', format: 0, tone: good }
+      - id: pick
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Country
+          style: dropdown
+          options:
+            - { value: China, label: China }
+            - { value: India, label: India }
+            - { value: Mexico, label: Mexico }
+            - { value: Brazil, label: Brazil }
+            - { value: Turkey, label: Turkey }
+            - { value: Indonesia, label: Indonesia }
+            - { value: Argentina, label: Argentina }
+        bind: { value: country }
+      - id: player1
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, roles: { r: r1 }, speed: 0.8 }
+      - id: player2
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: debtGrowth, in: { table: '@debt', country: '@country' }, roles: { r: r2 }, speed: 0.8 }
+    beats:
+      - say: |
+          Pay is only part of the story. **Unit labor cost** is the total direct labor cost divided by the number of units
+          produced. A factory pays 50,000 dollars in labor and makes 10,000 units.
+        define: [unit-labor-cost]
+        gate:
+          type: predict
+          question: What is the labor cost per unit?
+          answer: { value: 5, tol: 0.01 }
+          explain: 50,000 ÷ 10,000 = 5 dollars per unit.
+      - say: Watch the division.
+        show: [player1]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player1
+          event: done
+      - say: Now do one on your own.
+        gate:
+          type: practice
+          template: ulc-numeric
+      - say: |
+          Countries borrow too. **External debt** is money a country owes to lenders abroad. Heavy debt can limit its
+          access to foreign currency for imports, and governments may restrict imports to save it.
+        define: [external-debt]
+        hide: [r1, player1]
+        show: [r2, pick]
+        gate:
+          type: predict
+          question: China owed 5 billion dollars in 1980 and 2,389 billion in 2022. About how many times larger?
+          answer: { value: 478, tol: 2 }
+          explain: 2,389 ÷ 5 = 477.8, which the slide prints as 47,780% of the 1980 debt.
+      - say: Pick India to compare.
+        gate:
+          type: when
+          prompt: Select India from the menu.
+          when: "country == 'India'"
+          hint: Use the Country menu.
+      - say: Watch the ratio built up.
+        show: [player2]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player2
+          event: done
+      - say: And one for you.
+        gate:
+          type: practice
+          template: debt-numeric
+    takeaway: Unit labor cost compares what a unit costs to make, and debt ratios show how fast a country's obligations grew.
+
+  - id: people-as-a-market
+    title: People as a market
+    goal: Where are the customers, and how old are they?
+    skills: [population]
+    state: { population: 5000000, area: 100000 }
+    derive:
+      - { fn: populationDensity, in: { population: '@population', area: '@area' }, out: p }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Population, value: '@population' }
+            - { label: Area (square kilometers), value: '@area' }
+            - { label: People per square kilometer, value: '@p.density', tone: good }
+      - id: land
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: Area (square kilometers), min: 50000, max: 200000, step: 25000 }
+        bind: { value: area }
+    beats:
+      - say: |
+          Population is the most general sign of market size, and analysts look at it first. But size alone says little
+          about buying power. **Population density** is the number of inhabitants per square kilometer.
+        define: [population-density]
+        gate:
+          type: predict
+          question: 5 million people live on 100,000 square kilometers. What is the density?
+          answer: { value: 50, tol: 0.5 }
+          explain: 5,000,000 ÷ 100,000 = 50 people per square kilometer.
+      - say: Change the land area and watch the density.
+        show: [land]
+        gate:
+          type: when
+          prompt: Raise the area until the density falls below 30.
+          when: 'p.density < 30'
+          hint: Try 200,000 square kilometers.
+      - say: |
+          Who the people are matters too. **Age distribution** is how a population divides into age groups. Developing
+          countries usually have younger populations; some industrial countries face aging that strains pensions.
+        define: [age-distribution]
+      - say: |
+          Where people live also changes. The **rural-to-urban shift** is the movement of a nation's people from the
+          countryside to cities, which changes what they buy and where.
+        define: [rural-to-urban-shift]
+      - say: A density question for you.
+        gate:
+          type: practice
+          template: density-numeric
+      - say: A final thought.
+        gate:
+          type: reflect
+          prompt: Why is population size alone a poor sign of a market's strength?
+          model: |
+            A large population with low incomes has little buying power. Age, location and income decide what people
+            can and want to buy, so a smaller, richer, younger or more urban market can be worth more.
+    takeaway: Density, age and where people live shape a market, while population size alone does not.

@@ -1,0 +1,464 @@
+scenes:
+  - id: kinds-of-law
+    title: Three ways to run a legal system
+    goal: Why does the same dispute get handled so differently in different countries?
+    skills: [legal-systems]
+    stage:
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: s1, label: Judges question the witnesses to find the truth }
+            - { id: s2, label: The defendant is presumed innocent until proven guilty }
+            - { id: s3, label: Earlier court decisions guide later ones }
+            - { id: s4, label: A religious document is the basis of the law }
+            - { id: s5, label: Written codes cover every area }
+            - { id: s6, label: Some versions forbid charging interest }
+          bins:
+            - { id: civil, label: Civil law }
+            - { id: common, label: Common law }
+            - { id: religious, label: Religious law }
+          solution: { s1: civil, s2: common, s3: common, s4: religious, s5: civil, s6: religious }
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Three families of law**
+
+            Codes, precedent and religion.
+    beats:
+      - say: |
+          Every country has a **legal system**: the laws, courts and ways of settling disputes that it uses. Doing business
+          abroad means working inside someone else's system.
+        define: [legal-system]
+      - say: |
+          Most of the world uses **civil law**. It is built on written codes that try to cover every area, and it comes from
+          ancient Roman law. Judges are active: they question the witnesses and test the evidence.
+        define: [civil-law]
+        gate:
+          type: predict
+          question: Which legal system is the most widespread in the world?
+          options: [Civil law, Common law, Religious law, None of these]
+          answer: 0
+          explain: The lecture says civil law is the most widespread system.
+      - say: |
+          **Common law** gives judges' earlier decisions the force of law. A **precedent** is an earlier decision that
+          judges follow in similar cases. The trial is adversarial, and the defendant is presumed innocent.
+        define: [common-law, precedent]
+      - say: |
+          In **religious law**, a religious document or source is the basis of the legal system. Some religious law
+          forbids charging interest, which matters a great deal to banks.
+        define: [religious-law]
+        show: [sorter]
+        hide: [note]
+        gate:
+          type: event
+          prompt: Sort each fact under the right legal system.
+          target: sorter
+          event: solved
+          hint: Codes and questioning judges go with civil law.
+    takeaway: Civil law runs on written codes, common law on precedent and religious law on a religious source.
+
+  - id: rule-and-corruption
+    title: Fair laws and the cost of bribes
+    goal: How can a firm tell whether laws in a country will be applied fairly to it?
+    skills: [legal-systems, corruption-index]
+    data: [cpi]
+    state: { country: France, from: '1999', to: '2022' }
+    derive:
+      - { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, out: c }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Rank in 1999, value: '@c.earlier', tone: accent }
+            - { label: Rank in 2022, value: '@c.later', tone: accent }
+            - { label: Places gained (negative = lost), value: '@c.change', tone: good }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Country
+          style: dropdown
+          options:
+            - { value: Denmark, label: Denmark }
+            - { value: France, label: France }
+            - { value: Japan, label: Japan }
+            - { value: China, label: China }
+            - { value: Mexico, label: Mexico }
+            - { value: Nigeria, label: Nigeria }
+        bind: { value: country }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Investors prefer countries where leaders obey the law too. The **rule of law** means everyone, including the
+          government, must follow clear laws that are applied fairly. Such countries tend to attract investment.
+        define: [rule-of-law]
+      - say: |
+          Owning things safely depends on it. **Property rights** are the legal rights to use what you own and keep
+          the income it brings. Theft and piracy can violate them, and so can bribes and excessive taxes.
+        define: [property-rights]
+      - say: |
+          **Bribery** means paying an official for special treatment. The U.S. **Foreign Corrupt Practices Act** bans paying
+          foreign officials. It still allows a **facilitating payment**: a small payment to speed up routine services.
+        define: [bribery, foreign-corrupt-practices-act, facilitating-payment]
+      - say: |
+          The **Corruption Perceptions Index** ranks countries by how corrupt their public sector looks. Rank 1 is the least
+          corrupt. France ranked 22 in 1999 and 21 in 2022.
+        define: [corruption-perceptions-index]
+        gate:
+          type: predict
+          question: By how many places did France's rank change from 1999 to 2022 (positive = improved)?
+          answer: { value: 1, tol: 0.1 }
+          explain: 22 − 21 = 1. The rank number fell by one, an improvement.
+      - say: Pick Mexico and see how far its rank moved.
+        gate:
+          type: when
+          prompt: Select Mexico from the menu.
+          when: "country == 'Mexico'"
+          hint: Use the Country menu on the right.
+      - say: Watch the change being worked out.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Your turn on another country and years.
+        gate:
+          type: practice
+          template: cpi-change-numeric
+      - say: One more thought.
+        gate:
+          type: reflect
+          prompt: A U.S. firm cannot pay bribes abroad while rivals can. Does the Foreign Corrupt Practices Act help or hurt it?
+          model: |
+            It can lose deals to rivals who pay, but it avoids fines and scandal, and it builds trust with honest partners.
+            Over time, clear rules and compliance programs can be an advantage, especially as more countries sign
+            anti-bribery agreements.
+    takeaway: The rule of law and clean public offices attract investors, and the index shows which way a country is moving.
+
+  - id: law-between-nations
+    title: Rules that cross borders
+    goal: Who makes the rules when two countries or two companies from different countries disagree?
+    skills: [intl-law]
+    stage:
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: n1, label: Two governments settle a border treaty }
+            - { id: n2, label: A Manila firm and a Thai supplier argue over a contract }
+            - { id: n3, label: One country complains about another country's trade rule }
+            - { id: n4, label: A bank in Singapore sues a company in Japan }
+          bins:
+            - { id: public, label: Public international law }
+            - { id: private, label: Private international law }
+          solution: { n1: public, n2: private, n3: public, n4: private }
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Two kinds of international rule**
+
+            Between governments, and between private parties.
+    beats:
+      - say: |
+          No world government writes laws for everyone. **International law** is the set of rules nations have agreed to
+          follow. It has two main branches.
+        define: [international-law]
+      - say: |
+          **Public international law** governs relationships between governments. **Private international law** governs
+          relationships between people and companies that cross borders. Sort the cases.
+        define: [public-international-law, private-international-law]
+        show: [sorter]
+        hide: [note]
+        gate:
+          type: event
+          prompt: Sort each case into the right branch.
+          target: sorter
+          event: solved
+      - say: |
+          Where do the rules come from? A **treaty** is a formal agreement between countries, also called a convention or
+          protocol. **Customary international law** is made of rules that grew from customs and usage over centuries.
+        define: [treaty, customary-international-law]
+        gate:
+          type: predict
+          question: Which source is written down in an agreement signed by countries?
+          options: [A treaty, Customary international law, Precedent, A trade secret]
+          answer: 0
+          explain: Treaties are written agreements. Custom grows from long practice.
+      - say: |
+          Countries sometimes reach beyond their borders. **Extraterritoriality** is a country trying to apply its own laws
+          to foreigners and to activities abroad, as with tax, employment, antitrust and environmental laws.
+        define: [extraterritoriality]
+      - say: A thought to finish.
+        gate:
+          type: reflect
+          prompt: There is no international police force. Does international law have any power?
+          model: |
+            It has power through agreement and self-interest. Countries keep treaties because they want others to keep them,
+            trade partners can retaliate, and breaking the rules harms a country's reputation. Enforcement is weaker than at
+            home, but it is not empty.
+    takeaway: International law is agreed between nations through treaties and custom, with no world police behind it.
+
+  - id: settling-disputes
+    title: When a deal goes wrong
+    goal: What can two firms in different countries do if one stops keeping its side of a deal?
+    skills: [intl-law]
+    stage:
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: d1, label: Quicker }
+            - { id: d2, label: Less expensive }
+            - { id: d3, label: More private }
+            - { id: d4, label: Uses a discovery process to find the facts }
+            - { id: d5, label: Can be complicated and expensive }
+          bins:
+            - { id: arb, label: Arbitration }
+            - { id: lit, label: Litigation }
+          solution: { d1: arb, d2: arb, d3: arb, d4: lit, d5: lit }
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Two ways to settle**
+
+            In court, or outside it.
+    beats:
+      - say: |
+          A **contract** is a legally binding agreement to do something. Every cross-border sale starts with one. The
+          trouble starts when one side stops doing its part.
+        define: [contract]
+      - say: |
+          The usual answer is **litigation**: a court case brought to decide and enforce legal rights. It can be
+          complicated and expensive, and it raises a question: whose court, and whose law?
+        define: [litigation]
+      - say: |
+          Good contracts answer in advance. A **choice-of-law provision** names which country's law governs the contract. A
+          **choice-of-forum clause** says where a dispute will be settled.
+        define: [choice-of-law, choice-of-forum]
+        gate:
+          type: predict
+          question: A clause says disputes will be heard in Singapore. Which clause is that?
+          options: [Choice-of-forum, Choice-of-law, Precedent, Arbitration]
+          answer: 0
+          explain: A choice-of-forum clause names the place where a dispute will be settled.
+      - say: |
+          Another way out is **arbitration**: settling a dispute outside the courts, with a neutral decision maker. It is
+          quicker, cheaper and more private. No worldwide court can enforce its decrees, which makes this popular.
+        define: [arbitration]
+        show: [sorter]
+        hide: [note]
+        gate:
+          type: event
+          prompt: Sort each feature under arbitration or litigation.
+          target: sorter
+          event: solved
+      - say: |
+          Rules also help before a dispute starts. The **Convention on the International Sale of Goods** is a United
+          Nations treaty with common rules for contracts to sell goods across borders.
+        define: [cisg]
+      - say: Check your understanding.
+        gate:
+          type: practice
+          template: arbitration-mcq
+    takeaway: Clauses and arbitration decide in advance where and how a cross-border dispute will be settled.
+
+  - id: shipping-terms
+    title: Who pays for the ship?
+    goal: When a seller quotes a price for goods that must cross the sea, what costs does that price include?
+    skills: [intl-law, incoterms]
+    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: CIF }
+    derive:
+      - { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, out: i }
+    stage:
+      - id: r
+        widget: Readout
+        props:
+          items:
+            - { label: Goods on board (FOB price), value: '@fob' }
+            - { label: Freight, value: '@freight' }
+            - { label: Insurance, value: '@insurance' }
+            - { label: Price quoted by the seller, value: '@i.price', tone: good }
+            - { label: Buyer pays on top, value: '@i.buyerExtra', tone: accent }
+      - id: pick
+        widget: Choice
+        region: side
+        props:
+          label: Term
+          style: segmented
+          options:
+            - { value: FAS, label: FAS }
+            - { value: FOB, label: FOB }
+            - { value: CFR, label: CFR }
+            - { value: CIF, label: CIF }
+        bind: { value: term }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, roles: { r: r }, speed: 0.8 }
+    beats:
+      - say: |
+          Words like "price" mean different things on a ship. **Incoterms** are standard trade terms from the International
+          Chamber of Commerce. They say who pays for what, and who bears the risk, when goods are shipped.
+        define: [incoterms]
+      - say: |
+          Start with **FOB**, free on board: the seller puts the goods on board the ship at the port of shipment, and the
+          risk passes to the buyer once they are on board. Our goods cost 20,000 on board.
+        define: [fob]
+      - say: |
+          **FAS**, free alongside ship, stops sooner. The seller pays up to the side of the ship and the risk passes to
+          the buyer there, so the buyer pays for loading.
+        define: [fas]
+      - say: |
+          **CFR**, cost and freight, adds the sea freight to the price; the buyer buys the insurance. **CIF**, cost,
+          insurance and freight, adds insurance as well. Freight is 2,000 and insurance is 300.
+        define: [cfr, cif]
+        gate:
+          type: predict
+          question: What price does a seller quote under CIF?
+          answer: { value: 22300, tol: 0.5 }
+          explain: 20,000 + 2,000 freight + 300 insurance = 22,300.
+      - say: Choose CFR and see the price change.
+        gate:
+          type: when
+          prompt: Switch the term to CFR.
+          when: "term == 'CFR'"
+          hint: Use the Term buttons.
+      - say: Walk through how each term builds the price.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play the walk to the end.
+          target: player
+          event: done
+      - say: Now one on your own.
+        gate:
+          type: practice
+          template: inco-price-numeric
+      - say: And one that includes loading.
+        gate:
+          type: practice
+          template: inco-fas-numeric
+    takeaway: Each Incoterm adds more of the shipping costs to the seller's price, and the buyer pays the rest.
+
+  - id: protecting-ideas
+    title: Protecting what you create
+    goal: How can an inventor or a brand stop others from copying what they made?
+    skills: [ip-rights]
+    stage:
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: p1, label: A new medicine process }
+            - { id: p2, label: A logo and a slogan }
+            - { id: p3, label: The name Pizza Hut }
+            - { id: p4, label: A novel or a software program }
+            - { id: p5, label: A secret sauce recipe }
+          bins:
+            - { id: patent, label: Patent }
+            - { id: trademark, label: Trademark }
+            - { id: tradename, label: Trade name }
+            - { id: copyright, label: Copyright }
+            - { id: secret, label: Trade secret }
+          solution: { p1: patent, p2: trademark, p3: tradename, p4: copyright, p5: secret }
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Five kinds of protection**
+
+            Inventions, brands, names, creative works and secrets.
+    beats:
+      - say: |
+          Fake medicines are a deadly example: an estimated one million patients die every year from counterfeit drugs.
+          Protecting ideas matters. **Intellectual property** is a creative work or invention that can be legally protected.
+        define: [intellectual-property]
+        gate:
+          type: predict
+          question: How many patients per year are estimated to die from counterfeit drugs?
+          options: [About one thousand, About ten thousand, About one hundred thousand, About one million]
+          answer: 3
+          explain: The lecture estimates one million patients die every year from counterfeit pharmaceuticals.
+      - say: |
+          A **patent** is a government grant giving an inventor the exclusive right to make, use and sell an invention. A
+          **trademark** is a shape, color, phrase or sound that marks a product.
+        define: [patent, trademark]
+      - say: |
+          A **trade name** is the name a business uses to mark its products, such as Pizza Hut. A **copyright** gives
+          authors, artists and software makers the exclusive right to publish and sell their work.
+        define: [trade-name, copyright]
+      - say: |
+          A **trade secret** is any information a business wants confidential, such as a formula. It is the most common type
+          of protection, and it needs no registration. Sort the examples.
+        define: [trade-secret]
+        show: [sorter]
+        hide: [note]
+        gate:
+          type: event
+          prompt: Match each example to the protection it needs.
+          target: sorter
+          event: solved
+      - say: One last question.
+        gate:
+          type: reflect
+          prompt: Why might a company choose to keep a formula as a trade secret instead of patenting it?
+          model: |
+            A patent expires and must publish the invention for everyone to read. A secret has no end date and needs no
+            registration, but if it leaks or is copied independently, the protection is gone.
+    takeaway: Patents, trademarks, trade names, copyrights and trade secrets protect different kinds of creations.
+
+  - id: laws-at-home
+    title: Laws that apply wherever you work
+    goal: Which national laws can catch a company that sells, hires or reports abroad?
+    skills: [national-laws]
+    stage:
+      - id: note
+        widget: Text
+        props:
+          body: |
+            **Four more areas of national law**
+
+            Competition, injury, accounting and the law of the place you are working in.
+    beats:
+      - say: |
+          **Antitrust law**, also called competition law, stops firms from gaining too much power or abusing it through
+          price fixing, market sharing and monopolies.
+        define: [antitrust-law]
+        gate:
+          type: predict
+          question: Two rivals agree on a price. Which law targets this?
+          options: [Antitrust law, Tort law, Accounting law, Trade names]
+          answer: 0
+          explain: Price fixing is a main target of antitrust law.
+      - say: |
+          A **tort** is an injury done to someone, on purpose or by carelessness. **Strict liability** goes further: the
+          maker is liable for harm a product causes, and the injured person need not prove carelessness.
+        define: [tort, strict-liability]
+      - say: |
+          Reporting has its own law. Most countries follow **International Financial Reporting Standards**. The United
+          States uses GAAP and passed the **Sarbanes-Oxley Act** after scandals to raise standards for boards and auditors.
+        define: [ifrs, sarbanes-oxley]
+      - say: Practice what you have seen.
+        gate:
+          type: practice
+          template: strict-mcq
+    takeaway: Competition, injury and accounting laws can all reach a company that operates abroad.
