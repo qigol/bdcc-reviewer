@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortCard } from '../lib/SortCard';
 import type { WidgetRenderProps } from '../engine/types';
 import { ownCmds } from '../engine/marks';
 import { fmtNum } from './common';
@@ -12,15 +11,18 @@ interface Item { id: string; label: string }
 interface P { items: Item[]; relevance?: Record<string, number>; showRelevance?: boolean; showGain?: boolean; gain?: 'exp2' | 'linear'; k?: number; draggable?: boolean; order?: string[] }
 
 function Row({ item, pos, rel, showRel, gainText, dim, tone, draggable, pulse }: { item: Item; pos: number; rel?: number; showRel: boolean; gainText?: string; dim: boolean; tone?: string; draggable: boolean; pulse?: number }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: !draggable });
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('flex items-center gap-2 rounded-lg border border-line bg-panel px-2 py-1.5', dim && 'opacity-40', tone && `tone-${tone} mark-bg`, isDragging && 'z-10 shadow-lg', pulse && 'pulse')}>
-      <span className="w-6 text-center font-mono text-xs text-muted">{pos}</span>
-      {draggable && <button aria-label={`drag ${item.label}`} className="cursor-grab text-muted" {...attributes} {...listeners}><GripVertical size={15} /></button>}
-      <span className="font-medium">{item.label}</span>
-      {showRel && rel !== undefined && <span className="chip tone-good mark-bg ml-1">rel {rel}</span>}
-      {gainText && <span className="ml-auto font-mono text-xs text-muted">{gainText}</span>}
-    </li>
+    <SortCard id={item.id} locked={!draggable} handleLabel={`drag ${item.label}`} className={cn('flex items-center gap-2 rounded-lg border border-line bg-panel px-2 py-1.5', dim && 'opacity-40', tone && `tone-${tone} mark-bg`, pulse && 'pulse')}>
+      {(grip) => (
+        <>
+          <span className="w-6 text-center font-mono text-xs text-muted">{pos}</span>
+          {grip}
+          <span className="font-medium">{item.label}</span>
+          {showRel && rel !== undefined && <span className="chip tone-good mark-bg ml-1">rel {rel}</span>}
+          {gainText && <span className="ml-auto font-mono text-xs text-muted">{gainText}</span>}
+        </>
+      )}
+    </SortCard>
   );
 }
 

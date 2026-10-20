@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Laws that follow a firm abroad</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Legal Forces · laws-at-home, beats 1–3 · 5 s. Segments: 0–1.0 two rivals lock their prices (no law named: beat 1 asks which), 1.0–3.0 antitrust splits them, then a product injury and strict liability, 3.0–5.0 one ledger through two reporting rule books. -->
+  <div id="stage" data-composition-id="home-and-host-law" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Legal Forces · laws-at-home, 5 s. Three panels; the camera pans between them.
+     *   0.0–1.0  two rival firms (teal, coral); their price tags float up together and lock with a chain. No law named.
+     *   1.0–1.5  a violet wedge drops between them, the chain snaps and both tags fall back down. "Antitrust law"
+     *   1.5–3.0  pan: a toaster sparks and a shopper jumps back; a coral "Strict liability" stamp lands on the maker and
+     *            coins slide from the maker to the shopper
+     *   3.0–4.6  pan: one ledger slides through a "US GAAP" lens and then an "IFRS" lens, its bars re-sorting each time;
+     *            a "Sarbanes-Oxley" badge pops under the US lens
+     *   4.6–5.0  hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['home-and-host-law'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560, P = 1280;
+      HF.box(ground, { x: -300, y: G, w: P * 3 + 600, h: 300, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -300, y: G, width: P * 3 + 600, height: 6, fill: '#3A4F92' }, ground);
+      const L = (t, y = 100, cls = 'lg') => HF.label(t, { x: 640, y, cls, hud: true, html: true });
+
+      // ================================================================ panel 1 · antitrust
+      const rivA = HF.character(mid, { x: 400, y: G, color: C.teal, size: 1.5, look: 0.8 });
+      const rivB = HF.character(mid, { x: 880, y: G, color: C.coral, size: 1.5, look: -0.8 });
+      const tag = (x, col) => {
+        const t = HF.g(front, { transform: `translate(${x} 380)` });
+        HF.el('path', { d: 'M-50 -30 L34 -30 L60 0 L34 30 L-50 30 Q-60 30 -60 20 L-60 -20 Q-60 -30 -50 -30 Z', fill: C.gold }, t);
+        HF.el('circle', { cx: 36, cy: 0, r: 7, fill: '#0B1D3A' }, t);
+        HF.text(t, '$$$', { x: -12, y: 10, size: 28, color: '#0B1D3A', weight: 900 });
+        gsap.set(t, { scale: 0, transformOrigin: '50% 50%' });
+        return t;
+      };
+      const tagA = tag(470, C.teal), tagB = tag(810, C.coral);
+      const chain = HF.g(front);
+      for (let i = 0; i < 3; i++) HF.el('ellipse', { cx: 596 + i * 44, cy: 230, rx: 26, ry: 14, fill: 'none', stroke: '#C9D3F2', 'stroke-width': 8 }, chain);
+      gsap.set(chain, { scaleX: 0, transformOrigin: '50% 50%' });
+      const wedge = HF.g(front);
+      HF.el('path', { d: 'M600 -40 L680 -40 L640 60 Z', fill: C.violet }, wedge);
+      HF.el('rect', { x: 600, y: -60, width: 80, height: 24, rx: 10, fill: HF.shade(C.violet, 0.1) }, wedge);
+      gsap.set(wedge, { y: -200 });
+
+      // ================================================================ panel 2 · product injury
+      const X2 = P;
+      const counter = HF.box(back, { x: X2 + 260, y: 450, w: 380, h: G - 450, r: 14, color: '#5C6FA8', shadeSide: 'right' });
+      void counter;
+      const toaster = HF.g(mid, { transform: `translate(${X2 + 450} 450)` });
+      HF.box(toaster, { x: -80, y: -110, w: 160, h: 110, r: 30, color: '#C9D3F2' });
+      for (const sx of [-44, 14]) HF.el('rect', { x: sx, y: -112, width: 30, height: 14, rx: 7, fill: '#0B1D3A' }, toaster);
+      HF.el('rect', { x: 80, y: -70, width: 18, height: 10, rx: 5, fill: '#8FA3D9' }, toaster);
+      gsap.set(toaster, { scale: 0, transformOrigin: '50% 100%' });
+      const sparks = HF.g(front, { transform: `translate(${X2 + 450} 330)` });
+      for (let k = 0; k < 7; k++) {
+        const a = (-150 + k * 20) * Math.PI / 180;
+        HF.el('rect', { x: -4, y: -36, width: 8, height: 26, rx: 4, fill: k % 2 ? C.gold : C.coral, transform: `rotate(${-150 + k * 20 + 90})` }, sparks);
+        void a;
+      }
+      gsap.set(sparks, { scale: 0, transformOrigin: '50% 50%' });
+      const shopper = HF.character(mid, { x: X2 + 180, y: G, color: C.teal, size: 1.2, look: 0.8 });
+      const maker = HF.character(mid, { x: X2 + 950, y: G, color: C.gold, size: 1.6, look: -0.6 });
+      const stamp = HF.g(front, { transform: `translate(${X2 + 950} 380)` });
+      HF.box(stamp, { x: -150, y: -34, w: 300, h: 68, r: 16, color: C.coral, hi: false });
+      HF.text(stamp, 'Strict liability', { x: 0, y: 11, size: 32, color: '#0B1D3A', weight: 900 });
+      gsap.set(stamp, { y: 60, opacity: 0 });
+      const pay = [0, 1, 2].map(() => { const c = HF.g(front); HF.coin(c, { r: 17 }); gsap.set(c, { opacity: 0 }); return c; });
+
+      // ================================================================ panel 3 · reporting
+      const X3 = P * 2;
+      const lens = (x, title, col) => {
+        const g = HF.g(back, { transform: `translate(${x} 360)` });
+        HF.el('circle', { cx: 0, cy: 0, r: 128, fill: col, opacity: 0.18 }, g);
+        HF.el('circle', { cx: 0, cy: 0, r: 128, fill: 'none', stroke: col, 'stroke-width': 14 }, g);
+        HF.el('path', { d: 'M-80 -60 A100 100 0 0 1 -30 -100', fill: 'none', stroke: '#F4F1DE', 'stroke-width': 8, 'stroke-linecap': 'round', opacity: 0.5 }, g);
+        HF.text(g, title, { x: 0, y: -150, size: 30, color: col, weight: 900 });
+        gsap.set(g, { scale: 0, transformOrigin: '50% 50%' });
+        return g;
+      };
+      const lensA = lens(X3 + 430, 'US GAAP', C.violet);
+      const lensB = lens(X3 + 800, 'IFRS', C.teal);
+      const ledger = HF.g(front, { transform: `translate(${X3 + 150} 360)` });
+      HF.box(ledger, { x: -80, y: -100, w: 160, h: 200, r: 16, color: '#F4F1DE', hi: false });
+      const BW = [[100, 60, 80, 40], [50, 100, 70, 85], [85, 45, 100, 60]]; // bar widths: as filed, under GAAP, under IFRS
+      const BC = [C.coral, C.gold, C.teal, C.violet];
+      const bars = BW[0].map((w, i) => HF.el('rect', { x: -60, y: -76 + i * 40, width: w, height: 24, rx: 8, fill: BC[i] }, ledger));
+      gsap.set(ledger, { scale: 0, transformOrigin: '50% 50%' });
+      const investor = HF.character(mid, { x: X3 + 1110, y: G, color: C.gold, size: 1.3, look: -0.8 });
+      const sox = HF.label('Sarbanes-Oxley · stricter audits', { x: X3 + 430, y: 540, cls: 'pill hf-violet sm' });
+
+      // ================================================================ labels
+      const l1 = L('Rival firms agree on a price');
+      const l2 = L('<span class="hf-violet">Antitrust law</span> · stops price fixing');
+      const l3 = L('A product causes harm');
+      const l4 = L('<span class="hf-coral">Strict liability</span> · the maker pays, careless or not');
+      const l5 = L('Reporting rules · <span class="hf-violet">GAAP</span> or <span class="hf-teal">IFRS</span>');
+
+      // ================================================================ choreography
+      // 0.0–1.0 price fixing (no law named)
+      HF.pop(tl, [rivA.g, rivB.g], 0.0, { origin: '50% 100%', stagger: 0.06 });
+      HF.say(tl, l1, 0.15, 1.0);
+      HF.pop(tl, [tagA, tagB], 0.25, { stagger: 0.05 });
+      tl.to(tagA, { x: 520, y: 230, duration: 0.35, ease: 'power2.inOut' }, 0.45);
+      tl.to(tagB, { x: 760, y: 230, duration: 0.35, ease: 'power2.inOut' }, 0.45);
+      tl.to(chain, { scaleX: 1, duration: 0.15, ease: 'back.out(2)' }, 0.78);
+
+      // 1.0–1.5 antitrust
+      HF.say(tl, l2, 1.0, 1.5);
+      tl.to(wedge, { y: 210, duration: 0.18, ease: 'power3.in' }, 1.02);
+      tl.to(chain, { scaleX: 0, opacity: 0, duration: 0.12 }, 1.2);
+      tl.to(tagA, { x: 450, y: 450, rotation: -14, duration: 0.25, ease: 'power2.in' }, 1.2);
+      tl.to(tagB, { x: 830, y: 450, rotation: 14, duration: 0.25, ease: 'power2.in' }, 1.2);
+      HF.wobble(tl, [rivA.g, rivB.g], 1.3, { amount: 4, origin: '50% 100%' });
+
+      // 1.5–3.0 product injury and strict liability
+      HF.camera(tl, { x: -P }, 1.5, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, l3, 1.75, 2.2);
+      HF.pop(tl, [toaster, shopper.g, maker.g], 1.55, { origin: '50% 100%', stagger: 0.04 });
+      tl.to(sparks, { scale: 1, duration: 0.15, ease: 'back.out(2)' }, 1.9);
+      tl.to(sparks, { scale: 1.3, opacity: 0, duration: 0.2 }, 2.1);
+      tl.to(shopper.g, { x: X2 + 130, duration: 0.15, ease: 'power2.out' }, 1.95);
+      HF.wobble(tl, shopper.g, 2.1, { amount: 6, origin: '50% 100%' });
+      HF.say(tl, l4, 2.25, 3.0);
+      tl.to(stamp, { opacity: 1, duration: 0.05 }, 2.25);
+      tl.to(stamp, { y: 380, duration: 0.2, ease: 'power3.in' }, 2.25);
+      HF.land(tl, maker.g, 2.45, { amount: 0.12, origin: '50% 100%' });
+      pay.forEach((c, i) => {
+        tl.set(c, { opacity: 1 }, 2.5 + i * 0.07);
+        HF.arc(tl, c, { x0: X2 + 900, y0: G - 80, x1: X2 + 180 + i * 30, y1: G - 18, h: 90 }, 2.5 + i * 0.07, 0.35, { spin: 180 });
+      });
+
+      // 3.0–4.6 reporting
+      HF.camera(tl, { x: -P * 2 }, 3.0, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, l5, 3.25);
+      HF.pop(tl, [lensA, lensB], 3.2, { stagger: 0.06 });
+      HF.pop(tl, investor.g, 3.25, { origin: '50% 100%' });
+      HF.pop(tl, ledger, 3.3);
+      tl.to(ledger, { x: X3 + 430, duration: 0.3, ease: 'power2.inOut' }, 3.45);
+      bars.forEach((b, i) => tl.to(b, { attr: { width: BW[1][i] }, duration: 0.2, ease: 'power2.inOut' }, 3.65));
+      tl.to(ledger, { x: X3 + 800, duration: 0.3, ease: 'power2.inOut' }, 3.9);
+      bars.forEach((b, i) => tl.to(b, { attr: { width: BW[2][i] }, duration: 0.2, ease: 'power2.inOut' }, 4.1));
+      HF.wobble(tl, investor.g, 4.25, { amount: 4, origin: '50% 100%' });
+      HF.pop(tl, sox, 4.3);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

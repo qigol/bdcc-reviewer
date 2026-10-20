@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Shares and spending money</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Economic Forces · inequality-and-spending, beats 1–4 · 5 s. Segments: 0–1.2 same total, shared two ways; 1.2–2.2 the Gini picture; 2.2–3.1 gross $30,000 with a $4,000 tax slice (no 26,000: beat 3 asks); 3.1–5.0 disposable $26,000 → discretionary $14,000. -->
+  <div id="stage" data-composition-id="gini-and-spending" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Economic Forces · inequality-and-spending, 5 s. Numbers are the scene's: income 30,000, tax 4,000, essentials 12,000.
+     *   0.0–1.2  two countries with ten coins each: one shares them 2-2-2-2-2, the other 6-1-1-1-1
+     *   1.2–2.2  pan to a square chart: a teal equality diagonal, then a coral curve bowing under it, the gap shaded
+     *   2.2–3.1  pan to a household beside a gold income bar, "Gross $30,000", its top slice bracketed violet "Tax $4,000"
+     *   3.1–5.0  the tax slice lifts away, "Disposable $26,000"; the essentials part turns coral and slides off,
+     *            "Essentials $12,000"; what is left turns teal, "Discretionary $14,000"; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['gini-and-spending'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560, P = 1280;
+      HF.box(ground, { x: -300, y: G, w: P * 3 + 600, h: 300, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -300, y: G, width: P * 3 + 600, height: 6, fill: '#3A4F92' }, ground);
+      const L = (t, y = 96) => HF.label(t, { x: 640, y, cls: 'lg', hud: true, html: true });
+
+      // ================================================================ panel 1 · same total, two shares
+      const SH = [[2, 2, 2, 2, 2], [6, 1, 1, 1, 1]];
+      const people = [], stacks = [];
+      SH.forEach((share, c) => {
+        const cx = c ? 940 : 340;
+        HF.el('rect', { x: cx - 230, y: G - 6, width: 460, height: 12, rx: 6, fill: c ? C.coral : C.teal, opacity: 0.6 }, back);
+        share.forEach((n, i) => {
+          const x = cx - 180 + i * 90;
+          const p = HF.character(mid, { x, y: G, color: c ? '#F2A3A3' : '#9FE3DA', size: 0.8, look: 0 });
+          gsap.set(p.g, { scale: 0, transformOrigin: '50% 100%' });
+          people.push(p.g);
+          const st = [];
+          for (let k = 0; k < n; k++) { const coin = HF.g(front); HF.coin(coin, { r: 15 }); gsap.set(coin, { x, y: G - 92 - k * 14, opacity: 0 }); st.push(coin); }
+          stacks.push({ st, x, c });
+        });
+      });
+      const tagEven = HF.label('Shared evenly', { x: 340, y: G + 50, cls: 'pill hf-teal' });
+      const tagUneven = HF.label('Mostly to one', { x: 940, y: G + 50, cls: 'pill hf-coral' });
+
+      // ================================================================ panel 2 · the Gini picture
+      const X2 = P;
+      const CH = { x: X2 + 440, y: 170, s: 360 };
+      const frame = HF.g(back);
+      HF.box(frame, { x: CH.x - 20, y: CH.y - 20, w: CH.s + 40, h: CH.s + 40, r: 24, color: '#1B2D5C', hi: false });
+      HF.el('line', { x1: CH.x, y1: CH.y + CH.s, x2: CH.x + CH.s, y2: CH.y + CH.s, stroke: '#8FA3D9', 'stroke-width': 5, 'stroke-linecap': 'round' }, frame);
+      HF.el('line', { x1: CH.x, y1: CH.y + CH.s, x2: CH.x, y2: CH.y, stroke: '#8FA3D9', 'stroke-width': 5, 'stroke-linecap': 'round' }, frame);
+      HF.text(frame, 'people →', { x: CH.x + CH.s / 2, y: CH.y + CH.s + 52, size: 22, color: '#8FA3D9', weight: 800 });
+      HF.text(frame, 'income ↑', { x: CH.x - 54, y: CH.y + CH.s / 2, size: 22, color: '#8FA3D9', weight: 800, anchor: 'middle' });
+      gsap.set(frame, { scale: 0, transformOrigin: '50% 50%' });
+      const x0 = CH.x, y0 = CH.y + CH.s, x1 = CH.x + CH.s, y1 = CH.y;
+      const diag = HF.el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: C.teal, 'stroke-width': 9, 'stroke-linecap': 'round' }, mid);
+      const dLen = Math.hypot(CH.s, CH.s);
+      gsap.set(diag, { attr: { 'stroke-dasharray': dLen, 'stroke-dashoffset': dLen } });
+      const curveD = `M${x0} ${y0} C ${x0 + CH.s * 0.62} ${y0 - 4}, ${x1 - 10} ${y0 - CH.s * 0.35}, ${x1} ${y1}`;
+      const gap = HF.el('path', { d: `${curveD} L${x0} ${y0} Z`, fill: C.coral, opacity: 0 }, back);
+      const curve = HF.el('path', { d: curveD, fill: 'none', stroke: C.coral, 'stroke-width': 9, 'stroke-linecap': 'round' }, mid);
+      const cLen = curve.getTotalLength();
+      gsap.set(curve, { attr: { 'stroke-dasharray': cLen, 'stroke-dashoffset': cLen } });
+      const tEq = HF.label('Equal shares · Gini 0', { x: CH.x + 24, y: CH.y + 30, cls: 'sm hf-teal', anchor: 'left' });
+      const tUn = HF.label('Bigger gap · higher Gini', { x: CH.x + CH.s + 30, y: CH.y + CH.s * 0.72, cls: 'sm hf-coral', anchor: 'left' });
+
+      // ================================================================ panel 3 · one household
+      const X3 = P * 2;
+      const PX = 0.011; // px per dollar: $30,000 = 330 px
+      const BX = X3 + 600, BW = 130;
+      const hh = HF.character(mid, { x: X3 + 400, y: G, color: C.gold, size: 1.4, look: 0.8 });
+      gsap.set(hh.g, { scale: 0, transformOrigin: '50% 100%' });
+      const seg = (fromTop, h, col) => HF.el('rect', { x: BX, y: G - 30000 * PX + fromTop, width: BW, height: h, rx: 12, fill: col }, back);
+      const disc = seg(16000 * PX, 14000 * PX, C.gold); // bottom: 14,000
+      const ess = HF.g(back);
+      const essRect = HF.el('rect', { x: BX, y: G - 30000 * PX + 4000 * PX + 4, width: BW, height: 12000 * PX - 4, rx: 12, fill: C.gold }, ess);
+      const icons = HF.g(ess);
+      // tiny house and bowl icons on the essentials block
+      HF.el('path', { d: `M${BX + 30} ${G - 200} L${BX + 50} ${G - 220} L${BX + 70} ${G - 200} L${BX + 70} ${G - 180} L${BX + 30} ${G - 180} Z`, fill: '#0B1D3A' }, icons);
+      HF.el('path', { d: `M${BX + 80} ${G - 200} L${BX + 110} ${G - 200} Q${BX + 108} ${G - 180} ${BX + 95} ${G - 180} Q${BX + 82} ${G - 180} ${BX + 80} ${G - 200} Z`, fill: '#0B1D3A' }, icons);
+      gsap.set(icons, { opacity: 0 });
+      const taxG = HF.g(back);
+      HF.el('rect', { x: BX, y: G - 30000 * PX, width: BW, height: 4000 * PX, rx: 10, fill: C.violet }, taxG);
+      const bracket = HF.el('path', { d: `M${BX + BW + 14} ${G - 30000 * PX + 2} l14 0 l0 ${4000 * PX - 4} l-14 0`, fill: 'none', stroke: C.violet, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, back);
+      gsap.set([disc, ess, taxG, bracket], { opacity: 0 });
+      const lb = (t, y, cls) => HF.label(t, { x: BX + BW + 50, y, cls: `${cls}`, anchor: 'left', html: true });
+      const tGross = HF.label('Gross <span class="hf-gold">$30,000</span>', { x: BX + BW / 2, y: G - 30000 * PX - 40, cls: '', html: true });
+      const tTax = lb('Tax <span class="hf-violet">$4,000</span>', G - 30000 * PX + 22, 'sm');
+      const tDisp = HF.label('Disposable <span class="hf-gold">$26,000</span>', { x: BX + BW / 2, y: G - 26000 * PX - 40, cls: '', html: true });
+      const tEss = lb('Essentials <span class="hf-coral">$12,000</span>', G - 20000 * PX, 'sm');
+      const tDisc = HF.label('Discretionary <span class="hf-teal">$14,000</span>', { x: BX + BW / 2, y: G - 14000 * PX - 40, cls: '', html: true });
+
+      // ================================================================ labels
+      const l1 = L('Same total, shared two ways');
+      const l2 = L('The <span class="hf-coral">Gini index</span> measures the gap');
+      const l3 = L('One household’s income');
+      const l4 = L('After tax, then after essentials');
+
+      // ================================================================ choreography
+      // 0.0–1.2 shares
+      HF.pop(tl, people, 0.0, { origin: '50% 100%', stagger: 0.02 });
+      HF.say(tl, l1, 0.15, 1.2);
+      stacks.forEach(({ st, x }, i) => st.forEach((coin, k) => {
+        const at = 0.3 + (i % 5) * 0.05 + k * 0.05;
+        tl.fromTo(coin, { y: 40, opacity: 0 }, { y: G - 92 - k * 14, opacity: 1, duration: 0.22, ease: 'power2.in', immediateRender: false }, at);
+        void x;
+      }));
+      HF.pop(tl, [tagEven, tagUneven], 0.8, { stagger: 0.06 });
+
+      // 1.2–2.2 Gini
+      HF.camera(tl, { x: -P }, 1.2, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, l2, 1.4, 2.2);
+      HF.pop(tl, frame, 1.35);
+      tl.to(diag, { attr: { 'stroke-dashoffset': 0 }, duration: 0.25, ease: 'power1.inOut' }, 1.5);
+      HF.pop(tl, tEq, 1.65);
+      tl.to(curve, { attr: { 'stroke-dashoffset': 0 }, duration: 0.3, ease: 'power1.inOut' }, 1.75);
+      tl.to(gap, { opacity: 0.25, duration: 0.25 }, 1.9);
+      HF.pop(tl, tUn, 1.86);
+
+      // 2.2–3.1 the household, gross and tax
+      HF.camera(tl, { x: -P * 2 }, 2.2, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, l3, 2.4, 3.1);
+      HF.pop(tl, hh.g, 2.4, { origin: '50% 100%' });
+      tl.fromTo([disc, ess, taxG], { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out', immediateRender: false }, 2.45);
+      HF.pop(tl, tGross, 2.65);
+      tl.to(bracket, { opacity: 1, duration: 0.15 }, 2.75);
+      HF.pop(tl, tTax, 2.8, { origin: '0% 50%' });
+
+      // 3.1–5.0 disposable → discretionary
+      HF.say(tl, l4, 3.15);
+      tl.to([tGross, tTax], { scale: 0, duration: 0.12 }, 3.15);
+      tl.to(bracket, { opacity: 0, duration: 0.1 }, 3.15);
+      tl.to(taxG, { y: -120, x: 160, opacity: 0, duration: 0.35, ease: 'power2.in' }, 3.2);
+      HF.pop(tl, tDisp, 3.5);
+      tl.to(essRect, { attr: { fill: C.coral }, duration: 0.2 }, 3.85);
+      tl.to(icons, { opacity: 1, duration: 0.15 }, 3.9);
+      HF.pop(tl, tEss, 3.9, { origin: '0% 50%' });
+      tl.to(tDisp, { scale: 0, duration: 0.12 }, 3.95);
+      tl.to(ess, { x: 260, opacity: 0, duration: 0.35, ease: 'power2.in' }, 4.15);
+      tl.to(tEss, { scale: 0, duration: 0.12 }, 4.3);
+      tl.to(disc, { attr: { fill: C.teal }, duration: 0.2 }, 4.4);
+      HF.pop(tl, tDisc, 4.45);
+      HF.land(tl, hh.g, 4.5, { amount: 0.06, origin: '50% 100%' });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

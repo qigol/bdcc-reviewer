@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Four kinds of money</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Monetary System · new-kinds-of-money, beats 1–4 and 6 · 5 s. Segments: 0–1.2 fiat, 1.2–2.4 crypto, 2.4–3.6 stablecoin, 3.6–4.4 CBDC (no overview: beat 4 asks which is uncontrolled), 4.4–5.0 all four. -->
+  <div id="stage" data-composition-id="four-forms-of-money" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Monetary System · new-kinds-of-money, 5 s. A 2×2 world (each quadrant 1280×720); the camera visits each and then
+     * pulls back to show all four.
+     *   0.0–1.2  fiat: a violet central bank stamps a paper note; a gold bar beside it is struck out (no gold behind it)
+     *   1.2–2.4  crypto: five nodes link into a network, blocks chain along the bottom, a coral price line zigzags
+     *   2.4–3.6  stablecoin: a gold token chained "1 : 1" to a vault of dollar notes; its teal price line stays flat
+     *   3.6–4.4  CBDC: the central bank beams a violet digital coin into a phone wallet
+     *   4.4–5.0  pull back to the four quadrants with their names; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['four-forms-of-money'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const W = 1280, H = 720;
+      const Q = [[0, 0], [W, 0], [0, H], [W, H]];
+      const AT = (i) => ({ x: -Q[i][0], y: -Q[i][1], scale: 1 });
+      const FAR = { x: -320, y: -180, scale: 0.5 };
+      // quadrant floors and soft dividers
+      Q.forEach(([qx, qy], i) => {
+        HF.box(back, { x: qx + 60, y: qy + 40, w: W - 120, h: H - 80, r: 48, color: ['#1B2C5E', '#1E2A58', '#1E2A58', '#1B2C5E'][i], hi: false });
+      });
+
+      function bank(parent, x, y, s = 1) {
+        const b = HF.g(parent, { transform: `translate(${x} ${y}) scale(${s})` });
+        HF.box(b, { x: -130, y: -24, w: 260, h: 24, r: 8, color: HF.shade(C.violet, 0.1) });
+        for (let i = 0; i < 4; i++) HF.box(b, { x: -100 + i * 56, y: -140, w: 26, h: 118, r: 8, color: '#C9B6F2', hi: false });
+        HF.box(b, { x: -122, y: -164, w: 244, h: 26, r: 8, color: C.violet });
+        HF.el('path', { d: 'M-132 -160 L0 -226 L132 -160 Z', fill: C.violet }, b);
+        HF.el('circle', { cx: 0, cy: -184, r: 14, fill: C.gold }, b);
+        return b;
+      }
+      function note(parent, x, y, col = '#8EDBB8', mark = '') {
+        const n = HF.g(parent, { transform: `translate(${x} ${y})` });
+        HF.box(n, { x: -110, y: -58, w: 220, h: 116, r: 14, color: col, hi: false });
+        HF.el('rect', { x: -96, y: -44, width: 192, height: 88, rx: 10, fill: 'none', stroke: HF.shade(col, 0.12), 'stroke-width': 5 }, n);
+        HF.el('circle', { cx: 0, cy: 0, r: 26, fill: HF.shade(col, 0.1) }, n);
+        if (mark) HF.text(n, mark, { x: 0, y: 10, size: 30, color: '#0B1D3A', weight: 900 });
+        return n;
+      }
+
+      // ================================================================ Q1 · fiat
+      const bank1 = bank(mid, 380, 540);
+      const bill = note(mid, 860, 400);
+      const seal = HF.g(front, { transform: 'translate(860 400)' });
+      HF.el('circle', { cx: 0, cy: 0, r: 34, fill: 'none', stroke: C.violet, 'stroke-width': 8 }, seal);
+      HF.el('path', { d: 'M-14 0 L-4 12 L16 -12', fill: 'none', stroke: C.violet, 'stroke-width': 8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, seal);
+      gsap.set(seal, { scale: 0, transformOrigin: '50% 50%' });
+      const stamp = HF.g(front);
+      HF.box(stamp, { x: -36, y: -90, w: 72, h: 30, r: 10, color: HF.shade(C.violet, 0.06) });
+      HF.box(stamp, { x: -12, y: -64, w: 24, h: 40, r: 8, color: '#C9B6F2', hi: false });
+      HF.box(stamp, { x: -44, y: -26, w: 88, h: 26, r: 8, color: C.violet });
+      gsap.set(stamp, { x: 380, y: 290, scale: 0, transformOrigin: '50% 100%' });
+      const goldBar = HF.g(mid, { transform: 'translate(1040 540)' });
+      HF.el('path', { d: 'M-60 0 L-44 -46 L44 -46 L60 0 Z', fill: C.gold }, goldBar);
+      HF.el('path', { d: 'M-44 -46 L-34 -56 L34 -56 L44 -46 Z', fill: HF.light(C.gold, 0.25) }, goldBar);
+      const strikeG = HF.el('line', { x1: -76, y1: 8, x2: 76, y2: -64, stroke: C.coral, 'stroke-width': 10, 'stroke-linecap': 'round' }, goldBar);
+      gsap.set(strikeG, { attr: { 'stroke-dasharray': 170, 'stroke-dashoffset': 170 } });
+      gsap.set([bank1, bill, goldBar], { scale: 0, transformOrigin: '50% 100%' });
+
+      // ================================================================ Q2 · crypto
+      const X2 = W;
+      const nodesXY = [[0, -120], [114, -37], [70, 97], [-70, 97], [-114, -37]].map(([x, y]) => [X2 + 420 + x, 330 + y]);
+      const links = [];
+      for (let a = 0; a < 5; a++) for (let b = a + 1; b < 5; b++) {
+        const l = HF.el('line', { x1: nodesXY[a][0], y1: nodesXY[a][1], x2: nodesXY[b][0], y2: nodesXY[b][1], stroke: '#5C6FA8', 'stroke-width': 5, 'stroke-linecap': 'round' }, back);
+        const len = Math.hypot(nodesXY[b][0] - nodesXY[a][0], nodesXY[b][1] - nodesXY[a][1]);
+        gsap.set(l, { attr: { 'stroke-dasharray': len, 'stroke-dashoffset': len } });
+        links.push(l);
+      }
+      const nodes = nodesXY.map(([x, y]) => { const n = HF.g(mid, { transform: `translate(${x} ${y})` }); HF.el('circle', { cx: 0, cy: 0, r: 30, fill: C.teal, filter: 'url(#hf-glow)', opacity: 0.4 }, n); HF.el('circle', { cx: 0, cy: 0, r: 20, fill: C.teal }, n); gsap.set(n, { scale: 0, transformOrigin: '50% 50%' }); return n; });
+      const blocks = [0, 1, 2, 3, 4].map((i) => { const b = HF.g(mid, { transform: `translate(${X2 + 230 + i * 110} 560)` }); HF.box(b, { x: -36, y: -36, w: 72, h: 72, r: 14, color: i % 2 ? '#4A5DA0' : '#5C6FA8' }); if (i < 4) HF.el('rect', { x: 36, y: -6, width: 38, height: 12, rx: 6, fill: '#8FA3D9' }, b); gsap.set(b, { scale: 0, transformOrigin: '50% 50%' }); return b; });
+      const zig = HF.el('polyline', { points: [[0, 0], [40, -60], [80, 30], [120, -90], [160, 10], [200, -40], [240, 60], [280, -110]].map(([x, y]) => `${X2 + 760 + x},${300 + y}`).join(' '), fill: 'none', stroke: C.coral, 'stroke-width': 9, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, mid);
+      const zLen = 1000;
+      gsap.set(zig, { attr: { 'stroke-dasharray': zLen, 'stroke-dashoffset': zLen } });
+
+      // ================================================================ Q3 · stablecoin
+      const Y3 = H;
+      const vault = HF.g(mid, { transform: `translate(380 ${Y3 + 560})` });
+      HF.box(vault, { x: -140, y: -230, w: 280, h: 230, r: 28, color: '#5C6FA8', shadeSide: 'right' });
+      HF.el('circle', { cx: 0, cy: -115, r: 64, fill: '#3A4F92' }, vault);
+      for (let k = 0; k < 6; k++) HF.el('rect', { x: -5, y: -170, width: 10, height: 40, rx: 5, fill: '#8FA3D9', transform: `rotate(${k * 60} 0 -115)` }, vault);
+      HF.el('circle', { cx: 0, cy: -115, r: 18, fill: '#8FA3D9' }, vault);
+      const cash = [0, 1, 2].map((k) => { const n = note(vault, -40 + k * 40, -270 - k * 22, '#8EDBB8', '$'); n.setAttribute('transform', `translate(${-30 + k * 30} ${-260 - k * 20}) scale(0.55)`); return n; });
+      void cash;
+      gsap.set(vault, { scale: 0, transformOrigin: '50% 100%' });
+      const tokenAt = HF.g(front, { transform: `translate(900 ${Y3 + 330})` });
+      const token = HF.g(tokenAt);
+      HF.coin(token, { r: 56, mark: 'S' });
+      gsap.set(token, { scale: 0, transformOrigin: '50% 50%' });
+      const chainG = HF.g(back);
+      for (let i = 0; i < 7; i++) HF.el('ellipse', { cx: 520 + i * 46, cy: Y3 + 330 + (i - 3) * 0, rx: 26, ry: 13, fill: 'none', stroke: C.gold, 'stroke-width': 8 }, chainG);
+      gsap.set(chainG, { scaleX: 0, transformOrigin: '0% 50%' });
+      const peg = HF.label('1 : 1', { x: 660, y: Y3 + 290, cls: 'pill hf-gold' });
+      const flat = HF.el('line', { x1: 760, y1: Y3 + 520, x2: 1080, y2: Y3 + 520, stroke: C.teal, 'stroke-width': 9, 'stroke-linecap': 'round' }, mid);
+      gsap.set(flat, { attr: { 'stroke-dasharray': 320, 'stroke-dashoffset': 320 } });
+
+      // ================================================================ Q4 · CBDC
+      const X4 = W, Y4 = H;
+      const bank4 = bank(mid, X4 + 340, Y4 + 560);
+      gsap.set(bank4, { scale: 0, transformOrigin: '50% 100%' });
+      const phone = HF.g(mid, { transform: `translate(${X4 + 900} ${Y4 + 370})` });
+      HF.box(phone, { x: -90, y: -170, w: 180, h: 340, r: 32, color: '#0E1A3A' });
+      HF.box(phone, { x: -74, y: -146, w: 148, h: 290, r: 20, color: '#22356E', hi: false });
+      HF.el('rect', { x: -26, y: -160, width: 52, height: 8, rx: 4, fill: '#3A4F92' }, phone);
+      HF.text(phone, 'wallet', { x: 0, y: -100, size: 22, color: '#8FA3D9', weight: 800 });
+      gsap.set(phone, { scale: 0, transformOrigin: '50% 100%' });
+      const beam = HF.el('path', { d: `M${X4 + 380} ${Y4 + 330} Q${X4 + 620} ${Y4 + 220} ${X4 + 880} ${Y4 + 380}`, fill: 'none', stroke: C.violet, 'stroke-width': 16, 'stroke-linecap': 'round', opacity: 0, filter: 'url(#hf-glow)' }, back);
+      const dcoin = HF.g(front);
+      HF.coin(dcoin, { r: 34, color: C.violet, mark: '◆' });
+      gsap.set(dcoin, { x: X4 + 380, y: Y4 + 330, scale: 0, transformOrigin: '50% 50%' });
+
+      // ================================================================ labels (HUD)
+      const L = (t, y = 90) => HF.label(t, { x: 640, y, cls: 'lg', hud: true, html: true });
+      const lFiat = L('<span class="hf-violet">Fiat</span> · government money, no gold behind it');
+      const lCrypto = L('<span class="hf-coral">Cryptocurrency</span> · code and a network');
+      const lStable = L('<span class="hf-gold">Stablecoin</span> · pegged to something steady');
+      const lCbdc = L('<span class="hf-violet">CBDC</span> · the central bank’s digital money');
+      const tags = [['Fiat', 'hf-violet', 320, 320], ['Crypto', 'hf-coral', 960, 320], ['Stablecoin', 'hf-gold', 320, 680], ['CBDC', 'hf-violet', 960, 680]]
+        .map(([t, cls, x, y]) => HF.label(t, { x, y, cls: `pill ${cls}`, hud: true }));
+
+      // ================================================================ choreography
+      // 0.0–1.2 fiat
+      HF.pop(tl, [bank1, bill], 0.0, { origin: '50% 100%', stagger: 0.08 });
+      HF.pop(tl, goldBar, 0.15, { origin: '50% 100%' });
+      HF.say(tl, lFiat, 0.15, 1.2);
+      HF.pop(tl, stamp, 0.3, { origin: '50% 100%' });
+      tl.to(stamp, { x: 860, y: 320, duration: 0.35, ease: 'power2.inOut' }, 0.45);
+      tl.to(stamp, { y: 372, duration: 0.1, ease: 'power3.in' }, 0.8);
+      HF.pop(tl, seal, 0.88);
+      tl.to(stamp, { y: 290, opacity: 0, duration: 0.2 }, 0.92);
+      tl.to(strikeG, { attr: { 'stroke-dashoffset': 0 }, duration: 0.15 }, 0.95);
+
+      // 1.2–2.4 crypto
+      HF.camera(tl, AT(1), 1.2, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, lCrypto, 1.4, 2.4);
+      HF.pop(tl, nodes, 1.4, { stagger: 0.04 });
+      links.forEach((l, i) => tl.to(l, { attr: { 'stroke-dashoffset': 0 }, duration: 0.2, ease: 'power1.out' }, 1.55 + i * 0.025));
+      HF.pop(tl, blocks, 1.7, { stagger: 0.06 });
+      tl.to(zig, { attr: { 'stroke-dashoffset': 0 }, duration: 0.5, ease: 'none' }, 1.8);
+
+      // 2.4–3.6 stablecoin
+      HF.camera(tl, AT(2), 2.4, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, lStable, 2.65, 3.6);
+      HF.pop(tl, vault, 2.65, { origin: '50% 100%' });
+      HF.pop(tl, token, 2.75);
+      tl.to(chainG, { scaleX: 1, duration: 0.2, ease: 'power2.out' }, 2.95);
+      HF.pop(tl, peg, 3.1);
+      tl.to(flat, { attr: { 'stroke-dashoffset': 0 }, duration: 0.35, ease: 'none' }, 3.1);
+      HF.bob(tl, token, 3.1, 0.4, { amp: 5, period: 0.4 });
+
+      // 3.6–4.4 CBDC
+      HF.camera(tl, AT(3), 3.6, 0.3, { easeName: 'power2.inOut' });
+      HF.say(tl, lCbdc, 3.75, 4.4);
+      HF.pop(tl, [bank4, phone], 3.75, { origin: '50% 100%', stagger: 0.05 });
+      tl.to(beam, { opacity: 0.45, duration: 0.15 }, 3.95);
+      tl.to(dcoin, { scale: 1, duration: 0.12 }, 3.95);
+      HF.arc(tl, dcoin, { x0: X4 + 380, y0: Y4 + 330, x1: X4 + 900, y1: Y4 + 380, h: 120 }, 4.0, 0.3);
+      tl.to(beam, { opacity: 0, duration: 0.1 }, 4.3);
+
+      // 4.4–5.0 all four
+      HF.camera(tl, FAR, 4.4, 0.4, { easeName: 'power2.inOut' });
+      HF.pop(tl, tags, 4.6, { stagger: 0.03 });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

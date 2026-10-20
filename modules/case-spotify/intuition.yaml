@@ -186,7 +186,7 @@ scenes:
     title: How Spotify earns its money
     goal: How can a service give music away for free and still make money?
     skills: [business-model]
-    state: { part: 12.5, whole: 50, subscribers: 12.5, price: 9.99, months: 12 }
+    state: { part: 12.5, whole: 50, subscribers: 12.5, price: 9.99, months: 12, animFrom: 0, animTo: 0.8 }
     derive:
       - { fn: shareOf, in: { part: '@part', whole: '@whole' }, out: s }
       - { fn: subscriptionRevenue, in: { subscribers: '@subscribers', price: '@price', months: '@months' }, out: v }
@@ -221,6 +221,21 @@ scenes:
             - { label: Subscribers (millions), value: '@subscribers' }
             - { label: Monthly price (dollars), value: '@price' }
             - { label: Revenue (millions of dollars), value: '@v.revenue', format: 1, tone: good }
+      - id: anim
+        widget: Animation
+        region: top
+        props:
+          src: [assets/anim/freemium-funnel.webm, assets/anim/freemium-funnel.mp4]
+          poster: assets/anim/freemium-funnel.poster.jpg
+          alt: |
+            Little listeners stream into the wide top of a glowing funnel, which splits into two exits: free with ads, and
+            Premium at 9.99 dollars a month. Counters show 50 million active and 12.5 million paying. A badge then reads "1 in 4,
+            25%", and twelve month squares light up for 9.99 dollars times 12 months. Last, coins pour into a gold bar that
+            counts up to 1,498.5 million dollars a year.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.7, 1.3, 2.3, 3.5, 4.9]
     beats:
       - say: |
           Spotify uses **freemium**: a free basic version with ads and a paid better version. The free tier is a funnel. It
@@ -230,10 +245,12 @@ scenes:
           A **premium subscription** costs 9.99 dollars a month and removes ads and adds offline listening.
           **Ad-supported streaming** is the free version, paid for by ads between songs.
         define: [premium-subscription, ad-supported-streaming]
+        set: { animFrom: 0.8, animTo: 1.4 }
       - say: |
           The **conversion rate** is the share of users who pay. In November 2014 Spotify had 50 million active users and
           12.5 million paying subscribers.
         define: [conversion-rate]
+        set: { animFrom: 1.4, animTo: 2.4 }
         gate:
           type: predict
           question: What share of active users paid? (Enter a decimal like 0.25 or a percentage like 25%.)
@@ -241,6 +258,7 @@ scenes:
           explain: 12.5 ÷ 50 = 0.25, one in four (25%).
       - say: |
           One in four active users (25%) paid for Premium. Those 12.5 million subscribers each pay 9.99 dollars a month.
+        set: { animFrom: 2.4, animTo: 3.6 }
         hide: [r1-in]
         show: [r1, r2-in]
         gate:
@@ -251,12 +269,14 @@ scenes:
       - say: |
           12.5 million subscribers paying 9.99 dollars for 12 months generate 1,498.5 million dollars a year. Try a
           conversion calculation on new numbers.
+        set: { animFrom: 3.6, animTo: 5 }
         hide: [r1, r2-in]
         show: [r2]
         gate:
           type: practice
           template: conversion-numeric
       - say: And a revenue question.
+        hide: [anim]
         gate:
           type: practice
           template: sub-revenue-numeric
@@ -436,7 +456,7 @@ scenes:
     title: When a superstar pulls out
     goal: What should a platform do when its biggest star asks for special treatment?
     skills: [swift-takedown]
-    state: { part: 6, whole: 1000, payout: 500000, perStream: 0.007 }
+    state: { part: 6, whole: 1000, payout: 500000, perStream: 0.007, animFrom: 0, animTo: 3.4 }
     derive:
       - { fn: shareOf, in: { part: '@part', whole: '@whole' }, out: s }
       - { fn: streamsFor, in: { payout: '@payout', perStream: '@perStream' }, out: n }
@@ -465,6 +485,21 @@ scenes:
             - **Big Machine's demands:** Restrict *1989* to paying Premium subscribers only (windowing) and block it in the United States.
             - **Spotify's policy:** Universal catalogue across both the free ad-supported funnel and Premium in every country.
             - **Result:** Big Machine ordered a full **catalogue takedown**, pulling all of Taylor Swift's albums from Spotify.
+      - id: anim
+        widget: Animation
+        region: top
+        props:
+          src: [assets/anim/windowing-vs-day-and-date.webm, assets/anim/windowing-vs-day-and-date.mp4]
+          poster: assets/anim/windowing-vs-day-and-date.poster.jpg
+          alt: |
+            Two rows of three doors: Album, Premium and Free. In the day-and-date row all three open at once, most listeners take
+            the Free door and the album-sales bar barely grows. In the windowing row the Free door is padlocked for a while,
+            listeners take Album and Premium, and the album-sales bar grows tall. Then a teal stamp reading "Same for everyone"
+            lands on the day-and-date row, and three album cards slide off their shelf: the catalogue is pulled.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [1.6, 3.3, 4.9]
     beats:
       - say: |
           Before a new album, labels often use **windowing**: keeping new music off some services for a while to push sales
@@ -474,6 +509,7 @@ scenes:
           Big Machine Records asked for 1989 to be paid-only and kept out of the US. Spotify said no, and the label ordered a
           **catalogue takedown**: a request to remove an artist's whole library from a service.
         define: [catalogue-takedown]
+        set: { animFrom: 3.4, animTo: 5 }
         gate:
           type: predict
           question: Swift was on track to earn about 6 million dollars from Spotify in 2014, out of about 1 billion dollars of royalties. What share is that? (Enter a decimal like 0.006 or a percentage like 0.6%.)
@@ -482,7 +518,7 @@ scenes:
       - say: |
           Swift accounted for about 0.6% of Spotify's annual royalty pool (about 500,000 dollars a month, or 71 million
           streams a month at 0.007 dollars per stream)—small in direct dollars, but huge as a precedent for other stars.
-        hide: [r1-in]
+        hide: [r1-in, anim]
         show: [r1, takedown-note]
       - say: Check the release terms from this scene.
         gate:

@@ -99,7 +99,7 @@ describe('courses', () => {
 });
 
 describe('Animation widget (guide §9a)', () => {
-  // org-design ships one clip: modules/org-design/assets/anim/transfer-pricing.{webm,mp4,poster.jpg}
+  // these tests use org-design's transfer-pricing clip: modules/org-design/assets/anim/transfer-pricing.{webm,mp4,poster.jpg}
   const SRC = 'src: [assets/anim/transfer-pricing.webm, assets/anim/transfer-pricing.mp4]';
   async function orgDesign(): Promise<FileMap> {
     const f = await readModuleDir(path.join(root, 'org-design'));
@@ -146,7 +146,14 @@ describe('Animation widget (guide §9a)', () => {
   });
 
   it('checks the segment and the poster', async () => {
-    expect((await errs(withSrc(await orgDesign(), '[assets/anim/transfer-pricing.webm]', '\n          start: 3\n          end: 2'))).some((m) => /`end` must come after `start`/.test(m))).toBe(true);
+    // the clip is played in segments (start/end bound to scene state): swap its segment for a backwards one
+    const seg = await orgDesign();
+    const y = seg['intuition.yaml'] as string;
+    const SEG = "start: '@animFrom'\n          end: '@animTo'";
+    const k = y.indexOf(SEG, y.indexOf(SRC));
+    expect(k).toBeGreaterThan(y.indexOf(SRC));
+    seg['intuition.yaml'] = y.slice(0, k) + 'start: 3\n          end: 2' + y.slice(k + SEG.length);
+    expect((await errs(seg)).some((m) => /`end` must come after `start`/.test(m))).toBe(true);
     const f = await orgDesign();
     f['intuition.yaml'] = (f['intuition.yaml'] as string).replace('poster: assets/anim/transfer-pricing.poster.jpg', 'poster: assets/anim/transfer-pricing.mp4');
     expect((await errs(f)).some((m) => /a poster is a still image/.test(m))).toBe(true);

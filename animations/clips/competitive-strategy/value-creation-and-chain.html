@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Value created, and two ways to grow it</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Competitive Strategy · creating-value, beats 1–2 and 5–6 · 5 s. Segments: 0–1.0 cost, price and willingness to pay (no gap: beat 1 asks for it), 1.0–2.2 value created $50 split 30/20, 2.2–3.5 the value chain, 3.5–5.0 cost leadership and differentiation. -->
+  <div id="stage" data-composition-id="value-creation-and-chain" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Competitive Strategy · creating-value, 5 s. Numbers are the scene's: willingness to pay 100, price 70, unit cost 50.
+     *   0.0–1.0  a dollar column rises; three lines pop on it: Cost $50, Price $70, Willing to pay $100
+     *   1.0–2.2  a gold bracket spans 50 → 100, "Value created $50"; it splits: customer keeps $30, firm keeps $20
+     *   2.2–3.5  pan: four chevrons Design → Make → Market → Serve, a support bar beneath, value growing along them
+     *   3.5–5.0  pan back: a teal arrow pushes cost down (cost leadership), a gold arrow lifts willingness to pay
+     *            (differentiation); the value gap widens; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['value-creation-and-chain'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const B = 620, K = 4.2; // $0 at y=620; px per dollar
+      const Y = (d) => B - d * K;
+      const AX = 420; // the column
+
+      // ================================================================ panel 1 · the column
+      const col = HF.el('rect', { x: AX - 40, y: B, width: 80, height: 0, rx: 16, fill: '#22356E' }, back);
+      const line = (d, col, w = 320) => { const l = HF.el('rect', { x: AX - w / 2, y: Y(d) - 4, width: w, height: 8, rx: 4, fill: col }, mid); gsap.set(l, { scaleX: 0, transformOrigin: '50% 50%' }); return l; };
+      const lC = line(50, C.coral), lP = line(70, C.violet), lV = line(100, C.gold);
+      const tC = HF.label('Cost <span class="hf-coral">$50</span>', { x: AX - 180, y: Y(50), cls: 'sm', anchor: 'right', html: true });
+      const tP = HF.label('Price <span class="hf-violet">$70</span>', { x: AX - 180, y: Y(70), cls: 'sm', anchor: 'right', html: true });
+      const tV = HF.label('Willing to pay <span class="hf-gold">$100</span>', { x: AX - 180, y: Y(100), cls: 'sm', anchor: 'right', html: true });
+      // the gap and its split
+      const BX = AX + 200;
+      const gapBr = HF.el('path', { d: `M${BX} ${Y(100)} l18 0 l0 ${50 * K} l-18 0`, fill: 'none', stroke: C.gold, 'stroke-width': 6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, front);
+      gsap.set(gapBr, { opacity: 0 });
+      const tGap = HF.label('Value created <span class="hf-gold">$50</span>', { x: BX + 40, y: Y(75), cls: '', anchor: 'left', html: true });
+      const cust = HF.el('rect', { x: AX - 40, y: Y(100), width: 80, height: 30 * K, rx: 12, fill: C.teal }, back);
+      const firm = HF.el('rect', { x: AX - 40, y: Y(70), width: 80, height: 20 * K, rx: 12, fill: C.gold }, back);
+      gsap.set([cust, firm], { opacity: 0 });
+      const tCust = HF.label('Customer keeps <span class="hf-teal">$30</span>', { x: BX + 40, y: Y(85), cls: 'sm', anchor: 'left', html: true });
+      const tFirm = HF.label('Firm keeps <span class="hf-gold">$20</span>', { x: BX + 40, y: Y(60), cls: 'sm', anchor: 'left', html: true });
+
+      // ================================================================ panel 2 · the value chain
+      const X2 = 1280;
+      const STEPS = ['Design', 'Make', 'Market', 'Serve'];
+      const SC = [C.violet, C.teal, C.coral, C.gold];
+      const chev = STEPS.map((t, i) => {
+        const x = X2 + 150 + i * 250;
+        const g = HF.g(mid, { transform: `translate(${x} 330)` });
+        const inner = HF.g(g);
+        HF.el('path', { d: 'M0 -60 L200 -60 L240 0 L200 60 L0 60 L40 0 Z', fill: SC[i] }, inner);
+        HF.text(inner, t, { x: 125, y: 10, size: 30, color: '#0B1D3A', weight: 900 });
+        gsap.set(inner, { scale: 0, transformOrigin: '50% 50%' });
+        return inner;
+      });
+      const support = HF.g(mid);
+      HF.box(support, { x: X2 + 150, y: 430, w: 990, h: 60, r: 18, color: '#3A4F92', hi: false });
+      HF.text(support, 'Support · people, systems, buying', { x: X2 + 645, y: 470, size: 26, color: '#C9D3F2', weight: 800 });
+      gsap.set(support, { scaleX: 0, transformOrigin: '0% 50%' });
+      const vline = HF.el('rect', { x: X2 + 150, y: 540, width: 0, height: 16, rx: 8, fill: C.gold }, front);
+      const vEnd = HF.label('more value at each step', { x: X2 + 1150, y: 590, cls: 'sm hf-gold', anchor: 'right' });
+
+      // ================================================================ panel 1 again · two ways to widen the gap
+      const arrow = (col, up) => {
+        const g = HF.g(front);
+        HF.box(g, { x: -12, y: up ? -10 : -70, w: 24, h: 80, r: 12, color: col, hi: false });
+        HF.el('path', { d: up ? 'M-34 -10 L0 -56 L34 -10 Z' : 'M-34 10 L0 56 L34 10 Z', fill: col }, g);
+        gsap.set(g, { opacity: 0 });
+        return g;
+      };
+      const aDown = arrow(C.teal, false), aUp = arrow(C.gold, true);
+      gsap.set(aDown, { x: AX + 220, y: Y(50) - 50 });
+      gsap.set(aUp, { x: AX + 220, y: Y(100) + 50 });
+      const tLead = HF.label('Cost leadership · lower cost', { x: AX + 270, y: Y(36), cls: 'sm pill hf-teal', anchor: 'left' });
+      const tDiff = HF.label('Differentiation · more value', { x: AX + 270, y: Y(114), cls: 'sm pill hf-gold', anchor: 'left' });
+      const M = { c: 50, v: 100 };
+      HF.every(() => {
+        lC.setAttribute('y', (Y(M.c) - 4).toFixed(1));
+        lV.setAttribute('y', (Y(M.v) - 4).toFixed(1));
+        col.setAttribute('y', (Y(M.v)).toFixed(1));
+      });
+
+      // ================================================================ labels (HUD)
+      const L = (t) => HF.label(t, { x: 640, y: 70, cls: 'lg', hud: true, html: true });
+      const l1 = L('Cost, price and what buyers will pay');
+      const l2 = L('Price splits the value created');
+      const l3 = L('The <span class="hf-gold">value chain</span> · steps that add value');
+      const l4 = L('Two ways to widen the gap');
+
+      // ================================================================ choreography
+      // 0.0–1.0 the column (no gap)
+      HF.say(tl, l1, 0.05, 1.0);
+      tl.to(col, { attr: { y: Y(100), height: 100 * K }, duration: 0.35, ease: 'power2.out' }, 0.05);
+      tl.to(lC, { scaleX: 1, duration: 0.2, ease: 'back.out(1.6)' }, 0.3);
+      HF.pop(tl, tC, 0.35, { origin: '100% 50%' });
+      tl.to(lP, { scaleX: 1, duration: 0.2, ease: 'back.out(1.6)' }, 0.45);
+      HF.pop(tl, tP, 0.5, { origin: '100% 50%' });
+      tl.to(lV, { scaleX: 1, duration: 0.2, ease: 'back.out(1.6)' }, 0.6);
+      HF.pop(tl, tV, 0.65, { origin: '100% 50%' });
+
+      // 1.0–2.2 the gap and the split
+      HF.say(tl, l2, 1.05, 2.2);
+      tl.to(gapBr, { opacity: 1, duration: 0.15 }, 1.05);
+      HF.pop(tl, tGap, 1.15, { origin: '0% 50%' });
+      tl.to(tGap, { scale: 0, duration: 0.12 }, 1.6);
+      tl.to([cust, firm], { opacity: 1, duration: 0.2 }, 1.6);
+      HF.pop(tl, tCust, 1.7, { origin: '0% 50%' });
+      HF.pop(tl, tFirm, 1.8, { origin: '0% 50%' });
+
+      // 2.2–3.5 the value chain
+      HF.camera(tl, { x: -X2 }, 2.2, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, l3, 2.45, 3.5);
+      HF.pop(tl, chev, 2.5, { stagger: 0.1 });
+      tl.to(support, { scaleX: 1, duration: 0.3, ease: 'power2.out' }, 2.75);
+      tl.to(vline, { attr: { width: 990 }, duration: 0.6, ease: 'power1.inOut' }, 2.85);
+      HF.pop(tl, vEnd, 3.2, { origin: '100% 50%' });
+
+      // 3.5–5.0 two ways to widen the gap
+      HF.camera(tl, { x: 0 }, 3.5, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, l4, 3.75);
+      tl.to([tCust, tFirm, tC, tV, tP], { scale: 0, duration: 0.12 }, 3.55);
+      tl.to([cust, firm, gapBr], { opacity: 0, duration: 0.15 }, 3.55);
+      tl.to(aDown, { opacity: 1, duration: 0.1 }, 3.9);
+      tl.to(aDown, { y: Y(36) - 50, duration: 0.4, ease: 'power2.inOut' }, 3.9);
+      tl.to(M, { c: 36, duration: 0.4, ease: 'power2.inOut' }, 3.9);
+      HF.pop(tl, tLead, 4.05, { origin: '0% 50%' });
+      tl.to(aUp, { opacity: 1, duration: 0.1 }, 4.1);
+      tl.to(aUp, { y: Y(114) + 50, duration: 0.4, ease: 'power2.inOut' }, 4.1);
+      tl.to(M, { v: 114, duration: 0.4, ease: 'power2.inOut' }, 4.1);
+      HF.pop(tl, tDiff, 4.25, { origin: '0% 50%' });
+      const wide = HF.el('path', { d: '', fill: 'none', stroke: C.gold, 'stroke-width': 6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, front);
+      HF.every(() => wide.setAttribute('d', `M${AX - 210} ${Y(M.v)} l-18 0 l0 ${(M.v - M.c) * K} l18 0`));
+      gsap.set(wide, { opacity: 0 });
+      tl.to(wide, { opacity: 1, duration: 0.2 }, 3.95);
+      const tWide = HF.label('Bigger gap', { x: AX - 250, y: Y(75), cls: 'sm hf-gold', anchor: 'right' });
+      HF.pop(tl, tWide, 4.45, { origin: '100% 50%' });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

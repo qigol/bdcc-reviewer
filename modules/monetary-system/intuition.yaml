@@ -196,6 +196,7 @@ scenes:
     title: New kinds of money
     goal: What counts as money now that it can live on a phone?
     skills: [monetary-system]
+    state: { animFrom: 0, animTo: 1.2 }
     stage:
       - id: sorter
         widget: DropBins
@@ -213,16 +214,21 @@ scenes:
             - { id: stable, label: Stablecoin }
             - { id: cb, label: CBDC }
           solution: { k1: fiat, k2: crypto, k3: stable, k4: cb }
-      - id: summary
-        widget: Text
+      - id: anim
+        widget: Animation
+        region: top
         props:
-          body: |
-            **Four kinds of money**
-
-            - Government money without gold behind it
-            - Code-secured digital money
-            - Digital money pegged to something steady
-            - The central bank's own digital money
+          src: [assets/anim/four-forms-of-money.webm, assets/anim/four-forms-of-money.mp4]
+          poster: assets/anim/four-forms-of-money.poster.jpg
+          alt: |
+            Four panels. Fiat: a violet central bank stamps a paper note, and a gold bar beside it is struck out. Crypto: five
+            glowing nodes link into a network, blocks chain along the bottom and a coral price line zigzags. Stablecoin: a gold
+            coin is chained one-to-one to a vault of dollar notes and its teal price line stays flat. CBDC: the central bank
+            beams a violet digital coin into a phone wallet. Last, all four panels side by side with their names.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [1.1, 2.3, 3.5, 4.3, 4.95]
     beats:
       - say: |
           The pesos in your wallet are **fiat currency**: money issued by a government with no gold or silver behind it.
@@ -232,14 +238,17 @@ scenes:
           Some money exists only as data. A **cryptocurrency** is digital money secured by code and run by a network, not
           by a government or bank. Bitcoin and Ethereum are examples.
         define: [cryptocurrency]
+        set: { animFrom: 1.2, animTo: 2.4 }
       - say: |
           Crypto prices swing wildly, so some coins try to stay calm. A **stablecoin** pegs its value to a fiat currency,
           a metal or another crypto. Algorithmic ones have no real backing and lean on computer rules.
         define: [stablecoin]
+        set: { animFrom: 2.4, animTo: 3.6 }
       - say: |
           Governments answered with their own digital money. A **central bank digital currency**, or CBDC, is the
           official currency in digital form, issued by the central bank.
         define: [cbdc]
+        set: { animFrom: 3.6, animTo: 4.4 }
         gate:
           type: predict
           question: Which of these is NOT controlled by any central authority?
@@ -248,15 +257,16 @@ scenes:
           explain: A cryptocurrency is run by a network. The other three are issued by governments or central banks.
       - say: Sort each example into its kind.
         show: [sorter]
-        hide: [summary]
+        hide: [anim]
         gate:
           type: event
           prompt: Place all four examples in the right bin.
           target: sorter
           event: solved
       - say: One more thought.
+        set: { animFrom: 4.4, animTo: 5 }
         hide: [sorter]
-        show: [summary]
+        show: [anim]
         gate:
           type: reflect
           prompt: Why might a government prefer to issue a CBDC rather than let people use a cryptocurrency?
@@ -414,7 +424,7 @@ scenes:
     title: Why exchange rates move
     goal: Why does a peso buy less abroad after a few years of rising prices at home?
     skills: [ppp]
-    state: { spot: 50, piHome: 0.03, piForeign: 0.02 }
+    state: { spot: 50, piHome: 0.03, piForeign: 0.02, animFrom: 0, animTo: 1.2 }
     derive:
       - { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' }, out: p }
     stage:
@@ -443,6 +453,21 @@ scenes:
         hidden: true
         props: { label: Home inflation (0.03 = 3%), min: 0, max: 0.1, step: 0.005 }
         bind: { value: piHome }
+      - id: anim
+        widget: Animation
+        region: top
+        props:
+          src: [assets/anim/arbitrage-and-ppp.webm, assets/anim/arbitrage-and-ppp.mp4]
+          poster: assets/anim/arbitrage-and-ppp.poster.jpg
+          alt: |
+            Two price bars stand level between the New York and Manila skylines, each topped by the same phone: 500 dollars in
+            New York, 25,000 pesos (500 dollars at 50 pesos per dollar) in Manila. The New York bar drops to 450 dollars and a
+            50-dollar gap opens. Boats then carry phones from New York to Manila, a "+$50" pops at each arrival, and the two
+            bars creep together until they are level again.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [1.1, 1.95, 2.9, 4.9]
     beats:
       - say: |
           A phone costs 25,000 pesos in Manila and 500 dollars in New York. At 50 pesos per dollar these are the same
@@ -450,6 +475,7 @@ scenes:
           everywhere.
         define: [law-of-one-price]
       - say: Suppose the phone drops to 450 dollars in New York, still 500 dollars' worth in Manila.
+        set: { animFrom: 1.2, animTo: 2 }
         gate:
           type: predict
           question: What will traders do?
@@ -460,11 +486,12 @@ scenes:
           That risk-free profit is **arbitrage**: buying and selling the same thing at the same moment in two markets.
           Traders keep chasing it until the gap closes.
         define: [arbitrage]
+        set: { animFrom: 2, animTo: 5 }
       - say: |
           Prices do not stay still. **Inflation** is a sustained rise in the general level of prices. Say prices rise
           3% a year in the Philippines and 2% in the United States.
         define: [inflation]
-        hide: [loop-note]
+        hide: [loop-note, anim]
         show: [r]
       - say: |
           Peso goods get dearer faster than dollar goods. For the same money to keep buying the same goods, the peso
@@ -648,7 +675,7 @@ scenes:
     title: When governments step in
     goal: What can a government do to money and prices that markets alone would not?
     skills: [govt-forces]
-    state: { rate: 0.12, prices: [100, 150, 250] }
+    state: { rate: 0.12, prices: [100, 150, 250], animFrom: 0, animTo: 2.6 }
     derive:
       - { fn: vatChain, in: { prices: '@prices', rate: '@rate' }, out: v }
     stage:
@@ -686,6 +713,22 @@ scenes:
         hidden: true
         props: { label: Tax rate (0.12 = 12%), min: 0.05, max: 0.25, step: 0.01 }
         bind: { value: rate }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/vat-credit-chain.webm, assets/anim/vat-credit-chain.mp4]
+          poster: assets/anim/vat-credit-chain.poster.jpg
+          alt: |
+            A crate passes from a supplier to a factory to a shop, with a violet government jar below. The supplier sells at
+            100 and drops a 12 coin in the jar. The factory sells at 150: 12% of 150 is 18, with a credit of 12 for the tax
+            already paid. Then the factory drops in 6 (the jar reads 18), the shop sells at 250, owes 30 less an 18 credit and
+            drops in 12. The jar reads 30: 12 + 6 + 12 = 30, which is 12% of 250.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [1.2, 2.5, 3.3, 4.9]
     beats:
       - say: |
           A country running short of foreign money may limit who can buy it. These are **currency exchange controls**:
@@ -710,7 +753,7 @@ scenes:
           sale, then gets a credit for the tax already paid on its inputs. Tax is 12% here.
         define: [value-added-tax]
         hide: [controls-note]
-        show: [r-in]
+        show: [r-in, anim]
         gate:
           type: predict
           question: A firm buys at 100 and sells at 150. How much VAT does it pay the government at 12%?
@@ -719,6 +762,7 @@ scenes:
       - say: |
           Across all three stages (12 + 6 + 12 = 30), the government collects the exact same amount as 12% of the final price
           (250). Now change the tax rate and watch the total.
+        set: { animFrom: 2.6, animTo: 5 }
         hide: [r-in]
         show: [r, rateslider]
         gate:
@@ -727,7 +771,7 @@ scenes:
           when: 'v.totalRemit > 49.9 and v.totalRemit < 50.1'
           hint: The total is the rate times the final price of 250. What rate gives 50?
       - say: One more on new prices.
-        hide: [rateslider]
+        hide: [rateslider, anim]
         gate:
           type: practice
           template: vat-numeric

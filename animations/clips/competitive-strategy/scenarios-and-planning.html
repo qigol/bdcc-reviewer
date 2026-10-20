@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Several futures, one plan</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Competitive Strategy · imagining-futures, beats 1–4 · 5 s. Segments: 0–1.3 three stories and their actions, all alike (no count: beat 1 asks for it), 1.3–2.6 the two shared actions glow and a contingency plan waits, 2.6–3.8 top-down and bottom-up, 3.8–5.0 iterative. -->
+  <div id="stage" data-composition-id="scenarios-and-planning" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Competitive Strategy · imagining-futures, 5 s. The actions are the scene's dataset.
+     *   0.0–1.3  from a "Today" dot three paths fan out (Boom, Steady, Downturn); each fills with its action chips, all pale blue
+     *   1.3–2.6  the two actions found in every story (hire local managers, keep cost focus) glow gold; "2 in every story";
+     *            a dashed side branch leads to a "Contingency plan" card behind a switch, which flips
+     *   2.6–3.8  pan: a firm drawn as boxes (top, middle, units); a coral wave runs down (top-down), a teal one runs up
+     *            (bottom-up)
+     *   3.8–5.0  a gold loop circles the boxes twice: iterative; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['scenarios-and-planning'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+
+      // ================================================================ panel 1 · three stories
+      const TX = 130, TY = 380;
+      const today = HF.g(mid, { transform: `translate(${TX} ${TY})` });
+      const todayIn = HF.g(today);
+      HF.el('circle', { cx: 0, cy: 0, r: 26, fill: '#F4F1DE' }, todayIn);
+      HF.text(today, 'Today', { x: 0, y: 60, size: 22, color: '#F4F1DE', weight: 900 });
+      gsap.set(todayIn, { scale: 0, transformOrigin: '50% 50%' });
+      const STORIES = [
+        { name: 'Boom', y: 210, col: C.teal, acts: ['Expand fast', 'Hire local managers', 'Keep cost focus', 'Build new kitchens'] },
+        { name: 'Steady', y: 380, col: C.gold, acts: ['Expand slowly', 'Hire local managers', 'Keep cost focus'] },
+        { name: 'Downturn', y: 550, col: C.coral, acts: ['Delay new stores', 'Hire local managers', 'Keep cost focus'] },
+      ];
+      const SHARED = new Set(['Hire local managers', 'Keep cost focus']);
+      const paths = [], names = [], chips = [], shared = [];
+      STORIES.forEach(({ name, y, col, acts }) => {
+        const d = `M${TX + 26} ${TY} C ${TX + 90} ${TY}, ${TX + 80} ${y}, ${TX + 170} ${y} L 1240 ${y}`;
+        const p = HF.el('path', { d, fill: 'none', stroke: col, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.6 }, back);
+        const len = p.getTotalLength();
+        gsap.set(p, { attr: { 'stroke-dasharray': len, 'stroke-dashoffset': len } });
+        paths.push(p);
+        const n = HF.label(name, { x: TX + 180, y: y - 34, cls: 'sm', anchor: 'left' });
+        n.style.color = col;
+        names.push(n);
+        acts.forEach((a, i) => {
+          const x = 400 + i * 220;
+          const g = HF.g(mid, { transform: `translate(${x} ${y})` });
+          const inner = HF.g(g);
+          const bg = HF.el('rect', { x: -102, y: -22, width: 204, height: 44, rx: 22, fill: '#8FA3D9' }, inner);
+          HF.text(inner, a, { x: 0, y: 7, size: 19, color: '#0B1D3A', weight: 800 });
+          gsap.set(inner, { scale: 0, transformOrigin: '50% 50%' });
+          chips.push(inner);
+          if (SHARED.has(a)) shared.push(bg);
+        });
+      });
+      const two = HF.label('<span class="hf-gold">2</span> in every story', { x: 730, y: 640, cls: 'pill', html: true });
+      // contingency branch
+      const cont = HF.el('path', { d: `M${TX} ${TY + 26} C ${TX} ${TY + 160}, ${TX + 40} 640, ${TX + 150} 650`, fill: 'none', stroke: '#C9D3F2', 'stroke-width': 5, 'stroke-dasharray': '10 10', 'stroke-linecap': 'round', opacity: 0 }, back);
+      const sw = HF.g(front, { transform: `translate(${TX + 190} 650)` });
+      const swIn = HF.g(sw);
+      HF.box(swIn, { x: -30, y: -16, w: 60, h: 32, r: 16, color: '#3A4F92', hi: false });
+      const knob = HF.el('circle', { cx: -14, cy: 0, r: 12, fill: '#C9D3F2' }, swIn);
+      gsap.set(swIn, { scale: 0, transformOrigin: '50% 50%' });
+      const contTag = HF.label('Contingency plan', { x: TX + 240, y: 650, cls: 'sm pill', anchor: 'left' });
+
+      // ================================================================ panel 2 · how plans move
+      const X2 = 1280;
+      const box = (x, y, w, col) => { const g = HF.g(mid); HF.box(g, { x: x - w / 2, y: y - 30, w, h: 60, r: 16, color: col }); gsap.set(g, { scale: 0, transformOrigin: '50% 50%' }); return g; };
+      const top = box(X2 + 640, 200, 220, C.violet);
+      const midB = [X2 + 470, X2 + 810].map((x) => box(x, 360, 200, '#5C6FA8'));
+      const units = [X2 + 380, X2 + 560, X2 + 720, X2 + 900].map((x) => box(x, 520, 140, '#3A4F92'));
+      const wires = HF.g(back);
+      [[640, 230, 470, 330], [640, 230, 810, 330], [470, 390, 380, 490], [470, 390, 560, 490], [810, 390, 720, 490], [810, 390, 900, 490]].forEach(([a, b, c, d]) =>
+        HF.el('path', { d: `M${X2 + a} ${b} L${X2 + a} ${(b + d) / 2} L${X2 + c} ${(b + d) / 2} L${X2 + c} ${d}`, fill: 'none', stroke: '#3A4F92', 'stroke-width': 5 }, wires));
+      gsap.set(wires, { opacity: 0 });
+      HF.text(front, 'Top', { x: X2 + 640, y: 208, size: 22, color: '#F4F1DE', weight: 900 });
+      HF.text(back, 'Units', { x: X2 + 640, y: 600, size: 22, color: '#8FA3D9', weight: 800 });
+      const arrowV = (x, y0, y1, col) => {
+        const g = HF.g(front);
+        HF.box(g, { x: -10, y: Math.min(y0, y1), w: 20, h: Math.abs(y1 - y0), r: 10, color: col, hi: false });
+        const tip = y1 > y0 ? `M-26 ${y1 - 6} L0 ${y1 + 26} L26 ${y1 - 6} Z` : `M-26 ${y1 + 6} L0 ${y1 - 26} L26 ${y1 + 6} Z`;
+        HF.el('path', { d: tip, fill: col }, g);
+        gsap.set(g, { x, scaleY: 0, transformOrigin: y1 > y0 ? '50% 0%' : '50% 100%' });
+        return g;
+      };
+      const down = arrowV(X2 + 1080, 200, 500, C.coral);
+      const up = arrowV(X2 + 200, 520, 220, C.teal);
+      const tDown = HF.label('Top-down', { x: X2 + 1080, y: 150, cls: 'sm pill hf-coral' });
+      const tUp = HF.label('Bottom-up', { x: X2 + 200, y: 580, cls: 'sm pill hf-teal' });
+      const loopR = { cx: X2 + 640, cy: 370, rx: 470, ry: 245 };
+      const loop = HF.el('ellipse', { cx: loopR.cx, cy: loopR.cy, rx: loopR.rx, ry: loopR.ry, fill: 'none', stroke: C.gold, 'stroke-width': 8, 'stroke-dasharray': '24 18', opacity: 0 }, back);
+      const runner = HF.g(front);
+      HF.el('circle', { cx: 0, cy: 0, r: 16, fill: C.gold }, runner);
+      HF.el('circle', { cx: 0, cy: 0, r: 30, fill: C.gold, opacity: 0.3, filter: 'url(#hf-glow)' }, runner);
+      runner.setAttribute('opacity', '0');
+      const LP = { a: 0, on: 0 };
+      HF.every(() => {
+        const a = LP.a * Math.PI * 2 - Math.PI / 2;
+        runner.setAttribute('transform', `translate(${(loopR.cx + loopR.rx * Math.cos(a)).toFixed(1)} ${(loopR.cy + loopR.ry * Math.sin(a)).toFixed(1)})`);
+        runner.setAttribute('opacity', String(LP.on));
+      });
+      const tIter = HF.label('Iterative · round again until it fits', { x: X2 + 640, y: 660, cls: 'pill hf-gold' });
+
+      // ================================================================ labels (HUD)
+      const L = (t) => HF.label(t, { x: 640, y: 70, cls: 'lg', hud: true, html: true });
+      const l1 = L('Three <span class="hf-teal">scenarios</span> for the restaurant chain');
+      const l2 = L('Moves that fit every story');
+      const l3 = L('Which way does the plan travel?');
+      const l4 = L('<span class="hf-gold">Iterative planning</span>');
+
+      // ================================================================ choreography
+      // 0.0–1.3 the stories (no highlight, no count)
+      HF.pop(tl, todayIn, 0.0);
+      HF.say(tl, l1, 0.1, 1.3);
+      paths.forEach((p, i) => tl.to(p, { attr: { 'stroke-dashoffset': 0 }, duration: 0.45, ease: 'power1.inOut' }, 0.15 + i * 0.08));
+      HF.pop(tl, names, 0.35, { stagger: 0.06 });
+      HF.pop(tl, chips, 0.5, { stagger: 0.05 });
+
+      // 1.3–2.6 the shared moves and a contingency plan
+      HF.say(tl, l2, 1.35, 2.6);
+      tl.to(shared, { attr: { fill: C.gold }, duration: 0.25, stagger: 0.04 }, 1.4);
+      HF.pop(tl, two, 1.75);
+      tl.to(cont, { opacity: 1, duration: 0.2 }, 1.95);
+      HF.pop(tl, swIn, 2.05);
+      HF.pop(tl, contTag, 2.1, { origin: '0% 50%' });
+      tl.to(knob, { attr: { cx: 14, fill: C.gold }, duration: 0.15, ease: 'power2.inOut' }, 2.35);
+
+      // 2.6–3.8 top-down, bottom-up
+      HF.camera(tl, { x: -X2 }, 2.6, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, l3, 2.85, 3.8);
+      tl.to(wires, { opacity: 1, duration: 0.2 }, 2.8);
+      HF.pop(tl, [top, ...midB, ...units], 2.8, { stagger: 0.03 });
+      tl.to(down, { scaleY: 1, duration: 0.3, ease: 'power2.out' }, 3.05);
+      HF.pop(tl, tDown, 3.1);
+      tl.to(up, { scaleY: 1, duration: 0.3, ease: 'power2.out' }, 3.4);
+      HF.pop(tl, tUp, 3.45);
+
+      // 3.8–5.0 iterative
+      HF.say(tl, l4, 3.85);
+      tl.to(loop, { opacity: 0.55, duration: 0.2 }, 3.85);
+      tl.to(LP, { on: 1, duration: 0.1 }, 3.9);
+      tl.to(LP, { a: 2, duration: 0.95, ease: 'power1.inOut' }, 3.9);
+      HF.pop(tl, tIter, 4.1);
+      tl.to(LP, { on: 0, duration: 0.1 }, 4.85);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

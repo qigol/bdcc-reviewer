@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Who and where the buyers are</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Economic Forces · people-as-a-market, beats 3–4 · 5 s. Segments: 0–2.0 two age pyramids, 2.0–5.0 the move from farms to cities, then both together. -->
+  <div id="stage" data-composition-id="demographic-shifts" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Economic Forces · people-as-a-market, 5 s. No numbers (the scene's are about density).
+     *   0.0–2.0  two stacks of age bars build up from the bottom: a teal one with a wide young base (developing) and a violet
+     *            one that is widest near the top (industrial, aging)
+     *   2.0–4.2  pan: little people stream along a glowing road from green fields into a city; the towers rise and their
+     *            windows light up
+     *   4.2–5.0  pull back to show both; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['demographic-shifts'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 540, P = 1280;
+      HF.box(ground, { x: -800, y: G, w: P * 2 + 1600, h: 900, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -800, y: G, width: P * 2 + 1600, height: 6, fill: '#3A4F92' }, ground);
+
+      // ================================================================ panel 1 · age pyramids
+      const BH = 34, GAP = 9;
+      const pyr = (cx, widths, col, title, cls) => {
+        const bars = widths.map((w, i) => {
+          const r = HF.el('rect', { x: cx - w / 2, y: G - 20 - (i + 1) * (BH + GAP), width: w, height: BH, rx: 12, fill: i % 2 ? HF.shade(col, 0.06) : col }, mid);
+          gsap.set(r, { scaleX: 0, transformOrigin: '50% 50%' });
+          return r;
+        });
+        const tag = HF.label(title, { x: cx, y: G + 44, cls: `pill ${cls}` });
+        return { bars, tag };
+      };
+      const young = pyr(340, [330, 280, 225, 170, 115, 60], C.teal, 'Developing · young', 'hf-teal');
+      const old = pyr(940, [150, 185, 215, 235, 225, 170], C.violet, 'Industrial · aging', 'hf-violet');
+      const axis = HF.g(back);
+      for (const cx of [340, 940]) {
+        HF.el('line', { x1: cx - 210, y1: G - 20, x2: cx - 210, y2: G - 300, stroke: '#8FA3D9', 'stroke-width': 4, 'stroke-linecap': 'round' }, axis);
+        HF.el('path', { d: `M${cx - 222} ${G - 290} L${cx - 210} ${G - 308} L${cx - 198} ${G - 290} Z`, fill: '#8FA3D9' }, axis);
+        HF.text(axis, 'age', { x: cx - 240, y: G - 270, size: 20, color: '#8FA3D9', weight: 800, anchor: 'end' });
+      }
+      gsap.set(axis, { opacity: 0 });
+
+      // ================================================================ panel 2 · rural to urban
+      const X = P;
+      // fields
+      const fields = HF.g(back);
+      [[X + 90, G - 60, 230], [X + 140, G - 130, 180]].forEach(([x, y, w], i) => {
+        HF.box(fields, { x, y, w, h: 56, r: 20, color: i ? '#3FB58C' : '#2E8B6E', hi: false });
+        for (let k = 0; k < 5; k++) HF.el('rect', { x: x + 20 + k * (w - 40) / 5, y: y + 14, width: 18, height: 28, rx: 9, fill: '#A6E3B8', opacity: 0.6 }, fields);
+      });
+      HF.text(fields, 'Rural', { x: X + 205, y: G + 40, size: 28, color: '#3FB58C', weight: 900 });
+      // city
+      const towers = [[X + 860, 120, 230], [X + 960, 100, 320], [X + 1050, 110, 260], [X + 1150, 90, 190]].map(([x, w, h], i) => {
+        const t = HF.g(back);
+        HF.box(t, { x: x - w / 2, y: G - h, w, h, r: 14, color: ['#3C4F8F', '#4A5DA0', '#3C4F8F', '#53669F'][i], shadeSide: 'right' });
+        const wins = [];
+        for (let r = 0; r < Math.floor((h - 40) / 44); r++) for (let c = 0; c < 2; c++) wins.push(HF.el('rect', { x: x - w / 2 + 18 + c * (w - 60) / 1, y: G - h + 24 + r * 44, width: 22, height: 22, rx: 6, fill: '#26386E' }, t));
+        gsap.set(t, { scaleY: 0.35, transformOrigin: '50% 100%' });
+        return { t, wins };
+      });
+      HF.text(back, 'Urban', { x: X + 1000, y: G + 40, size: 28, color: C.gold, weight: 900 });
+      // road
+      const roadD = `M${X + 330} ${G - 70} C ${X + 480} ${G - 10}, ${X + 600} ${G - 160}, ${X + 790} ${G - 60}`;
+      const roadGlow = HF.el('path', { d: roadD, fill: 'none', stroke: C.gold, 'stroke-width': 22, 'stroke-linecap': 'round', opacity: 0, filter: 'url(#hf-glow)' }, back);
+      const road = HF.el('path', { d: roadD, fill: 'none', stroke: '#F1D98A', 'stroke-width': 10, 'stroke-linecap': 'round' }, back);
+      const rLen = road.getTotalLength();
+      gsap.set(road, { attr: { 'stroke-dasharray': rLen, 'stroke-dashoffset': rLen } });
+      // walkers: a pure function of t
+      const N = 10, T0 = 2.55, SPAN = 0.95, STEP = 0.11;
+      const walkers = Array.from({ length: N }, (_, i) => {
+        const w = HF.g(front);
+        HF.el('ellipse', { cx: 0, cy: -12, rx: 10, ry: 12, fill: [C.teal, C.gold, C.coral][i % 3] }, w);
+        HF.el('circle', { cx: -3, cy: -14, r: 1.8, fill: C.navy }, w);
+        HF.el('circle', { cx: 3, cy: -14, r: 1.8, fill: C.navy }, w);
+        w.setAttribute('opacity', '0');
+        return w;
+      });
+      HF.every((t) => {
+        walkers.forEach((w, i) => {
+          const p = (t - T0 - i * STEP) / SPAN;
+          if (p <= 0 || p >= 1) { w.setAttribute('opacity', '0'); return; }
+          const pt = road.getPointAtLength(rLen * p);
+          const hop = Math.abs(Math.sin(p * Math.PI * 6)) * 6;
+          w.setAttribute('transform', `translate(${pt.x.toFixed(1)} ${(pt.y - hop).toFixed(1)})`);
+          w.setAttribute('opacity', p > 0.92 ? ((1 - p) / 0.08).toFixed(2) : '1');
+        });
+      });
+
+      // ================================================================ labels
+      const L = (t, y = 96) => HF.label(t, { x: 640, y, cls: 'lg', hud: true, html: true });
+      const lAge = L('<span class="hf-teal">Age distribution</span> · who the buyers are');
+      const lMove = L('<span class="hf-gold">Rural-to-urban shift</span> · where they live');
+      const lBoth = L('Age and place shape demand');
+
+      // ================================================================ choreography
+      // 0.0–2.0 pyramids
+      HF.say(tl, lAge, 0.1, 2.0);
+      tl.to(axis, { opacity: 1, duration: 0.2 }, 0.1);
+      young.bars.forEach((b, i) => tl.to(b, { scaleX: 1, duration: 0.25, ease: 'back.out(1.6)' }, 0.25 + i * 0.1));
+      old.bars.forEach((b, i) => tl.to(b, { scaleX: 1, duration: 0.25, ease: 'back.out(1.6)' }, 0.55 + i * 0.1));
+      HF.pop(tl, young.tag, 1.1);
+      HF.pop(tl, old.tag, 1.35);
+
+      // 2.0–4.2 farms to cities
+      HF.camera(tl, { x: -P }, 2.0, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, lMove, 2.3, 4.2);
+      tl.to(road, { attr: { 'stroke-dashoffset': 0 }, duration: 0.35, ease: 'power1.inOut' }, 2.25);
+      tl.to(roadGlow, { opacity: 0.35, duration: 0.3 }, 2.45);
+      towers.forEach(({ t, wins }, i) => {
+        tl.to(t, { scaleY: 1, duration: 0.6, ease: 'power2.out' }, 2.9 + i * 0.12);
+        wins.forEach((w, k) => tl.to(w, { attr: { fill: C.gold }, duration: 0.1 }, 3.3 + i * 0.1 + k * 0.03));
+      });
+
+      // 4.2–5.0 both together
+      HF.camera(tl, { x: -320, scale: 0.5, y: -40 }, 4.2, 0.45, { easeName: 'power2.inOut' });
+      HF.say(tl, lBoth, 4.45);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

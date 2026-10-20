@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Three ways past a tariff wall</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- BYD · going-global beat 2 (whole clip) and walls-and-help beat 2 (0–1.6) · 5 s. Segments: 0–1.6 export finished cars into a tariff wall, 1.6–3.1 ship kits to a nearby assembly shed (CKD), 3.1–5.0 build a plant inside the wall. No prices or rates on screen. -->
+  <div id="stage" data-composition-id="global-tariff-routes" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * BYD · going global, 5 s. Three lanes run from a Chinese port on the left to a walled market on the right.
+     *   0.0–1.6  top lane: a ship of finished cars reaches a tall coral tariff wall at the quay; the car's price bar climbs
+     *   1.6–3.1  middle lane: a ship of flat kit boxes passes a low violet gate into a small assembly shed; a car rolls out
+     *   3.1–4.3  bottom lane: a dotted arc leaps over the wall to a whole factory built inside the market
+     *   4.3–5.0  hold on all three lanes
+     * The price bar grows by an unlabelled amount (the walls-and-help scene asks for the price after a 100% tariff).
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['global-tariff-routes'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const LANES = [230, 400, 560];
+      const WALL = 860;
+
+      // home and market land masses
+      HF.box(back, { x: -60, y: 130, w: 250, h: 560, r: 40, color: '#22356E', hi: false });
+      HF.box(back, { x: WALL - 20, y: 130, w: 500, h: 560, r: 40, color: '#22356E', hi: false });
+      HF.text(back, 'China', { x: 90, y: 680, size: 26, color: '#8FA3D9', weight: 900 });
+      HF.text(back, 'Market abroad', { x: WALL + 220, y: 680, size: 26, color: '#8FA3D9', weight: 900 });
+      // sea lanes
+      LANES.forEach((y) => HF.wave(back, { y: y + 30, amp: 4, len: 90, x0: 180, x1: WALL - 20, bottom: y + 52, color: C.sea, opacity: 0.8 }));
+
+      const car = (p, col = C.teal, s = 1) => {
+        const g = HF.g(p);
+        const i = HF.g(g, { transform: `scale(${s})` });
+        HF.el('path', { d: 'M-40 -10 L-40 -24 Q-36 -32 -24 -34 L-12 -46 L16 -46 L28 -34 Q40 -32 42 -22 L42 -10 Z', fill: col }, i);
+        HF.el('circle', { cx: -22, cy: -8, r: 9, fill: '#0B1D3A' }, i);
+        HF.el('circle', { cx: 24, cy: -8, r: 9, fill: '#0B1D3A' }, i);
+        return g;
+      };
+      const ship = (cargo) => {
+        const g = HF.g(front);
+        HF.el('path', { d: 'M-90 -10 L90 -10 L70 22 L-70 22 Z', fill: '#C9D3F2' }, g);
+        if (cargo === 'cars') [-45, 45].forEach((x) => { const c = car(g, C.teal, 0.8); c.setAttribute('transform', `translate(${x} -10)`); });
+        else [-55, -15, 25, 62].forEach((x, k) => HF.box(g, { x: x - 16, y: -42 + (k % 2) * 6, w: 34, h: 32 - (k % 2) * 6, r: 6, color: '#C9A06A' }));
+        return g;
+      };
+
+      // ---------------------------------------------------------------- lane 1 · finished cars into a wall
+      const y1 = LANES[0];
+      const ship1 = ship('cars');
+      gsap.set(ship1, { x: 260, y: y1 + 20, opacity: 0 });
+      const wall1 = HF.g(mid);
+      HF.box(wall1, { x: WALL - 14, y: y1 - 110, w: 40, h: 150, r: 12, color: C.coral, shadeSide: 'right' });
+      for (let k = 0; k < 3; k++) HF.el('rect', { x: WALL - 14, y: y1 - 90 + k * 44, width: 40, height: 6, fill: HF.shade(C.coral, 0.15) }, wall1);
+      gsap.set(wall1, { scaleY: 0, transformOrigin: '50% 100%' });
+      const tWall = HF.label('Tariff', { x: WALL + 6, y: y1 - 136, cls: 'sm pill hf-coral' });
+      const price = HF.el('rect', { x: WALL + 80, y: y1 - 10, width: 50, height: 0, rx: 10, fill: C.gold }, front);
+      const priceUp = HF.el('rect', { x: WALL + 80, y: y1 - 10, width: 50, height: 0, rx: 10, fill: C.coral }, front);
+      const carPrice = car(front, C.teal, 0.9);
+      carPrice.setAttribute('transform', `translate(${WALL + 190} ${y1 + 30})`);
+      gsap.set(carPrice, { opacity: 0 });
+      const t1 = HF.label('Export finished cars · tariffs pile on', { x: 520, y: y1 - 110, cls: 'sm' });
+
+      // ---------------------------------------------------------------- lane 2 · kits through a low gate
+      const y2 = LANES[1];
+      const ship2 = ship('kits');
+      gsap.set(ship2, { x: 260, y: y2 + 20, opacity: 0 });
+      const gate2 = HF.g(mid);
+      HF.box(gate2, { x: WALL - 14, y: y2 - 20, w: 40, h: 60, r: 12, color: C.violet, shadeSide: 'right' });
+      gsap.set(gate2, { scaleY: 0, transformOrigin: '50% 100%' });
+      const shed = HF.g(mid, { transform: `translate(${WALL + 130} ${y2 + 30})` });
+      const shedIn = HF.g(shed);
+      HF.box(shedIn, { x: -70, y: -70, w: 140, h: 70, r: 12, color: '#5C6FA8' });
+      HF.el('path', { d: 'M-80 -66 L0 -110 L80 -66 Z', fill: '#8FA3D9' }, shedIn);
+      gsap.set(shedIn, { scale: 0, transformOrigin: '50% 100%' });
+      const car2 = car(front, C.teal, 0.9);
+      gsap.set(car2, { x: WALL + 130, y: y2 + 30, opacity: 0 });
+      const t2 = HF.label('CKD · ship parts, assemble nearby', { x: 520, y: y2 - 80, cls: 'sm' });
+
+      // ---------------------------------------------------------------- lane 3 · a plant inside the wall
+      const y3 = LANES[2];
+      const wall3 = HF.g(mid);
+      HF.box(wall3, { x: WALL - 14, y: y3 - 110, w: 40, h: 150, r: 12, color: C.coral, shadeSide: 'right' });
+      gsap.set(wall3, { scaleY: 0, transformOrigin: '50% 100%' });
+      const hop = HF.el('path', { d: `M200 ${y3} C 420 ${y3 - 200}, 900 ${y3 - 230}, ${WALL + 250} ${y3 - 60}`, fill: 'none', stroke: C.gold, 'stroke-width': 7, 'stroke-dasharray': '4 16', 'stroke-linecap': 'round' }, back);
+      const hopLen = hop.getTotalLength();
+      const hopMask = HF.el('path', { d: hop.getAttribute('d'), fill: 'none', stroke: '#000', 'stroke-width': 0 }, back);
+      void hopMask;
+      gsap.set(hop, { opacity: 0 });
+      const plant = HF.g(mid, { transform: `translate(${WALL + 320} ${y3 + 30}) scale(0.85)` });
+      const plantIn = HF.g(plant);
+      HF.box(plantIn, { x: 40, y: -150, w: 26, h: 70, r: 7, color: HF.shade(C.teal, 0.04) });
+      HF.el('path', { d: 'M-90 -90 L-90 -118 L-40 -98 L-40 -118 L10 -98 L10 -118 L90 -94 L90 -90 Z', fill: HF.shade(C.teal, 0.12) }, plantIn);
+      HF.box(plantIn, { x: -90, y: -100, w: 180, h: 100, r: 14, color: C.teal });
+      for (let k = 0; k < 3; k++) HF.box(plantIn, { x: -72 + k * 52, y: -78, w: 36, h: 26, r: 7, color: '#13254B', hi: false });
+      gsap.set(plantIn, { scale: 0, transformOrigin: '50% 100%' });
+      const t3 = HF.label('Local plant · build inside the wall', { x: 520, y: y3 + 85, cls: 'sm' });
+
+      // ================================================================ choreography
+      // 0.0–1.6 lane 1
+      HF.pop(tl, t1, 0.1);
+      tl.to(ship1, { opacity: 1, duration: 0.12 }, 0.1);
+      tl.to(ship1, { x: WALL - 120, duration: 0.6, ease: 'power1.inOut' }, 0.15);
+      tl.to(wall1, { scaleY: 1, duration: 0.25, ease: 'back.out(1.6)' }, 0.55);
+      HF.pop(tl, tWall, 0.7);
+      HF.wobble(tl, ship1, 0.8, { amount: 3 });
+      tl.to(carPrice, { opacity: 1, duration: 0.12 }, 0.95);
+      tl.to(price, { attr: { y: y1 - 70, height: 60 }, duration: 0.2, ease: 'power2.out' }, 1.0);
+      tl.to(priceUp, { attr: { y: y1 - 120, height: 50 }, duration: 0.3, ease: 'power2.out' }, 1.2);
+
+      // 1.6–3.1 lane 2
+      HF.pop(tl, t2, 1.65);
+      tl.to(ship2, { opacity: 1, duration: 0.12 }, 1.65);
+      tl.to(gate2, { scaleY: 1, duration: 0.2, ease: 'back.out(1.6)' }, 1.7);
+      tl.to(ship2, { x: WALL - 120, duration: 0.55, ease: 'power1.inOut' }, 1.7);
+      HF.pop(tl, shedIn, 2.2, { origin: '50% 100%' });
+      tl.to(ship2, { opacity: 0.4, duration: 0.2 }, 2.35);
+      tl.to(car2, { opacity: 1, duration: 0.1 }, 2.5);
+      tl.to(car2, { x: WALL + 260, duration: 0.4, ease: 'power2.out' }, 2.55);
+
+      // 3.1–4.3 lane 3
+      HF.pop(tl, t3, 3.15);
+      tl.to(wall3, { scaleY: 1, duration: 0.25, ease: 'back.out(1.6)' }, 3.15);
+      tl.to(hop, { opacity: 1, duration: 0.1 }, 3.35);
+      tl.fromTo(hop, { attr: { 'stroke-dashoffset': hopLen } }, { attr: { 'stroke-dashoffset': 0 }, duration: 0.01, immediateRender: false }, 3.35);
+      tl.fromTo(hop, { attr: { 'stroke-dasharray': `0 ${hopLen}` } }, { attr: { 'stroke-dasharray': `${hopLen} 0` }, duration: 0.5, ease: 'power1.inOut', immediateRender: false }, 3.35);
+      tl.set(hop, { attr: { 'stroke-dasharray': '4 16' } }, 3.86);
+      HF.pop(tl, plantIn, 3.8, { origin: '50% 100%' });
+      HF.land(tl, plantIn, 4.1, { amount: 0.05, origin: '50% 100%' });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

@@ -192,7 +192,7 @@ scenes:
     goal: How big is BYD's cost edge over a rival, and where does it come from?
     skills: [cost-advantage]
     data: [exhibit4]
-    state: { base: 750, other: 1000 }
+    state: { base: 750, other: 1000, animFrom: 0, animTo: 0.8 }
     derive:
       - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
     stage:
@@ -222,6 +222,8 @@ scenes:
           alt: |
             Two cost towers over a rival car and a BYD car stand 4,700 dollars apart. Supplier margin (2,400), then admin and R&D
             (1,700), then labor, battery and subsidy (600) come off the rival's tower until the two are level.
+          start: '@animFrom'
+          end: '@animTo'
           loop: false
           stills: [0.8, 2.2, 3.4, 5]
     beats:
@@ -229,9 +231,11 @@ scenes:
           Put it all together and BYD had a **cost advantage**: it could make the same car for less than rivals. A report
           found about 4,700 dollars less per vehicle than Tesla. It came from several places.
         define: [cost-advantage]
+        show: [anim]
       - say: |
           First, pay. BYD workers in Shenzhen earned about 750 dollars a month on average against 1,000 for Tesla workers
           in Shanghai. Estimate how far below that is.
+        hide: [anim]
         gate:
           type: predict
           question: BYD pay is what fraction below Tesla's? (Gap divided by Tesla's pay; decimal or percent.)
@@ -244,6 +248,7 @@ scenes:
       - say: |
           Pay was one of several sources. BYD also spent about 1,700 dollars less per vehicle on administration and R&D and
           about 2,400 less in supplier margins, and its battery cost 128 dollars per kWh against 175 for Renault.
+        set: { animFrom: 0.8, animTo: 5 }
         hide: [r]
         show: [anim]
       - say: Compare two prices for yourself.
@@ -361,6 +366,20 @@ scenes:
         hidden: true
         props: { label: Target share abroad (0.5 = 50%), min: 0.3, max: 0.7, step: 0.1 }
         bind: { value: targetShare }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/global-tariff-routes.webm, assets/anim/global-tariff-routes.mp4]
+          poster: assets/anim/global-tariff-routes.poster.jpg
+          alt: |
+            Three sea lanes run from China to a walled market abroad. On the top lane a ship of finished cars meets a tall coral
+            tariff wall at the quay, and the car's price bar climbs. On the middle lane a ship of flat kit boxes passes a low gate
+            into a small assembly shed, and a finished car rolls out (CKD assembly). On the bottom lane a dotted arc leaps over
+            the wall to a whole factory built inside the market.
+          loop: false
+          stills: [1.5, 3.0, 4.9]
     beats:
       - say: |
           In 2025 BYD exported 1.05 million vehicles out of 4.6 million, and its target is half of sales outside China by
@@ -376,11 +395,12 @@ scenes:
           parts shipped in, like BYD's plant in Brazil.
         define: [ckd-assembly]
         hide: [r-in]
-        show: [r]
+        show: [r, anim]
       - say: |
           BYD also uses partners. A **joint venture** is a business owned and run together by two or more companies. In
           China, many carmakers pair with foreign firms this way.
         define: [joint-venture]
+        hide: [anim]
         show: [tgt]
         gate:
           type: when
@@ -405,7 +425,7 @@ scenes:
     title: Walls and a helping hand
     goal: How much do tariffs and subsidies decide who wins in a global car market?
     skills: [trade-policy, subsidy-role]
-    state: { price: 26572, tariff: 1, advantage: 4700, share: 0.05 }
+    state: { price: 26572, tariff: 1, advantage: 4700, share: 0.05, animFrom: 0, animTo: 1.6 }
     derive:
       - { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' }, out: t }
       - { fn: subsidyShare, in: { advantage: '@advantage', share: '@share' }, out: s }
@@ -447,6 +467,20 @@ scenes:
         hidden: true
         props: { label: Tariff rate (1 = 100%), min: 0, max: 1.5, step: 0.25 }
         bind: { value: tariff }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/global-tariff-routes.webm, assets/anim/global-tariff-routes.mp4]
+          poster: assets/anim/global-tariff-routes.poster.jpg
+          alt: |
+            A ship of finished cars sails from China to a market abroad and meets a tall coral tariff wall at the quay; the
+            car's price bar climbs.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.8, 1.5]
     beats:
       - say: |
           The United States put tariffs of 100% or more on Chinese cars. A **tariff** is a tax on imported goods that raises
@@ -460,7 +494,7 @@ scenes:
       - say: |
           A 100% tariff adds 26,572 dollars of duty, doubling the price to 53,144. Now raise the tariff rate further.
         hide: [r1-in]
-        show: [r1, rate]
+        show: [r1, rate, anim]
         gate:
           type: when
           prompt: Raise the tariff until the price after the tariff passes 60,000 dollars.
@@ -470,7 +504,7 @@ scenes:
           China also helped its EV makers. A **subsidy** is money or other help from a government that lowers a company's costs
           or boosts its sales. BYD's per-car advantage over Tesla was 4,700 dollars, and about 5% came from subsidies.
         define: [subsidy]
-        hide: [rate, r1]
+        hide: [rate, r1, anim]
         show: [r2-in]
         gate:
           type: predict

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Shielding a young industry</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Political Forces · economic-reasons, beats 1–2 · 5 s. Segments: 0–2.6 the shield goes up and the young firm grows (no lift: beat 1 asks whether it is temporary), 2.6–5.0 first movers start ahead; the shield comes off and it competes. -->
+  <div id="stage" data-composition-id="infant-industry" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Political Forces · infant industry (scene economic-reasons), 5 s. No numbers: the scene has none.
+     *   0.0–0.9  a big gold firm abroad (it got there first) and a small teal home firm; a cheap import crate arcs in
+     *   0.9–1.9  a violet dome drops over the home firm; two more crates bounce off it
+     *   1.9–2.6  inside the dome the firm grows and its coral cost bar shrinks; hold (the dome stays up)
+     *   2.6–3.6  a "1st" flag on the big firm: first movers start ahead; the home firm grows to full size, cost level
+     *   3.6–4.3  the dome lifts away
+     *   4.3–5.0  a crate arrives and the home firm holds its ground: competes on its own; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['infant-industry'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560;
+      HF.box(ground, { x: -200, y: G, w: 1700, h: 200, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -200, y: G, width: 1700, height: 6, fill: '#3A4F92' }, ground);
+      // a border line between the two countries
+      HF.el('line', { x1: 690, y1: G - 4, x2: 690, y2: G - 220, stroke: '#3A4F92', 'stroke-width': 6, 'stroke-dasharray': '14 12', 'stroke-linecap': 'round' }, ground);
+
+      function factory(parent, x, color) {
+        const outer = HF.g(parent, { transform: `translate(${x} ${G})` });
+        const f = HF.g(outer);
+        HF.box(f, { x: 40, y: -170, w: 26, h: 80, r: 7, color: HF.shade(color, 0.04) });
+        HF.el('path', { d: 'M-75 -100 L-75 -128 L-25 -108 L-25 -128 L25 -108 L25 -128 L75 -104 L75 -100 Z', fill: HF.shade(color, 0.12) }, f);
+        HF.box(f, { x: -75, y: -110, w: 150, h: 110, r: 14, color });
+        for (let i = 0; i < 3; i++) HF.box(f, { x: -61 + i * 44, y: -88, w: 32, h: 26, r: 7, color: '#13254B', hi: false });
+        return f;
+      }
+      const home = factory(mid, 340, C.teal);
+      const giant = factory(mid, 1000, C.gold);
+      gsap.set(home, { scale: 0, transformOrigin: '50% 100%' });
+      gsap.set(giant, { scale: 0, transformOrigin: '50% 100%' });
+
+      // cost bars (no units): tall = expensive to make
+      const CB = (x, h, col) => HF.el('rect', { x, y: G - h, width: 44, height: h, rx: 10, fill: col }, back);
+      const homeCost = CB(96, 230, C.coral);
+      const giantCost = CB(1130, 90, C.coral);
+      const ctxt = (x) => HF.text(back, 'cost', { x: x + 22, y: G + 32, size: 22, color: C.coral, weight: 900 });
+      const ct1 = ctxt(96), ct2 = ctxt(1130);
+      gsap.set([homeCost, giantCost, ct1, ct2], { opacity: 0 });
+
+      // the "1st" flag on the giant
+      const flag = HF.g(front, { transform: `translate(${1000 + 53} ${G - 170})` });
+      HF.el('rect', { x: -3, y: -90, width: 6, height: 90, rx: 3, fill: '#F4F1DE' }, flag);
+      HF.el('path', { d: 'M3 -90 L70 -74 L3 -56 Z', fill: C.gold }, flag);
+      HF.text(flag, '1st', { x: 28, y: -66, size: 18, color: '#0B1D3A', weight: 900 });
+      gsap.set(flag, { scale: 0, transformOrigin: '0% 100%' });
+
+      // the dome
+      const dome = HF.g(front);
+      HF.el('path', { d: 'M166 560 A174 210 0 0 1 514 560 Z', fill: C.violet, opacity: 0.32 }, dome);
+      HF.el('path', { d: 'M200 515 A150 185 0 0 1 280 395', fill: 'none', stroke: '#F4F1DE', 'stroke-width': 8, 'stroke-linecap': 'round', opacity: 0.45 }, dome);
+      HF.el('rect', { x: 160, y: G - 10, width: 360, height: 14, rx: 7, fill: C.violet }, dome);
+      gsap.set(dome, { y: -760 });
+
+      // cheap import crates
+      function crate(parent) {
+        const g = HF.g(parent);
+        HF.box(g, { x: -30, y: -44, w: 60, h: 44, r: 9, color: C.gold });
+        HF.el('rect', { x: -4, y: -38, width: 8, height: 32, rx: 4, fill: HF.shade(C.gold, 0.1) }, g);
+        gsap.set(g, { opacity: 0 });
+        return g;
+      }
+      const crates = [0, 1, 2, 3].map(() => crate(front));
+
+      // ---------------------------------------------------------------- labels
+      const L = (t, y = 110, cls = 'lg') => HF.label(t, { x: 640, y, cls, hud: true, html: true });
+      const l1 = L('A young firm · high costs, cheap imports');
+      const l2 = L('An <span class="hf-violet">infant industry</span> gets a shield');
+      const l3 = L('Time to grow · costs fall');
+      const l4 = L('<span class="hf-gold">First movers</span> start ahead');
+      const l5 = L('Then the shield comes off');
+      const pill = HF.label('Competes on its own', { x: 340, y: 640, cls: 'pill hf-teal' });
+
+      // ================================================================ choreography
+      // 0.0–0.9 the two firms; a cheap crate heads for the home market
+      HF.pop(tl, giant, 0.0, { origin: '50% 100%' });
+      tl.fromTo(home, { scale: 0 }, { scale: 0.55, duration: 0.3, ease: 'back.out(1.8)', immediateRender: false }, 0.1);
+      tl.to([homeCost, giantCost, ct1, ct2], { opacity: 1, duration: 0.2 }, 0.25);
+      HF.say(tl, l1, 0.15, 0.9);
+      tl.set(crates[0], { opacity: 1, x: 1000, y: G - 60 }, 0.35);
+      HF.arc(tl, crates[0], { x0: 1000, y0: G - 60, x1: 520, y1: G, h: 120 }, 0.35, 0.45, { spin: 0 });
+      HF.wobble(tl, crates[0], 0.8, { amount: 4 });
+      tl.to(crates[0], { opacity: 0, duration: 0.12 }, 0.88);
+
+      // 0.9–1.9 the dome drops; crates bounce off
+      HF.say(tl, l2, 0.95, 1.9);
+      tl.to(dome, { y: 0, duration: 0.25, ease: 'power3.in' }, 0.95);
+      HF.land(tl, dome, 1.2, { amount: 0.08, origin: '50% 100%' });
+      [1, 2].forEach((k, i) => {
+        const at = 1.25 + i * 0.28;
+        tl.set(crates[k], { opacity: 1, x: 1000, y: G - 60 }, at);
+        HF.arc(tl, crates[k], { x0: 1000, y0: G - 60, x1: 500, y1: G - 160 + i * 30, h: 90 }, at, 0.3);
+        tl.to(crates[k], { x: 640, y: G, rotation: 40, duration: 0.25, ease: 'power2.in' }, at + 0.3);
+        tl.to(crates[k], { opacity: 0, duration: 0.1 }, at + 0.5);
+      });
+      tl.to(dome, { keyframes: { scale: [1, 1.03, 1] }, transformOrigin: '50% 100%', duration: 0.2, ease: 'none' }, 1.55);
+
+      // 1.9–2.6 growing inside the dome
+      HF.say(tl, l3, 1.9, 2.6);
+      tl.to(home, { scale: 0.8, duration: 0.45, ease: 'power2.inOut' }, 1.95);
+      tl.to(homeCost, { attr: { y: G - 160, height: 160 }, duration: 0.45, ease: 'power2.inOut' }, 1.95);
+
+      // 2.6–3.6 first movers; the home firm catches up
+      HF.say(tl, l4, 2.65, 3.6);
+      HF.pop(tl, flag, 2.7, { origin: '0% 100%' });
+      HF.wobble(tl, flag, 3.0, { amount: 6, origin: '0% 100%' });
+      tl.to(home, { scale: 1, duration: 0.5, ease: 'power2.inOut' }, 3.0);
+      tl.to(homeCost, { attr: { y: G - 90, height: 90 }, duration: 0.5, ease: 'power2.inOut' }, 3.0);
+
+      // 3.6–4.3 the shield comes off
+      HF.say(tl, l5, 3.6);
+      tl.to(dome, { y: -760, duration: 0.45, ease: 'power2.in' }, 3.7);
+
+      // 4.3–5.0 an import arrives; the home firm holds its ground
+      tl.set(crates[3], { opacity: 1, x: 1000, y: G - 60 }, 4.1);
+      HF.arc(tl, crates[3], { x0: 1000, y0: G - 60, x1: 610, y1: G, h: 100 }, 4.1, 0.35);
+      HF.wobble(tl, crates[3], 4.45, { amount: 3 });
+      HF.land(tl, home, 4.45, { amount: 0.05, origin: '50% 100%' });
+      HF.pop(tl, pill, 4.4);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>
