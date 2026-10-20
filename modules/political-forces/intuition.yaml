@@ -3,7 +3,7 @@ scenes:
     title: Who owns the businesses?
     goal: Why do some governments run businesses while others leave them to private owners?
     skills: [govt-role]
-    state: { animFrom: 0, animTo: 2.6 }
+    state: { animFrom: 0, animTo: 0.8 }
     stage:
       - id: sorter
         widget: DropBins
@@ -21,17 +21,9 @@ scenes:
             - { id: nat, label: Reasons to nationalize }
             - { id: priv, label: Reasons to privatize }
           solution: { r1: nat, r2: nat, r3: nat, r4: priv, r5: priv, r6: priv }
-      - id: line
-        widget: Text
-        props:
-          body: |
-            **From private to state**
-
-            Market economy → Mixed economy → Command economy
       - id: anim
         widget: Animation
         region: top
-        hidden: true
         props:
           src: [assets/anim/nationalization.webm, assets/anim/nationalization.mp4]
           poster: assets/anim/nationalization.poster.jpg
@@ -62,14 +54,13 @@ scenes:
           making it publicly owned. Governments do it to save jobs, follow a belief, control past investments or enact
           political goals.
         define: [nationalization]
-        show: [anim]
+        set: { animFrom: 0.8, animTo: 2.6 }
       - say: |
           The reverse is **privatization**: selling government-owned property to private buyers. Governments sell to get more
           efficiency, to raise money or to cut bureaucracy.
         define: [privatization]
         set: { animFrom: 2.6, animTo: 5 }
         show: [sorter]
-        hide: [line]
         gate:
           type: event
           prompt: Sort each reason into nationalize or privatize.
@@ -81,7 +72,7 @@ scenes:
           quotas to shape how companies compete. It can raise home firms' market share, but protection can lower world
           welfare and slow innovation.
         define: [strategic-trade-policy]
-        hide: [anim]
+        hide: [anim, sorter]
       - say: One more thought.
         gate:
           type: reflect
@@ -100,8 +91,28 @@ scenes:
     derive:
       - { fn: piracyYear, in: { table: '@piracy', year: '@year' }, out: pa }
     stage:
+      - id: risk-note
+        widget: Callout
+        props:
+          kind: note
+          title: Political and physical risks
+          body: |
+            Firms check whether policy stays predictable (**stability** vs **instability**) and whether people, cargo and data face **terrorism**, **kidnapping**, **piracy** or **cybercrime**.
+      - id: chart
+        widget: Chart
+        hidden: true
+        props:
+          kind: line
+          title: Maritime piracy incidents by region (Table 5.1)
+          xLabel: Year
+          yLabel: Incidents
+          series:
+            - { name: Africa, x: ['2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022'], y: [79, 55, 70, 122, 151, 121, 110, 47, 30, 16] }
+            - { name: Asia, x: ['2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022'], y: [167, 183, 202, 101, 95, 98, 89, 62, 39, 56] }
+            - { name: Latin America, x: ['2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022'], y: [18, 5, 8, 27, 71, 85, 84, 22, 28, 23] }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Africa, value: '@pa.africa' }
@@ -112,6 +123,7 @@ scenes:
       - id: yearpick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: Year
           style: dropdown
@@ -127,11 +139,6 @@ scenes:
             - { value: '2021', label: '2021' }
             - { value: '2022', label: '2022' }
         bind: { value: year }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: piracyYear, in: { table: '@piracy', year: '@year' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           Before a firm opens an office abroad, it asks whether the country is safe. A **government stability** check asks
@@ -147,26 +154,23 @@ scenes:
         define: [terrorism, kidnapping]
       - say: |
           At sea there is **maritime piracy**, hijacking ships and crews. Online there is **cybercrime**: hacking,
-          ransomware and data theft. Table 5.1 counts piracy incidents by region.
+          ransomware and data theft. Table 5.1 tracks piracy incidents by region across the decade.
         define: [piracy, cybercrime]
+        hide: [risk-note]
+        show: [chart]
         gate:
           type: predict
           question: In 2018 the table shows Africa 121, Asia 98, Latin America 85 and the rest 0. What is the total?
           answer: { value: 304, tol: 0.5 }
           explain: 121 + 98 + 85 + 0 = 304, matching the printed total.
-      - say: Pick the year 2017 and read the regions.
+      - say: |
+          Notice how the main hotspot shifted from Asia to Africa in the mid-2010s. Use the year menu to inspect the peak year for Africa.
+        show: [r, yearpick]
         gate:
           type: when
-          prompt: Switch the table to 2017.
-          when: "year == '2017'"
-          hint: Use the Year menu.
-      - say: Now watch the regions being added, one at a time.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the addition to the end.
-          target: player
-          event: done
+          prompt: Find the year in which Africa had more than 140 piracy incidents.
+          when: 'pa.africa > 140'
+          hint: Look at the Africa line on the chart around 2017.
       - say: |
           A **country risk assessment** pulls all this together: it studies a country's economy and politics to judge how
           much danger its people, property and investments face there.
@@ -190,8 +194,17 @@ scenes:
       - { fn: importDuty, in: { value: '@value', units: '@units', adValoremRate: '@adValoremRate', specificPerUnit: '@specificPerUnit' }, out: d }
       - { fn: variableLevy, in: { worldPrice: '@worldPrice', supportedPrice: '@supportedPrice' }, out: v }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: Invoice value, value: '@value' }
+            - { label: Units shipped, value: '@units' }
+            - { label: Ad valorem rate, value: '{=adValoremRate|pct}' }
+            - { label: Specific duty per unit, value: '@specificPerUnit' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Invoice value, value: '@value' }
@@ -205,11 +218,6 @@ scenes:
         hidden: true
         props: { label: Ad valorem rate (0.1 = 10%), min: 0, max: 0.3, step: 0.05 }
         bind: { value: adValoremRate }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: importDuty, in: { value: '@value', units: '@units', adValoremRate: '@adValoremRate', specificPerUnit: '@specificPerUnit' }, roles: { r: r }, speed: 0.7 }
       - id: lev
         widget: Readout
         hidden: true
@@ -219,6 +227,12 @@ scenes:
             - { label: Supported price, value: '@supportedPrice' }
             - { label: Levy, value: '@v.levy', tone: accent }
             - { label: Entry price, value: '@v.entryPrice', tone: good }
+      - id: world-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: World price, min: 250, max: 350, step: 10 }
+        bind: { value: worldPrice }
     beats:
       - say: |
           A country trades by **importing**, buying goods from abroad, and **exporting**, selling goods abroad. Governments
@@ -241,16 +255,9 @@ scenes:
           question: What is the total compound duty on 500 chairs worth 10,000 dollars (10% plus 2 dollars per chair)?
           answer: { value: 2000, tol: 0.5 }
           explain: Ad valorem 1,000 plus specific 500 × 2 = 1,000, so 2,000 dollars.
-      - say: Watch the parts being added up.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
-      - say: Now steer the rate yourself.
-        hide: [player]
-        show: [rate]
+      - say: Now steer the rate yourself and see how the total duty and landed cost respond.
+        hide: [r-in]
+        show: [r, rate]
         gate:
           type: when
           prompt: Set the ad valorem rate so the total duty is 3,000 dollars.
@@ -258,11 +265,12 @@ scenes:
           hint: The specific part stays at 1,000, so the percentage part must reach 2,000.
       - say: |
           Farm goods have another tool. A **variable levy** is an import duty set at the gap between a low world price and
-          the higher price the government supports at home. If world wheat is 300 and the support price is 350, the levy is 50.
+          the higher price the government supports at home. Move the world price slider and notice how the levy adjusts so the entry price stays at 350.
         define: [variable-levy]
         hide: [rate, r]
-        show: [lev]
+        show: [lev, world-slider]
       - say: Try a plain ad valorem question.
+        hide: [world-slider]
         gate:
           type: practice
           template: duty-landed-numeric
@@ -303,6 +311,14 @@ scenes:
             **Beyond tariffs**
 
             Governments can ban, cap, require or subsidize.
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Export price, value: '@exportPrice' }
+            - { label: Home price, value: '@homePrice' }
+            - { label: Cost, value: '@cost' }
       - id: r
         widget: Readout
         hidden: true
@@ -313,11 +329,6 @@ scenes:
             - { label: Cost, value: '@cost' }
             - { label: Below home price, value: '{=dm.belowHome}', tone: accent }
             - { label: Below cost, value: '{=dm.belowCost}', tone: accent }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: dumpingTest, in: { exportPrice: '@exportPrice', homePrice: '@homePrice', cost: '@cost' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           The strictest tools are bans. An **import ban** forbids bringing in certain goods or know-how.
@@ -348,24 +359,19 @@ scenes:
           make, or for less than its price at home. A firm exports at 90, sells at home for 100 and has costs of 95.
         define: [dumping]
         hide: [sorter]
-        show: [r]
+        show: [r-in]
         gate:
           type: predict
           question: Is the firm dumping?
           options: [Yes, No]
           answer: 0
           explain: 90 is below both the home price (100) and the cost (95).
-      - say: Run the test, one check at a time.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
       - say: |
           The importing country can fight back against subsidies with a **countervailing duty**: an extra import tax on goods
           that benefited from export subsidies, set to cancel the help.
         define: [countervailing-duty]
+        hide: [r-in]
+        show: [r]
         gate:
           type: practice
           template: dump-mcq
@@ -379,9 +385,23 @@ scenes:
     derive:
       - { fn: protectionCost, in: { risePerUnit: '@risePerUnit', quantity: '@quantity', jobsProtected: '@jobsProtected' }, out: pc }
     stage:
+      - id: motives-note
+        widget: Callout
+        props:
+          kind: note
+          title: Political arguments for trade barriers
+          body: |
+            Governments cite **national defense**, **sanctions**, **protecting jobs** and **retaliation** against unfair trade, though each carries economic costs for domestic buyers and exporters.
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Price rise per unit, value: '@risePerUnit' }
+            - { label: Units bought, value: '@quantity' }
+            - { label: Jobs protected, value: '@jobsProtected' }
       - id: r
         widget: Readout
-        region: side
         hidden: true
         props:
           items:
@@ -390,13 +410,9 @@ scenes:
             - { label: Extra cost to buyers, value: '@pc.buyersPay', tone: accent }
             - { label: Jobs protected, value: '@jobsProtected' }
             - { label: Cost per job, value: '@pc.perJob', tone: good }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: protectionCost, in: { risePerUnit: '@risePerUnit', quantity: '@quantity', jobsProtected: '@jobsProtected' }, roles: { r: r }, speed: 0.8 }
       - id: sorter
         widget: DropBins
+        hidden: true
         props:
           check: instant
           chips:
@@ -432,15 +448,17 @@ scenes:
         define: [nuisance-tariff]
       - say: |
           Protecting jobs has a price. Suppose a tariff adds 2 dollars to a good that people buy 50,000 times a year,
-          and it saves 20 jobs. See what each job costs the buyers.
-        show: [r, player]
+          and it saves 20 jobs. Work out what each saved job costs buyers.
+        hide: [motives-note]
+        show: [r-in]
         gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+          type: predict
+          question: If buyers pay 2 dollars extra on 50,000 units to protect 20 jobs, how much does each job cost buyers?
+          answer: { value: 5000, tol: 0.5 }
+          explain: Extra cost to buyers is 2 × 50,000 = 100,000 dollars. Divided across 20 jobs, that is 5,000 dollars per job.
       - say: Now do one on your own.
-        hide: [r, player]
+        hide: [r-in]
+        show: [r]
         gate:
           type: practice
           template: protect-numeric
@@ -448,16 +466,21 @@ scenes:
           Governments also worry about the **race to the bottom**, where countries lower labor and environmental standards
           to win business until everyone's standards fall.
         define: [race-to-the-bottom]
+        hide: [r]
+        show: [motives-note]
       - say: |
           Finally, **retaliation**: answering another country's restrictions, often caused by dumping or subsidies, with
           restrictions of your own. Match each action to its motive.
         define: [retaliation]
+        hide: [motives-note]
+        show: [sorter]
         gate:
           type: event
           prompt: Place every action under the right motive.
           target: sorter
           event: solved
       - say: Last question.
+        hide: [sorter]
         gate:
           type: reflect
           prompt: US sugar quotas help a small group of farmers while many consumers pay more. Is that a good reason for a quota?

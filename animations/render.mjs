@@ -33,6 +33,9 @@ if (!todo.length) {
   process.exit(1);
 }
 
+// clips the widget plays in one piece (no start/end segments): their poster must be the first frame, not the ending
+const FIRST_FRAME_POSTER = new Set(['cost-gap', 'follow-the-money', 'transfer-pricing']);
+
 const run = (cmd, argv) => {
   const r = spawnSync(cmd, argv, { stdio: 'inherit', cwd: root, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: '1' } });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(' ')} failed`);
@@ -46,5 +49,6 @@ for (const { mod, id } of todo) {
     '--quality', draft ? 'draft' : 'high', '--quiet', '-o', render]);
   if (draft) continue;
   // the clips paint their own navy background, so the alpha HyperFrames writes into every webm is dropped
-  run('pnpm', ['-s', 'kodigo', 'animation', render, path.join('modules', mod, 'assets', 'anim', id), '--flatten', '--bg', '#0B1D3A']);
+  run('pnpm', ['-s', 'kodigo', 'animation', render, path.join('modules', mod, 'assets', 'anim', id), '--flatten', '--bg', '#0B1D3A',
+    ...(FIRST_FRAME_POSTER.has(id) ? ['--poster', 'start'] : [])]);
 }

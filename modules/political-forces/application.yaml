@@ -41,7 +41,7 @@ case:
       decision:
         prompt: In the latest full year, which region had the most incidents, and what should the owner do about the route?
         type: mcq
-        options: [Asia (56 of 115); buy insurance and check the route, Africa; cancel the order, Latin America; ignore it, The rest of the world; nothing to do]
+        options: [Asia; buy cargo insurance and check the shipping route, Africa; cancel the order immediately, Latin America; ignore the risk completely, Rest of the world; nothing to do]
         answer: 0
         model: Asia had 56 of 115 incidents in 2022. The supplier is in Asia, so the owner should insure the cargo and ask the shipper about the route, not cancel.
     - id: border-duty
@@ -55,10 +55,15 @@ case:
           props:
             items:
               - { label: Invoice value, value: '@value' }
-              - { label: Ad valorem part, value: '@d.adValorem', tone: accent }
-              - { label: Specific part, value: '@d.specific', tone: accent }
-              - { label: Total duty, value: '@d.duty', tone: good }
-              - { label: Landed cost, value: '@d.landed', tone: good }
+              - { label: Units imported, value: '@units' }
+              - { label: Ad valorem rate, value: '{=adValoremRate|pct}' }
+              - { label: Specific duty per frame, value: '@specificPerUnit' }
+      decision:
+        prompt: What are the total compound duty and the landed cost (before freight and insurance) for the 1,000 frames?
+        type: mcq
+        options: ['5,500 duty and 30,500 landed cost', '2,500 duty and 27,500 landed cost', '3,000 duty and 28,000 landed cost', '5,500 duty and 25,000 landed cost']
+        answer: 0
+        model: Ad valorem duty is 10% × 25,000 = 2,500, and specific duty is 3 × 1,000 = 3,000, giving 5,500 in total duty and 30,500 in landed cost.
     - id: compare-local
       title: Imported or local?
       say: |
@@ -89,8 +94,6 @@ case:
               - { label: Export price, value: '@exportPrice' }
               - { label: Home price, value: '@homePrice' }
               - { label: Cost, value: '@cost' }
-              - { label: Below home price, value: '{=dm.belowHome}', tone: accent }
-              - { label: Below cost, value: '{=dm.belowCost}', tone: accent }
       decision:
         prompt: Would the supplier's price count as dumping, and what risk does that create for the owner?
         type: open

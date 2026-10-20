@@ -70,8 +70,36 @@ scenes:
     derive:
       - { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, out: c }
     stage:
+      - id: rule-note
+        widget: Callout
+        props:
+          kind: note
+          title: Rule of law vs corruption
+          body: |
+            Under the **rule of law**, governments and citizens obey clear, fairly applied rules that protect **property rights**. Where **bribery** is common, laws are bent for private gain.
+      - id: cpi-chart
+        widget: Chart
+        hidden: true
+        props:
+          kind: line
+          title: Corruption Perceptions Index rank (smaller = cleaner)
+          xLabel: Year
+          yLabel: Rank
+          series:
+            - { name: Japan, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [25, 24, 17, 15, 20, 18] }
+            - { name: France, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [22, 22, 24, 27, 23, 21] }
+            - { name: China, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [58, 71, 79, 100, 80, 65] }
+            - { name: Mexico, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [58, 64, 89, 103, 130, 120] }
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Rank in 1999, value: '@c.earlier', tone: accent }
+            - { label: Rank in 2022, value: '@c.later', tone: accent }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Rank in 1999, value: '@c.earlier', tone: accent }
@@ -80,6 +108,7 @@ scenes:
       - id: pick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: Country
           style: dropdown
@@ -91,11 +120,6 @@ scenes:
             - { value: Mexico, label: Mexico }
             - { value: Nigeria, label: Nigeria }
         bind: { value: country }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           Investors prefer countries where leaders obey the law too. The **rule of law** means everyone, including the
@@ -113,24 +137,21 @@ scenes:
           The **Corruption Perceptions Index** ranks countries by how corrupt their public sector looks. Rank 1 is the least
           corrupt. France ranked 22 in 1999 and 21 in 2022.
         define: [corruption-perceptions-index]
+        hide: [rule-note]
+        show: [r-in]
         gate:
           type: predict
           question: By how many places did France's rank change from 1999 to 2022 (positive = improved)?
           answer: { value: 1, tol: 0.1 }
           explain: 22 − 21 = 1. The rank number fell by one, an improvement.
-      - say: Pick Mexico and see how far its rank moved.
+      - say: Compare the multi-year rank paths across countries and find the one that improved by 7 places.
+        hide: [r-in]
+        show: [cpi-chart, r, pick]
         gate:
           type: when
-          prompt: Select Mexico from the menu.
-          when: "country == 'Mexico'"
-          hint: Use the Country menu on the right.
-      - say: Watch the change being worked out.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+          prompt: Find the country in the menu that gained 7 places between 1999 and 2022.
+          when: 'c.change == 7'
+          hint: Look for the country that moved from rank 25 in 1999 to rank 18 in 2022.
       - say: Your turn on another country and years.
         gate:
           type: practice
@@ -171,6 +192,16 @@ scenes:
             **Two kinds of international rule**
 
             Between governments, and between private parties.
+      - id: sources-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: Sources and reach of international law
+          body: |
+            - **Treaty**: formal written agreement signed by countries
+            - **Customary international law**: rules grown from centuries of practice
+            - **Extraterritoriality**: a nation applying its domestic laws to conduct abroad
     beats:
       - say: |
           No world government writes laws for everyone. **International law** is the set of rules nations have agreed to
@@ -191,6 +222,8 @@ scenes:
           Where do the rules come from? A **treaty** is a formal agreement between countries, also called a convention or
           protocol. **Customary international law** is made of rules that grew from customs and usage over centuries.
         define: [treaty, customary-international-law]
+        hide: [sorter]
+        show: [sources-note]
         gate:
           type: predict
           question: Which source is written down in an agreement signed by countries?
@@ -238,6 +271,16 @@ scenes:
             **Two ways to settle**
 
             In court, or outside it.
+      - id: cisg-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: Preventing cross-border contract disputes
+          body: |
+            - **Choice-of-law clause**: names which country's law governs
+            - **Choice-of-forum clause**: names where a dispute is heard
+            - **CISG**: UN treaty giving a uniform baseline for international sales of goods
     beats:
       - say: |
           A **contract** is a legally binding agreement to do something. Every cross-border sale starts with one. The
@@ -272,6 +315,8 @@ scenes:
           Rules also help before a dispute starts. The **Convention on the International Sale of Goods** is a United
           Nations treaty with common rules for contracts to sell goods across borders.
         define: [cisg]
+        hide: [sorter]
+        show: [cisg-note]
       - say: Check your understanding.
         gate:
           type: practice
@@ -282,12 +327,22 @@ scenes:
     title: Who pays for the ship?
     goal: When a seller quotes a price for goods that must cross the sea, what costs does that price include?
     skills: [intl-law, incoterms]
-    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: CIF, animFrom: 0, animTo: 2.6 }
+    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: FOB, animFrom: 0, animTo: 0.7 }
     derive:
       - { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, out: i }
     stage:
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Goods on board (FOB price), value: '@fob' }
+            - { label: Loading onto ship, value: '@loading' }
+            - { label: Sea freight, value: '@freight' }
+            - { label: Marine insurance, value: '@insurance' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Goods on board (FOB price), value: '@fob' }
@@ -298,6 +353,7 @@ scenes:
       - id: pick
         widget: Choice
         region: side
+        hidden: true
         props:
           label: Term
           style: segmented
@@ -307,15 +363,9 @@ scenes:
             - { value: CFR, label: CFR }
             - { value: CIF, label: CIF }
         bind: { value: term }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, roles: { r: r }, speed: 0.8 }
       - id: anim
         widget: Animation
         region: top
-        hidden: true
         props:
           src: [assets/anim/incoterms.webm, assets/anim/incoterms.mp4]
           poster: assets/anim/incoterms.poster.jpg
@@ -333,39 +383,34 @@ scenes:
           Chamber of Commerce. They say who pays for what, and who bears the risk, when goods are shipped.
         define: [incoterms]
       - say: |
-          Start with **FOB**, free on board: the seller puts the goods on board the ship at the port of shipment, and the
-          risk passes to the buyer once they are on board. Our goods cost 20,000 on board.
-        define: [fob]
-        show: [anim]
-      - say: |
-          **FAS**, free alongside ship, stops sooner. The seller pays up to the side of the ship and the risk passes to
-          the buyer there, so the buyer pays for loading.
+          Start with **FAS**, free alongside ship: the seller delivers the goods to the quay beside the vessel, and the
+          buyer pays for loading (`500`), sea freight (`2,000`) and insurance (`300`).
         define: [fas]
         set: { animFrom: 0.7, animTo: 1.6 }
+      - say: |
+          Under **FOB**, free on board, the seller lifts the goods on board the ship at the port of shipment, and the
+          risk passes to the buyer once they cross the rail. Our goods cost 20,000 on board.
+        define: [fob]
+        set: { animFrom: 1.6, animTo: 2.6 }
       - say: |
           **CFR**, cost and freight, adds the sea freight to the price; the buyer buys the insurance. **CIF**, cost,
           insurance and freight, adds insurance as well. Freight is 2,000 and insurance is 300.
         define: [cfr, cif]
+        show: [r-in]
         gate:
           type: predict
           question: What price does a seller quote under CIF?
           answer: { value: 22300, tol: 0.5 }
           explain: 20,000 + 2,000 freight + 300 insurance = 22,300.
-      - say: Choose CFR and see the price change.
+      - say: Now compare all four terms and find the one where the buyer pays 2,800 dollars on top of the seller's quote.
         set: { animFrom: 2.6, animTo: 6 }
+        hide: [r-in]
+        show: [r, pick]
         gate:
           type: when
-          prompt: Switch the term to CFR.
-          when: "term == 'CFR'"
-          hint: Use the Term buttons.
-      - say: Walk through how each term builds the price.
-        hide: [anim]
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+          prompt: Select the term where the buyer pays 2,800 dollars on top of the seller's quote.
+          when: 'i.buyerExtra == 2800'
+          hint: Which term stops at the side of the ship, leaving loading (500), freight (2,000) and insurance (300) to the buyer?
       - say: Now one on your own.
         gate:
           type: practice
@@ -411,16 +456,16 @@ scenes:
           Fake medicines are a deadly example: an estimated one million patients die every year from counterfeit drugs.
           Protecting ideas matters. **Intellectual property** is a creative work or invention that can be legally protected.
         define: [intellectual-property]
-        gate:
-          type: predict
-          question: How many patients per year are estimated to die from counterfeit drugs?
-          options: [About one thousand, About ten thousand, About one hundred thousand, About one million]
-          answer: 3
-          explain: The lecture estimates one million patients die every year from counterfeit pharmaceuticals.
       - say: |
           A **patent** is a government grant giving an inventor the exclusive right to make, use and sell an invention. A
           **trademark** is a shape, color, phrase or sound that marks a product.
         define: [patent, trademark]
+        gate:
+          type: predict
+          question: A firm invents a new manufacturing process for a solar cell. Which right gives it the exclusive right to make and sell that invention for a set period?
+          options: [A patent, A trademark, A trade name, A copyright]
+          answer: 0
+          explain: A patent grants an inventor the exclusive right to make, use and sell an invention for a fixed period.
       - say: |
           A **trade name** is the name a business uses to mark its products, such as Pizza Hut. A **copyright** gives
           authors, artists and software makers the exclusive right to publish and sell their work.
@@ -437,6 +482,7 @@ scenes:
           target: sorter
           event: solved
       - say: One last question.
+        hide: [sorter]
         gate:
           type: reflect
           prompt: Why might a company choose to keep a formula as a trade secret instead of patenting it?

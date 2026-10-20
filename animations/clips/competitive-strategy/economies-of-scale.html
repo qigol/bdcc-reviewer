@@ -153,8 +153,16 @@
       tl.to(cutsA, { opacity: 0, duration: 0.5 }, 2.3);
       tl.to(cutsB, { opacity: 1, duration: 0.8 }, 2.3);
       HF.count(unitsNum, 1000, 4000, 2.05, 1.85, { easeName: 'power1.inOut' });
-      tl.to(needle, { rotation: needleAt(10), svgOrigin: `${G.x} ${G.y}`, duration: 1.8, ease: 'power2.inOut' }, 2.1);
-      HF.count(gVal, 25, 10, 2.1, 1.8, { format: (v) => `$${Math.round(v)}`, easeName: 'power2.inOut' });
+      // the gauge follows the displayed units: cost per unit = $5 + $20,000 ÷ units (so $25 → $10, along the curve)
+      const unitsEase = gsap.parseEase('power1.inOut');
+      HF.every((t) => {
+        if (t < 2.05) return;
+        const u = Math.round(1000 + 3000 * unitsEase(Math.max(0, Math.min(1, (t - 2.05) / 1.85))));
+        const cost = 5 + 20000 / u;
+        gsap.set(needle, { rotation: needleAt(cost), svgOrigin: `${G.x} ${G.y}` });
+        const s = `$${Math.round(cost)}`;
+        if (gVal.textContent !== s) gVal.textContent = s;
+      });
       tl.to(chart, { opacity: 1, duration: 0.3 }, 2.0);
       tl.to(curve, { strokeDashoffset: 0, duration: 1.8, ease: 'power1.inOut' }, 2.15);
       HF.pop(tl, dot, 2.1);

@@ -10,7 +10,8 @@ import { cn } from '../lib/util';
  * Animation (guide §9a): a short, silent clip from the module's assets/, rendered with HyperFrames and converted by
  * `pnpm kodigo animation`. Plays a video (best source first), an animated image or a frame folder.
  *
- * - muted; loops unless `loop: false` (then holds the last frame); plays while ≥ 1/3 is on screen, pauses when not
+ * - muted; loops unless `loop: false` (then holds the last frame, and stays there when scrolled away and back);
+ *   plays while ≥ 1/3 is on screen (not counting the part under the narration card), pauses when not
  * - `start` / `end` play one segment of the clip, so several widgets can show the parts of one clip on different beats
  * - commands `play`, `pause`, `restart`, `seek {t}`; event `ended` on every pass
  * - reduced motion: never starts by itself; shows the segment's last frame, and Play shows 3–4 still frames that crossfade
@@ -97,6 +98,9 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
   const [front, setFront] = useState<0 | 1>(0);
   const [showImage, setShowImage] = useState(!reduced); // animated images under reduced motion wait for Play
   const userPaused = useRef(false);
+  const finished = useRef(false); // a `loop: false` pass reached its end: scrolling back must not restart it
+  const stillsWhenReady = useRef(false); // reduced motion: Play was pressed before the video's details loaded
+  const runStillsRef = useRef<() => void>(() => {});
   const timers = useRef<number[]>([]);
   const clearTimers = () => { timers.current.forEach((t) => clearTimeout(t)); timers.current = []; };
   const emitRef = useRef(emit);
@@ -135,6 +139,7 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
       const m = media();
       if (!m) return;
       emitRef.current('ended');
+      if (!seg.current.loop) finished.current = true;
       if (seg.current.loop) { seekTo(seg.current.start); play(); } else { m.pause(); seekTo(segEnd(m.duration) - EPS); }
     };
     return { media, seekTo, play, pause, atEnd, segEnd, now };
@@ -225,11 +230,13 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
     placed.current = segKey + (reduced ? ':r' : '');
     clearTimers();
     setFront(0);
+    finished.current = false;
     if (reduced) {
       // reduced motion: show the segment's last frame (the poster of this part of the clip)
       ctl.pause();
       ctl.seekTo(ctl.segEnd(duration) - EPS);
       if (videoB.current) videoB.current.currentTime = Math.max(start, ctl.segEnd(duration) - EPS);
+      if (stillsWhenReady.current) { stillsWhenReady.current = false; runStillsRef.current(); }
       return;
     }
     userPaused.current = false;
@@ -238,18 +245,37 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
   }, [ready, segKey, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- visibility: play while ≥ 1/3 on screen
+  // the narration card sticks over the bottom of the screen, so the strip under it doesn't count as on screen
+  const cover = ctx.coverBottom;
   useEffect(() => {
     const el = boxRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
-    const io = new IntersectionObserver((es) => { for (const e of es) setVisible(e.intersectionRatio >= 1 / 3); }, { threshold: [0, 1 / 3, 0.6, 1] });
+    const io = new IntersectionObserver((es) => { for (const e of es) setVisible(e.intersectionRatio >= 1 / 3); },
+      { threshold: [0, 1 / 3, 0.6, 1], rootMargin: `0px 0px -${Math.max(0, Math.round(cover))}px 0px` });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [cover]);
   useEffect(() => {
-    if (!ready || reduced || kind === 'image') return;
-    if (visible && autoplay && !userPaused.current) ctl.play();
+    if (reduced || kind === 'image') return;
+    if (!ready) {
+      // some browsers (iOS Low Power Mode…) skip preloading; asking to play is what makes them load the clip
+      if (kind === 'video' && visible && autoplay && !userPaused.current && !finished.current) videoA.current?.play().catch(() => {});
+      return;
+    }
+    if (visible && autoplay && !userPaused.current && !finished.current) ctl.play();
     if (!visible) ctl.pause();
   }, [visible, ready, reduced, autoplay, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // a beat that shows the clip, or moves it to its next part, brings it into view above the narration card
+  const coverRef = useRef(cover);
+  coverRef.current = cover;
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    // only where a narration card covers the screen (cover > 0); by 350 ms the card's height has settled
+    const id = window.setTimeout(() => { if (coverRef.current > 0) el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); }, 350);
+    return () => clearTimeout(id);
+  }, [segKey, reduced]);
 
   // ---------------------------------------------------------------- reduced motion: crossfading stills
   const stillTimes = useMemo(() => {
@@ -286,6 +312,7 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
     };
     show(0);
   }, [kind, stillTimes, ctl, front]);
+  runStillsRef.current = runStills;
   useEffect(() => () => clearTimers(), []);
 
   // ---------------------------------------------------------------- beat commands (each new command runs once)
@@ -300,6 +327,7 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
       if (c.cmd === 'seek' && Number.isFinite(t)) { ctl.pause(); ctl.seekTo(t); }
       if (c.cmd === 'play' || c.cmd === 'restart') {
         userPaused.current = false;
+        finished.current = false;
         if (reduced) { clearTimers(); setFront(0); ctl.seekTo(start); continue; } // reduced motion: a beat's play/restart only rewinds
         if (c.cmd === 'restart') ctl.seekTo(start);
         ctl.play();
@@ -308,14 +336,30 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
   }, [cmds, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- controls
+  /** Play / Restart pressed before a video's details loaded: start it anyway (that makes the browser load it) */
+  const earlyPlay = () => {
+    if (kind !== 'video' || ready) return false;
+    userPaused.current = false;
+    finished.current = false;
+    if (reduced) {
+      // prime both players (browsers that skip preloading), then show the key frames once the clip is ready
+      stillsWhenReady.current = true;
+      for (const v of [videoA.current, videoB.current]) v?.play().then(() => v.pause()).catch(() => {});
+    } else videoA.current?.play().catch(() => {});
+    return true;
+  };
   const toggle = () => {
+    if (earlyPlay()) return;
     if (!ready) return;
+    finished.current = false;
     if (reduced) { if (kind === 'image') setShowImage(true); else runStills(); return; }
     if (playing) { userPaused.current = true; ctl.pause(); } else { userPaused.current = false; ctl.play(); }
   };
   const restart = () => {
+    if (earlyPlay()) return;
     if (!ready) return;
     userPaused.current = false;
+    finished.current = false;
     if (reduced) { if (kind !== 'image') { setFront(0); ctl.seekTo(start); runStills(); } return; }
     ctl.seekTo(start);
     ctl.play();
@@ -333,7 +377,7 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
 
   return (
     <figure className={cn('mx-auto w-full overflow-hidden', !props.bare && 'card p-0', tone && `tone-${tone} mark-bg`, marks.pulse('frame') && 'pulse')} style={{ maxWidth: width }}>
-      <div ref={boxRef} role="img" aria-label={props.alt} className="relative w-full overflow-hidden bg-[#0B1D3A]" style={{ aspectRatio: aw && ah ? `${aw} / ${ah}` : '16 / 9' }}>
+      <div ref={boxRef} role="img" aria-label={props.alt} className="relative w-full overflow-hidden bg-[#0B1D3A]" style={{ aspectRatio: aw && ah ? `${aw} / ${ah}` : '16 / 9', scrollMarginBottom: cover + 8 }}>
         {missing ? (
           <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-white/85">{props.alt}</div>
         ) : kind === 'video' ? (
@@ -360,12 +404,12 @@ export default function Animation({ props, cmds, marks, emit, ctx }: WidgetRende
       </div>
       {controls && !missing && (kind !== 'image' || (reduced && !showImage)) && (
         <div className="flex items-center gap-2 px-3 py-2">
-          <button className="btn-ghost btn-sm" onClick={toggle} disabled={!ready && kind !== 'image'} aria-label={playing ? 'Pause animation' : 'Play animation'} title={playing ? 'Pause' : reduced ? 'Show the key frames' : 'Play'}>
+          <button className="btn-ghost btn-sm" onClick={toggle} disabled={!ready && kind === 'frames'} aria-label={playing ? 'Pause animation' : 'Play animation'} title={playing ? 'Pause' : reduced ? 'Show the key frames' : 'Play'}>
             {playing && !reduced ? <Pause size={15} /> : <Play size={15} />}
           </button>
           {kind !== 'image' && (
             <>
-              <button className="btn-ghost btn-sm" onClick={restart} disabled={!ready} aria-label="Restart animation" title="Restart"><RotateCcw size={15} /></button>
+              <button className="btn-ghost btn-sm" onClick={restart} disabled={!ready && kind === 'frames'} aria-label="Restart animation" title="Restart"><RotateCcw size={15} /></button>
               <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-line" aria-hidden>
                 <div className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: `${pct}%`, transition: reduced ? `width ${FADE_MS}ms ease` : undefined }} />
               </div>

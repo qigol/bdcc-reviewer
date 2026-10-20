@@ -37,27 +37,40 @@ case:
           widget: Readout
           props:
             items:
-              - { label: Bid, value: '@bid', format: 4 }
-              - { label: Ask, value: '@ask', format: 4 }
-              - { label: Spread (dollars), value: '@q.spread', format: 4, tone: accent }
-              - { label: Midpoint, value: '@q.mid', format: 5, tone: accent }
+              - { label: Bid (bank buys EUR), value: '@bid', format: 4 }
+              - { label: Ask (bank sells EUR), value: '@ask', format: 4 }
+      decision:
+        prompt: What is the bank's bid-ask spread on EUR/USD (1.0955 / 1.0957)?
+        type: mcq
+        options:
+          - 0.0002 dollars (2 pips), with midpoint 1.0956
+          - 0.0020 dollars (20 pips), with midpoint 1.0965
+          - 1.0956 dollars, equal to the midpoint
+          - 2.1912 dollars, the sum of bid and ask
+        answer: 0
+        model: Spread = 1.0957 − 1.0955 = 0.0002 dollars (2 pips), and the midpoint is (1.0955 + 1.0957) / 2 = 1.0956.
     - id: sell-euros
       title: Cash the euros today
       say: |
-        Suppose the buyer paid today. The company would **sell** euros, so the bank buys them at its bid.
+        Suppose the buyer paid today. The company would **sell** 200,000 euros to the bank.
       stage:
         - id: sell-r
           widget: Readout
           props:
             items:
-              - { label: Rate used, value: '@c.rate', format: 4 }
-              - { label: Dollars received, value: '@c.result', format: 2, tone: good }
+              - { label: Euros to convert, value: '@amount', format: comma }
+              - { label: Bank bid, value: '@bid', format: 4 }
+              - { label: Bank ask, value: '@ask', format: 4 }
       decision:
-        prompt: Which price does the exporter get when it sells euros to the bank?
+        prompt: Which price does the exporter get when it sells 200,000 euros to the bank, and how many dollars does it receive?
         type: mcq
-        options: [The bid, The ask, The midpoint, The spread]
+        options:
+          - The bid (1.0955), receiving $219,100
+          - The ask (1.0957), receiving $219,140
+          - The midpoint (1.0956), receiving $219,120
+          - The spread (0.0002), receiving $40
         answer: 0
-        model: The bank buys euros at its bid, the lower price. The customer always trades at the worse side.
+        model: The bank buys euros at its bid (1.0955), the lower price, so 200,000 × 1.0955 = $219,100.
     - id: cross-pound
       title: A pound-priced competitor
       say: |
@@ -69,9 +82,19 @@ case:
           props:
             items:
               - { label: 'EUR/USD bid', value: '@bid', format: 4 }
+              - { label: 'EUR/USD ask', value: '@ask', format: 4 }
               - { label: 'USD/GBP bid', value: '@bid2', format: 4 }
-              - { label: 'EUR/GBP bid', value: '@x.bid', format: 4, tone: good }
-              - { label: 'EUR/GBP ask', value: '@x.ask', format: 4, tone: good }
+              - { label: 'USD/GBP ask', value: '@ask2', format: 4 }
+      decision:
+        prompt: How do you find the EUR/GBP cross bid from the EUR/USD and USD/GBP quotes?
+        type: mcq
+        options:
+          - Multiply the two bids (1.0955 × 0.7838 = 0.8587)
+          - Divide the two bids (1.0955 ÷ 0.7838 = 1.3977)
+          - Add the two bids (1.0955 + 0.7838 = 1.8793)
+          - Multiply the EUR/USD ask by the USD/GBP bid
+        answer: 0
+        model: Both quotes are stated per unit of the first currency, so the dollars cancel when you multiply bid by bid (1.0955 × 0.7838 = 0.8587) and ask by ask (1.0957 × 0.7839 = 0.8589).
     - id: lock-rate
       title: Lock the rate a year ahead
       say: |
@@ -83,14 +106,18 @@ case:
           props:
             items:
               - { label: Spot, value: '@spot', format: 4 }
-              - { label: Interest gap, value: '{=f.diff|pct1}', tone: accent }
-              - { label: One-year forward, value: '@f.forward', format: 4, tone: good }
+              - { label: U.S. (home) interest, value: '{=iHome|pct1}' }
+              - { label: Euro-area (foreign) interest, value: '{=iForeign|pct1}' }
       decision:
-        prompt: The forward rate is above spot. What does that mean for the euros the company will receive?
+        prompt: With U.S. interest at 5% and euro-area interest at 3%, what does covered interest parity imply for the one-year forward rate?
         type: mcq
-        options: [Locking in gives more dollars than today's spot would, A forward always loses money, The euro is at a forward discount, Nothing changes]
+        options:
+          - It sits 2% above spot (about 1.1175), so locking in gives more dollars per euro than spot
+          - It sits 2% below spot (about 1.0737), so locking in gives fewer dollars per euro than spot
+          - It equals today's spot rate of 1.0956
+          - A forward contract always loses money
         answer: 0
-        model: Home interest is above euro interest, so the euro trades at a forward premium. Selling euros forward at that higher rate gives more dollars per euro than spot.
+        model: Home interest is 2 percentage points above euro interest, so the euro trades at a 2% forward premium (1.0956 × 1.02 ≈ 1.1175). Selling euros forward at that higher rate gives more dollars per euro than spot.
     - id: inflation-check
       title: Will the euro really be that strong?
       say: |

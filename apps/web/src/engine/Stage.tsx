@@ -28,11 +28,12 @@ export interface StageProviderProps {
   /** extra values merged into scope (e.g. quiz generator vars) */
   extraScope?: Record<string, any>;
   reducedMotion?: boolean;
+  coverBottom?: number;
   replayKey?: number;
   children: ReactNode | ((scope: Record<string, any>) => ReactNode);
 }
 
-export function StageProvider({ mod, spec, state, setState, cmds, onEvent, extraScope, reducedMotion = false, replayKey = 0, children }: StageProviderProps) {
+export function StageProvider({ mod, spec, state, setState, cmds, onEvent, extraScope, reducedMotion = false, coverBottom = 0, replayKey = 0, children }: StageProviderProps) {
   const [traces, setTraces] = useState<Record<string, TraceView>>({});
   const [hoverAnchor, setHoverAnchor] = useState<string | null>(null);
   const players = useRef<Record<string, PlayerApi>>({});
@@ -68,9 +69,10 @@ export function StageProvider({ mod, spec, state, setState, cmds, onEvent, extra
     registerTrace,
     registerPlayer,
     reducedMotion,
+    coverBottom,
     replayKey,
     players: players.current,
-  }), [mod, scope, hoverAnchor, setState, onEvent, cmds, traces, registerTrace, registerPlayer, reducedMotion, replayKey]);
+  }), [mod, scope, hoverAnchor, setState, onEvent, cmds, traces, registerTrace, registerPlayer, reducedMotion, coverBottom, replayKey]);
 
   return (
     <StageContext.Provider value={value}>
