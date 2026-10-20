@@ -7,7 +7,7 @@ import YAML, { LineCounter, isNode } from 'yaml';
 import type { ZodError, ZodTypeAny } from 'zod';
 import {
   Manifest, Dataset, ExamplesFile, GlossaryFile, IntuitionFile, MathCodeFile, ApplicationFile, QuizFile,
-  REQUIRED_FILES, IDENT_RE,
+  REQUIRED_FILES, OPTIONAL_FILES, IDENT_RE,
   type Scene, type Section, type StageWidget, type Template, type Derive, type GeneratorOutput, type TraceStep,
 } from './schemas';
 import { WIDGET_BY_NAME, WIDGET_NAMES, COMMON_COMMANDS } from './widgets';
@@ -53,7 +53,10 @@ export interface ParsedModule {
   application: ApplicationFile;
   quiz: QuizFile['templates'];
   widgetRequests?: string;
+  animations?: string;
   assets: string[];
+  /** byte size of each asset file (for size warnings) */
+  assetSizes: Record<string, number>;
   sources: string[];
   labels: Record<string, string>;
 }
@@ -157,7 +160,7 @@ export function parseModule(files: FileMap): { module?: ParsedModule; issues: Is
   }
   const datasetFiles = paths.filter((p) => /^datasets\/[^/]+\.(ya?ml|json)$/.test(p));
   if (!datasetFiles.length) err('structure', 'At least one dataset is required in datasets/<id>.yaml', { file: 'datasets/' });
-  const known = new Set<string>([...REQUIRED_FILES, 'WIDGET_REQUESTS.md']);
+  const known = new Set<string>([...REQUIRED_FILES, ...OPTIONAL_FILES]);
   for (const p of paths) {
     const base = p.replace(/\.(ya?ml|json)$/, '.yaml');
     if (known.has(p) || known.has(base) || /^(datasets|assets|sources)\//.test(p)) continue;
@@ -226,7 +229,12 @@ export function parseModule(files: FileMap): { module?: ParsedModule; issues: Is
     application: parsed.application,
     quiz: parsed.quiz.templates,
     widgetRequests: typeof files['WIDGET_REQUESTS.md'] === 'string' ? (files['WIDGET_REQUESTS.md'] as string) : undefined,
+    animations: typeof files['ANIMATIONS.md'] === 'string' ? (files['ANIMATIONS.md'] as string) : undefined,
     assets: paths.filter((p) => p.startsWith('assets/')),
+    assetSizes: Object.fromEntries(paths.filter((p) => p.startsWith('assets/')).map((p) => {
+      const c = files[p];
+      return [p, typeof c === 'string' ? new TextEncoder().encode(c).length : (c as Uint8Array).byteLength];
+    })),
     sources: paths.filter((p) => p.startsWith('sources/')),
     labels,
   };
@@ -333,6 +341,7 @@ function checkStage(stage: StageWidget[], scope: Set<string> | null, stateKeys: 
       if (!(k in props) && !bound) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.props`, message: `${w.widget} requires prop "${k}"` });
     }
     if (w.widget === 'Matrix' && !('data' in props) && !('values' in props)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.props`, message: 'Matrix needs `data` or `rows`/`cols`/`values`' });
+    if (w.widget === 'Animation') checkAnimation(props, file, p, ctx);
     if (w.widget === 'Formula' && !('tex' in props) && !('steps' in props)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.props`, message: 'Formula needs `tex` or `steps`' });
     for (const [out, key] of Object.entries(w.bind ?? {})) {
       if (!(out in meta.bind)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.bind.${out}`, message: `${w.widget} has no bind output "${out}" (has: ${Object.keys(meta.bind).join(', ') || 'none'})` });
@@ -352,6 +361,84 @@ function checkStage(stage: StageWidget[], scope: Set<string> | null, stateKeys: 
     }
   });
   return ids;
+}
+
+// ------------------------------------------------------------ Animation files (guide §9a.5)
+const ANIM_VIDEO = /\.(webm|mp4|m4v)$/i;
+const ANIM_IMAGE = /\.(gif|webp|apng)$/i;
+const FRAME_IMAGE = /\.(png|jpe?g|webp)$/i;
+const POSTER_IMAGE = /\.(jpe?g|png|webp)$/i;
+const ANIM_WARN_BYTES = 8 * 1024 * 1024;
+
+/** What an Animation `src` entry is: a video, an animated image, a frame folder, or something the site can't play. */
+export function animationKind(path: string): 'video' | 'image' | 'frames' | 'unsupported' {
+  if (path.endsWith('/')) return 'frames';
+  if (ANIM_VIDEO.test(path)) return 'video';
+  if (ANIM_IMAGE.test(path)) return 'image';
+  return 'unsupported';
+}
+
+/** Frame files inside a frame folder (direct children with an image extension), sorted by name. */
+export function animationFrames(folder: string, assets: string[]): string[] {
+  return assets
+    .filter((a) => a.startsWith(folder) && !a.slice(folder.length).includes('/') && FRAME_IMAGE.test(a))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+function checkAnimation(props: Record<string, unknown>, file: string, p: string, ctx: Ctx) {
+  const mod = ctx.mod;
+  const err = (path: string, message: string) => ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.props.${path}`, message });
+  const warn = (path: string, message: string) => ctx.issues.push({ level: 'warning', step: 'refs', file, path: `${p}.props.${path}`, message });
+  const isRef = (v: unknown) => typeof v === 'string' && v.startsWith('@');
+  const clip = (s: string) => s.replace(/\/$/, '').split('/').pop()!.replace(/\.[^.]+$/, '');
+  const convert = (s: string) => `pnpm kodigo animation <render> modules/${mod.manifest.id}/assets/anim/${clip(s)}`;
+  const sizeWarn = (key: string, path: string) => {
+    const n = mod.assetSizes[path] ?? 0;
+    if (n > ANIM_WARN_BYTES) warn(key, `"${path}" is ${(n / 1048576).toFixed(1)} MB; aim for ≤ 3 MB per clip (re-run the converter with a higher --crf-webm/--crf-mp4 or a smaller --width)`);
+  };
+  const checkSources = (key: 'src' | 'srcDark') => {
+    const v = props[key];
+    if (v === undefined || isRef(v)) return;
+    const list = (Array.isArray(v) ? v : [v]).filter((x): x is string => typeof x === 'string' && !isRef(x));
+    const kinds = new Set<string>();
+    for (const s of list) {
+      if (!s.startsWith('assets/')) { err(key, `"${s}" must be a path inside the module's assets/ folder`); continue; }
+      const kind = animationKind(s);
+      if (kind === 'unsupported') {
+        const why = /\.mov$/i.test(s) ? 'a .mov plays only in Safari' : /\.m3u8$/i.test(s) ? 'HLS playlists do not play here' : /\.html?$/i.test(s) ? 'a composition needs the HyperFrames runtime; render it first' : 'the site cannot play this format';
+        err(key, `"${s}": ${why}. Convert it: ${convert(s)}`);
+        continue;
+      }
+      kinds.add(kind === 'video' ? 'video' : 'image');
+      if (kind === 'frames') {
+        const frames = animationFrames(s, mod.assets);
+        if (frames.length < 2) err(key, `frame folder "${s}" needs at least 2 frames (.png/.jpg/.webp), found ${frames.length}`);
+        const total = frames.reduce((a, f) => a + (mod.assetSizes[f] ?? 0), 0);
+        if (total > ANIM_WARN_BYTES) warn(key, `frame folder "${s}" is ${(total / 1048576).toFixed(1)} MB; convert it to video: ${convert(s)}`);
+      } else if (!mod.assets.includes(s)) err(key, `no file "${s}" in the module`);
+      else sizeWarn(key, s);
+    }
+    if (kinds.size > 1) err(key, 'a source list holds the same clip in several formats: don\'t mix videos with images or frame folders');
+  };
+  checkSources('src');
+  checkSources('srcDark');
+  for (const key of ['poster', 'posterDark'] as const) {
+    const v = props[key];
+    if (typeof v !== 'string' || isRef(v)) continue;
+    if (!v.startsWith('assets/')) err(key, `"${v}" must be a path inside the module's assets/ folder`);
+    else if (!POSTER_IMAGE.test(v)) err(key, `"${v}": a poster is a still image (.jpg, .png or .webp)`);
+    else if (!mod.assets.includes(v)) err(key, `no file "${v}" in the module`);
+  }
+  const start = typeof props.start === 'number' ? props.start : 0;
+  if (typeof props.start === 'number' && props.start < 0) err('start', '`start` must be ≥ 0');
+  if (typeof props.end === 'number' && props.end <= start) err('end', '`end` must come after `start`');
+  if (typeof props.rate === 'number' && !(props.rate > 0)) err('rate', '`rate` must be > 0');
+  if (typeof props.fps === 'number' && !(props.fps > 0)) err('fps', '`fps` must be > 0');
+  if (typeof props.aspect === 'string' && !/^\d+(\.\d+)?[:/]\d+(\.\d+)?$/.test(props.aspect)) err('aspect', "`aspect` is a ratio like '16:9'");
+  if (Array.isArray(props.stills)) {
+    const end = typeof props.end === 'number' ? props.end : Infinity;
+    for (const t of props.stills) if (typeof t === 'number' && (t < start || t > end)) warn('stills', `still at ${t} s lies outside the clip's segment`);
+  }
 }
 
 function checkLessonRef(ref: { tab: string; id: string } | undefined, file: string, path: string, ctx: Ctx) {

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Transfer pricing</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Org Design · shifting-profits, beat 2 · 5 s. -->
+  <div id="stage" data-composition-id="transfer-pricing" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Org Design · transfer pricing (scene shifting-profits, beat 2), 5 s.
+     *   0.0–1.0  two islands: Alpha (coral flag, 50% tax) with a gold stack of 60, Beta (teal flag, 20% tax) with 40;
+     *            a violet tax collector beside each takes a coral slice (30 and 8); total tax bubble: 38
+     *   1.0–3.2  a paper-plane invoice flies Beta → Alpha; 10 coins arc back across the water to Beta;
+     *            Alpha 60 → 50 (tax 25), Beta 40 → 50 (tax 10)
+     *   3.2–4.2  the bubble counts down 38 → 35; badge "Total profit still 100"
+     *   4.2–5.0  hold; the camera eases out so both islands and the bubble are in frame
+     * Stacks are drawn at 3 px per million.
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['transfer-pricing'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const seaBack = HF.layer('sea-back');
+      const isl = HF.layer('islands');
+      const stacks = HF.layer('stacks');
+      const fly = HF.layer('fly');
+      const seaFront = HF.layer('sea-front');
+
+      const TOP = 500, PX = 3;
+      const w1 = HF.wave(seaBack, { y: 512, amp: 4, len: 180, color: '#1D3A73' });
+      const w2 = HF.wave(seaFront, { y: 560, amp: 5, len: 150, color: '#25488A', opacity: 0.95 });
+      HF.loop(tl, w1, { x: 0 }, { x: -180, ease: 'none' }, 0, 2.5, 5);
+      HF.loop(tl, w2, { x: 0 }, { x: -150, ease: 'none' }, 0, 1.5, 5);
+
+      function island(cx, name, flagColor, rate) {
+        const g = HF.g(isl);
+        HF.el('path', { d: `M${cx - 250} 568 Q${cx - 230} ${TOP} ${cx - 120} ${TOP - 4} L${cx + 150} ${TOP - 4} Q${cx + 240} ${TOP} ${cx + 262} 568 Z`, fill: '#2C6B73' }, g);
+        HF.el('path', { d: `M${cx - 236} 540 Q${cx - 222} ${TOP + 6} ${cx - 120} ${TOP + 2} L${cx + 150} ${TOP + 2} Q${cx + 232} ${TOP + 6} ${cx + 248} 540`, fill: 'none', stroke: '#E9D9A8', 'stroke-width': 10, opacity: 0.55 }, g);
+        // round building with a flag
+        const b = HF.g(g);
+        const bx = cx - 110;
+        HF.el('path', { d: `M${bx - 62} ${TOP} L${bx - 62} ${TOP - 60} A62 62 0 0 1 ${bx + 62} ${TOP - 60} L${bx + 62} ${TOP} Z`, fill: HF.shade('#C9D3F2', 0.14) }, b);
+        HF.el('path', { d: `M${bx - 62} ${TOP} L${bx - 62} ${TOP - 60} A62 62 0 0 1 ${bx + 52} ${TOP - 84} L${bx + 52} ${TOP} Z`, fill: '#C9D3F2' }, b);
+        HF.el('ellipse', { cx: bx - 26, cy: TOP - 104, rx: 18, ry: 8, fill: '#FFFFFF', opacity: 0.5, transform: `rotate(-25 ${bx - 26} ${TOP - 104})` }, b);
+        HF.box(b, { x: bx - 16, y: TOP - 42, w: 32, h: 42, r: 10, color: '#3A4F92', hi: false });
+        for (const wx of [-42, 30]) HF.box(b, { x: bx + wx, y: TOP - 78, w: 18, h: 18, r: 6, color: C.gold, hi: false });
+        HF.el('rect', { x: bx - 3, y: TOP - 196, width: 6, height: 76, rx: 3, fill: '#E3E6F5' }, b);
+        const flag = HF.g(b);
+        HF.el('path', { d: `M${bx + 3} ${TOP - 194} L${bx + 86} ${TOP - 194} Q${bx + 76} ${TOP - 174} ${bx + 86} ${TOP - 154} L${bx + 3} ${TOP - 154} Z`, fill: flagColor }, flag);
+        HF.text(flag, rate, { x: bx + 42, y: TOP - 165, size: 22, color: C.navy, weight: 900 });
+        HF.text(g, name, { x: bx, y: TOP + 40, size: 26, color: C.text, weight: 900 });
+        return { g, flag, bx };
+      }
+      const A = island(330, 'Alpha', C.coral, '50%');
+      const B = island(950, 'Beta', C.teal, '20%');
+
+      // ---------------------------------------------------------------- profit stacks with the tax slice on top
+      function stack(cx, profit, tax) {
+        const g = HF.g(stacks);
+        const W = 74;
+        const body = HF.el('rect', { x: cx - W / 2, y: TOP - profit * PX, width: W, height: profit * PX, rx: 10, fill: C.gold }, g);
+        const ridges = HF.g(g);
+        for (let k = 1; k < 30; k++) HF.el('rect', { x: cx - W / 2 + 6, y: TOP - k * 12, width: W - 12, height: 3, rx: 1.5, fill: HF.shade(C.gold, 0.12) }, ridges);
+        const clip = HF.el('clipPath', { id: HF.uid('clip') }, HF.world().defs);
+        const clipRect = HF.el('rect', { x: cx - W / 2, y: TOP - profit * PX, width: W, height: profit * PX }, clip);
+        ridges.setAttribute('clip-path', `url(#${clip.id})`);
+        const slice = HF.el('rect', { x: cx - W / 2 - 4, y: TOP - profit * PX, width: W + 8, height: tax * PX, rx: 10, fill: C.coral }, g);
+        const pNum = HF.text(g, String(profit), { x: cx, y: TOP - profit * PX - 16, size: 30, color: C.gold, weight: 900 });
+        const tNum = HF.text(g, String(tax), { x: cx - W / 2 - 18, y: TOP - profit * PX + (tax * PX) / 2 + 9, size: 24, color: C.coral, weight: 900, anchor: 'end' });
+        return { g, body, clipRect, slice, pNum, tNum, cx };
+      }
+      const SA = stack(A.bx + 160, 60, 30);
+      const SB = stack(B.bx + 160, 40, 8);
+      const collA = HF.character(stacks, { x: SA.cx + 82, y: TOP, color: C.violet, size: 0.8, look: -0.8 });
+      const collB = HF.character(stacks, { x: SB.cx + 82, y: TOP, color: C.violet, size: 0.8, look: -0.8 });
+      HF.cap(collA.hat, { color: HF.shade(C.violet, 0.2), badge: true });
+      HF.cap(collB.hat, { color: HF.shade(C.violet, 0.2), badge: true });
+
+      /** Tween a stack to new profit/tax values (geometry and numbers together). */
+      function reshape(s, p0, t0, p1, t1, at, dur) {
+        const e = 'power2.inOut';
+        tl.to([s.body, s.clipRect], { attr: { y: TOP - p1 * PX, height: p1 * PX }, duration: dur, ease: e }, at);
+        tl.to(s.slice, { attr: { y: TOP - p1 * PX, height: t1 * PX }, duration: dur, ease: e }, at);
+        tl.to(s.pNum, { attr: { y: TOP - p1 * PX - 16 }, duration: dur, ease: e }, at);
+        tl.to(s.tNum, { attr: { y: TOP - p1 * PX + (t1 * PX) / 2 + 9 }, duration: dur, ease: e }, at);
+        HF.count(s.pNum, p0, p1, at, dur, { easeName: e });
+        HF.count(s.tNum, t0, t1, at, dur, { easeName: e });
+      }
+
+      // ---------------------------------------------------------------- bubble, badge, plane, coins
+      const bubble = HF.label('Total tax <span class="hf-num hf-coral">38</span>', { x: 640, y: 112, cls: 'lg pill', html: true });
+      const bubbleNum = bubble.querySelector('.hf-num');
+      const badge = HF.label('Total profit still 100', { x: 640, y: 176, cls: 'sm pill hf-gold' });
+
+      const plane = HF.g(fly);
+      // a paper plane whose nose points left, toward Alpha
+      HF.el('path', { d: 'M-38 -4 L34 -20 L10 20 Z', fill: '#F4F1DE' }, plane);
+      HF.el('path', { d: 'M10 20 L-38 -4 L4 2 Z', fill: '#C9CFE8' }, plane);
+      HF.el('path', { d: 'M18 -8 L-6 -6', stroke: '#9AA6CC', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, plane);
+      gsap.set(plane, { x: -200, y: -200, opacity: 0 });
+
+      const coins = [];
+      for (let i = 0; i < 10; i++) { const c = HF.g(fly); HF.coin(c, { r: 12 }); gsap.set(c, { x: -200, y: -200 }); coins.push(c); }
+
+      // ================================================================ choreography
+      // 0.0–1.0 the two islands and their tax
+      HF.pop(tl, [A.g, B.g], 0.0, { origin: '50% 100%', stagger: 0.1 });
+      HF.pop(tl, [SA.g, SB.g], 0.25, { origin: '50% 100%', stagger: 0.1 });
+      HF.pop(tl, [collA.g, collB.g], 0.45, { origin: '50% 100%', stagger: 0.08 });
+      tl.fromTo([SA.slice, SB.slice], { opacity: 0, x: 26 }, { opacity: 1, x: 0, duration: 0.3, ease: 'back.out(1.6)', stagger: 0.08, immediateRender: true }, 0.6);
+      tl.fromTo([SA.tNum, SB.tNum], { opacity: 0 }, { opacity: 1, duration: 0.2, immediateRender: true }, 0.7);
+      HF.pop(tl, bubble, 0.75);
+      for (const f of [A.flag, B.flag]) HF.wobble(tl, f, 0.3, { amount: 6, origin: '0% 50%', dur: 0.6 });
+
+      // 1.0–3.2 the invoice flies to Alpha; ten coins arc back to Beta; the stacks reshape
+      tl.set(plane, { opacity: 1 }, 1.0);
+      HF.arc(tl, plane, { x0: B.bx + 40, y0: TOP - 210, x1: A.bx + 60, y1: TOP - 170 }, 1.0, 0.8, { fall: 'sine.inOut' });
+      tl.fromTo(plane, { rotation: 14 }, { rotation: -14, duration: 0.8, ease: 'sine.inOut', transformOrigin: '50% 50%', immediateRender: false }, 1.0);
+      tl.to(plane, { scale: 0, duration: 0.15 }, 1.8);
+      coins.forEach((c, i) => {
+        const at = 1.85 + i * 0.1;
+        HF.arc(tl, c, { x0: SA.cx + (i % 3 - 1) * 14, y0: TOP - 60 * PX + 10, x1: SB.cx + (i % 3 - 1) * 14, y1: TOP - 40 * PX - 6 }, at, 0.62, { fall: 'power1.in', spin: 300 });
+        tl.to(c, { scale: 0, duration: 0.1, transformOrigin: '50% 50%' }, at + 0.6);
+      });
+      reshape(SA, 60, 30, 50, 25, 1.9, 1.2);
+      reshape(SB, 40, 8, 50, 10, 2.05, 1.2);
+      HF.wobble(tl, [collA.g, collB.g], 3.0, { amount: 4 });
+
+      // 3.2–4.2 total tax 38 → 35; total profit unchanged
+      HF.count(bubbleNum, 38, 35, 3.25, 0.8, { easeName: 'power2.inOut' });
+      HF.wobble(tl, bubble, 4.0, { amount: 3, origin: '50% 50%' });
+      HF.pop(tl, badge, 3.55);
+
+      // camera: start pushed in a touch, ease out for the hold
+      tl.set(HF.world().world, { scale: 1.06, y: 24 }, 0);
+      HF.camera(tl, { scale: 1.035, y: 14 }, 0, 4.2, { easeName: 'none' });
+      HF.camera(tl, { scale: 0.98, y: 0 }, 4.2, 0.7);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

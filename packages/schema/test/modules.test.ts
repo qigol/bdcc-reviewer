@@ -97,3 +97,65 @@ describe('courses', () => {
     expect(report.issues.some((i) => i.level === 'warning' && i.step === 'lint' && i.path === 'course')).toBe(true);
   }, 60_000);
 });
+
+describe('Animation widget (guide §9a)', () => {
+  // org-design ships one clip: modules/org-design/assets/anim/transfer-pricing.{webm,mp4,poster.jpg}
+  const SRC = 'src: [assets/anim/transfer-pricing.webm, assets/anim/transfer-pricing.mp4]';
+  async function orgDesign(): Promise<FileMap> {
+    const f = await readModuleDir(path.join(root, 'org-design'));
+    expect(f['intuition.yaml'] as string).toContain(SRC);
+    return f;
+  }
+  const withSrc = (f: FileMap, src: string, extra = '') => {
+    f['intuition.yaml'] = (f['intuition.yaml'] as string).replace(SRC, `src: ${src}${extra}`);
+    return f;
+  };
+  const report = (f: FileMap) => validateModule(f, { hostFactory, seeds: 1 });
+  const errs = async (f: FileMap) => (await report(f)).issues.filter((i) => i.level === 'error').map((i) => i.message);
+
+  it('accepts the shipped clip and its ANIMATIONS.md brief', async () => {
+    const r = await report(await orgDesign());
+    expect(r.issues.filter((i) => i.level === 'error')).toEqual([]);
+    expect(r.issues.some((i) => /ANIMATIONS\.md/.test(i.message))).toBe(false);
+  });
+
+  it('reports a missing file', async () => {
+    expect((await errs(withSrc(await orgDesign(), 'assets/anim/nope.webm'))).some((m) => /no file "assets\/anim\/nope\.webm"/.test(m))).toBe(true);
+  });
+
+  it('rejects formats the site cannot play and names the converter', async () => {
+    const f = await orgDesign();
+    f['assets/anim/raw.mov'] = new Uint8Array(10);
+    const e = await errs(withSrc(f, 'assets/anim/raw.mov'));
+    expect(e.some((m) => /Safari/.test(m) && /pnpm kodigo animation/.test(m))).toBe(true);
+    expect((await errs(withSrc(await orgDesign(), 'assets/anim/index.html'))).some((m) => /render it first/.test(m))).toBe(true);
+  });
+
+  it('rejects a source list that mixes video and images', async () => {
+    const f = await orgDesign();
+    f['assets/anim/clip.gif'] = new Uint8Array(10);
+    expect((await errs(withSrc(f, '[assets/anim/transfer-pricing.webm, assets/anim/clip.gif]'))).some((m) => /don't mix videos/.test(m))).toBe(true);
+  });
+
+  it('needs at least 2 frames in a frame folder', async () => {
+    const f = await orgDesign();
+    f['assets/anim/frames/0001.png'] = new Uint8Array(10);
+    expect((await errs(withSrc(f, 'assets/anim/frames/'))).some((m) => /at least 2 frames/.test(m))).toBe(true);
+    f['assets/anim/frames/0002.png'] = new Uint8Array(10);
+    expect((await errs(withSrc(f, 'assets/anim/frames/'))).filter((m) => /frame/.test(m))).toEqual([]);
+  });
+
+  it('checks the segment and the poster', async () => {
+    expect((await errs(withSrc(await orgDesign(), '[assets/anim/transfer-pricing.webm]', '\n          start: 3\n          end: 2'))).some((m) => /`end` must come after `start`/.test(m))).toBe(true);
+    const f = await orgDesign();
+    f['intuition.yaml'] = (f['intuition.yaml'] as string).replace('poster: assets/anim/transfer-pricing.poster.jpg', 'poster: assets/anim/transfer-pricing.mp4');
+    expect((await errs(f)).some((m) => /a poster is a still image/.test(m))).toBe(true);
+  });
+
+  it('warns about files over 8 MB', async () => {
+    const f = await orgDesign();
+    f['assets/anim/transfer-pricing.webm'] = new Uint8Array(9 * 1024 * 1024);
+    const r = await report(f);
+    expect(r.issues.some((i) => i.level === 'warning' && /9\.0 MB/.test(i.message))).toBe(true);
+  });
+});

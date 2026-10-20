@@ -49,5 +49,12 @@ export function learningPath(mod: { manifest: Manifest; intuition: Scene[]; math
   return steps;
 }
 
-/** Display name of the second study tab. */
-export const workbenchTabLabel = (m: Pick<Manifest, 'workbench'>) => (m.workbench === 'journal' ? 'Math & Journal' : 'Math & Code');
+/** Display name of the second study tab: the manifest's `workbenchLabel`, else one from the workbench. */
+export const workbenchTabLabel = (m: Pick<Manifest, 'workbench' | 'workbenchLabel'>) =>
+  m.workbenchLabel?.trim() || (m.workbench === 'journal' ? 'Math & Journal' : 'Math & Code');
+
+/** One-word form of the tab name for tight spots (dashboard progress rings). */
+export const workbenchShortLabel = (m: Pick<Manifest, 'workbench' | 'workbenchLabel'>) => {
+  const custom = m.workbenchLabel?.trim();
+  return custom ? custom.split(/[\s&/]+/)[0] : 'Math';
+};

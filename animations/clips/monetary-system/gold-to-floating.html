@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>From gold to floating money</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Monetary System · from-gold-to-floating, beats 1–6 · 6 s. Segments: 0–1.8 gold standard, 1.8–3.6 Bretton Woods, 3.6–4.0 strain, 4.0–6 crack (1971) and floating. -->
+  <div id="stage" data-composition-id="gold-to-floating" data-start="0" data-width="1280" data-height="720" data-duration="6"></div>
+  <script>
+    /*
+     * Monetary System · gold → Bretton Woods → floating (scene from-gold-to-floating, beats 1–6), 6 s.
+     *   0.0–1.8  a glowing gold bar; coins of different colours hang from it on chains, swaying in sync: "Gold standard"
+     *   1.8–3.6  the chains re-hook onto one big green $ coin, which hangs from the bar on a single thick chain;
+     *            the camera pushes in on that chain: "Bretton Woods · 1944"
+     *   3.6–4.4  the thick chain strains and cracks in a burst of particles; a "1971" stamp slams in
+     *   4.4–5.4  the coins drop onto a softly rolling sea and bob, each on its own rhythm: "Floating"
+     *   5.4–6.0  hold; the gold bar drifts up out of frame
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(6);
+      window.__timelines['gold-to-floating'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const seaL = HF.layer('sea');
+
+      // ---------------------------------------------------------------- the gold bar
+      const bar = HF.g(back);
+      const barArt = HF.g(bar, { filter: 'url(#hf-glow)' });
+      HF.el('path', { d: 'M318 66 L962 66 L1000 152 L280 152 Z', fill: HF.shade(C.gold, 0.1), stroke: HF.shade(C.gold, 0.1), 'stroke-width': 18, 'stroke-linejoin': 'round' }, barArt);
+      HF.el('path', { d: 'M322 70 L958 70 L988 134 L292 134 Z', fill: C.gold, stroke: C.gold, 'stroke-width': 12, 'stroke-linejoin': 'round' }, barArt);
+      HF.el('rect', { x: 350, y: 80, width: 260, height: 10, rx: 5, fill: HF.light(C.gold, 0.22), opacity: 0.8 }, bar);
+      HF.text(bar, 'GOLD', { x: 640, y: 126, size: 34, color: HF.shade(C.gold, 0.2), weight: 900 });
+      const BAR_Y = 158; // hooks along the underside
+
+      // ---------------------------------------------------------------- five currencies on chains
+      const COLORS = [C.teal, C.coral, '#7FD8F0', C.violet, '#EDE6CF'];
+      const MARKS = ['₱', '€', '¥', '£', '₩'];
+      const L0 = 200, CR = 28;
+      const hangers = COLORS.map((col, i) => {
+        const h = HF.g(mid);
+        const chain = HF.el('line', { x1: 0, y1: 0, x2: 0, y2: L0, stroke: '#C9D3F2', 'stroke-width': 6, 'stroke-dasharray': '10 7', 'stroke-linecap': 'round' }, h);
+        const coin = HF.g(h);
+        HF.coin(coin, { r: CR, color: col, mark: MARKS[i] });
+        gsap.set(coin, { y: L0 + CR });
+        gsap.set(h, { x: 300 + i * 170, y: BAR_Y, scale: 0, transformOrigin: '50% 0%' });
+        return { h, chain, coin };
+      });
+
+      // ---------------------------------------------------------------- the dollar and its thick chain
+      const G = { x: 640, y: 392, r: 66 };
+      const thickTop = HF.el('line', { x1: G.x, y1: BAR_Y - 6, x2: G.x, y2: 262, stroke: '#DDE4FA', 'stroke-width': 16, 'stroke-dasharray': '22 9', 'stroke-linecap': 'round' }, back);
+      const thickBot = HF.el('line', { x1: G.x, y1: 262, x2: G.x, y2: G.y - G.r + 4, stroke: '#DDE4FA', 'stroke-width': 16, 'stroke-dasharray': '22 9', 'stroke-linecap': 'round' }, back);
+      gsap.set([thickTop, thickBot], { scaleY: 0, transformOrigin: '50% 0%' });
+      const usd = HF.g(mid);
+      HF.coin(usd, { r: G.r, color: C.green, mark: '$' });
+      gsap.set(usd, { x: G.x, y: G.y, scale: 0, transformOrigin: '50% 50%' });
+
+      // ---------------------------------------------------------------- the sea (rises at the end)
+      const sea = HF.g(seaL);
+      const w1 = HF.wave(sea, { y: 616, amp: 6, len: 220, color: '#21407D' });
+      const w2 = HF.wave(sea, { y: 646, amp: 5, len: 160, color: '#2A4E93', opacity: 0.95 });
+      gsap.set(sea, { y: 220 });
+
+      // ---------------------------------------------------------------- labels
+      const lGold = HF.label('Gold standard', { x: 640, y: 560, cls: 'lg hf-gold' });
+      const lBw = HF.label('Bretton Woods · 1944', { x: 900, y: 300, cls: 'lg' });
+      const lFloat = HF.label('Floating', { x: 640, y: 300, cls: 'lg hf-teal' });
+      const stamp = HF.label('1971', { x: 930, y: 230, cls: 'lg hf-coral', hud: true });
+      stamp.style.cssText += ';border:5px solid #FF6B6B;border-radius:18px;padding:2px 18px 6px;font-size:58px';
+
+      // ================================================================ choreography
+      // 0.0–1.8 the gold standard, swaying in sync
+      HF.pop(tl, bar, 0.0, { dur: 0.35 });
+      hangers.forEach((k, i) => HF.pop(tl, k.h, 0.2 + i * 0.07, { origin: '50% 0%' }));
+      tl.to(hangers.map((k) => k.h), { keyframes: { rotation: [0, 7, -7, 5, -3, 0], easeEach: 'sine.inOut' }, transformOrigin: '50% 0%', duration: 1.4, ease: 'none' }, 0.45);
+      HF.bob(tl, bar, 0.0, 5.4, { amp: 5, period: 1.8 });
+      HF.say(tl, lGold, 0.5, 1.82);
+
+      // 1.8–3.6 the dollar on a thick chain; the currencies re-hook onto it
+      tl.to(thickTop, { scaleY: 1, duration: 0.18, ease: 'power2.out' }, 1.8);
+      tl.to(thickBot, { scaleY: 1, duration: 0.18, ease: 'power2.out' }, 1.95);
+      HF.pop(tl, usd, 2.02, { dur: 0.32 });
+      const FAN = [38, 19, 0, -19, -38]; // SVG rotation is clockwise: positive swings a hanging coin to the left
+      hangers.forEach((k, i) => {
+        const a = ((150 - i * 30) * Math.PI) / 180;
+        const hx = G.x + Math.cos(a) * (G.r - 6), hy = G.y + Math.sin(a) * (G.r - 6);
+        const at = 2.05 + i * 0.06;
+        tl.to(k.h, { y: BAR_Y + 24, duration: 0.14, ease: 'power1.in' }, at - 0.1);             // detach: drop a little
+        tl.to(k.h, { x: hx, y: hy, rotation: FAN[i], transformOrigin: '50% 0%', duration: 0.55, ease: 'power2.inOut' }, at + 0.05);
+        tl.to(k.chain, { attr: { y2: 110 }, duration: 0.55, ease: 'power2.inOut' }, at + 0.05);
+        tl.to(k.coin, { y: 110 + CR, duration: 0.55, ease: 'power2.inOut' }, at + 0.05);
+        HF.wobble(tl, k.h, at + 0.6, { amount: 5, origin: '50% 0%', base: FAN[i] });
+      });
+      HF.say(tl, lBw, 2.55, 3.62);
+      HF.camera(tl, { scale: 1.07, y: 34 }, 2.5, 1.1);
+
+      // 3.6–4.4 strain, crack, 1971
+      tl.to([thickTop, thickBot], { keyframes: { x: [0, -3, 3, -3, 2, 0] }, duration: 0.36, ease: 'none' }, 3.6);
+      tl.to(usd, { keyframes: { x: [G.x, G.x - 3, G.x + 3, G.x - 3, G.x + 2, G.x] }, duration: 0.36, ease: 'none' }, 3.6);
+      tl.to(thickBot, { keyframes: { scaleY: [1, 1.06, 1.03] }, duration: 0.36, ease: 'none' }, 3.6);
+      tl.to(usd, { y: G.y + 6, duration: 0.36, ease: 'sine.in' }, 3.6);
+      HF.burst(tl, front, { x: G.x, y: 262, n: 12, r: 110, size: 12, color: C.gold, seed: 3 }, 4.0, 0.6);
+      tl.to(thickTop, { scaleY: 0, duration: 0.3, ease: 'power2.in' }, 4.02);
+      tl.fromTo(stamp, { scale: 2.6, rotation: -14, opacity: 0 }, { scale: 1, rotation: -8, opacity: 1, duration: 0.2, ease: 'power3.in', immediateRender: true }, 4.05);
+      HF.wobble(tl, stamp, 4.25, { amount: 3, origin: '50% 50%' });
+      HF.camera(tl, { scale: 1.0, y: 0 }, 4.05, 0.6);
+
+      // 4.4–5.4 floating: everything drops onto the sea and bobs on its own rhythm
+      tl.to(sea, { y: 0, duration: 0.5, ease: 'power2.out' }, 4.1);
+      HF.loop(tl, w1, { x: 0 }, { x: -220, ease: 'none' }, 4.1, 1.9, 6);
+      HF.loop(tl, w2, { x: 0 }, { x: -160, ease: 'none' }, 4.1, 1.3, 6);
+      tl.to(thickBot, { scaleY: 0, duration: 0.25, ease: 'power2.in' }, 4.3);
+      hangers.forEach((k) => tl.to(k.chain, { opacity: 0, duration: 0.2 }, 4.32));
+      const floatAt = [
+        { x: 240, y: 598 }, { x: 420, y: 610 }, { x: 840, y: 602 }, { x: 1010, y: 592 }, { x: 1150, y: 606 },
+      ];
+      const rand = HF.rng(19);
+      hangers.forEach((k, i) => {
+        const f = floatAt[i];
+        tl.to(k.h, { x: f.x, y: f.y - CR - 110, rotation: 0, duration: 0.55, ease: 'power2.in' }, 4.4 + i * 0.04);
+        const at = 4.98 + i * 0.03;
+        const half = Math.min(0.32 + rand() * 0.2, (5.98 - at) / 2); // each coin bobs on its own rhythm, within the film
+        tl.fromTo(k.coin, { y: 110 + CR }, { y: 110 + CR - 9 - i % 3 * 3, duration: half, ease: 'sine.inOut', yoyo: true, repeat: 1, immediateRender: false }, at);
+      });
+      tl.to(usd, { x: 630, y: 590, duration: 0.6, ease: 'power2.in' }, 4.42);
+      tl.fromTo(usd, { rotation: 0 }, { keyframes: { rotation: [0, -8, 6, -3] }, duration: 0.95, ease: 'none', transformOrigin: '50% 50%', immediateRender: false }, 5.02);
+      tl.to(usd, { keyframes: { y: [590, 578, 587] }, duration: 0.95, ease: 'none' }, 5.02);
+      HF.say(tl, lFloat, 4.6);
+
+      // 5.4–6.0 the gold bar drifts away
+      tl.to(bar, { y: -260, duration: 0.6, ease: 'power1.in' }, 5.4);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

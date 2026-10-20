@@ -6,6 +6,7 @@
  *   kodigo unbundle <file.txt> [outDir] split LLM bundle text into a module folder
  *   kodigo widgets-doc <out.md>         generate WIDGETS.md from the widget catalog
  *   kodigo json-schema <out.json>       export the module JSON Schemas
+ *   kodigo animation <render> <prefix>  convert a HyperFrames render to .webm + .mp4 + poster for the Animation widget
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,6 +15,7 @@ import {
   type FileMap,
 } from '@kodigo/schema';
 import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
+import { parseAnimationArgs, convertAnimation } from './animation';
 
 const c = {
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
@@ -125,8 +127,13 @@ async function main() {
       await fs.writeFile(out, JSON.stringify(moduleJsonSchemas(), null, 2));
       return console.log(c.green(`wrote ${out}`));
     }
+    case 'animation': {
+      const { input, out, opts } = parseAnimationArgs(rest);
+      convertAnimation(input, out, opts);
+      return;
+    }
     default:
-      console.log('kodigo <validate|pack|unbundle|widgets-doc|json-schema> …');
+      console.log('kodigo <validate|pack|unbundle|widgets-doc|json-schema|animation> …');
       if (cmd) process.exitCode = 1;
   }
 }

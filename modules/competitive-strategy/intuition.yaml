@@ -144,7 +144,7 @@ scenes:
     title: Getting cheaper as you grow
     goal: Why can a large producer sell at a price that a small one cannot match?
     skills: [cost-leadership]
-    state: { fixedCost: 20000, variableCost: 5, units: 1000, firstCost: 100, rate: 0.8, doublings: 2 }
+    state: { fixedCost: 20000, variableCost: 5, units: 1000, firstCost: 100, rate: 0.8, doublings: 2, animFrom: 0, animTo: 0.8 }
     derive:
       - { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' }, out: a }
       - { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' }, out: l }
@@ -183,17 +183,33 @@ scenes:
         region: bottom
         hidden: true
         props: { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' }, roles: { r: r2 }, speed: 0.8 }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/economies-of-scale.webm, assets/anim/economies-of-scale.mp4]
+          poster: assets/anim/economies-of-scale.poster.jpg
+          alt: |
+            A block of fixed cost, 20,000 dollars of rent and machines, is sliced onto product boxes over a 5-dollar base: 25
+            dollars a unit. As more boxes pour in, up to 4,000, the slices get thinner and the cost per unit falls to 10 dollars.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.8, 2.0, 2.8, 3.6, 5]
     beats:
       - say: |
           A plant has 20,000 dollars of fixed costs, such as rent and machines, and 5 dollars of variable cost per unit.
           **Economies of scale** are the fall in average cost per unit as the plant gets bigger and output rises.
         define: [economies-of-scale]
+        show: [anim]
         gate:
           type: predict
           question: What is the average cost per unit when the plant makes 1,000 units?
           answer: { value: 25, tol: 0.01 }
           explain: 20,000 ÷ 1,000 = 20 of fixed cost per unit, plus 5 variable, makes 25 dollars.
       - say: Watch it computed.
+        set: { animFrom: 0.8, animTo: 5 }
         show: [player1]
         gate:
           type: event
@@ -212,7 +228,7 @@ scenes:
           Repetition also makes work cheaper. The **learning curve** is the drop in cost per unit as a firm repeats a task
           again and again. Say each doubling of output cuts cost to 80% of what it was. The first unit costs 100.
         define: [learning-curve]
-        hide: [r1, qty]
+        hide: [r1, qty, anim]
         show: [r2]
         gate:
           type: predict

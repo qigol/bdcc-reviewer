@@ -282,7 +282,7 @@ scenes:
     title: Who pays for the ship?
     goal: When a seller quotes a price for goods that must cross the sea, what costs does that price include?
     skills: [intl-law, incoterms]
-    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: CIF }
+    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: CIF, animFrom: 0, animTo: 2.6 }
     derive:
       - { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, out: i }
     stage:
@@ -312,6 +312,21 @@ scenes:
         region: bottom
         hidden: true
         props: { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, roles: { r: r }, speed: 0.8 }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/incoterms.webm, assets/anim/incoterms.mp4]
+          poster: assets/anim/incoterms.poster.jpg
+          alt: |
+            At a night port a truck carries a container to the quay edge (FAS, 19,500), a crane lifts it on board and the risk
+            passes to the buyer (FOB, 20,000), the ship sails as freight coins drop in (CFR, 22,000), and an umbrella of insurance
+            opens over it (CIF, 22,300).
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.7, 1.6, 2.6, 3.4, 4.4, 6]
     beats:
       - say: |
           Words like "price" mean different things on a ship. **Incoterms** are standard trade terms from the International
@@ -321,10 +336,12 @@ scenes:
           Start with **FOB**, free on board: the seller puts the goods on board the ship at the port of shipment, and the
           risk passes to the buyer once they are on board. Our goods cost 20,000 on board.
         define: [fob]
+        show: [anim]
       - say: |
           **FAS**, free alongside ship, stops sooner. The seller pays up to the side of the ship and the risk passes to
           the buyer there, so the buyer pays for loading.
         define: [fas]
+        set: { animFrom: 0.7, animTo: 1.6 }
       - say: |
           **CFR**, cost and freight, adds the sea freight to the price; the buyer buys the insurance. **CIF**, cost,
           insurance and freight, adds insurance as well. Freight is 2,000 and insurance is 300.
@@ -335,12 +352,14 @@ scenes:
           answer: { value: 22300, tol: 0.5 }
           explain: 20,000 + 2,000 freight + 300 insurance = 22,300.
       - say: Choose CFR and see the price change.
+        set: { animFrom: 2.6, animTo: 6 }
         gate:
           type: when
           prompt: Switch the term to CFR.
           when: "term == 'CFR'"
           hint: Use the Term buttons.
       - say: Walk through how each term builds the price.
+        hide: [anim]
         show: [player]
         gate:
           type: event

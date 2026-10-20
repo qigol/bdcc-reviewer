@@ -141,7 +141,7 @@ scenes:
     goal: Why does a dollar of income go much further in some countries than in others?
     skills: [ppp]
     data: [basket]
-    state: { atlas: 10590, ppp: 36920 }
+    state: { atlas: 10590, ppp: 36920, animFrom: 0, animTo: 1.8 }
     derive:
       - { fn: basketPPP, in: { table: '@basket' }, out: b }
       - { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, out: a }
@@ -172,6 +172,20 @@ scenes:
         region: bottom
         hidden: true
         props: { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, roles: { r: r2 }, speed: 0.8 }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/ppp-scale.webm, assets/anim/ppp-scale.mp4]
+          poster: assets/anim/ppp-scale.poster.jpg
+          alt: |
+            A balance scale fills with the same five goods on each side, tagged 1,865 baht and 160.05 dollars, and tips toward the
+            dollar. A dial of baht per dollar then spins up as baht beads pour in, until the scale levels at about 11.65.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [1.2, 1.8, 2.8, 4.3, 5]
     beats:
       - say: |
           To compare incomes, we turn each into dollars with an **exchange rate**: the price of one currency in another.
@@ -182,12 +196,14 @@ scenes:
           lecture prices five goods in Thailand (in baht) and the United States (in dollars): soap, rice, shoes, a dress
           and socks.
         define: [purchasing-power-parity]
+        show: [anim]
         gate:
           type: predict
           question: The baskets cost 1,865 baht and 160.05 dollars. Roughly how many baht per dollar does PPP imply?
           answer: { value: 11.65, tol: 0.05 }
           explain: 1,865 ÷ 160.05 = 11.65 baht per dollar.
       - say: Add the baskets good by good.
+        set: { animFrom: 1.8, animTo: 5 }
         show: [player1]
         gate:
           type: event
@@ -198,7 +214,7 @@ scenes:
           Two more ideas. **Inflation** is a sustained rise in prices. The **Atlas conversion factor** is the World Bank's
           exchange rate: an average over three years, adjusted for inflation, to smooth out swings.
         define: [inflation, atlas-conversion-factor]
-        hide: [r1, player1]
+        hide: [r1, player1, anim]
         show: [r2]
       - say: |
           Turkey's income is 10,590 dollars at Atlas rates but 36,920 dollars at PPP. Estimate how many times as large.

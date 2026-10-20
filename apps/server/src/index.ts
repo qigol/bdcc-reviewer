@@ -47,6 +47,7 @@ const CSP = [
   "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
+  "media-src 'self' blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
   "frame-src 'self'",
@@ -83,13 +84,27 @@ app.get<{ Params: { id: string; '*': string } }>('/api/modules/:id/files/*', asy
   const rel = normalizePath(req.params['*'] ?? '');
   const full = path.resolve(r.dir, rel);
   if (!full.startsWith(path.resolve(r.dir) + path.sep)) return reply.code(400).send({ error: 'bad path' });
-  if (!fs.existsSync(full)) return reply.code(404).send({ error: 'not found' });
+  if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return reply.code(404).send({ error: 'not found' });
   const ext = path.extname(full).toLowerCase();
   const types: Record<string, string> = {
     '.pdf': 'application/pdf', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+    '.apng': 'image/apng', '.webm': 'video/webm', '.mp4': 'video/mp4', '.m4v': 'video/mp4',
     '.yaml': 'text/yaml; charset=utf-8', '.yml': 'text/yaml; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json',
   };
   reply.header('content-type', types[ext] ?? (isTextPath(full) ? 'text/plain; charset=utf-8' : 'application/octet-stream'));
+  // byte ranges: browsers seek video with them, and Safari won't play an .mp4 without them
+  const size = fs.statSync(full).size;
+  reply.header('accept-ranges', 'bytes');
+  const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+  if (range && (range[1] || range[2])) {
+    // "bytes=a-b", "bytes=a-" (to the end) or "bytes=-n" (the last n bytes)
+    const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (start >= size || start > end) return reply.code(416).header('content-range', `bytes */${size}`).send();
+    reply.code(206).header('content-range', `bytes ${start}-${end}/${size}`).header('content-length', end - start + 1);
+    return reply.send(fs.createReadStream(full, { start, end }));
+  }
+  reply.header('content-length', size);
   return reply.send(fs.createReadStream(full));
 });
 
@@ -139,14 +154,17 @@ async function filesFromRequest(req: FastifyRequest): Promise<FileMap> {
   return files;
 }
 
-app.post<{ Querystring: { allowDowngrade?: string; dryRun?: string } }>('/api/modules', async (req, reply) => {
+// keepAssets=1: a re-import from pasted bundle text keeps the installed version's assets/ and sources/ (guide §9a.2)
+app.post<{ Querystring: { allowDowngrade?: string; dryRun?: string; keepAssets?: string } }>('/api/modules', async (req, reply) => {
   if (!requireAdmin(req, reply)) return;
-  const files = await filesFromRequest(req);
+  let files = await filesFromRequest(req);
+  const keepAssets = !!req.query.keepAssets;
   if (req.query.dryRun) {
+    if (keepAssets) files = await registry.withInstalledAssets(files);
     const { module: _m, ...report } = await registry.validate(files);
     return { ok: report.ok, report };
   }
-  const r = await registry.install(files, { allowDowngrade: !!req.query.allowDowngrade });
+  const r = await registry.install(files, { allowDowngrade: !!req.query.allowDowngrade, keepAssets });
   return reply.code(r.status).send(r);
 });
 

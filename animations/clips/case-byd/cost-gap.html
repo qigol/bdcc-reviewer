@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Where BYD's cost edge comes from</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- BYD case · why-so-cheap, beat 3 · 5 s. -->
+  <div id="stage" data-composition-id="cost-gap" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * BYD case · where the $4,700 comes from (scene why-so-cheap, beat 3), 5 s.
+     *   0.0–0.8  two cars on a dark road; a tall coral cost tower over the rival, the same base outlined in teal over BYD,
+     *            and a glowing $4,700 gap bracket between their tops
+     *   0.8–2.2  "Supplier margin −2,400" slides off the rival tower and tumbles away; gear parts zip into BYD's factory
+     *   2.2–3.4  "Admin + R&D −1,700" slides off
+     *   3.4–4.3  "Labor, battery, subsidy −600" crumbles into three pebbles; the towers stand level
+     *   4.3–5.0  hold; the gap bracket collapses to zero with a sparkle
+     * Tower blocks are drawn at 0.05 px per dollar of cost difference (2,400 → 120 px).
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['cost-gap'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const roadL = HF.layer('road');
+      const back = HF.layer('back');
+      const blocksL = HF.layer('blocks');
+      const fx = HF.layer('fx');
+
+      const ROAD = 600, BASE_TOP = 330, TW = 280;
+      const RX = 380, BX = 900; // tower / car centres
+      const PXD = 0.05;
+      const parts = [
+        { label: 'Supplier margin', amt: 2400 },
+        { label: 'Admin + R&D', amt: 1700 },
+        { label: 'Labor, battery, subsidy', amt: 600 },
+      ];
+
+      // ---------------------------------------------------------------- road and cars
+      const road = HF.g(roadL);
+      HF.el('rect', { x: -100, y: ROAD - 20, width: 1480, height: 160, fill: '#121F42' }, road);
+      HF.el('rect', { x: -100, y: ROAD - 24, width: 1480, height: 6, fill: '#2C3F7E' }, road);
+      const lane = HF.el('line', { x1: -100, y1: ROAD + 52, x2: 1400, y2: ROAD + 52, stroke: '#3A4F92', 'stroke-width': 8, 'stroke-dasharray': '50 40', 'stroke-linecap': 'round' }, road);
+      HF.loop(tl, lane, { strokeDashoffset: 0 }, { strokeDashoffset: -90, ease: 'none' }, 0, 1.0, 5);
+
+      function car(cx, color, name) {
+        const g = HF.g(back);
+        HF.el('path', { d: `M${cx - 120} ${ROAD - 30} L${cx - 120} ${ROAD - 62} Q${cx - 118} ${ROAD - 82} ${cx - 92} ${ROAD - 84} L${cx - 60} ${ROAD - 86} L${cx - 26} ${ROAD - 122} Q${cx - 18} ${ROAD - 130} ${cx - 4} ${ROAD - 130} L${cx + 46} ${ROAD - 130} Q${cx + 62} ${ROAD - 130} ${cx + 72} ${ROAD - 118} L${cx + 96} ${ROAD - 86} L${cx + 108} ${ROAD - 84} Q${cx + 124} ${ROAD - 80} ${cx + 124} ${ROAD - 62} L${cx + 124} ${ROAD - 30} Z`, fill: HF.shade(color, 0.12) }, g);
+        HF.el('path', { d: `M${cx - 120} ${ROAD - 44} L${cx - 120} ${ROAD - 62} Q${cx - 118} ${ROAD - 82} ${cx - 92} ${ROAD - 84} L${cx - 60} ${ROAD - 86} L${cx - 26} ${ROAD - 122} Q${cx - 18} ${ROAD - 130} ${cx - 4} ${ROAD - 130} L${cx + 46} ${ROAD - 130} Q${cx + 62} ${ROAD - 130} ${cx + 72} ${ROAD - 118} L${cx + 96} ${ROAD - 86} L${cx + 108} ${ROAD - 84} Q${cx + 124} ${ROAD - 80} ${cx + 124} ${ROAD - 62} L${cx + 124} ${ROAD - 44} Z`, fill: color }, g);
+        HF.el('path', { d: `M${cx - 46} ${ROAD - 88} L${cx - 18} ${ROAD - 116} L${cx + 14} ${ROAD - 116} L${cx + 14} ${ROAD - 88} Z`, fill: '#BFE9F5', opacity: 0.85 }, g);
+        HF.el('path', { d: `M${cx + 24} ${ROAD - 88} L${cx + 24} ${ROAD - 116} L${cx + 58} ${ROAD - 116} L${cx + 80} ${ROAD - 88} Z`, fill: '#BFE9F5', opacity: 0.85 }, g);
+        HF.el('rect', { x: cx - 96, y: ROAD - 76, width: 70, height: 7, rx: 3.5, fill: HF.light(color, 0.2), opacity: 0.6 }, g);
+        HF.el('rect', { x: cx + 108, y: ROAD - 68, width: 14, height: 10, rx: 4, fill: C.gold }, g);
+        for (const wx of [-72, 78]) { HF.disc(g, { x: cx + wx, y: ROAD - 28, r: 26, color: '#1A2858', hi: false }); HF.disc(g, { x: cx + wx, y: ROAD - 28, r: 11, color: '#7F95D6', hi: false }); }
+        HF.text(g, name, { x: cx, y: ROAD + 90, size: 28, color: C.text, weight: 900 });
+        return g;
+      }
+      const rivalCar = car(RX, '#8FA3D9', 'Rival');
+      const bydCar = car(BX, C.teal, 'BYD');
+
+      // ---------------------------------------------------------------- towers
+      const TOWER_BOTTOM = ROAD - 150;
+      const baseH = TOWER_BOTTOM - BASE_TOP;
+      const rival = HF.g(back);
+      HF.box(rival, { x: RX - TW / 2, y: BASE_TOP, w: TW, h: baseH, r: 16, color: C.coral, shadeSide: 'right' });
+      const byd = HF.g(back);
+      HF.el('rect', { x: BX - TW / 2 + 4, y: BASE_TOP + 4, width: TW - 8, height: baseH - 8, rx: 14, fill: C.teal, 'fill-opacity': 0.12, stroke: C.teal, 'stroke-width': 7 }, byd);
+
+      // the extra blocks on the rival tower, top to bottom: supplier margin, admin + R&D, labor/battery/subsidy
+      let y = BASE_TOP;
+      const blocks = [...parts].reverse().map((p) => {
+        const h = p.amt * PXD;
+        y -= h;
+        const g = HF.g(blocksL);
+        HF.box(g, { x: RX - TW / 2, y, w: TW, h: h - 4, r: Math.min(14, h / 2 - 2), color: HF.shade(C.coral, p.amt > 2000 ? 0.0 : p.amt > 1000 ? 0.05 : 0.1), hi: h > 30 });
+        HF.text(g, `${p.label} −${HF.fmt(p.amt)}`, { x: RX, y: y + h / 2 + 7, size: h > 40 ? 22 : 17, color: C.text, weight: 900 });
+        return { g, h, top: y, ...p };
+      }).reverse(); // back in removal order: supplier (top) first
+      const RIVAL_TOP = y;
+
+      // ---------------------------------------------------------------- the gap bracket
+      const GX = 640;
+      const br = HF.g(fx, { filter: 'url(#hf-glow)' });
+      const brLine = HF.el('line', { x1: GX, y1: RIVAL_TOP, x2: GX, y2: BASE_TOP, stroke: C.gold, 'stroke-width': 6, 'stroke-linecap': 'round' }, br);
+      const brTop = HF.el('line', { x1: GX - 18, y1: RIVAL_TOP, x2: GX + 18, y2: RIVAL_TOP, stroke: C.gold, 'stroke-width': 6, 'stroke-linecap': 'round' }, br);
+      const brBot = HF.el('line', { x1: GX - 18, y1: BASE_TOP, x2: GX + 18, y2: BASE_TOP, stroke: C.gold, 'stroke-width': 6, 'stroke-linecap': 'round' }, br);
+      const guideA = HF.el('line', { x1: RX + TW / 2 + 8, y1: RIVAL_TOP, x2: GX - 22, y2: RIVAL_TOP, stroke: C.gold, 'stroke-width': 3, 'stroke-dasharray': '4 8', 'stroke-linecap': 'round', opacity: 0.7 }, fx);
+      const guideB = HF.el('line', { x1: GX + 22, y1: BASE_TOP, x2: BX - TW / 2 - 8, y2: BASE_TOP, stroke: C.gold, 'stroke-width': 3, 'stroke-dasharray': '4 8', 'stroke-linecap': 'round', opacity: 0.7 }, fx);
+      const gap = HF.label('$<span class="hf-num">4,700</span>', { x: GX + 30, y: (RIVAL_TOP + BASE_TOP) / 2, anchor: 'left', cls: 'lg hf-gold', html: true });
+      const gapNum = gap.querySelector('.hf-num');
+      gsap.set([br, guideA, guideB], { opacity: 0 });
+
+      // BYD's own factory (in-house parts) and the gears that zip into it
+      const fac = HF.g(back);
+      const FX = 1160, FY = ROAD - 30;
+      HF.el('path', { d: `M${FX - 56} ${FY - 60} L${FX - 56} ${FY - 84} L${FX - 22} ${FY - 66} L${FX - 22} ${FY - 84} L${FX + 12} ${FY - 66} L${FX + 12} ${FY - 84} L${FX + 56} ${FY - 60} Z`, fill: HF.shade(C.teal, 0.14) }, fac);
+      HF.box(fac, { x: FX - 56, y: FY - 64, w: 112, h: 64, r: 12, color: C.teal });
+      HF.box(fac, { x: FX - 14, y: FY - 34, w: 28, h: 34, r: 8, color: HF.shade(C.teal, 0.3), hi: false });
+      gsap.set(fac, { scale: 0, transformOrigin: '50% 100%' });
+      function gear(parent, r) {
+        const g = HF.g(parent);
+        for (let k = 0; k < 6; k++) HF.el('rect', { x: -r * 0.28, y: -r * 1.25, width: r * 0.56, height: r * 0.7, rx: r * 0.15, fill: C.teal, transform: `rotate(${k * 60})` }, g);
+        HF.el('circle', { cx: 0, cy: 0, r, fill: C.teal }, g);
+        HF.el('circle', { cx: 0, cy: 0, r: r * 0.4, fill: '#13254B' }, g);
+        return g;
+      }
+      const gears = [0, 1, 2, 3].map(() => { const g = HF.g(fx); gear(g, 11); gsap.set(g, { x: -100, y: -100 }); return g; });
+      const pebbles = [0, 1, 2].map(() => { const g = HF.g(fx); HF.disc(g, { r: 9, color: HF.shade(C.coral, 0.1) }); gsap.set(g, { x: -100, y: -100 }); return g; });
+
+      // ================================================================ choreography
+      // 0.0–0.8 the scene
+      HF.pop(tl, [rivalCar, bydCar], 0.0, { origin: '50% 100%', stagger: 0.08 });
+      HF.pop(tl, [rival, byd], 0.18, { origin: '50% 100%', stagger: 0.08 });
+      blocks.slice().reverse().forEach((b, i) => HF.pop(tl, b.g, 0.3 + i * 0.07, { origin: '50% 100%' }));
+      tl.to([guideA, guideB], { opacity: 0.7, duration: 0.2 }, 0.55);
+      tl.to(br, { opacity: 1, duration: 0.25 }, 0.55);
+      HF.pop(tl, gap, 0.62, { origin: '0% 50%' });
+
+      /** the bracket follows the rival tower's top down to `top`, counting the gap */
+      function shrink(top, from, to, at, dur) {
+        tl.to(brLine, { attr: { y1: top }, duration: dur, ease: 'power2.inOut' }, at);
+        tl.to(brTop, { attr: { y1: top, y2: top }, duration: dur, ease: 'power2.inOut' }, at);
+        tl.to(guideA, { attr: { y1: top, y2: top }, duration: dur, ease: 'power2.inOut' }, at);
+        tl.to(gap, { top: (top + BASE_TOP) / 2, duration: dur, ease: 'power2.inOut' }, at);
+        HF.count(gapNum, from, to, at, dur, { easeName: 'power2.inOut' });
+      }
+
+      // 0.8–2.2 supplier margin slides off and tumbles; gears zip into BYD's factory
+      const [sup, adm, lab] = blocks;
+      tl.to(sup.g, { x: -150, duration: 0.45, ease: 'power2.in' }, 0.85);
+      tl.to(sup.g, { y: 520, rotation: -70, transformOrigin: '0% 100%', duration: 0.7, ease: 'power2.in' }, 1.25);
+      tl.to(sup.g, { opacity: 0, duration: 0.25 }, 1.75);
+      shrink(adm.top, 4700, 2300, 1.05, 0.7);
+      HF.pop(tl, fac, 1.2, { origin: '50% 100%' });
+      gears.forEach((g, i) => {
+        const at = 1.35 + i * 0.12;
+        HF.arc(tl, g, { x0: 1320, y0: 200 + i * 40, x1: FX + (i - 1.5) * 14, y1: FY - 50 }, at, 0.45, { fall: 'power2.in', spin: 360 });
+        tl.to(g, { scale: 0, duration: 0.1, transformOrigin: '50% 50%' }, at + 0.44);
+      });
+      HF.land(tl, fac, 1.95, { amount: 0.1 });
+
+      // 2.2–3.4 admin + R&D slides off
+      tl.to(adm.g, { x: -150, duration: 0.42, ease: 'power2.in' }, 2.25);
+      tl.to(adm.g, { y: 540, rotation: -60, transformOrigin: '0% 100%', duration: 0.65, ease: 'power2.in' }, 2.62);
+      tl.to(adm.g, { opacity: 0, duration: 0.25 }, 3.1);
+      shrink(lab.top, 2300, 600, 2.4, 0.7);
+
+      // 3.4–4.3 the last block crumbles into three pebbles; the towers are level
+      tl.to(lab.g, { keyframes: { x: [0, -3, 3, -2, 0] }, duration: 0.25, ease: 'none' }, 3.4);
+      tl.to(lab.g, { scaleY: 0, scaleX: 0.6, opacity: 0, transformOrigin: '50% 100%', duration: 0.25, ease: 'power2.in' }, 3.62);
+      pebbles.forEach((p, i) => {
+        const x0 = RX - 50 + i * 50;
+        HF.arc(tl, p, { x0, y0: BASE_TOP - 12, x1: x0 + (i - 1) * 60 - 40, y1: ROAD - 6 }, 3.66 + i * 0.05, 0.5, { fall: 'power2.in', spin: 120 });
+      });
+      shrink(BASE_TOP, 600, 0, 3.65, 0.6);
+      HF.wobble(tl, rival, 4.1, { amount: 2 });
+
+      // 4.3–5.0 the bracket collapses with a sparkle
+      tl.to([br, guideA, guideB], { opacity: 0, duration: 0.3 }, 4.3);
+      HF.popOut(tl, gap, 4.45);
+      HF.burst(tl, fx, { x: GX, y: BASE_TOP, n: 8, r: 70, size: 13, color: C.gold }, 4.32, 0.6);
+
+      HF.camera(tl, { scale: 1.04, y: -4 }, 0, 4.3);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Purchasing power parity</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Economic Forces · same-money-different-baskets, beat 1 · 5 s. Hold for the predict gate at 1.8 (before the dial spins). -->
+  <div id="stage" data-composition-id="ppp-scale" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Economic Forces · purchasing power parity (scene same-money-different-baskets, beat 1), 5 s.
+     *   0.0–1.2  a balance scale rises; both baskets fill with soap, rice, shoes, a dress and socks; tags ฿1,865 and $160.05
+     *   1.2–1.8  one baht bead against one dollar coin: the dollar side slams down, the goods jiggle
+     *   1.8–3.8  the "baht per dollar" dial spins up from 1 while baht beads stream onto the left tray; the scale lifts
+     *   3.8–4.3  it clicks level with a sparkle; the dial reads ≈ 11.65
+     *   4.3–5.0  hold: "PPP rate: same basket, same price"
+     * The beam's tilt is one tweened number (S.angle); the trays hang level from its ends (positions derived from it).
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['ppp-scale'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const rig = HF.layer('rig');
+      const top = HF.layer('top');
+
+      const P = { x: 640, y: 352 }, R = 330, HANG = 150;
+      const S = { angle: 0 }; // beam tilt in degrees; positive = right side down
+      const STAND = '#7F95D6';
+
+      // ---------------------------------------------------------------- the scale
+      const stand = HF.g(rig);
+      HF.el('path', { d: `M${P.x - 130} 660 Q${P.x - 120} 622 ${P.x - 60} 618 L${P.x + 60} 618 Q${P.x + 120} 622 ${P.x + 130} 660 Z`, fill: HF.shade(STAND, 0.12) }, stand);
+      HF.box(stand, { x: P.x - 14, y: P.y, w: 28, h: 622 - P.y, r: 12, color: STAND, shadeSide: 'right' });
+      const beam = HF.g(rig);
+      HF.box(beam, { x: P.x - R - 12, y: P.y - 11, w: 2 * R + 24, h: 22, r: 11, color: STAND });
+      HF.disc(beam, { x: P.x - R, y: P.y, r: 13, color: HF.shade(STAND, 0.05) });
+      HF.disc(beam, { x: P.x + R, y: P.y, r: 13, color: HF.shade(STAND, 0.05) });
+      HF.disc(rig, { x: P.x, y: P.y, r: 22, color: C.gold });
+
+      function tray(side) {
+        const t = HF.g(rig);
+        HF.el('path', { d: `M0 0 L-104 ${HANG} M0 0 L104 ${HANG}`, stroke: '#C9D3F2', 'stroke-width': 3, opacity: 0.7, fill: 'none' }, t);
+        HF.el('path', { d: `M-128 ${HANG} L128 ${HANG} Q120 ${HANG + 30} 90 ${HANG + 32} L-90 ${HANG + 32} Q-120 ${HANG + 30} -128 ${HANG} Z`, fill: HF.shade(STAND, 0.1) }, t);
+        HF.el('rect', { x: -128, y: HANG - 6, width: 256, height: 12, rx: 6, fill: STAND }, t);
+        // basket
+        const bk = HF.g(t);
+        const BASKET = HF.shade(C.gold, 0.22);
+        HF.el('path', { d: `M-92 ${HANG - 6} L-100 ${HANG - 62} L100 ${HANG - 62} L92 ${HANG - 6} Z`, fill: HF.shade(BASKET, 0.1) }, bk);
+        for (let i = 0; i < 3; i++) HF.el('rect', { x: -98 + i * 2, y: HANG - 56 + i * 17, width: 196 - i * 4, height: 9, rx: 4.5, fill: BASKET }, bk);
+        HF.el('rect', { x: -106, y: HANG - 68, width: 212, height: 12, rx: 6, fill: HF.light(BASKET, 0.06) }, bk);
+        const goods = HF.g(t);
+        return { t, goods, side };
+      }
+      const L = tray('L'), Rt = tray('R');
+
+      // five goods, the same in each basket (drawn standing on the basket rim at y = HANG − 68)
+      const RIM = HANG - 66;
+      function goods(parent) {
+        const out = [];
+        const at = (x) => { const g = HF.g(parent); gsap.set(g, { x, y: RIM }); out.push(g); return g; };
+        let g = at(-76); HF.box(g, { x: -20, y: -26, w: 40, h: 26, r: 9, color: '#7FD8F0' }); HF.disc(g, { x: 10, y: -32, r: 6, color: '#DDF6FC', hi: false });   // soap
+        g = at(-38); HF.el('path', { d: 'M-18 0 L-14 -40 Q0 -48 14 -40 L18 0 Z', fill: '#EDE6CF' }, g); HF.el('path', { d: 'M-10 -40 L10 -40 L6 -48 L-6 -48 Z', fill: HF.shade('#EDE6CF', 0.2) }, g); // rice sack
+        g = at(2); HF.el('path', { d: 'M-22 0 L-22 -18 Q-22 -30 -10 -30 L0 -30 L4 -14 Q18 -14 24 -6 L24 0 Z', fill: C.coral }, g); HF.el('rect', { x: -22, y: -5, width: 46, height: 5, rx: 2.5, fill: HF.shade(C.coral, 0.2) }, g); // shoe
+        g = at(42); HF.el('path', { d: 'M-8 -48 L8 -48 L10 -36 L22 0 L-22 0 L-10 -36 Z', fill: C.violet }, g); HF.el('rect', { x: -10, y: -38, width: 20, height: 5, rx: 2.5, fill: HF.light(C.violet, 0.2) }, g); // dress
+        g = at(78); HF.el('path', { d: 'M-8 -40 L6 -40 L6 -12 L18 -12 Q22 -12 22 -6 Q22 0 16 0 L-4 0 Q-8 0 -8 -4 Z', fill: C.teal }, g); HF.el('rect', { x: -8, y: -40, width: 14, height: 7, rx: 3, fill: HF.light(C.teal, 0.2) }, g); // sock
+        gsap.set(out, { scale: 0, transformOrigin: '50% 100%' });
+        return out;
+      }
+      const gL = goods(L.goods), gR = goods(Rt.goods);
+
+      // price tags hanging under the trays
+      function tag(t, str, color) {
+        const g = HF.g(t);
+        HF.box(g, { x: -78, y: HANG + 46, w: 156, h: 46, r: 23, color: '#13254B', hi: false, shadeK: 0.03 });
+        HF.text(g, str, { x: 0, y: HANG + 79, size: 28, color, weight: 900 });
+        gsap.set(g, { scale: 0, transformOrigin: '50% 0%' });
+        return g;
+      }
+      const tagL = tag(L.t, '฿1,865', C.gold), tagR = tag(Rt.t, '$160.05', C.gold);
+
+      // money on the trays: baht beads (left) and one dollar coin (right)
+      const BEADS = 14;
+      const beads = [];
+      for (let i = 0; i < BEADS + 1; i++) {
+        const b = HF.g(L.t);
+        HF.disc(b, { r: 10, color: C.gold });
+        beads.push(b);
+        gsap.set(b, { x: -400, y: -400 });
+      }
+      const dollar = HF.g(Rt.t);
+      HF.coin(dollar, { r: 20, mark: '$' });
+      gsap.set(dollar, { x: 52, y: -260, scale: 0, transformOrigin: '50% 50%' });
+
+      // tray positions follow the beam (a pure function of S.angle)
+      const apply = () => {
+        const a = (S.angle * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+        beam.setAttribute('transform', `rotate(${S.angle} ${P.x} ${P.y})`);
+        L.t.setAttribute('transform', `translate(${P.x - R * c} ${P.y - R * s})`);
+        Rt.t.setAttribute('transform', `translate(${P.x + R * c} ${P.y + R * s})`);
+      };
+      apply();
+      HF.every(apply);
+
+      // ---------------------------------------------------------------- the dial (baht per dollar)
+      const D = { x: 640, y: 150, r: 74 };
+      const dial = HF.g(top);
+      HF.el('path', { d: `M${D.x - D.r} ${D.y} A${D.r} ${D.r} 0 0 1 ${D.x + D.r} ${D.y} Z`, fill: HF.shade(C.gold, 0.06) }, dial);
+      HF.el('path', { d: `M${D.x - D.r + 12} ${D.y} A${D.r - 12} ${D.r - 12} 0 0 1 ${D.x + D.r - 12} ${D.y} Z`, fill: '#13254B' }, dial);
+      for (let k = 0; k <= 15; k += 5) {
+        const a = Math.PI - (k / 15) * Math.PI;
+        HF.el('circle', { cx: D.x + Math.cos(a) * (D.r - 22), cy: D.y - Math.sin(a) * (D.r - 22), r: 3, fill: C.gold, opacity: 0.8 }, dial);
+      }
+      const needle = HF.g(dial);
+      HF.el('rect', { x: D.x - 4, y: D.y - D.r + 18, width: 8, height: D.r - 18, rx: 4, fill: C.coral }, needle);
+      HF.disc(dial, { x: D.x, y: D.y, r: 10, color: C.coral, hi: false });
+      const val = HF.text(dial, '1.00', { x: D.x, y: D.y + 44, size: 34, color: C.gold, weight: 900 });
+      HF.text(dial, 'baht per dollar', { x: D.x, y: D.y + 72, size: 20, color: C.text, weight: 800, opacity: 0.85 });
+      const approx = HF.text(dial, '≈', { x: D.x - 62, y: D.y + 44, size: 30, color: C.gold, weight: 900, opacity: 0 });
+      const angleFor = (rate) => -90 + (rate / 15) * 180;
+      gsap.set(needle, { rotation: angleFor(1), svgOrigin: `${D.x} ${D.y}` });
+      gsap.set(dial, { scale: 0, transformOrigin: '50% 60%' });
+
+      const lPpp = HF.label('PPP rate: same basket, same price', { x: 640, y: 680, cls: 'lg pill', hud: true });
+
+      // ================================================================ choreography
+      // 0.0–1.2 the scale rises; baskets fill
+      tl.fromTo(rig, { y: 460 }, { y: 0, duration: 0.55, ease: 'back.out(1.25)', immediateRender: true }, 0.0);
+      gL.forEach((g, i) => HF.pop(tl, g, 0.42 + i * 0.13, { origin: '50% 100%' }));
+      gR.forEach((g, i) => HF.pop(tl, g, 0.48 + i * 0.13, { origin: '50% 100%' }));
+      HF.pop(tl, tagL, 0.98, { origin: '50% 0%' });
+      HF.pop(tl, tagR, 1.06, { origin: '50% 0%' });
+
+      // 1.2–1.8 one bead against one coin: the dollar side slams down
+      HF.arc(tl, beads[0], { x0: -60, y0: -220, x1: -40, y1: HANG - 76 }, 1.08, 0.24, { fall: 'power2.in' });
+      tl.to(dollar, { scale: 1, duration: 0.08 }, 1.1);
+      tl.to(dollar, { y: HANG - 88, duration: 0.22, ease: 'power2.in' }, 1.1);
+      tl.to(S, { keyframes: { angle: [0, 16, 11, 13.5, 12.5], easeEach: 'power2.out' }, duration: 0.42, ease: 'none' }, 1.32); // settles by 1.75
+      HF.wobble(tl, [...gL, ...gR], 1.34, { amount: 9, dur: 0.4 });
+
+      // 1.8–3.8 the dial spins up, baht beads stream in, the scale lifts toward level
+      HF.pop(tl, dial, 1.82); // after 1.8: the first segment (before the predict gate) must not show the rate
+      const SPIN = { at: 1.9, dur: 1.85 };
+      tl.to(needle, { rotation: angleFor(11.65), svgOrigin: `${D.x} ${D.y}`, duration: SPIN.dur, ease: 'power1.inOut' }, SPIN.at);
+      HF.count(val, 1, 11.65, SPIN.at, SPIN.dur, { format: (v) => v.toFixed(2), easeName: 'power1.inOut' });
+      tl.to(S, { angle: 0.8, duration: SPIN.dur, ease: 'power1.inOut' }, SPIN.at);
+      const rand = HF.rng(11);
+      for (let i = 1; i <= BEADS; i++) {
+        const row = Math.floor((i - 1) / 5), col = (i - 1) % 5;
+        const x1 = -70 + col * 26 + (row % 2) * 13 + (rand() - 0.5) * 4;
+        const y1 = HANG - 76 - row * 17 - 18;
+        HF.arc(tl, beads[i], { x0: -250 - rand() * 60, y0: -300, x1, y1 }, SPIN.at + (i - 1) * 0.12, 0.34, { fall: 'power2.in' });
+      }
+
+      // 3.8–4.3 level, with a click and a sparkle
+      tl.to(S, { keyframes: { angle: [0.8, -1.2, 0.5, 0], easeEach: 'sine.inOut' }, duration: 0.4, ease: 'none' }, 3.8);
+      HF.burst(tl, top, { x: P.x, y: P.y - 40, n: 8, r: 80, size: 12, color: C.gold }, 3.86, 0.55);
+      tl.to(approx, { opacity: 1, duration: 0.2 }, 3.85);
+      HF.wobble(tl, dial, 3.82, { amount: 3, origin: '50% 100%' });
+
+      // 4.3–5.0 the takeaway
+      HF.say(tl, lPpp, 4.25);
+
+      HF.camera(tl, { scale: 1.05, y: -6 }, 0, 4.3);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

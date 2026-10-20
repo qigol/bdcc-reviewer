@@ -10,6 +10,27 @@ import { cn } from '../lib/util';
 
 type Src = 'zip' | 'paste' | 'cli';
 
+/**
+ * A pasted bundle carries text only. If the module is installed, add its assets/ and sources/ files (animation
+ * clips, images, the PDF) that the paste lacks, so validation and preview see them; the server keeps them on install.
+ */
+async function withInstalledAssets(id: string | undefined, pasted: FileMap): Promise<{ files: FileMap; kept: string[] }> {
+  if (!id) return { files: pasted, kept: [] };
+  const installed = await api.files(id).catch(() => null);
+  if (!installed) return { files: pasted, kept: [] };
+  const out: FileMap = { ...pasted };
+  const kept: string[] = [];
+  const keep = (p: string) => /^(assets|sources)\//.test(p) && !(p in pasted);
+  for (const [p, c] of Object.entries(installed.files)) if (keep(p)) { out[p] = c; kept.push(p); }
+  await Promise.all(installed.binary.filter(keep).map(async (p) => {
+    const r = await fetch(api.fileUrl(id, p));
+    if (!r.ok) return;
+    out[p] = new Uint8Array(await r.arrayBuffer());
+    kept.push(p);
+  }));
+  return { files: out, kept };
+}
+
 function toBase64(u8: Uint8Array): string {
   let s = '';
   for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
@@ -26,6 +47,8 @@ export function ImportPanel({ token, onInstalled }: { token: string; onInstalled
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad' | 'warn'; text: string } | null>(null);
   const [drag, setDrag] = useState(false);
+  /** files added from the installed version (not uploaded again: the server keeps them) */
+  const [kept, setKept] = useState<string[]>([]);
   const store = useModuleStore();
   const nav = useNavigate();
   const zipInput = useRef<HTMLInputElement>(null);
@@ -48,8 +71,9 @@ export function ImportPanel({ token, onInstalled }: { token: string; onInstalled
     } finally { setBusy(null); }
   };
 
-  const onZip = async (f: File) => run(await readZip(await f.arrayBuffer()));
+  const onZip = async (f: File) => { setKept([]); run(await readZip(await f.arrayBuffer())); };
   const onDir = async (list: FileList) => {
+    setKept([]);
     const fm: FileMap = {};
     const all = [...list];
     const manifest = all.find((f) => /(^|\/)manifest\.(ya?ml|json)$/.test((f as any).webkitRelativePath || f.name));
@@ -69,7 +93,12 @@ export function ImportPanel({ token, onInstalled }: { token: string; onInstalled
     setPastes(next);
     setPaste('');
     const b = parseBundle(next.join('\n'));
-    if (!b.incomplete && !b.continued && Object.keys(b.files).length) run({ ...(files ?? {}), ...b.files });
+    if (b.incomplete || b.continued || !Object.keys(b.files).length) return;
+    withInstalledAssets(b.id, b.files).then(({ files: fm, kept: k }) => {
+      setKept(k);
+      if (k.length) setMsg({ tone: 'good', text: `Kept ${k.length} installed asset file(s) (animations, images, sources) that the paste doesn't include.` });
+      run(fm);
+    });
   };
   const attachPdf = async (f: File) => {
     if (!files) return;
@@ -83,8 +112,8 @@ export function ImportPanel({ token, onInstalled }: { token: string; onInstalled
     setBusy('Uploading; the server validates again…');
     try {
       const body: Record<string, string | { base64: string }> = {};
-      for (const [p, c] of Object.entries(files)) body[p] = typeof c === 'string' ? c : { base64: toBase64(c) };
-      const r = await api.install(token, { files: body }, { allowDowngrade });
+      for (const [p, c] of Object.entries(files)) if (!kept.includes(p)) body[p] = typeof c === 'string' ? c : { base64: toBase64(c) };
+      const r = await api.install(token, { files: body }, { allowDowngrade, keepAssets: kept.length > 0 });
       if (r.status === 409) {
         if (confirm(`${r.body.message}\n\nInstall anyway?`)) { setBusy(null); return install(true); }
         setMsg({ tone: 'warn', text: 'Import cancelled.' });
