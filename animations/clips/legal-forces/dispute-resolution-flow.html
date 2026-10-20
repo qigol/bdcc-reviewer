@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>When a deal goes wrong</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Legal Forces · settling-disputes, beats 1, 2 and 4 · 5 s. Segments: 0–1.2 the contract, 1.2–2.6 litigation (rests through the beat-3 clause predict), 2.6–5.0 arbitration. No clause names on screen. -->
+  <div id="stage" data-composition-id="dispute-resolution-flow" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Legal Forces · settling-disputes, 5 s.
+     *   0.0–1.2  two firms on opposite shores; a contract rises over the sea and both tick it; it glows
+     *   1.2–2.6  a lightning bolt cracks it; the camera pans to a fork: a coral path runs down to a courthouse, the calendar
+     *            beside it rolls Year 1 → 3 and coins pour in from both sides. "Litigation · in court"
+     *   2.6–4.4  a teal path runs to a round table with three neutral arbitrators; a short tick of the clock and one gavel
+     *            stamp, "Award". "Arbitration · outside the courts"
+     *   4.4–5.0  hold on both branches (a slight pull-back)
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['dispute-resolution-flow'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560, P = 1280;
+
+      // ---------------------------------------------------------------- panel 1: two shores and a sea
+      HF.box(ground, { x: -300, y: G, w: 520, h: 300, r: 30, color: '#22356E', hi: false });
+      HF.box(ground, { x: 1060, y: G, w: 2000, h: 300, r: 30, color: '#22356E', hi: false });
+      HF.wave(ground, { y: G + 30, amp: 7, len: 140, x0: 200, x1: 1080, bottom: 900, color: C.sea, opacity: 0.85 });
+      const firmL = HF.g(mid, { transform: `translate(130 ${G})` });
+      const fL = HF.character(firmL, { x: 0, y: 0, color: C.teal, size: 1.2, look: 0.8 });
+      const firmR = HF.g(mid, { transform: `translate(1150 ${G})` });
+      const fR = HF.character(firmR, { x: 0, y: 0, color: C.gold, size: 1.2, look: -0.8 });
+      void fL; void fR;
+
+      // the contract (moves with the camera into panel 2)
+      const contract = HF.g(front, { transform: 'translate(640 300)' });
+      const cGlow = HF.el('circle', { cx: 0, cy: 0, r: 130, fill: C.gold, opacity: 0, filter: 'url(#hf-glow)' }, contract);
+      const halfL = HF.g(contract), halfR = HF.g(contract);
+      HF.el('path', { d: 'M-100 -120 L4 -120 L-14 -60 L10 -10 L-12 40 L6 120 L-100 120 Q-110 120 -110 110 L-110 -110 Q-110 -120 -100 -120 Z', fill: '#F4F1DE' }, halfL);
+      HF.el('path', { d: 'M4 -120 L100 -120 Q110 -120 110 -110 L110 110 Q110 120 100 120 L6 120 L-12 40 L10 -10 L-14 -60 Z', fill: '#EAE5CC' }, halfR);
+      HF.el('rect', { x: -86, y: -94, width: 80, height: 14, rx: 7, fill: '#0B1D3A' }, halfL);
+      HF.el('rect', { x: 20, y: -94, width: 66, height: 14, rx: 7, fill: '#0B1D3A' }, halfR);
+      for (let r = 0; r < 3; r++) {
+        HF.el('rect', { x: -86, y: -46 + r * 26, width: 70, height: 8, rx: 4, fill: '#C9C4AE' }, halfL);
+        HF.el('rect', { x: 20, y: -46 + r * 26, width: 66, height: 8, rx: 4, fill: '#C9C4AE' }, halfR);
+      }
+      const tick = (parent, x, col) => {
+        const t = HF.el('path', { d: `M${x - 16} 72 L${x - 4} 86 L${x + 20} 58`, fill: 'none', stroke: col, 'stroke-width': 9, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+        const len = 52;
+        gsap.set(t, { attr: { 'stroke-dasharray': len, 'stroke-dashoffset': len } });
+        return t;
+      };
+      const tickL = tick(halfL, -55, C.teal), tickR = tick(halfR, 55, HF.shade(C.gold, 0.1));
+      gsap.set(contract, { scale: 0, transformOrigin: '50% 50%' });
+      const bolt = HF.el('path', { d: 'M40 -260 L-20 -150 L20 -150 L-30 -40 L60 -170 L18 -170 L60 -260 Z', fill: C.gold, opacity: 0 }, front);
+      gsap.set(bolt, { x: 640, y: 300 });
+
+      // ---------------------------------------------------------------- panel 2: the fork
+      const X = P;
+      const CT = { x: X + 640, y: 170 }; // where the cracked contract sits after the pan
+      const pathLit = HF.el('path', { d: `M${CT.x - 60} ${CT.y + 110} C ${CT.x - 160} 330, ${X + 340} 330, ${X + 330} 400`, fill: 'none', stroke: C.coral, 'stroke-width': 14, 'stroke-linecap': 'round' }, back);
+      const pathArb = HF.el('path', { d: `M${CT.x + 60} ${CT.y + 110} C ${CT.x + 160} 330, ${X + 760} 380, ${X + 770} 470`, fill: 'none', stroke: C.teal, 'stroke-width': 14, 'stroke-linecap': 'round' }, back);
+      for (const pth of [pathLit, pathArb]) { const n = pth.getTotalLength(); gsap.set(pth, { attr: { 'stroke-dasharray': n, 'stroke-dashoffset': n } }); pth.dataset.len = n; }
+
+      // courthouse
+      const court = HF.g(mid, { transform: `translate(${X + 330} ${G})` });
+      HF.box(court, { x: -170, y: -30, w: 340, h: 30, r: 8, color: '#8FA3D9' });
+      for (let i = 0; i < 4; i++) HF.box(court, { x: -130 + i * 76, y: -150, w: 30, h: 122, r: 8, color: '#C9D3F2', hi: false });
+      HF.box(court, { x: -160, y: -172, w: 320, h: 26, r: 8, color: '#8FA3D9' });
+      HF.el('path', { d: 'M-170 -168 L0 -236 L170 -168 Z', fill: '#C9D3F2' }, court);
+      gsap.set(court, { scale: 0, transformOrigin: '50% 100%' });
+      const cal = HF.g(front, { transform: `translate(${X + 560} 440)` });
+      HF.box(cal, { x: -60, y: -60, w: 120, h: 112, r: 14, color: '#F4F1DE', hi: false });
+      HF.box(cal, { x: -60, y: -60, w: 120, h: 32, r: 12, color: C.coral, hi: false });
+      const calYear = HF.text(cal, 'Year 1', { x: 0, y: 22, size: 28, color: '#0B1D3A', weight: 900 });
+      gsap.set(cal, { scale: 0, transformOrigin: '50% 50%' });
+      const coins = [0, 1, 2, 3, 4, 5].map(() => { const c = HF.g(front); HF.coin(c, { r: 16 }); gsap.set(c, { opacity: 0 }); return c; });
+
+      // round table with three arbitrators
+      const table = HF.g(mid, { transform: `translate(${X + 950} ${G})` });
+      [-100, 0, 100].forEach((dx) => HF.character(table, { x: dx, y: -66, color: '#C9D3F2', size: 1.05 }));
+      HF.el('ellipse', { cx: 0, cy: -40, rx: 180, ry: 40, fill: HF.shade(C.violet, 0.1) }, table);
+      HF.el('ellipse', { cx: 0, cy: -50, rx: 180, ry: 40, fill: C.violet }, table);
+      HF.el('ellipse', { cx: -60, cy: -62, rx: 60, ry: 10, fill: HF.light(C.violet, 0.2), opacity: 0.5 }, table);
+      gsap.set(table, { scale: 0, transformOrigin: '50% 100%' });
+      const clock = HF.g(front, { transform: `translate(${X + 1170} 330)` });
+      HF.el('circle', { cx: 0, cy: 0, r: 44, fill: '#F4F1DE' }, clock);
+      HF.el('rect', { x: -4, y: -34, width: 8, height: 36, rx: 4, fill: '#0B1D3A' }, clock);
+      const hand = HF.el('rect', { x: -3, y: -28, width: 6, height: 30, rx: 3, fill: C.teal }, clock);
+      gsap.set(hand, { svgOrigin: '0 0', rotation: 0 });
+      gsap.set(clock, { scale: 0, transformOrigin: '50% 50%' });
+      const award = HF.label('Award', { x: X + 950, y: 370, cls: 'pill hf-teal' });
+
+      // ---------------------------------------------------------------- labels
+      const lDeal = HF.label('A contract binds both sides', { x: 640, y: 100, cls: 'lg', hud: true });
+      const lLit = HF.label('Litigation · in court', { x: X + 330, y: G + 60, cls: 'pill hf-coral' });
+      const lArb = HF.label('Arbitration · outside the courts', { x: X + 950, y: G + 60, cls: 'pill hf-teal' });
+
+      // ================================================================ choreography
+      // 0.0–1.2 the deal
+      HF.pop(tl, [firmL, firmR], 0.0, { origin: '50% 100%', stagger: 0.06 });
+      HF.say(tl, lDeal, 0.2, 1.2);
+      HF.pop(tl, contract, 0.35);
+      tl.to(tickL, { attr: { 'stroke-dashoffset': 0 }, duration: 0.15, ease: 'power2.out' }, 0.7);
+      tl.to(tickR, { attr: { 'stroke-dashoffset': 0 }, duration: 0.15, ease: 'power2.out' }, 0.88);
+      tl.to(cGlow, { opacity: 0.4, duration: 0.2 }, 0.95);
+
+      // 1.2–2.6 crack → litigation
+      tl.to(bolt, { opacity: 1, duration: 0.04 }, 1.22);
+      tl.to(bolt, { opacity: 0, duration: 0.12 }, 1.32);
+      tl.to(cGlow, { opacity: 0, duration: 0.1 }, 1.25);
+      tl.to(halfL, { x: -14, rotation: -8, duration: 0.2, ease: 'back.out(2)', svgOrigin: '0 120' }, 1.28);
+      tl.to(halfR, { x: 14, rotation: 8, duration: 0.2, ease: 'back.out(2)', svgOrigin: '0 120' }, 1.28);
+      HF.camera(tl, { x: -P }, 1.4, 0.4, { easeName: 'power2.inOut' });
+      tl.to(contract, { x: CT.x, y: CT.y, scale: 0.8, duration: 0.4, ease: 'power2.inOut' }, 1.4);
+      tl.to(pathLit, { attr: { 'stroke-dashoffset': 0 }, duration: 0.3, ease: 'power1.in' }, 1.75);
+      HF.pop(tl, court, 1.95, { origin: '50% 100%' });
+      HF.pop(tl, cal, 2.05);
+      HF.pop(tl, lLit, 2.1);
+      tl.to({ y: 1 }, { y: 3, duration: 0.4, ease: 'none', onUpdate() { calYear.textContent = `Year ${Math.round(this.targets()[0].y)}`; } }, 2.1);
+      coins.forEach((c, i) => {
+        const fromL = i % 2 === 0;
+        const x0 = fromL ? X + 60 : X + 640, y0 = fromL ? 300 : 260;
+        tl.set(c, { opacity: 1 }, 2.1 + i * 0.04);
+        HF.arc(tl, c, { x0, y0, x1: X + 330 + (i - 2.5) * 22, y1: G - 120, h: 60 }, 2.1 + i * 0.04, 0.22, { spin: 180 });
+        tl.to(c, { scale: 0, duration: 0.08, transformOrigin: '50% 50%' }, 2.32 + i * 0.04);
+      });
+
+      // 2.6–4.4 arbitration
+      tl.to(pathArb, { attr: { 'stroke-dashoffset': 0 }, duration: 0.3, ease: 'power1.in' }, 2.7);
+      HF.pop(tl, table, 2.95, { origin: '50% 100%' });
+      HF.pop(tl, lArb, 3.1);
+      HF.pop(tl, clock, 3.2);
+      tl.to(hand, { rotation: 90, duration: 0.3, ease: 'power2.inOut' }, 3.35);
+      HF.pop(tl, award, 3.75);
+      HF.land(tl, table, 3.75, { amount: 0.05, origin: '50% 100%' });
+
+      // 4.4–5.0 hold, pulled back a touch
+      HF.camera(tl, { x: -P, scale: 0.95 }, 4.4, 0.5);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

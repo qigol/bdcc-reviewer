@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>GDP, GNI and the shadow economy</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Economic Forces · reading-an-economy, beats 2 and 5 · 5 s. Segments: 0–2.8 GDP then GNI ($600 billion, the scene's; no per-capita figure: beat 3 asks for it), 2.8–5.0 the underground economy. -->
+  <div id="stage" data-composition-id="gdp-to-gni-and-shadow" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Economic Forces · reading-an-economy, 5 s.
+     *   0.0–1.4  an island country with a dashed border; three factories inside send gold coins into a column: GDP
+     *   1.4–2.8  coins earned by residents' plants abroad arc in (+); a foreign-owned plant inside sends coins out (−);
+     *            the column becomes GNI, "$600 billion"
+     *   2.8–4.3  the camera sinks below the surface: in the dark, cash stalls pass coins the official meter never sees
+     *   4.3–5.0  pull back to the full cross-section (official above, underground below); hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['gdp-to-gni-and-shadow'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 470;
+
+      // ---------------------------------------------------------------- the island and what lies under it
+      const island = HF.g(ground);
+      HF.el('path', { d: `M280 ${G} L1000 ${G} Q1010 ${G + 40} 980 ${G + 120} L940 ${G + 330} Q640 ${G + 420} 340 ${G + 330} L300 ${G + 120} Q270 ${G + 40} 280 ${G} Z`, fill: '#2A2348' }, island);
+      HF.el('path', { d: `M280 ${G} L1000 ${G} Q1004 ${G + 18} 1000 ${G + 26} L280 ${G + 26} Q276 ${G + 18} 280 ${G} Z`, fill: '#2E8B6E' }, island);
+      HF.el('rect', { x: 280, y: G - 4, width: 720, height: 10, rx: 5, fill: '#3FB58C' }, island);
+      // the abroad islet on the left
+      const islet = HF.g(ground);
+      HF.el('path', { d: `M30 ${G} L200 ${G} Q206 ${G + 30} 180 ${G + 90} Q115 ${G + 130} 50 ${G + 90} Q24 ${G + 30} 30 ${G} Z`, fill: '#2A2348' }, islet);
+      HF.el('rect', { x: 30, y: G - 4, width: 170, height: 10, rx: 5, fill: '#3FB58C' }, islet);
+      gsap.set([island, islet], { opacity: 0 });
+      // dashed border posts
+      const border = HF.g(back);
+      for (const bx of [300, 980]) HF.el('line', { x1: bx, y1: G - 4, x2: bx, y2: G - 160, stroke: C.violet, 'stroke-width': 6, 'stroke-dasharray': '14 10', 'stroke-linecap': 'round' }, border);
+      gsap.set(border, { opacity: 0 });
+
+      function factory(parent, x, color, scale = 0.6) {
+        const o = HF.g(parent, { transform: `translate(${x} ${G})` });
+        const f = HF.g(o, { transform: `scale(${scale})` });
+        HF.box(f, { x: 40, y: -170, w: 26, h: 80, r: 7, color: HF.shade(color, 0.04) });
+        HF.el('path', { d: 'M-75 -100 L-75 -128 L-25 -108 L-25 -128 L25 -108 L25 -128 L75 -104 L75 -100 Z', fill: HF.shade(color, 0.12) }, f);
+        HF.box(f, { x: -75, y: -110, w: 150, h: 110, r: 14, color });
+        for (let i = 0; i < 3; i++) HF.box(f, { x: -61 + i * 44, y: -88, w: 32, h: 26, r: 7, color: '#13254B', hi: false });
+        gsap.set(o, { scale: 0, transformOrigin: '50% 100%' });
+        return o;
+      }
+      const facs = [420, 560, 700].map((x) => factory(mid, x, C.teal));
+      const foreignPlant = factory(mid, 870, C.coral);
+      const abroadPlant = factory(mid, 115, C.teal, 0.5);
+      const flag = (x, y, col) => { const f = HF.g(front, { transform: `translate(${x} ${y})` }); HF.el('rect', { x: -2, y: -44, width: 4, height: 44, fill: '#F4F1DE' }, f); HF.el('path', { d: 'M2 -44 L30 -36 L2 -28 Z', fill: col }, f); gsap.set(f, { scale: 0, transformOrigin: '0% 100%' }); return f; };
+      const fgFlag = flag(905, G - 80, C.coral), abFlag = flag(140, G - 66, C.teal);
+
+      // the column (GDP → GNI)
+      const COL = { x: 1110, w: 90, base: G };
+      const colBar = HF.el('rect', { x: COL.x - COL.w / 2, y: COL.base, width: COL.w, height: 0, rx: 14, fill: C.gold }, back);
+      const colTitle = HF.text(back, 'GDP', { x: COL.x, y: COL.base + 40, size: 30, color: C.gold, weight: 900 });
+      gsap.set(colTitle, { opacity: 0 });
+      const H = { gdp: 230, gni: 250 };
+      const colVal = HF.label('<span class="hf-gold">$600 billion</span>', { x: COL.x, y: COL.base - H.gni - 30, cls: 'sm', html: true });
+
+      const coins = Array.from({ length: 9 }, () => { const c = HF.g(front); HF.coin(c, { r: 15 }); gsap.set(c, { opacity: 0 }); return c; });
+      const plus = HF.label('+ income from abroad', { x: 180, y: 300, cls: 'sm pill hf-teal' });
+      const minus = HF.label('− paid to foreign owners', { x: 900, y: 300, cls: 'sm pill hf-coral' });
+
+      // ---------------------------------------------------------------- underground
+      const meter = HF.g(front, { transform: `translate(640 ${G - 60})` });
+      HF.box(meter, { x: -60, y: -40, w: 120, h: 70, r: 16, color: '#C9D3F2' });
+      HF.el('path', { d: 'M-36 14 A40 40 0 0 1 36 14', fill: 'none', stroke: '#5C6FA8', 'stroke-width': 7, 'stroke-linecap': 'round' }, meter);
+      HF.el('rect', { x: -3, y: -22, width: 6, height: 36, rx: 3, fill: C.coral, transform: 'rotate(-30 0 14)' }, meter);
+      HF.text(meter, 'OFFICIAL', { x: 0, y: -16, size: 14, color: '#13254B', weight: 900 });
+      gsap.set(meter, { scale: 0, transformOrigin: '50% 100%' }); void meter;
+      const stalls = [460, 640, 820].map((x, i) => {
+        const s = HF.g(mid, { transform: `translate(${x} ${G + 250})` });
+        HF.el('path', { d: 'M-60 -90 L60 -90 L50 -120 L-50 -120 Z', fill: [C.violet, C.gold, C.coral][i], opacity: 0.85 }, s);
+        HF.box(s, { x: -50, y: -60, w: 100, h: 60, r: 10, color: '#4A3F78', hi: false });
+        HF.el('rect', { x: -4, y: -90, width: 8, height: 30, fill: '#4A3F78' }, s);
+        const ch = HF.character(s, { x: 0, y: -50, color: '#8C7FC0', size: 0.7, look: i === 0 ? 1 : -1 });
+        void ch;
+        gsap.set(s, { scale: 0, transformOrigin: '50% 100%' });
+        return s;
+      });
+      const lamp = HF.el('ellipse', { cx: 640, cy: G + 210, rx: 300, ry: 70, fill: C.gold, opacity: 0, filter: 'url(#hf-glow)' }, back);
+      const cash = [0, 1, 2, 3].map(() => { const c = HF.g(front); HF.coin(c, { r: 13 }); gsap.set(c, { opacity: 0 }); return c; });
+      const tagOfficial = HF.label('Official GNI', { x: 1110, y: G + 40, cls: 'pill hf-gold' });
+      const tagShadow = HF.label('Underground · unrecorded', { x: 640, y: G + 300, cls: 'pill hf-violet' });
+
+      // ---------------------------------------------------------------- labels (HUD)
+      const L = (t, y = 90) => HF.label(t, { x: 640, y, cls: 'lg', hud: true, html: true });
+      const lGdp = L('<span class="hf-gold">GDP</span> · made inside the borders');
+      const lGni = L('<span class="hf-gold">GNI</span> · earned by residents, wherever');
+      const lUnder = L('<span class="hf-violet">Underground economy</span> · missed by the count', 660);
+
+      // ================================================================ choreography
+      // 0.0–1.4 GDP
+      tl.to([island, islet], { opacity: 1, duration: 0.25 }, 0.0);
+      tl.to(border, { opacity: 1, duration: 0.2 }, 0.15);
+      HF.pop(tl, [...facs, foreignPlant], 0.2, { origin: '50% 100%', stagger: 0.05 });
+      HF.pop(tl, abroadPlant, 0.3, { origin: '50% 100%' });
+      HF.say(tl, lGdp, 0.25, 1.4);
+      tl.to(colTitle, { opacity: 1, duration: 0.15 }, 0.45);
+      [...facs, foreignPlant].forEach((f, i) => {
+        const x0 = [420, 560, 700, 870][i];
+        tl.set(coins[i], { opacity: 1 }, 0.55 + i * 0.1);
+        HF.arc(tl, coins[i], { x0, y0: G - 90, x1: COL.x, y1: G - 30 - i * 40, h: 120 }, 0.55 + i * 0.1, 0.35, { spin: 180 });
+        tl.to(coins[i], { scale: 0, duration: 0.08, transformOrigin: '50% 50%' }, 0.9 + i * 0.1);
+      });
+      tl.to(colBar, { attr: { y: COL.base - H.gdp, height: H.gdp }, duration: 0.6, ease: 'power2.out' }, 0.65);
+
+      // 1.4–2.8 GNI
+      HF.say(tl, lGni, 1.45, 2.8);
+      HF.pop(tl, [abFlag, fgFlag], 1.45, { origin: '0% 100%', stagger: 0.06 });
+      // in: from the residents' plant abroad (two coins)
+      [4, 5].forEach((k, j) => {
+        tl.set(coins[k], { opacity: 1, scale: 1 }, 1.6 + j * 0.12);
+        HF.arc(tl, coins[k], { x0: 115, y0: G - 80, x1: COL.x, y1: COL.base - H.gdp + 10, h: 120 }, 1.6 + j * 0.12, 0.55, { spin: 180 });
+        tl.to(coins[k], { scale: 0, duration: 0.08, transformOrigin: '50% 50%' }, 2.15 + j * 0.12);
+      });
+      HF.pop(tl, plus, 1.65);
+      // out: from the foreign-owned plant, off to the right
+      tl.set(coins[6], { opacity: 1, scale: 1 }, 1.75);
+      HF.arc(tl, coins[6], { x0: 870, y0: G - 90, x1: 1320, y1: G - 40, h: 150 }, 1.75, 0.5, { spin: 180 });
+      HF.pop(tl, minus, 1.8);
+      tl.to(coins[6], { opacity: 0, duration: 0.1 }, 2.2);
+      tl.to(colBar, { attr: { y: COL.base - H.gni, height: H.gni }, duration: 0.35, ease: 'power2.inOut' }, 2.2);
+      tl.to(colTitle, { opacity: 0, duration: 0.08 }, 2.25);
+      tl.call(() => {}, [], 2.33);
+      const gniTitle = HF.text(back, 'GNI', { x: COL.x, y: COL.base + 40, size: 30, color: C.gold, weight: 900 });
+      gsap.set(gniTitle, { opacity: 0 });
+      tl.to(gniTitle, { opacity: 1, duration: 0.1 }, 2.33);
+      HF.pop(tl, colVal, 2.4);
+      tl.to([plus, minus], { scale: 0, duration: 0.15 }, 2.6);
+
+      // 2.8–4.3 underground
+      HF.camera(tl, { y: -270 }, 2.8, 0.45, { easeName: 'power2.inOut' });
+      HF.say(tl, lUnder, 3.05, 4.3);
+      HF.pop(tl, stalls, 3.15, { origin: '50% 100%', stagger: 0.06 });
+      tl.to(lamp, { opacity: 0.22, duration: 0.3 }, 3.2);
+      const hops = [[460, 640], [640, 820], [820, 640], [640, 460]];
+      hops.forEach(([a, b], i) => {
+        tl.set(cash[i], { opacity: 1 }, 3.45 + i * 0.16);
+        HF.arc(tl, cash[i], { x0: a, y0: G + 190, x1: b, y1: G + 190, h: 50 }, 3.45 + i * 0.16, 0.3, { spin: 180 });
+        tl.to(cash[i], { opacity: 0, duration: 0.08 }, 3.75 + i * 0.16);
+      });
+
+      // 4.3–5.0 the whole cross-section
+      HF.camera(tl, { y: -150, scale: 0.8 }, 4.3, 0.45, { easeName: 'power2.inOut' });
+      tl.to(gniTitle, { opacity: 0, duration: 0.1 }, 4.45);
+      HF.pop(tl, tagOfficial, 4.5);
+      HF.pop(tl, tagShadow, 4.55);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Ways to arrange the top</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Org Design · structures, beats 1–6 · 5.5 s. Segments: 0–1.0 international division, 1.0–2.0 product, 2.0–3.0 geographic, 3.0–3.6 functional, 3.6–4.2 hybrid, 4.2–5.5 matrix and matrix overlay. Charts only: no strengths or costs (beats 3–4 ask about them). -->
+  <div id="stage" data-composition-id="org-chart-structures" data-start="0" data-width="1280" data-height="720" data-duration="5.5"></div>
+  <script>
+    /*
+     * Org Design · structures, 5.5 s. One headquarters box; the row beneath it re-forms for each structure.
+     *   0.0–1.0  HQ over two equal boxes: Domestic and International division
+     *   1.0–2.0  product: Cars, Batteries, Solar, each with its own little row of area dots (globes)
+     *   2.0–3.0  geographic: Americas, Europe, Asia, each with its own little row of product cubes
+     *   3.0–3.6  functional: Making, Selling, Finance
+     *   3.6–4.2  hybrid: Europe, Asia and a worldwide Product X box side by side
+     *   4.2–5.5  matrix: product rows cross region columns; one manager at a crossing gets two solid boss lines, then the
+     *            region line turns dashed (matrix overlay: advice, not a second boss); hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5.5);
+      window.__timelines['org-chart-structures'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const HQY = 190, ROWY = 360, SUBY = 470;
+
+      const hq = HF.g(mid, { transform: `translate(640 ${HQY})` });
+      const hqIn = HF.g(hq);
+      HF.box(hqIn, { x: -110, y: -36, w: 220, h: 72, r: 20, color: C.violet });
+      HF.text(hqIn, 'HQ', { x: 0, y: 11, size: 32, color: '#F4F1DE', weight: 900 });
+      gsap.set(hqIn, { scale: 0, transformOrigin: '50% 50%' });
+
+      const icon = (p, x, y, kind, col) => {
+        if (kind === 'globe') {
+          HF.el('circle', { cx: x, cy: y, r: 16, fill: col }, p);
+          HF.el('ellipse', { cx: x, cy: y, rx: 6, ry: 16, fill: 'none', stroke: '#0B1D3A', 'stroke-width': 2.5, opacity: 0.5 }, p);
+        } else HF.box(p, { x: x - 14, y: y - 14, w: 28, h: 28, r: 7, color: col });
+      };
+      // one chart row: names, colours, and an optional sub-row of icons under each
+      function chart(names, cols, sub = null, opts = {}) {
+        const g = HF.g(mid);
+        const n = names.length, gap = opts.gap ?? 300;
+        const xs = names.map((_, i) => 640 + (i - (n - 1) / 2) * gap);
+        const wires = HF.g(g);
+        const midY = (HQY + 36 + ROWY - 32) / 2;
+        HF.el('path', { d: `M640 ${HQY + 36} L640 ${midY} M${xs[0]} ${midY} L${xs[n - 1]} ${midY}`, fill: 'none', stroke: '#5C6FA8', 'stroke-width': 5, 'stroke-linecap': 'round' }, wires);
+        const boxes = names.map((t, i) => {
+          HF.el('path', { d: `M${xs[i]} ${midY} L${xs[i]} ${ROWY - 32}`, fill: 'none', stroke: '#5C6FA8', 'stroke-width': 5, 'stroke-linecap': 'round' }, wires);
+          const b = HF.g(g, { transform: `translate(${xs[i]} ${ROWY})` });
+          const bi = HF.g(b);
+          const w = opts.w ?? 230;
+          HF.box(bi, { x: -w / 2, y: -32, w, h: 64, r: 18, color: cols[i] });
+          HF.text(bi, t, { x: 0, y: 9, size: 26, color: '#0B1D3A', weight: 900 });
+          if (sub) for (let k = 0; k < 3; k++) icon(bi, (k - 1) * 44, SUBY - ROWY, sub, sub === 'globe' ? '#7FD3D0' : C.gold);
+          gsap.set(bi, { scale: 0, transformOrigin: '50% 0%' });
+          return bi;
+        });
+        gsap.set(wires, { opacity: 0 });
+        return { g, wires, boxes };
+      }
+      const CH = {
+        intl: chart(['Domestic', 'International division'], [C.teal, C.gold], null, { gap: 360, w: 300 }),
+        product: chart(['Cars', 'Batteries', 'Solar'], [C.teal, C.gold, C.coral], 'globe'),
+        geo: chart(['Americas', 'Europe', 'Asia'], ['#7FD3D0', '#8FA3D9', '#F2A3A3'], 'cube'),
+        func: chart(['Making', 'Selling', 'Finance'], [C.teal, C.gold, '#8FA3D9']),
+        hybrid: chart(['Europe', 'Asia', 'Product X · worldwide'], ['#8FA3D9', '#F2A3A3', C.gold], null, { gap: 340, w: 310 }),
+      };
+      const show = (c, at) => {
+        tl.to(c.wires, { opacity: 1, duration: 0.15 }, at);
+        HF.pop(tl, c.boxes, at + 0.05, { origin: '50% 0%', stagger: 0.06 });
+      };
+      const hide = (c, at) => {
+        tl.to(c.boxes, { scale: 0, duration: 0.15, ease: 'power2.in' }, at);
+        tl.to(c.wires, { opacity: 0, duration: 0.12 }, at);
+      };
+
+      // ---------------------------------------------------------------- matrix
+      const MX = HF.g(mid);
+      const rows = [['Cars', 330, C.teal], ['Solar', 480, C.coral]];
+      const colsM = [['Europe', 660, '#8FA3D9'], ['Asia', 920, '#F2A3A3']];
+      const mLines = HF.g(back);
+      rows.forEach(([, y, col]) => HF.el('line', { x1: 400, y1: y, x2: 1030, y2: y, stroke: col, 'stroke-width': 6, opacity: 0.45, 'stroke-linecap': 'round' }, mLines));
+      colsM.forEach(([, x, col]) => HF.el('line', { x1: x, y1: 240, x2: x, y2: 560, stroke: col, 'stroke-width': 6, opacity: 0.45, 'stroke-linecap': 'round' }, mLines));
+      gsap.set(mLines, { opacity: 0 });
+      const heads = [];
+      rows.forEach(([t, y, col]) => { const h = HF.g(MX, { transform: `translate(300 ${y})` }); const hi = HF.g(h); HF.box(hi, { x: -95, y: -30, w: 190, h: 60, r: 18, color: col }); HF.text(hi, t, { x: 0, y: 9, size: 26, color: '#0B1D3A', weight: 900 }); heads.push(hi); });
+      colsM.forEach(([t, x, col]) => { const h = HF.g(MX, { transform: `translate(${x} 205)` }); const hi = HF.g(h); HF.box(hi, { x: -90, y: -30, w: 180, h: 60, r: 18, color: col }); HF.text(hi, t, { x: 0, y: 9, size: 26, color: '#0B1D3A', weight: 900 }); heads.push(hi); });
+      gsap.set(heads, { scale: 0, transformOrigin: '50% 50%' });
+      const nodes = [];
+      rows.forEach(([, y]) => colsM.forEach(([, x]) => { const n = HF.g(MX, { transform: `translate(${x} ${y})` }); const ni = HF.g(n); HF.el('circle', { cx: 0, cy: 0, r: 20, fill: '#C9D3F2' }, ni); nodes.push(ni); }));
+      gsap.set(nodes, { scale: 0, transformOrigin: '50% 50%' });
+      // the manager at Solar × Asia, two bosses
+      const boss1 = HF.el('line', { x1: 395, y1: 480, x2: 900, y2: 480, stroke: C.coral, 'stroke-width': 10, 'stroke-linecap': 'round' }, back);
+      const boss2 = HF.el('line', { x1: 920, y1: 235, x2: 920, y2: 460, stroke: '#F2A3A3', 'stroke-width': 10, 'stroke-linecap': 'round' }, back);
+      gsap.set(boss1, { attr: { 'stroke-dasharray': 505, 'stroke-dashoffset': 505 } });
+      gsap.set(boss2, { attr: { 'stroke-dasharray': 225, 'stroke-dashoffset': 225 } });
+      const mgr = HF.character(front, { x: 920, y: 505, color: C.gold, size: 0.85 });
+      gsap.set(mgr.g, { opacity: 0 });
+      const tTwo = HF.label('Two bosses', { x: 1010, y: 560, cls: 'sm pill hf-gold', anchor: 'left' });
+      const tOver = HF.label('Overlay · advice, not a second boss', { x: 960, y: 610, cls: 'sm pill hf-violet' });
+
+      // ---------------------------------------------------------------- labels (HUD)
+      const L = (t) => HF.label(t, { x: 640, y: 70, cls: 'lg', hud: true, html: true });
+      const lI = L('<span class="hf-gold">International division</span> · next to domestic');
+      const lP = L('<span class="hf-teal">Product</span> · each product run worldwide');
+      const lG = L('<span class="hf-teal">Geographic region</span> · each area run as a whole');
+      const lF = L('<span class="hf-teal">Functional</span> · by function at the top');
+      const lH = L('<span class="hf-teal">Hybrid</span> · more than one dimension');
+      const lM = L('<span class="hf-violet">Matrix</span> · two dimensions at once');
+
+      // ================================================================ choreography
+      HF.pop(tl, hqIn, 0.0);
+      show(CH.intl, 0.2); HF.say(tl, lI, 0.15, 1.0);
+      hide(CH.intl, 1.0); show(CH.product, 1.15); HF.say(tl, lP, 1.1, 2.0);
+      hide(CH.product, 2.0); show(CH.geo, 2.15); HF.say(tl, lG, 2.1, 3.0);
+      hide(CH.geo, 3.0); show(CH.func, 3.12); HF.say(tl, lF, 3.05, 3.6);
+      hide(CH.func, 3.6); show(CH.hybrid, 3.72); HF.say(tl, lH, 3.65, 4.2);
+      // matrix
+      hide(CH.hybrid, 4.2);
+      tl.to(hqIn, { scale: 0, duration: 0.15 }, 4.2);
+      HF.say(tl, lM, 4.25);
+      tl.to(mLines, { opacity: 1, duration: 0.2 }, 4.3);
+      HF.pop(tl, heads, 4.3, { stagger: 0.04 });
+      HF.pop(tl, nodes, 4.45, { stagger: 0.03 });
+      tl.to(mgr.g, { opacity: 1, duration: 0.1 }, 4.55);
+      tl.to(boss1, { attr: { 'stroke-dashoffset': 0 }, duration: 0.2 }, 4.6);
+      tl.to(boss2, { attr: { 'stroke-dashoffset': 0 }, duration: 0.15 }, 4.7);
+      HF.pop(tl, tTwo, 4.75, { origin: '0% 50%' });
+      tl.to(boss2, { attr: { 'stroke-dasharray': '14 14', 'stroke-dashoffset': 0 }, duration: 0.01 }, 5.0);
+      tl.to(boss2, { attr: { stroke: C.violet }, duration: 0.15 }, 5.0);
+      tl.to(tTwo, { scale: 0, duration: 0.12 }, 5.0);
+      HF.pop(tl, tOver, 5.05);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

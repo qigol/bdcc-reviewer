@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>The freemium funnel</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Spotify · how-spotify-earns, beats 1–5 · 5 s. Segments: 0–0.8 listeners pour into a free funnel, 0.8–1.4 two exits (free with ads, Premium $9.99), 1.4–2.4 50M active and 12.5M paying (no share: beat 3 asks), 2.4–3.6 "1 in 4" and × $9.99 × 12 months (no total: beat 4 asks), 3.6–5.0 $1,498.5M a year. -->
+  <div id="stage" data-composition-id="freemium-funnel" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Spotify · how-spotify-earns, 5 s. Numbers are the scene's: 50 million active, 12.5 million paying, $9.99 a month, 12 months.
+     *   0.0–0.8  little listeners stream into the wide top of a glowing funnel. "The free tier is a funnel"
+     *   0.8–1.4  the funnel splits into two exits: Free · ads (megaphone) and Premium · $9.99 a month (teal)
+     *   1.4–2.4  counters: "50 million active" at the top, "12.5 million paying" at the Premium exit; most listeners drift to Free
+     *   2.4–3.6  a gold "1 in 4 · 25%" badge on the Premium exit; "× $9.99 × 12 months": twelve month ticks light up
+     *   3.6–5.0  teal coins pour into a gold bar that counts to "$1,498.5 million a year"; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['freemium-funnel'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const FX = 430; // funnel centre x
+
+      // funnel
+      const funnel = HF.g(back);
+      HF.el('path', { d: `M${FX - 260} 170 L${FX + 260} 170 L${FX + 70} 400 L${FX + 70} 450 L${FX - 70} 450 L${FX - 70} 400 Z`, fill: '#2B3D78' }, funnel);
+      HF.el('path', { d: `M${FX - 260} 170 L${FX + 260} 170 L${FX + 230} 190 L${FX - 230} 190 Z`, fill: '#3A4F92' }, funnel);
+      const glow = HF.el('ellipse', { cx: FX, cy: 300, rx: 260, ry: 150, fill: C.teal, opacity: 0, filter: 'url(#hf-glow)' }, back);
+      gsap.set(funnel, { opacity: 0 });
+      // exits
+      const exitFree = HF.el('path', { d: `M${FX - 50} 450 Q${FX - 60} 540 ${FX - 200} 560`, fill: 'none', stroke: '#8FA3D9', 'stroke-width': 34, 'stroke-linecap': 'round' }, back);
+      const exitPrem = HF.el('path', { d: `M${FX + 50} 450 Q${FX + 60} 540 ${FX + 200} 560`, fill: 'none', stroke: C.teal, 'stroke-width': 18, 'stroke-linecap': 'round' }, back);
+      [exitFree, exitPrem].forEach((p) => { const n = p.getTotalLength(); gsap.set(p, { attr: { 'stroke-dasharray': n, 'stroke-dashoffset': n } }); });
+      const tFree = HF.label('Free · with ads', { x: FX - 250, y: 620, cls: 'sm pill' });
+      const tPrem = HF.label('Premium · <span class="hf-teal">$9.99</span> a month', { x: FX + 250, y: 620, cls: 'sm pill', html: true });
+      const horn = HF.g(front, { transform: `translate(${FX - 250} 520)` });
+      HF.el('path', { d: 'M-18 -10 L4 -22 L4 22 L-18 10 Z', fill: C.gold }, horn);
+      HF.box(horn, { x: -30, y: -10, w: 14, h: 20, r: 4, color: HF.shade(C.gold, 0.1) });
+      gsap.set(horn, { scale: 0, transformOrigin: '50% 50%' });
+
+      // listeners: a pure function of t (they fall into the funnel and drift to an exit)
+      const N = 16, T0 = 0.15;
+      const dots = Array.from({ length: N }, (_, i) => {
+        const d = HF.g(front);
+        HF.el('circle', { cx: 0, cy: 0, r: 10, fill: i % 4 === 1 ? C.teal : '#C9D3F2' }, d);
+        d.setAttribute('opacity', '0');
+        return d;
+      });
+      const rng = HF.rng(7);
+      const lanes = dots.map(() => (rng() - 0.5) * 380);
+      HF.every((t) => {
+        dots.forEach((d, i) => {
+          const local = ((t - T0 - i * 0.09) % 1.6 + 1.6) % 1.6; // each dot cycles every 1.6 s
+          if (t < T0 + i * 0.09 || t > 4.6) { d.setAttribute('opacity', '0'); return; }
+          const paying = i % 4 === 1, split = t > 1.0;
+          let x, y;
+          if (local < 0.9) { // fall through the funnel
+            const p = local / 0.9;
+            x = FX + lanes[i] * (1 - p) * 0.9; y = 165 + p * 285;
+          } else { // out of an exit
+            const p = Math.min(1, (local - 0.9) / 0.5);
+            const dir = split ? (paying ? 1 : -1) : (i % 2 ? 1 : -1);
+            x = FX + dir * (50 + p * 150); y = 450 + p * 110;
+          }
+          d.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+          d.setAttribute('opacity', local > 1.35 ? '0' : '1');
+        });
+      });
+
+      // counters
+      const cActive = HF.label('<span class="hf-num">50</span> million active', { x: FX, y: 125, cls: '', html: true });
+      const cPaying = HF.label('<span class="hf-num">12.5</span> million paying', { x: FX + 250, y: 670, cls: 'sm hf-teal', html: true });
+      const badge = HF.label('1 in 4 · <span class="hf-gold">25%</span>', { x: FX + 210, y: 470, cls: 'pill', html: true });
+
+      // the year: twelve months and a revenue bar
+      const MX = 860;
+      const months = Array.from({ length: 12 }, (_, i) => {
+        const m = HF.el('rect', { x: MX + (i % 6) * 58, y: 180 + Math.floor(i / 6) * 58, width: 46, height: 46, rx: 10, fill: '#2B3D78' }, mid);
+        return m;
+      });
+      gsap.set(months, { opacity: 0 });
+      const tMonths = HF.label('× $9.99 × 12 months', { x: MX + 168, y: 140, cls: 'sm', html: true });
+      const BAR = { x: MX + 110, w: 120, base: 600, h: 230 };
+      const bar = HF.el('rect', { x: BAR.x, y: BAR.base, width: BAR.w, height: 0, rx: 14, fill: C.gold }, mid);
+      const tRev = HF.label('$<span class="hf-num">0</span> million a year', { x: BAR.x + BAR.w / 2, y: BAR.base - BAR.h - 34, cls: '', html: true });
+      const revNum = tRev.querySelector('.hf-num');
+      const coins = [0, 1, 2, 3, 4].map(() => { const c = HF.g(front); HF.coin(c, { r: 14, color: C.teal }); gsap.set(c, { opacity: 0 }); return c; });
+
+      // labels (HUD)
+      const L = (t) => HF.label(t, { x: 640, y: 60, cls: 'lg', hud: true, html: true });
+      const l1 = L('The free tier is a <span class="hf-teal">funnel</span>');
+      const l2 = L('Two ways to listen');
+      const l3 = L('Who pays?');
+      const l4 = L('Paying share, then a year of fees');
+      const l5 = L('Premium revenue for the year');
+
+      // ================================================================ choreography
+      tl.to(funnel, { opacity: 1, duration: 0.2 }, 0.0);
+      tl.to(glow, { opacity: 0.18, duration: 0.3 }, 0.1);
+      HF.say(tl, l1, 0.1, 0.8);
+      // 0.8–1.4 exits
+      HF.say(tl, l2, 0.85, 1.4);
+      tl.to(exitFree, { attr: { 'stroke-dashoffset': 0 }, duration: 0.25 }, 0.85);
+      tl.to(exitPrem, { attr: { 'stroke-dashoffset': 0 }, duration: 0.25 }, 0.9);
+      HF.pop(tl, tFree, 1.0);
+      HF.pop(tl, tPrem, 1.08);
+      HF.pop(tl, horn, 1.1);
+      // 1.4–2.4 the counts
+      HF.say(tl, l3, 1.45, 2.4);
+      HF.pop(tl, cActive, 1.5);
+      HF.count(cActive.querySelector('.hf-num'), 0, 50, 1.5, 0.4, { format: (v) => String(Math.round(v)) });
+      HF.pop(tl, cPaying, 1.85);
+      HF.count(cPaying.querySelector('.hf-num'), 0, 12.5, 1.85, 0.4, { format: (v) => (Math.round(v * 10) / 10).toFixed(1) });
+      // 2.4–3.6 share and the year
+      HF.say(tl, l4, 2.45, 3.6);
+      HF.pop(tl, badge, 2.5);
+      HF.pop(tl, tMonths, 2.8);
+      tl.to(months, { opacity: 1, duration: 0.05, stagger: 0.04 }, 2.9);
+      tl.to(months, { attr: { fill: C.teal }, duration: 0.08, stagger: 0.04 }, 2.95);
+      // 3.6–5.0 the revenue
+      HF.say(tl, l5, 3.65);
+      tl.to(months, { opacity: 0, duration: 0.15 }, 3.6);
+      tl.to(tMonths, { scale: 0, duration: 0.12 }, 3.6);
+      coins.forEach((c, i) => {
+        tl.set(c, { opacity: 1 }, 3.7 + i * 0.07);
+        HF.arc(tl, c, { x0: FX + 200, y0: 560, x1: BAR.x + BAR.w / 2, y1: BAR.base - 20, h: 160 }, 3.7 + i * 0.07, 0.35, { spin: 180 });
+        tl.to(c, { opacity: 0, duration: 0.06 }, 4.05 + i * 0.07);
+      });
+      tl.to(bar, { attr: { y: BAR.base - BAR.h, height: BAR.h }, duration: 0.6, ease: 'power2.out' }, 3.8);
+      HF.pop(tl, tRev, 3.8);
+      HF.count(revNum, 0, 1498.5, 3.8, 0.6, { format: (v) => (v >= 1498.4 ? '1,498.5' : Math.round(v).toLocaleString('en-US')) });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

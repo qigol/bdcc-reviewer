@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Other ways to keep goods out</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Political Forces · other-barriers, beats 1–6 · 6 s. Segments: 0–1 ban, 1–2 subsidy, 2–3.2 quota, 3.2–4 local content, 4–4.8 the dumping prices (no verdict: beat 5 asks), 4.8–6 the verdict + a countervailing duty. -->
+  <div id="stage" data-composition-id="non-tariff-barriers" data-start="0" data-width="1280" data-height="720" data-duration="6"></div>
+  <script>
+    /*
+     * Political Forces · nontariff barriers (scene other-barriers), 6 s. One vignette per beat, side by side; the camera
+     * pans from one to the next. The dumping numbers are the scene's: export 90, home 100, cost 95.
+     *   0.0–1.0  import ban: a crate rolls to the border; a barrier with a ban sign drops and it bounces back
+     *   1.0–2.0  subsidy: a violet government hand drops coins under a home factory; its coral cost bar shrinks
+     *   2.0–3.2  quota: crates pass a gate, the counter ticks 1/3 → 3/3, and the gate shuts in front of the fourth
+     *   3.2–4.0  local content: a car frame snaps in 3 teal home parts and 1 gold foreign part
+     *   4.0–4.8  dumping, the setup: an exporter's crate with three price bars, Home 100 · Cost 95 · Export 90
+     *   4.8–6.0  the verdict: a coral ring on Export 90 (below both); a violet subsidy coin drops to the exporter and a coral
+     *            countervailing-duty block lifts the export bar to 100; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(6);
+      window.__timelines['non-tariff-barriers'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560, P = 1280; // ground line; panel width
+      HF.box(ground, { x: -200, y: G, w: P * 6, h: 200, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -200, y: G, width: P * 6, height: 6, fill: '#3A4F92' }, ground);
+      const L = (t, x, y = 120, cls = 'lg') => HF.label(t, { x, y, cls, hud: true, html: true });
+
+      function crate(parent, { color = C.teal, w = 110, h = 80 } = {}) {
+        const g = HF.g(parent);
+        HF.box(g, { x: -w / 2, y: -h, w, h, r: 12, color });
+        for (let i = 0; i < 3; i++) HF.el('rect', { x: -w / 2 + 18 + i * ((w - 36) / 2) - 3, y: -h + 10, width: 6, height: h - 20, rx: 3, fill: HF.shade(color, 0.08) }, g);
+        return g;
+      }
+      function factory(parent, x, color) {
+        const f = HF.g(parent, { transform: `translate(${x} ${G})` });
+        HF.box(f, { x: 80, y: -170, w: 26, h: 80, r: 7, color: HF.shade(color, 0.04) });
+        HF.el('path', { d: 'M0 -100 L0 -128 L50 -108 L50 -128 L100 -108 L100 -128 L150 -104 L150 -100 Z', fill: HF.shade(color, 0.12) }, f);
+        HF.box(f, { x: 0, y: -110, w: 150, h: 110, r: 14, color });
+        for (let i = 0; i < 3; i++) HF.box(f, { x: 14 + i * 44, y: -88, w: 32, h: 26, r: 7, color: C.gold, hi: false });
+        return f;
+      }
+
+      // ---------------------------------------------------------------- 1 · import ban (panel 0)
+      const banBorder = HF.g(back);
+      HF.box(banBorder, { x: 700, y: 330, w: 24, h: G - 330, r: 10, color: '#8FA3D9', shadeSide: 'right' });
+      const banBar = HF.g(back);
+      HF.box(banBar, { x: 560, y: -26, w: 300, h: 34, r: 14, color: C.coral });
+      for (let i = 0; i < 4; i++) HF.el('rect', { x: 590 + i * 70, y: -26, width: 26, height: 34, fill: '#F4F1DE', opacity: 0.9, transform: `skewX(-20)` }, banBar);
+      const banSign = HF.g(back);
+      HF.el('circle', { cx: 712, cy: 270, r: 46, fill: '#F4F1DE' }, banSign);
+      HF.el('circle', { cx: 712, cy: 270, r: 36, fill: 'none', stroke: C.coral, 'stroke-width': 12 }, banSign);
+      HF.el('line', { x1: 687, y1: 295, x2: 737, y2: 245, stroke: C.coral, 'stroke-width': 12, 'stroke-linecap': 'round' }, banSign);
+      gsap.set(banBar, { y: 300, opacity: 0 });
+      gsap.set(banSign, { scale: 0, transformOrigin: '50% 50%' });
+      const banCrate = crate(mid, { color: C.gold });
+      gsap.set(banCrate, { x: 100, y: G });
+
+      // ---------------------------------------------------------------- 2 · subsidy (panel 1)
+      const X1 = P;
+      const homeF = factory(back, X1 + 420, C.teal);
+      const costBar = HF.el('rect', { x: X1 + 680, y: G - 220, width: 70, height: 220, rx: 12, fill: C.coral }, back);
+      HF.text(back, 'cost', { x: X1 + 715, y: G + 34, size: 24, color: C.coral, weight: 900 });
+      const hand = HF.g(front);
+      HF.box(hand, { x: -13, y: -520, w: 26, h: 470, r: 13, color: HF.shade(C.violet, 0.06), shadeSide: 'right' });
+      HF.box(hand, { x: -42, y: -60, w: 84, h: 62, r: 26, color: C.violet });
+      gsap.set(hand, { x: X1 + 490, y: -60 });
+      const subCoins = [0, 1, 2, 3].map(() => { const g = HF.g(front); HF.coin(g, { r: 15 }); gsap.set(g, { x: -200, y: -200 }); return g; });
+
+      // ---------------------------------------------------------------- 3 · quota (panel 2)
+      const X2 = P * 2;
+      const gatePost = HF.g(back);
+      HF.box(gatePost, { x: X2 + 700, y: 300, w: 26, h: G - 300, r: 10, color: '#8FA3D9', shadeSide: 'right' });
+      const gate = HF.g(back);
+      HF.box(gate, { x: X2 + 700, y: 300, w: 30, h: G - 300, r: 10, color: C.violet });
+      gsap.set(gate, { scaleY: 0, transformOrigin: '50% 0%' });
+      const counter = HF.label('Quota <span class="hf-num">0</span> / 3', { x: X2 + 712, y: 240, cls: 'pill', html: true });
+      const qNum = counter.querySelector('.hf-num');
+      const qCrates = [0, 1, 2, 3].map((i) => { const c = crate(mid, { color: i < 3 ? C.teal : C.gold }); gsap.set(c, { x: X2 + 150 - i * 140, y: G, opacity: 0 }); return c; });
+
+      // ---------------------------------------------------------------- 4 · local content (panel 3)
+      const X3 = P * 3;
+      const car = HF.g(back, { transform: `translate(${X3 + 640} ${G})` });
+      HF.el('path', { d: 'M-210 -40 L-210 -80 Q-205 -110 -170 -112 L-110 -116 L-60 -170 L80 -170 L140 -116 L190 -110 Q215 -100 215 -70 L215 -40 Z', fill: 'none', stroke: '#C9D3F2', 'stroke-width': 8, 'stroke-linejoin': 'round', 'stroke-dasharray': '18 12' }, car);
+      for (const wx of [-130, 130]) HF.el('circle', { cx: wx, cy: -30, r: 30, fill: 'none', stroke: '#C9D3F2', 'stroke-width': 8, 'stroke-dasharray': '12 10' }, car);
+      function gear(parent, color) {
+        const g = HF.g(parent);
+        for (let k = 0; k < 6; k++) HF.el('rect', { x: -8, y: -34, width: 16, height: 20, rx: 4, fill: color, transform: `rotate(${k * 60})` }, g);
+        HF.el('circle', { cx: 0, cy: 0, r: 24, fill: color }, g);
+        HF.el('circle', { cx: 0, cy: 0, r: 9, fill: '#13254B' }, g);
+        return g;
+      }
+      const SLOTS = [[-120, -80], [-30, -120], [60, -120], [140, -80]];
+      const gears = SLOTS.map((_, i) => { const g = gear(front, i < 3 ? C.teal : C.gold); gsap.set(g, { x: X3 + 640 + (i < 3 ? -520 : 520), y: 160 + i * 40, scale: 0 }); return g; });
+      const homeTag = HF.label('3 home parts', { x: X3 + 470, y: G + 70, cls: 'sm pill hf-teal' });
+      const foreignTag = HF.label('1 foreign part', { x: X3 + 830, y: G + 70, cls: 'sm pill hf-gold' });
+
+      // ---------------------------------------------------------------- 5–6 · dumping (panel 4)
+      const X4 = P * 4;
+      const bars = [['Home', 100, C.teal], ['Cost', 95, '#8FA3D9'], ['Export', 90, C.gold]];
+      const PX = 2.6; // px per unit of price
+      const barEls = bars.map(([name, v, col], i) => {
+        const x = X4 + 430 + i * 170;
+        const r = HF.el('rect', { x, y: G - v * PX, width: 110, height: v * PX, rx: 12, fill: col }, back);
+        const t = HF.text(back, `${name} ${v}`, { x: x + 55, y: G - v * PX - 16, size: 26, color: col, weight: 900 });
+        gsap.set([r, t], { opacity: 0 });
+        return { r, t, x, v };
+      });
+      const ring = HF.el('ellipse', { cx: barEls[2].x + 55, cy: G - 90 * PX / 2, rx: 92, ry: 150, fill: 'none', stroke: C.coral, 'stroke-width': 8 }, front);
+      gsap.set(ring, { opacity: 0, scale: 0.6, transformOrigin: '50% 50%' });
+      const dutyBlock = HF.el('rect', { x: barEls[2].x, y: G - 100 * PX, width: 110, height: 10 * PX, rx: 8, fill: C.coral }, front);
+      gsap.set(dutyBlock, { opacity: 0, y: -160 });
+      const helpCoin = HF.g(front); HF.coin(helpCoin, { r: 20, color: C.violet }); gsap.set(helpCoin, { x: X4 + 220, y: 140, opacity: 0 });
+      const dutyTxt = HF.text(front, '+ duty', { x: barEls[2].x + 55, y: G - 100 * PX + 19, size: 18, color: '#0B1D3A', weight: 900 });
+      gsap.set(dutyTxt, { opacity: 0 });
+      const exporter = HF.character(mid, { x: X4 + 220, y: G, color: C.gold, size: 0.9, look: 0.8 });
+      const exCrate = crate(mid, { color: C.gold });
+      gsap.set(exCrate, { x: X4 + 300, y: G });
+      gsap.set([exporter.g, exCrate], { opacity: 0 });
+
+      // ---------------------------------------------------------------- labels
+      const lBan = L('Import ban · not allowed in', 640);
+      const lSub = L('Subsidy · lowers home costs', 640);
+      const lQuota = L('Quota · caps the quantity', 640);
+      const lLocal = L('Local content · use home-made parts', 640);
+      const lDumpQ = L('Export 90 · Home 100 · Cost 95', 640);
+      const lDump = L('Dumping · below cost and home price', 640);
+      const lDuty = L('Subsidized? A <span class="hf-coral">countervailing duty</span> cancels the help', 640, 660, 'pill');
+
+      // ================================================================ choreography
+      // 1 · ban
+      tl.to(banCrate, { x: 560, duration: 0.4, ease: 'power2.out' }, 0.05);
+      tl.to(banBar, { y: G - 70, opacity: 1, duration: 0.18, ease: 'power3.in' }, 0.4);
+      HF.pop(tl, banSign, 0.5);
+      tl.to(banCrate, { x: 330, duration: 0.3, ease: 'power2.out' }, 0.58);
+      HF.wobble(tl, banCrate, 0.8, { amount: 5, dur: 0.18 });
+      HF.say(tl, lBan, 0.45, 1.0);
+
+      // 2 · subsidy
+      HF.camera(tl, { x: -P }, 1.0, 0.35, { easeName: 'power2.inOut' });
+      tl.to(hand, { y: G - 150, duration: 0.25, ease: 'back.out(1.3)' }, 1.25);
+      subCoins.forEach((c, i) => {
+        HF.arc(tl, c, { x0: X1 + 490 + (i - 1.5) * 18, y0: G - 200, x1: X1 + 440 + i * 36, y1: G - 10 }, 1.45 + i * 0.05, 0.3, { h: 40, spin: 180 });
+        tl.to(c, { scale: 0, duration: 0.1, transformOrigin: '50% 50%' }, 1.75 + i * 0.05);
+      });
+      tl.to(costBar, { attr: { y: G - 130, height: 130 }, duration: 0.4, ease: 'power2.inOut' }, 1.55);
+      HF.land(tl, homeF, 1.6, { amount: 0.06 });
+      tl.to(hand, { y: -60, duration: 0.25, ease: 'power2.in' }, 1.75);
+      HF.say(tl, lSub, 1.3, 2.0);
+
+      // 3 · quota
+      HF.camera(tl, { x: -P * 2 }, 2.0, 0.35, { easeName: 'power2.inOut' });
+      HF.pop(tl, counter, 2.2);
+      tl.to(qCrates, { opacity: 1, duration: 0.15 }, 2.1);
+      qCrates.forEach((c, i) => {
+        const pass = i < 3;
+        tl.to(c, { x: pass ? X2 + 900 + (2 - i) * 120 : X2 + 600, duration: 0.5, ease: 'power1.inOut' }, 2.25 + i * 0.14);
+      });
+      HF.count(qNum, 0, 3, 2.45, 0.5, { format: (v) => String(Math.round(v)), easeName: 'none' });
+      tl.to(gate, { scaleY: 1, duration: 0.14, ease: 'power3.in' }, 2.85);
+      HF.wobble(tl, qCrates[3], 2.95, { amount: 5, dur: 0.2 });
+      HF.say(tl, lQuota, 2.4, 3.2);
+
+      // 4 · local content
+      HF.camera(tl, { x: -P * 3 }, 3.2, 0.35, { easeName: 'power2.inOut' });
+      gears.forEach((g, i) => {
+        tl.to(g, { x: X3 + 640 + SLOTS[i][0], y: G + SLOTS[i][1], scale: 1, rotation: 240, duration: 0.3, ease: 'power2.out' }, 3.45 + i * 0.07);
+      });
+      HF.pop(tl, homeTag, 3.6);
+      HF.pop(tl, foreignTag, 3.66);
+      HF.say(tl, lLocal, 3.4, 4.0);
+
+      // 5 · dumping, the setup (no verdict)
+      HF.camera(tl, { x: -P * 4 }, 4.0, 0.35, { easeName: 'power2.inOut' });
+      tl.to([exporter.g, exCrate], { opacity: 1, duration: 0.15 }, 4.2);
+      tl.to(exCrate, { x: X4 + 330, duration: 0.2, ease: 'power1.out' }, 4.3);
+      barEls.forEach((b, i) => tl.to([b.r, b.t], { opacity: 1, duration: 0.2 }, 4.3 + i * 0.08));
+      HF.say(tl, lDumpQ, 4.35, 4.8);
+
+      // 6 · verdict and the extra duty
+      HF.say(tl, lDump, 4.85);
+      tl.to(ring, { opacity: 1, scale: 1, duration: 0.25, ease: 'back.out(1.6)' }, 4.85);
+      tl.to(ring, { keyframes: { scale: [1, 1.06, 1] }, duration: 0.35, ease: 'none' }, 5.1);
+      tl.to(helpCoin, { opacity: 1, duration: 0.1 }, 5.0);
+      tl.to(helpCoin, { y: G - 120, duration: 0.25, ease: 'power2.in' }, 5.0);
+      tl.to(helpCoin, { scale: 0, duration: 0.12, transformOrigin: '50% 50%' }, 5.25);
+      HF.land(tl, exporter.g, 5.25, { amount: 0.1, origin: '50% 100%' });
+      tl.to(dutyBlock, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.in' }, 5.2);
+      HF.land(tl, dutyBlock, 5.5, { amount: 0.15, origin: '50% 100%' });
+      tl.to(barEls[2].t, { y: -10 * PX, duration: 0.2, ease: 'power2.out' }, 5.42);
+      tl.to(dutyTxt, { opacity: 1, duration: 0.15 }, 5.5);
+      HF.pop(tl, lDuty, 5.45);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

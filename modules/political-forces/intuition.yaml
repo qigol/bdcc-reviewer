@@ -189,7 +189,7 @@ scenes:
     title: The price of crossing a border
     goal: How much extra does a shipment cost once it has to pay a border tax?
     skills: [duties, levy]
-    state: { value: 10000, units: 500, adValoremRate: 0.1, specificPerUnit: 2, worldPrice: 300, supportedPrice: 350 }
+    state: { value: 10000, units: 500, adValoremRate: 0.1, specificPerUnit: 2, worldPrice: 300, supportedPrice: 350, animFrom: 0, animTo: 0.6 }
     derive:
       - { fn: importDuty, in: { value: '@value', units: '@units', adValoremRate: '@adValoremRate', specificPerUnit: '@specificPerUnit' }, out: d }
       - { fn: variableLevy, in: { worldPrice: '@worldPrice', supportedPrice: '@supportedPrice' }, out: v }
@@ -233,11 +233,28 @@ scenes:
         hidden: true
         props: { label: World price, min: 250, max: 350, step: 10 }
         bind: { value: worldPrice }
+      - id: anim
+        widget: Animation
+        region: top
+        hidden: true
+        props:
+          src: [assets/anim/tariff-mechanisms.webm, assets/anim/tariff-mechanisms.mp4]
+          poster: assets/anim/tariff-mechanisms.poster.jpg
+          alt: |
+            A crate of 500 chairs worth 10,000 dollars rolls up to a customs arch. A 10% slice of its value bar (1,000 dollars) is
+            cut off; then a 2-dollar coin drops on each chair, and the two duties stack on the crate as a compound duty. Last, a
+            world-price bar bobs up and down while a coral levy on top stretches so the total stays on the 350-dollar support line:
+            world 300 plus levy 50.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.9, 2.0, 3.6, 4.8]
     beats:
       - say: |
           A country trades by **importing**, buying goods from abroad, and **exporting**, selling goods abroad. Governments
           often tax what comes in. A shipment of 500 chairs worth 10,000 dollars arrives at the border.
         define: [import, export]
+        show: [anim]
       - say: |
           The tax is a **tariff**: a tax on imported goods that raises their price so local producers face less
           competition. There are several ways to charge it.
@@ -246,17 +263,19 @@ scenes:
           An **ad valorem duty** is a percentage of the invoice value. A 10% duty on 10,000 dollars is 1,000 dollars. The
           Latin words mean "according to value".
         define: [ad-valorem-duty]
+        set: { animFrom: 0.6, animTo: 1.2 }
       - say: |
           A **specific duty** is a fixed amount per unit, say 2 dollars per chair. A **compound duty** uses both. With 500
           chairs and a 10% ad valorem rate, estimate the compound duty.
         define: [specific-duty, compound-duty]
+        set: { animFrom: 1.2, animTo: 3.0 }
         gate:
           type: predict
           question: What is the total compound duty on 500 chairs worth 10,000 dollars (10% plus 2 dollars per chair)?
           answer: { value: 2000, tol: 0.5 }
           explain: Ad valorem 1,000 plus specific 500 × 2 = 1,000, so 2,000 dollars.
       - say: Now steer the rate yourself and see how the total duty and landed cost respond.
-        hide: [r-in]
+        hide: [r-in, anim]
         show: [r, rate]
         gate:
           type: when
@@ -267,10 +286,11 @@ scenes:
           Farm goods have another tool. A **variable levy** is an import duty set at the gap between a low world price and
           the higher price the government supports at home. Move the world price slider and notice how the levy adjusts so the entry price stays at 350.
         define: [variable-levy]
+        set: { animFrom: 3.0, animTo: 5.0 }
         hide: [rate, r]
-        show: [lev, world-slider]
+        show: [lev, world-slider, anim]
       - say: Try a plain ad valorem question.
-        hide: [world-slider]
+        hide: [world-slider, anim]
         gate:
           type: practice
           template: duty-landed-numeric
@@ -284,7 +304,7 @@ scenes:
     title: Other ways to keep goods out
     goal: What can a government do besides taxing imports?
     skills: [trade-barriers]
-    state: { exportPrice: 90, homePrice: 100, cost: 95 }
+    state: { exportPrice: 90, homePrice: 100, cost: 95, animFrom: 0, animTo: 1 }
     derive:
       - { fn: dumpingTest, in: { exportPrice: '@exportPrice', homePrice: '@homePrice', cost: '@cost' }, out: dm }
     stage:
@@ -304,13 +324,22 @@ scenes:
             - { id: tariff, label: Tariffs }
             - { id: ntb, label: Nontariff barriers }
           solution: { b1: tariff, b2: ntb, b3: ntb, b4: tariff, b5: ntb, b6: tariff }
-      - id: note
-        widget: Text
+      - id: anim
+        widget: Animation
+        region: top
         props:
-          body: |
-            **Beyond tariffs**
-
-            Governments can ban, cap, require or subsidize.
+          src: [assets/anim/non-tariff-barriers.webm, assets/anim/non-tariff-barriers.mp4]
+          poster: assets/anim/non-tariff-barriers.poster.jpg
+          alt: |
+            Five quick scenes. A crate is turned back at a barrier with a ban sign. A government hand drops coins under a home
+            factory and its cost bar shrinks. A quota counter ticks to 3 of 3 and a gate shuts in front of the fourth crate. A car
+            frame fills with three home-made parts and one foreign part. Last, three price bars, home 100, cost 95 and export 90;
+            the export bar is circled as dumping, a violet subsidy coin drops to the exporter, and a countervailing-duty block
+            lifts the export bar to 100.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.9, 1.9, 3.1, 3.9, 4.7, 5.9]
       - id: r-in
         widget: Readout
         hidden: true
@@ -338,16 +367,20 @@ scenes:
           A **subsidy** is money or tax relief from the government to a firm, such as grants or lower taxes. It is used
           to help exports or to shield a firm from imports.
         define: [subsidy]
+        set: { animFrom: 1, animTo: 2 }
       - say: |
           Anything that discriminates against imports without an import duty is a **nontariff barrier**. One kind is the
           **quota**: a numerical limit on how much of a good may enter.
         define: [nontariff-barrier, quota]
+        set: { animFrom: 2, animTo: 3.2 }
       - say: |
           Two more: a **voluntary export restraint** is a limit the exporting country sets on itself, and a
           **local content requirement** forces firms to use goods and services made in the host country.
         define: [voluntary-export-restraint, local-content-requirement]
+        set: { animFrom: 3.2, animTo: 4 }
+      - say: Now sort the tools you have met.
         show: [sorter]
-        hide: [note]
+        hide: [anim]
         gate:
           type: event
           prompt: Sort each tool into tariffs or nontariff barriers.
@@ -358,8 +391,9 @@ scenes:
           Sometimes a barrier is aimed at unfair pricing. **Dumping** is selling a product abroad for less than it costs to
           make, or for less than its price at home. A firm exports at 90, sells at home for 100 and has costs of 95.
         define: [dumping]
+        set: { animFrom: 4, animTo: 4.8 }
         hide: [sorter]
-        show: [r-in]
+        show: [r-in, anim]
         gate:
           type: predict
           question: Is the firm dumping?
@@ -370,6 +404,7 @@ scenes:
           The importing country can fight back against subsidies with a **countervailing duty**: an extra import tax on goods
           that benefited from export subsidies, set to cancel the help.
         define: [countervailing-duty]
+        set: { animFrom: 4.8, animTo: 6 }
         hide: [r-in]
         show: [r]
         gate:
@@ -493,16 +528,23 @@ scenes:
     title: Protecting a young industry
     goal: When might shielding an industry from competition be sensible?
     skills: [govt-role]
+    state: { animFrom: 0, animTo: 2.6 }
     stage:
-      - id: note
-        widget: Text
+      - id: anim
+        widget: Animation
+        region: top
         props:
-          body: |
-            **Economic reasons for trade barriers**
-
-            - Protect a young industry
-            - Slow a dying industry
-            - Support industrial and innovation goals
+          src: [assets/anim/infant-industry.webm, assets/anim/infant-industry.mp4]
+          poster: assets/anim/infant-industry.poster.jpg
+          alt: |
+            A small teal home factory with a tall cost bar faces a big gold factory abroad sending cheap crates. A violet dome
+            drops over the home factory and the crates bounce off; inside, it grows and its cost bar shrinks. A "1st" flag goes
+            up on the big factory (it got there first) while the home factory reaches full size. Then the dome lifts away, a crate
+            arrives, and the home factory holds its ground.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.8, 1.6, 2.5, 3.5, 4.9]
     beats:
       - say: |
           A new firm in a poor country cannot compete with a giant abroad on day one. An **infant industry** is a young
@@ -519,7 +561,9 @@ scenes:
           Governments also act to win a head start. A **first-mover advantage** is the lead a company or country gets by
           entering a market first. Policies may protect emerging sectors to overcome other nations' first-mover advantages.
         define: [first-mover-advantage]
+        set: { animFrom: 2.6, animTo: 5 }
       - say: Now test yourself.
+        hide: [anim]
         gate:
           type: practice
           template: infant-mcq

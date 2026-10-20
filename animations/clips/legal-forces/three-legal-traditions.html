@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Three families of law</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Legal Forces · kinds-of-law, beats 1–4 · 5 s. Segments: 0–0.6 the three courts from afar, 0.6–2.0 civil law, 2.0–3.4 common law, 3.4–5.0 religious law + all three. Hidden while the sorter is open. -->
+  <div id="stage" data-composition-id="three-legal-traditions" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Legal Forces · kinds-of-law, 5 s. Three panels side by side (world x 0–3840); the camera starts far out showing all
+     * three, dives into each in turn and pulls back out at the end.
+     *   0.0–0.6  far view: a judge at a high desk, two advocates before a judge, a rolled scroll beside a contract
+     *   0.6–2.0  civil law: the camera dives into panel 1; a glowing book of codes opens; the judge's magnifier swings to
+     *            the witness with a "?" (the judge asks the questions)
+     *   2.0–3.4  common law: pan to panel 2; the two advocates argue in turns; dated case folders (1998, 2007, 2019) stack
+     *            up and a dotted arrow carries them to the judge (precedent)
+     *   3.4–4.45 religious law: pan to panel 3; a scroll unrolls; on the contract an "Interest %" badge is struck through
+     *            and swapped for "Profit sharing"
+     *   4.45–5.0 pull back to all three with their names; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['three-legal-traditions'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560, P = 960; // panel width; panel i is centred on cx(i)
+      const cx = (i) => i * P + P / 2;
+      const S = 1280 / (P * 3);
+      const FAR = { scale: S, x: -S * (cx(1) - 640), y: -40 }; // all three panels (0–2880) in frame
+      const AT = (i) => ({ scale: 1, x: 640 - cx(i), y: 0 });
+      gsap.set(HF.world().world, FAR);
+      HF.box(ground, { x: -800, y: G, w: P * 3 + 1600, h: 1000, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -800, y: G, width: P * 3 + 1600, height: 6, fill: '#3A4F92' }, ground);
+      // soft panel floors so the three read as separate rooms from afar
+      [C.violet, C.teal, C.gold].forEach((col, i) => HF.el('rect', { x: i * P + 60, y: G - 4, width: P - 120, height: 14, rx: 7, fill: col, opacity: 0.55 }, ground));
+
+      const bubble = (parent, x, y, str, col) => {
+        const b = HF.g(parent, { transform: `translate(${x} ${y})` });
+        const inner = HF.g(b);
+        HF.box(inner, { x: -46, y: -40, w: 92, h: 60, r: 26, color: '#F4F1DE', hi: false });
+        HF.el('path', { d: 'M-12 18 L0 36 L10 18 Z', fill: '#F4F1DE' }, inner);
+        HF.text(inner, str, { x: 0, y: 2, size: 34, color: col, weight: 900 });
+        gsap.set(inner, { scale: 0, transformOrigin: '50% 100%' });
+        return inner;
+      };
+
+      // ================================================================ panel 1 · civil law
+      const desk1 = HF.g(mid);
+      HF.box(desk1, { x: 600, y: 380, w: 280, h: G - 380, r: 18, color: HF.shade(C.violet, 0.1), shadeSide: 'right' });
+      HF.box(desk1, { x: 580, y: 366, w: 320, h: 30, r: 12, color: C.violet });
+      const judge1 = HF.character(back, { x: 740, y: 392, color: '#C9B6F2', size: 1.5, look: -0.8 });
+      HF.cap(judge1.hat, { color: C.violet });
+      const witness = HF.character(mid, { x: 150, y: G, color: C.teal, size: 1.1, look: 0.9 });
+      // the book of codes (closed: one cover; opening: two pages with lines)
+      const book = HF.g(front, { transform: 'translate(410 290)' });
+      const glow = HF.el('circle', { cx: 0, cy: 0, r: 120, fill: C.gold, opacity: 0, filter: 'url(#hf-glow)' }, book);
+      const cover = HF.g(book);
+      HF.box(cover, { x: -60, y: -80, w: 120, h: 160, r: 12, color: C.violet });
+      HF.text(cover, 'CODE', { x: 0, y: 10, size: 28, color: '#F4F1DE', weight: 900 });
+      const pages = HF.g(book);
+      HF.box(pages, { x: -124, y: -80, w: 122, h: 160, r: 10, color: '#F4F1DE', hi: false });
+      HF.box(pages, { x: 2, y: -80, w: 122, h: 160, r: 10, color: '#EAE5CC', hi: false });
+      for (let r = 0; r < 6; r++) for (const sx of [-110, 16]) HF.el('rect', { x: sx, y: -60 + r * 22, width: r % 3 === 2 ? 60 : 94, height: 7, rx: 3.5, fill: '#B8B3A0' }, pages);
+      gsap.set(pages, { scaleX: 0, transformOrigin: '50% 50%' });
+      gsap.set(book, { scale: 0, transformOrigin: '50% 50%' });
+      // magnifier held by the judge
+      const mag = HF.g(front, { transform: 'translate(660 330)' });
+      const magInner = HF.g(mag);
+      HF.el('rect', { x: -6, y: 0, width: 12, height: 70, rx: 6, fill: '#8FA3D9', transform: 'rotate(40)' }, magInner);
+      HF.el('circle', { cx: 0, cy: 0, r: 34, fill: '#CDEFFF', opacity: 0.35 }, magInner);
+      HF.el('circle', { cx: 0, cy: 0, r: 34, fill: 'none', stroke: '#C9D3F2', 'stroke-width': 10 }, magInner);
+      gsap.set(magInner, { scale: 0, transformOrigin: '50% 50%' });
+      const q = bubble(front, 190, 380, '?', C.violet);
+
+      // ================================================================ panel 2 · common law
+      const X2 = cx(1) - 640; // the old 1280-wide layout, centred
+      const desk2 = HF.g(mid);
+      HF.box(desk2, { x: X2 + 520, y: 420, w: 240, h: G - 420, r: 16, color: '#5C6FA8', shadeSide: 'right' });
+      HF.box(desk2, { x: X2 + 505, y: 408, w: 270, h: 26, r: 10, color: '#8FA3D9' });
+      const judge2 = HF.character(back, { x: X2 + 640, y: 432, color: '#C9D3F2', size: 1.3 });
+      HF.cap(judge2.hat, { color: '#8FA3D9' });
+      const advA = HF.character(mid, { x: X2 + 390, y: G, color: C.teal, size: 1.2, look: 0.8, arm: true });
+      const advB = HF.character(mid, { x: X2 + 950, y: G, color: C.coral, size: 1.2, look: -0.8 });
+      const bA = bubble(front, X2 + 420, 410, '!', C.teal);
+      const bB = bubble(front, X2 + 920, 410, '!', C.coral);
+      const folders = ['1998', '2007', '2019'].map((yr, i) => {
+        const f = HF.g(front, { transform: `translate(${X2 + 250} ${330 - i * 46})` });
+        const inner = HF.g(f);
+        HF.box(inner, { x: -80, y: -36, w: 160, h: 40, r: 9, color: i === 2 ? C.gold : HF.shade(C.gold, 0.06 * (2 - i)) });
+        HF.box(inner, { x: -80, y: -48, w: 60, h: 16, r: 6, color: C.gold, hi: false });
+        HF.text(inner, yr, { x: 18, y: -8, size: 24, color: '#0B1D3A', weight: 900 });
+        gsap.set(inner, { scale: 0, transformOrigin: '50% 100%' });
+        return inner;
+      });
+      const fGlow = HF.el('circle', { cx: X2 + 250, cy: 270, r: 110, fill: C.gold, opacity: 0, filter: 'url(#hf-glow)' }, back);
+      const arrow = HF.el('path', { d: `M${X2 + 340} 230 Q${X2 + 480} 170 ${X2 + 590} 300`, fill: 'none', stroke: C.gold, 'stroke-width': 8, 'stroke-dasharray': '4 18', 'stroke-linecap': 'round' }, front);
+      const arrowLen = 460;
+      gsap.set(arrow, { attr: { 'stroke-dasharray': `4 18`, 'stroke-dashoffset': 0 }, opacity: 0 });
+      const arrowHead = HF.el('path', { d: 'M-16 -12 L6 0 L-16 12 Z', fill: C.gold, transform: `translate(${X2 + 590} 300) rotate(55)` }, front);
+      gsap.set(arrowHead, { opacity: 0 });
+      void arrowLen;
+
+      // ================================================================ panel 3 · religious law
+      const X3 = cx(2) - 640;
+      const scroll = HF.g(back, { transform: `translate(${X3 + 230} 300)` });
+      const sheet = HF.g(scroll);
+      HF.box(sheet, { x: 0, y: -90, w: 360, h: 180, r: 8, color: '#F1E3B5', hi: false });
+      for (let r = 0; r < 5; r++) HF.el('rect', { x: 34, y: -60 + r * 28, width: r === 4 ? 160 : 290, height: 8, rx: 4, fill: '#C9B37A' }, sheet);
+      gsap.set(sheet, { scaleX: 0, transformOrigin: '0% 50%' });
+      const rollL = HF.box(scroll, { x: -18, y: -104, w: 36, h: 208, r: 18, color: C.gold });
+      const rollR = HF.g(scroll);
+      HF.box(rollR, { x: -18, y: -104, w: 36, h: 208, r: 18, color: HF.shade(C.gold, 0.06) });
+      void rollL;
+      const card = HF.g(mid, { transform: `translate(${X3 + 880} 380)` });
+      HF.box(card, { x: -170, y: -150, w: 340, h: 300, r: 22, color: '#F4F1DE', hi: false });
+      HF.text(card, 'LOAN', { x: 0, y: -100, size: 30, color: '#0B1D3A', weight: 900 });
+      for (let r = 0; r < 2; r++) HF.el('rect', { x: -130, y: 86 + r * 24, width: r ? 160 : 260, height: 9, rx: 4.5, fill: '#C9C4AE' }, card);
+      const badI = HF.g(card);
+      const badIIn = HF.g(badI);
+      HF.box(badIIn, { x: -120, y: -56, w: 240, h: 64, r: 32, color: C.coral, hi: false });
+      HF.text(badIIn, 'Interest %', { x: 0, y: -14, size: 30, color: '#0B1D3A', weight: 900 });
+      const strike = HF.el('rect', { x: -135, y: -30, width: 270, height: 10, rx: 5, fill: '#0B1D3A' }, badIIn);
+      gsap.set(strike, { scaleX: 0, transformOrigin: '0% 50%' });
+      const badP = HF.g(card);
+      HF.box(badP, { x: -140, y: -56, w: 280, h: 64, r: 32, color: C.teal, hi: false });
+      HF.text(badP, 'Profit sharing', { x: 0, y: -14, size: 30, color: '#0B1D3A', weight: 900 });
+      gsap.set(badP, { scale: 0, transformOrigin: '50% 50%' });
+
+      // ================================================================ labels
+      const L = (t, y = 110, cls = 'lg') => HF.label(t, { x: 640, y, cls, hud: true, html: true });
+      const lAll = L('Three families of law');
+      const lAll2 = L('Three families of law');
+      const lCivil = L('<span class="hf-violet">Civil law</span> · written codes; the judge asks');
+      const lCommon = L('<span class="hf-teal">Common law</span> · earlier cases guide judges');
+      const lRel = L('<span class="hf-gold">Religious law</span> · a sacred source is the law');
+      const tags = [['Civil', 'hf-violet', 213], ['Common', 'hf-teal', 640], ['Religious', 'hf-gold', 1067]]
+        .map(([t, cls, x]) => HF.label(t, { x, y: 455, cls: `pill ${cls}`, hud: true }));
+
+      // ================================================================ choreography
+      // 0.0–0.6 far view
+      HF.pop(tl, [judge1.g, witness.g, judge2.g, advA.g, advB.g], 0.0, { origin: '50% 100%', stagger: 0.03 });
+      HF.pop(tl, [desk1, desk2, card, scroll], 0.05, { origin: '50% 100%', stagger: 0.03 });
+      HF.pop(tl, book, 0.12);
+      HF.say(tl, lAll, 0.1, 0.6);
+      HF.pop(tl, tags, 0.2, { stagger: 0.05 });
+      tl.to(tags, { scale: 0, duration: 0.15 }, 0.44);
+
+      // 0.6–2.0 civil law
+      HF.camera(tl, AT(0), 0.6, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, lCivil, 0.95, 2.0);
+      tl.to(cover, { scaleX: 0, transformOrigin: '50% 50%', duration: 0.12, ease: 'power2.in' }, 1.0);
+      tl.to(pages, { scaleX: 1, duration: 0.18, ease: 'back.out(1.6)' }, 1.12);
+      tl.to(glow, { opacity: 0.35, duration: 0.3 }, 1.12);
+      HF.pop(tl, magInner, 1.25);
+      tl.to(mag, { x: -400, y: 40, duration: 0.35, ease: 'power2.inOut' }, 1.4);
+      HF.wobble(tl, mag, 1.75, { amount: 6, dur: 0.2 });
+      HF.pop(tl, q, 1.6, { origin: '50% 100%' });
+      HF.wobble(tl, witness.g, 1.7, { amount: 4, origin: '50% 100%', dur: 0.2 });
+
+      // 2.0–3.4 common law
+      HF.camera(tl, AT(1), 2.0, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, lCommon, 2.3, 3.4);
+      HF.pop(tl, bA, 2.3, { origin: '50% 100%' });
+      tl.to(bA, { scale: 0, duration: 0.12 }, 2.55);
+      HF.pop(tl, bB, 2.55, { origin: '50% 100%' });
+      tl.to(bB, { scale: 0, duration: 0.12 }, 2.8);
+      HF.pop(tl, bA, 2.8, { origin: '50% 100%' });
+      HF.pop(tl, folders, 2.45, { origin: '50% 100%', stagger: 0.1 });
+      tl.to(fGlow, { opacity: 0.3, duration: 0.3 }, 2.7);
+      tl.to(arrow, { opacity: 1, duration: 0.1 }, 2.95);
+      tl.fromTo(arrow, { attr: { 'stroke-dashoffset': 0 } }, { attr: { 'stroke-dashoffset': -66 }, duration: 0.4, ease: 'none', immediateRender: false }, 2.95);
+      tl.to(arrowHead, { opacity: 1, duration: 0.1 }, 3.05);
+      HF.wobble(tl, judge2.g, 3.15, { amount: 4, origin: '50% 100%', dur: 0.2 });
+
+      // 3.4–4.45 religious law
+      HF.camera(tl, AT(2), 3.4, 0.35, { easeName: 'power2.inOut' });
+      HF.say(tl, lRel, 3.6, 4.45);
+      tl.to(sheet, { scaleX: 1, duration: 0.35, ease: 'power2.out' }, 3.6);
+      tl.to(rollR, { x: 360, duration: 0.35, ease: 'power2.out' }, 3.6);
+      HF.wobble(tl, badI, 3.85, { amount: 4 });
+      tl.to(strike, { scaleX: 1, duration: 0.15, ease: 'power2.out' }, 3.95);
+      tl.to(badIIn, { y: 140, rotation: 14, opacity: 0, duration: 0.25, ease: 'power2.in' }, 4.12);
+      HF.pop(tl, badP, 4.2);
+
+      // 4.45–5.0 all three
+      HF.camera(tl, FAR, 4.45, 0.4, { easeName: 'power2.inOut' });
+      HF.say(tl, lAll2, 4.6);
+      HF.pop(tl, tags, 4.62, { stagger: 0.03 });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

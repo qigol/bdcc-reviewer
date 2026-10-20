@@ -141,7 +141,7 @@ scenes:
     goal: When a company grows abroad, what are the ways to arrange who reports to whom at the top?
     skills: [structure-types]
     data: [structures]
-    state: { structure: product }
+    state: { structure: product, animFrom: 0, animTo: 1 }
     derive:
       - { fn: structureInfo, in: { structure: '@structure' }, out: s }
     stage:
@@ -177,6 +177,22 @@ scenes:
             - { value: hybrid, label: Hybrid }
             - { value: matrix, label: Matrix }
         bind: { value: structure }
+      - id: anim
+        widget: Animation
+        region: top
+        props:
+          src: [assets/anim/org-chart-structures.webm, assets/anim/org-chart-structures.mp4]
+          poster: assets/anim/org-chart-structures.poster.jpg
+          alt: |
+            An HQ box with a row beneath it that re-forms for each structure: Domestic beside an International division; then
+            Cars, Batteries and Solar, each with its own row of little globes; then Americas, Europe and Asia, each with its own
+            row of little product cubes; then Making, Selling and Finance; then Europe, Asia and a worldwide Product X. Last, a
+            matrix: product rows cross region columns, and a manager where Solar meets Asia gets two solid boss lines before
+            the region line turns dashed, an overlay that advises rather than a second boss.
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [0.9, 1.9, 2.9, 3.5, 4.1, 4.9, 5.4]
     beats:
       - say: |
           A company that begins selling abroad often adds an **international division**: a unit at the same level as the
@@ -187,10 +203,12 @@ scenes:
           One choice is the **international product structure**: product divisions run their products worldwide. It
           avoids duplicating product experts but duplicates area experts.
         define: [product-structure]
+        set: { animFrom: 1, animTo: 2 }
       - say: |
           Another is the **geographic region structure**: area managers run everything in their region and report to the CEO.
           Every country is under someone in contact with headquarters. It suits products with low or stable technology.
         define: [geographic-structure]
+        set: { animFrom: 2, animTo: 3 }
         gate:
           type: predict
           question: Which structure avoids duplicating product experts but duplicates area experts?
@@ -201,6 +219,7 @@ scenes:
           The **global functional structure** is organized by function at the top. Few international companies use it.
           Explore the structures menu to see where it fits best.
         define: [functional-structure]
+        set: { animFrom: 3, animTo: 3.6 }
         hide: [struct-note]
         show: [r, pick]
         gate:
@@ -212,14 +231,17 @@ scenes:
           A **hybrid organizational structure** uses more than one dimension at the top level, often a regional company that adds
           a worldwide product division.
         define: [hybrid-structure]
+        set: { animFrom: 3.6, animTo: 4.2 }
       - say: |
           A **matrix organization** layers two or more dimensions, so some managers report to two bosses. A **matrix overlay**
           avoids that: top divisions must listen to a staff of experts from another dimension.
         define: [matrix-organization, matrix-overlay]
+        set: { animFrom: 4.2, animTo: 5.5 }
       - say: |
           A **strategic business unit** is a self-contained business with its own market and competitors, small enough for
           one manager to control.
         define: [strategic-business-unit]
+        hide: [anim]
       - say: Match structures to their features.
         hide: [pick]
         gate:
@@ -231,6 +253,7 @@ scenes:
     title: Newer ways to organize
     goal: What are companies trying instead of tall, rigid hierarchies?
     skills: [structure-types]
+    state: { animFrom: 0, animTo: 1.3 }
     stage:
       - id: sorter
         widget: DropBins
@@ -249,15 +272,22 @@ scenes:
             - { id: horizontal, label: Horizontal corporation }
             - { id: network, label: Dynamic network }
           solution: { f1: reeng, f2: virtual, f3: horizontal, f4: network }
-      - id: note
-        widget: Text
+      - id: anim
+        widget: Animation
+        region: top
         props:
-          body: |
-            **Current trends in organizational design**
-
-            - **Flatter:** Fewer layers of management between the front line and the top.
-            - **Flexible:** Resources and teams shift rapidly as markets change.
-            - **Networked:** Lateral links and outside partners replace rigid vertical chains.
+          src: [assets/anim/newer-org-forms.webm, assets/anim/newer-org-forms.mp4]
+          poster: assets/anim/newer-org-forms.poster.jpg
+          alt: |
+            A tall five-layer pyramid of boxes loses its middle layers and settles into two flat layers (reengineering). Then a
+            small teal firm reaches out with dashed lines to a design studio, a factory, a delivery firm and two remote workers,
+            all outside it. Then five peers stand in a row, linked side to side, inside one gold ring of shared philosophy
+            (horizontal corporation). Last, a small violet headquarters hub links to five little companies around it (dynamic
+            network).
+          start: '@animFrom'
+          end: '@animTo'
+          loop: false
+          stills: [1.2, 2.5, 3.7, 4.9]
     beats:
       - say: |
           **Reengineering** means redesigning the structure, hierarchy, systems and processes of an organization to make it more
@@ -267,6 +297,7 @@ scenes:
           A **virtual corporation** delivers value to customers using resources outside the firm's boundaries. Remote work
           and flexible hours, boosted by the pandemic, have helped it grow.
         define: [virtual-corporation]
+        set: { animFrom: 1.3, animTo: 2.6 }
         gate:
           type: predict
           question: Which form relies most on resources from outside the firm?
@@ -277,12 +308,15 @@ scenes:
           A **horizontal corporation** is organized around lateral decision-making, horizontal networks and a strong
           company-wide philosophy. It has been called an anti-organization.
         define: [horizontal-corporation]
+        set: { animFrom: 2.6, animTo: 3.8 }
       - say: |
           A **dynamic network structure** splits the main functions into smaller, more agile companies coordinated by a
-          downsized headquarters. Sort the four forms.
+          downsized headquarters.
         define: [dynamic-network]
+        set: { animFrom: 3.8, animTo: 5 }
+      - say: Sort the four forms.
         show: [sorter]
-        hide: [note]
+        hide: [anim]
         gate:
           type: event
           prompt: Match each description to its form.
@@ -290,7 +324,6 @@ scenes:
           event: solved
       - say: A check on the forms.
         hide: [sorter]
-        show: [note]
         gate:
           type: practice
           template: forms-match
@@ -376,7 +409,7 @@ scenes:
     goal: How can one company pay less tax simply by changing the prices it charges its own units?
     skills: [transfer-pricing]
     data: [transfer]
-    state: { alphaPretax: 60, betaPretax: 40, alphaRate: 0.5, betaRate: 0.2 }
+    state: { alphaPretax: 60, betaPretax: 40, alphaRate: 0.5, betaRate: 0.2, animFrom: 0, animTo: 1 }
     derive:
       - { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, out: t }
     stage:
@@ -419,6 +452,8 @@ scenes:
           alt: |
             Two island subsidiaries: Alpha (50% tax) earns 60 and Beta (20% tax) earns 40. An invoice flies from Beta to Alpha and
             10 coins of profit move back to Beta; the total tax falls from 38 to 35 while total profit stays 100.
+          start: '@animFrom'
+          end: '@animTo'
           loop: false
           stills: [1.0, 2.4, 4.2, 5]
     beats:
@@ -433,10 +468,16 @@ scenes:
           explain: Alpha keeps 60 × 0.5 = 30 and Beta keeps 40 × 0.8 = 32, so 62 million.
       - say: |
           Units of one company sell to each other. **Transfer pricing** sets the prices for goods and services sold
-          between units of the same company, and it also shifts where profit shows up. Move profit from high-tax Alpha to low-tax Beta.
+          between units of the same company, and it also shifts where profit shows up.
         define: [transfer-pricing]
+        show: [anim]
+      - say: |
+          Watch 10 million of profit move from Alpha to Beta. The group's tax falls from 38 to 35 million, and total profit
+          is still 100.
+        set: { animFrom: 1, animTo: 5 }
+      - say: Now go one step further. Move more profit from high-tax Alpha to low-tax Beta.
         hide: [r-in]
-        show: [r, aslide, bslide, anim]
+        show: [r, aslide, bslide]
         gate:
           type: when
           prompt: Shift 20 million of pretax profit from Alpha (to 40) to Beta (to 60) so the group keeps 68 million after tax.

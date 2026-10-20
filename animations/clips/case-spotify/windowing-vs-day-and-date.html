@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Windowing or day-and-date</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Spotify · the-swift-takedown, beats 1–2 · 5 s. Segments: 0–3.4 day-and-date against windowing, 3.4–5.0 Spotify says no and the catalogue is pulled. No numbers (beat 2 asks for a share). -->
+  <div id="stage" data-composition-id="windowing-vs-day-and-date" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Spotify · the-swift-takedown, 5 s. Two rows of three doors: Album, Premium, Free. Listeners stream in from the left.
+     *   0.0–1.7  top row, "Day-and-date": all three doors open on day 1; most listeners take the Free door; the album-sales
+     *            bar barely grows
+     *   1.7–3.4  bottom row, "Windowing": the Free door is padlocked for a while; listeners take Album and Premium; the
+     *            album-sales bar grows tall
+     *   3.4–5.0  a teal stamp on the top row, "Same for everyone"; on the bottom row three album cards slide off their shelf:
+     *            "Catalogue pulled"; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['windowing-vs-day-and-date'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const ROWS = [250, 520];
+      const DX = [520, 720, 920];
+      const NAMES = ['Album', 'Premium', 'Free'];
+      const DCOL = [C.gold, C.teal, '#8FA3D9'];
+
+      const rows = ROWS.map((y, r) => {
+        const g = HF.g(back);
+        HF.box(g, { x: 60, y: y - 120, w: 1160, h: 200, r: 32, color: '#1B2C5E', hi: false });
+        gsap.set(g, { opacity: 0 });
+        const title = HF.label(r ? 'Windowing' : 'Day-and-date', { x: 90, y: y - 92, cls: `sm ${r ? 'hf-gold' : 'hf-teal'}`, anchor: 'left' });
+        const doors = DX.map((x, i) => {
+          const d = HF.g(mid, { transform: `translate(${x} ${y})` });
+          const di = HF.g(d);
+          HF.box(di, { x: -55, y: -70, w: 110, h: 110, r: 18, color: DCOL[i] });
+          HF.box(di, { x: -32, y: -46, w: 64, h: 86, r: 12, color: '#13254B', hi: false });
+          HF.text(di, NAMES[i], { x: 0, y: 66, size: 22, color: DCOL[i], weight: 900 });
+          gsap.set(di, { scale: 0, transformOrigin: '50% 100%' });
+          return di;
+        });
+        const bar = HF.el('rect', { x: 1090, y: y + 40, width: 70, height: 0, rx: 12, fill: C.gold }, mid);
+        HF.text(g, 'album sales', { x: 1125, y: y + 66, size: 18, color: C.gold, weight: 800 });
+        return { g, title, doors, bar, y };
+      });
+      // the padlock on the windowed Free door
+      const lock = HF.g(front, { transform: `translate(${DX[2]} ${ROWS[1] - 20})` });
+      const lockIn = HF.g(lock);
+      HF.el('path', { d: 'M-16 -6 L-16 -22 Q-16 -38 0 -38 Q16 -38 16 -22 L16 -6', fill: 'none', stroke: '#C9D3F2', 'stroke-width': 7 }, lockIn);
+      HF.box(lockIn, { x: -24, y: -8, w: 48, h: 40, r: 10, color: C.gold });
+      gsap.set(lockIn, { scale: 0, transformOrigin: '50% 50%' });
+      const later = HF.label('free tier later', { x: DX[2], y: ROWS[1] + 100, cls: 'sm hf-gold' });
+
+      // listeners (pure function of t)
+      const plan = [
+        { row: 0, t0: 0.4, doors: [2, 2, 1, 2, 0, 2, 2, 1, 2, 2] },
+        { row: 1, t0: 2.0, doors: [0, 1, 0, 0, 1, 0, 1, 0, 0, 1] },
+      ];
+      const walkers = [];
+      plan.forEach(({ row, t0, doors }) => doors.forEach((door, k) => {
+        const w = HF.g(front);
+        HF.el('circle', { cx: 0, cy: 0, r: 11, fill: ['#F2A3A3', '#7FD3D0', '#C9D3F2'][k % 3] }, w);
+        w.setAttribute('opacity', '0');
+        walkers.push({ w, row, start: t0 + k * 0.1, door });
+      }));
+      HF.every((t) => {
+        walkers.forEach(({ w, row, start, door }) => {
+          const p = (t - start) / 0.55;
+          if (p <= 0 || p >= 1) { w.setAttribute('opacity', '0'); return; }
+          const y = ROWS[row] - 20;
+          const x = 150 + (DX[door] - 150) * p;
+          w.setAttribute('transform', `translate(${x.toFixed(1)} ${(y - Math.abs(Math.sin(p * Math.PI * 4)) * 8).toFixed(1)})`);
+          w.setAttribute('opacity', p > 0.85 ? ((1 - p) / 0.15).toFixed(2) : '1');
+        });
+      });
+
+      // the standoff
+      const stamp = HF.g(front, { transform: `translate(${DX[1]} ${ROWS[0] - 30})` });
+      const stampIn = HF.g(stamp);
+      HF.box(stampIn, { x: -170, y: -32, w: 340, h: 64, r: 16, color: C.teal, hi: false });
+      HF.text(stampIn, 'Same for everyone', { x: 0, y: 10, size: 30, color: '#0B1D3A', weight: 900 });
+      gsap.set(stampIn, { scale: 0, rotation: -6, transformOrigin: '50% 50%' });
+      const shelf = HF.g(mid);
+      HF.box(shelf, { x: 90, y: ROWS[1] + 30, w: 260, h: 14, r: 7, color: '#5C6FA8', hi: false });
+      const albums = [0, 1, 2].map((i) => {
+        const a = HF.g(mid, { transform: `translate(${130 + i * 90} ${ROWS[1] + 30})` });
+        const ai = HF.g(a);
+        HF.box(ai, { x: -36, y: -76, w: 72, h: 72, r: 8, color: [C.violet, C.coral, C.gold][i] });
+        HF.el('circle', { cx: 0, cy: -40, r: 18, fill: '#0B1D3A' }, ai);
+        HF.el('circle', { cx: 0, cy: -40, r: 5, fill: '#F4F1DE' }, ai);
+        return ai;
+      });
+      gsap.set([shelf, ...albums], { opacity: 0 });
+      const pulled = HF.label('Catalogue pulled', { x: 220, y: ROWS[1] + 80, cls: 'sm pill hf-coral' });
+
+      // labels (HUD)
+      const L = (t) => HF.label(t, { x: 640, y: 56, cls: 'lg', hud: true, html: true });
+      const l1 = L('<span class="hf-teal">Day-and-date</span> · every channel on day one');
+      const l2 = L('<span class="hf-gold">Windowing</span> · paid channels first');
+      const l3 = L('Spotify said no, so the label pulled out');
+
+      // ================================================================ choreography
+      // 0.0–1.7 day-and-date
+      tl.to(rows[0].g, { opacity: 1, duration: 0.15 }, 0.0);
+      HF.pop(tl, rows[0].title, 0.05, { origin: '0% 50%' });
+      HF.say(tl, l1, 0.1, 1.7);
+      HF.pop(tl, rows[0].doors, 0.1, { origin: '50% 100%', stagger: 0.05 });
+      tl.to(rows[0].bar, { attr: { y: ROWS[0] + 40 - 30, height: 30 }, duration: 0.4, ease: 'power2.out' }, 1.0);
+
+      // 1.7–3.4 windowing
+      tl.to(rows[1].g, { opacity: 1, duration: 0.15 }, 1.7);
+      HF.pop(tl, rows[1].title, 1.72, { origin: '0% 50%' });
+      HF.say(tl, l2, 1.75, 3.4);
+      HF.pop(tl, rows[1].doors, 1.75, { origin: '50% 100%', stagger: 0.05 });
+      HF.pop(tl, lockIn, 1.95);
+      HF.pop(tl, later, 2.05);
+      tl.to(rows[1].bar, { attr: { y: ROWS[1] + 40 - 150, height: 150 }, duration: 1.0, ease: 'power1.inOut' }, 2.4);
+
+      // 3.4–5.0 the standoff
+      HF.say(tl, l3, 3.45);
+      tl.to(stampIn, { scale: 1, rotation: -6, duration: 0.2, ease: 'back.out(2)' }, 3.5);
+      HF.land(tl, rows[0].doors, 3.65, { amount: 0.05, origin: '50% 100%' });
+      tl.to([shelf, ...albums], { opacity: 1, duration: 0.15 }, 3.75);
+      albums.forEach((a, i) => tl.to(a, { x: -40, y: 140, rotation: -20 - i * 8, opacity: 0, duration: 0.35, ease: 'power2.in' }, 4.0 + i * 0.1));
+      HF.pop(tl, pulled, 4.3);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

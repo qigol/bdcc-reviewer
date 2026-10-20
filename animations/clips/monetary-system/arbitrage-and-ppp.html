@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>One phone, two prices</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Monetary System · why-prices-differ, beats 1–3 · 5 s. Segments: 0–1.2 the same price in both cities, 1.2–2.0 New York drops to $450 (no traders: beat 2 asks what they do), 2.0–5.0 arbitrage closes the gap. -->
+  <div id="stage" data-composition-id="arbitrage-and-ppp" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Monetary System · why-prices-differ, 5 s. Numbers are the scene's: ₱25,000 in Manila = $500 at ₱50 per $1; New York
+     * $500, then $450.
+     *   0.0–1.2  two skylines; two price bars rise level: New York $500, Manila ₱25,000 = $500; "=" between them
+     *   1.2–2.0  the New York bar drops to $450; a gold "$50 gap" bracket appears
+     *   2.0–3.9  boats carry phones from New York to Manila; a "+$50" coin pops at each arrival; the bars creep together
+     *   3.9–5.0  level again: "Gap closes"; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['arbitrage-and-ppp'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 540, SEA = 600;
+      // shores and the sea between
+      HF.box(ground, { x: -100, y: G, w: 1480, h: 300, r: 0, color: '#22356E', hi: false });
+      HF.wave(ground, { y: SEA, amp: 6, len: 120, x0: -120, x1: 1400, bottom: 760, color: C.sea, opacity: 0.9 });
+
+      function skyline(parent, x, col) {
+        const s = HF.g(parent, { transform: `translate(${x} ${G})` });
+        [[-150, 70, 150], [-80, 60, 230], [-20, 80, 180], [60, 60, 260], [120, 70, 140]].forEach(([dx, w, h]) =>
+          HF.box(s, { x: dx, y: -h, w, h, r: 10, color: col, hi: false }));
+        gsap.set(s, { scale: 0, transformOrigin: '50% 100%' });
+        return s;
+      }
+      const nySky = skyline(back, 230, '#2B3D78');
+      const mnSky = skyline(back, 1050, '#2B3D78');
+      HF.text(back, 'New York', { x: 260, y: G + 40, size: 26, color: C.teal, weight: 900 });
+      HF.text(back, 'Manila', { x: 1020, y: G + 40, size: 26, color: C.gold, weight: 900 });
+
+      const PX = 0.62; // px per dollar
+      const BW = 120;
+      const bar = (x, col) => HF.el('rect', { x: x - BW / 2, y: G, width: BW, height: 0, rx: 14, fill: col }, mid);
+      const NYX = 520, MNX = 760;
+      const ny = bar(NYX, C.teal), mn = bar(MNX, C.gold);
+      const P = { ny: 0, mn: 0 };
+      HF.every(() => {
+        ny.setAttribute('y', (G - P.ny * PX).toFixed(1)); ny.setAttribute('height', (P.ny * PX).toFixed(1));
+        mn.setAttribute('y', (G - P.mn * PX).toFixed(1)); mn.setAttribute('height', (P.mn * PX).toFixed(1));
+      });
+      // phones on top of the bars
+      const phone = (col) => { const g = HF.g(front); HF.box(g, { x: -22, y: -76, w: 44, h: 76, r: 10, color: '#0E1A3A' }); HF.box(g, { x: -16, y: -68, w: 32, h: 58, r: 6, color: col, hi: false }); return g; };
+      const nyPh = phone(C.teal), mnPh = phone(C.gold);
+      HF.every(() => {
+        nyPh.setAttribute('transform', `translate(${NYX} ${(G - P.ny * PX - 6).toFixed(1)})`);
+        mnPh.setAttribute('transform', `translate(${MNX} ${(G - P.mn * PX - 6).toFixed(1)})`);
+      });
+      gsap.set([nyPh, mnPh], { opacity: 0 });
+      const nyTag = HF.label('<span class="hf-num">$500</span>', { x: NYX - 110, y: G - 500 * PX + 30, cls: 'hf-teal', anchor: 'right', html: true });
+      const nyNum = nyTag.querySelector('.hf-num');
+      const mnTag = HF.label('₱25,000 = $500', { x: MNX + 110, y: G - 500 * PX + 30, cls: 'hf-gold', anchor: 'left' });
+      const rate = HF.label('₱50 = $1', { x: 640, y: G + 110, cls: 'pill' });
+      const eq = HF.label('=', { x: 640, y: G - 500 * PX + 60, cls: 'lg' });
+      // the gap bracket
+      const gapG = HF.g(front);
+      HF.el('path', { d: `M${NYX + 70} ${G - 500 * PX} l18 0 l0 ${50 * PX} l-18 0`, fill: 'none', stroke: C.gold, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, gapG);
+      gsap.set(gapG, { opacity: 0 });
+      const gapTag = HF.label('$50 gap', { x: 640, y: G - 500 * PX - 46, cls: 'sm pill hf-gold' });
+
+      // boats
+      const boats = [0, 1, 2].map(() => {
+        const b = HF.g(front);
+        HF.el('path', { d: 'M-50 -16 L50 -16 L36 10 L-36 10 Z', fill: '#C9D3F2' }, b);
+        HF.box(b, { x: -26, y: -46, w: 52, h: 30, r: 8, color: C.teal });
+        gsap.set(b, { x: 300, y: SEA + 8, opacity: 0 });
+        return b;
+      });
+      const plus = [0, 1, 2].map(() => HF.label('+$50', { x: 960, y: 440, cls: 'sm pill hf-gold' }));
+
+      // labels (HUD)
+      const L = (t, y = 90) => HF.label(t, { x: 640, y, cls: 'lg', hud: true, html: true });
+      const l1 = L('<span class="hf-gold">Law of one price</span> · same phone, same price');
+      const l2 = L('New York drops to <span class="hf-teal">$450</span>');
+      const l3 = L('<span class="hf-gold">Arbitrage</span> · buy cheap, sell dear');
+      const l4 = L('The gap closes');
+
+      // ================================================================ choreography
+      // 0.0–1.2 level prices
+      HF.pop(tl, [nySky, mnSky], 0.0, { origin: '50% 100%', stagger: 0.06 });
+      HF.say(tl, l1, 0.15, 1.2);
+      tl.to(P, { ny: 500, mn: 500, duration: 0.45, ease: 'power2.out' }, 0.25);
+      tl.to([nyPh, mnPh], { opacity: 1, duration: 0.15 }, 0.55);
+      HF.pop(tl, nyTag, 0.7, { origin: '100% 50%' });
+      HF.pop(tl, mnTag, 0.78, { origin: '0% 50%' });
+      HF.pop(tl, rate, 0.85);
+      HF.pop(tl, eq, 0.86);
+
+      // 1.2–2.0 New York drops
+      HF.say(tl, l2, 1.2, 2.0);
+      tl.to(eq, { scale: 0, duration: 0.12 }, 1.22);
+      tl.to(P, { ny: 450, duration: 0.35, ease: 'power2.inOut' }, 1.3);
+      HF.count(nyNum, 500, 450, 1.3, 0.35, { format: (v) => `$${Math.round(v)}` });
+      tl.to(nyTag, { y: 50 * PX, duration: 0.35, ease: 'power2.inOut' }, 1.3);
+      tl.to(gapG, { opacity: 1, duration: 0.15 }, 1.65);
+      HF.pop(tl, gapTag, 1.7);
+
+      // 2.0–3.9 arbitrage
+      HF.say(tl, l3, 2.0, 3.9);
+      tl.to([nyTag, mnTag, rate], { scale: 0, duration: 0.15 }, 2.05);
+      boats.forEach((b, i) => {
+        const at = 2.1 + i * 0.42;
+        tl.set(b, { opacity: 1, x: 420 }, at);
+        tl.to(b, { x: 860, duration: 0.55, ease: 'power1.inOut' }, at);
+        tl.to(b, { opacity: 0, duration: 0.1 }, at + 0.55);
+        HF.pop(tl, plus[i], at + 0.55);
+        tl.to(plus[i], { y: -60, opacity: 0, duration: 0.35, ease: 'power1.in' }, at + 0.75);
+      });
+      tl.to(P, { ny: 475, mn: 475, duration: 1.3, ease: 'power1.inOut' }, 2.45);
+      tl.to(gapG, { scaleY: 0, opacity: 0, transformOrigin: '50% 0%', duration: 0.9, ease: 'power1.in' }, 2.45);
+      tl.to(gapTag, { scale: 0, duration: 0.15 }, 2.6);
+
+      // 3.9–5.0 level again
+      HF.say(tl, l4, 3.9);
+      HF.pop(tl, eq, 4.0);
+      tl.set(eq, { y: 25 * PX }, 3.99);
+      HF.wobble(tl, [nyPh, mnPh], 4.05, { amount: 4 });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

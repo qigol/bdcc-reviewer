@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Tariffs on a shipment</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Political Forces · tariffs, beats 1–4 and 6 · 5 s. Segments: 0–0.6 the shipment, 0.6–1.2 ad valorem, 1.2–3.0 specific + compound (no total: beat 4 asks for it), 3.0–5.0 variable levy. -->
+  <div id="stage" data-composition-id="tariff-mechanisms" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Political Forces · tariffs (scene tariffs), 5 s. Numbers are the scene's: 500 chairs worth $10,000; 10% ad valorem;
+     * $2 a chair specific; world price $300 against a supported price of $350.
+     *   0.0–0.6  a teal crate of 500 chairs ($10,000) rolls up to a violet customs arch
+     *   0.6–1.2  ad valorem: a coral 10% slice is cut off the top of its gold value bar ($1,000)
+     *   1.2–2.6  specific: a stamp drops a $2 coin on each chair; compound: both coral blocks stack on the crate
+     *   2.6–3.0  hold (the total is the beat-4 predict gate: never shown)
+     *   3.0–4.3  variable levy: the camera pans to a chart; the world price bobs 320 → 340 → 300 and a coral levy on top
+     *            stretches 30 → 10 → 50 so the top stays on the $350 support line
+     *   4.3–5.0  hold: World $300 + Levy $50 = $350
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['tariff-mechanisms'] = tl;
+      const ground = HF.layer('ground');
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const G = 560;
+
+      // ---------------------------------------------------------------- the border
+      HF.box(ground, { x: -200, y: G, w: 3000, h: 200, r: 0, color: '#22356E', hi: false, shadeK: 0.04 });
+      HF.el('rect', { x: -200, y: G, width: 3000, height: 6, fill: '#3A4F92' }, ground);
+      const arch = HF.g(back);
+      HF.box(arch, { x: 720, y: 300, w: 34, h: G - 300, r: 12, color: C.violet, shadeSide: 'right' });
+      HF.box(arch, { x: 1010, y: 300, w: 34, h: G - 300, r: 12, color: C.violet, shadeSide: 'right' });
+      HF.box(arch, { x: 700, y: 262, w: 364, h: 54, r: 22, color: C.violet });
+      HF.text(arch, 'CUSTOMS', { x: 882, y: 298, size: 26, color: '#F4F1DE', weight: 900 });
+      gsap.set(arch, { scale: 0, transformOrigin: '50% 100%' });
+
+      // ---------------------------------------------------------------- the crate and its value bar
+      const crate = HF.g(mid);
+      HF.box(crate, { x: -110, y: -150, w: 220, h: 150, r: 16, color: C.teal });
+      for (let i = 0; i < 4; i++) HF.el('rect', { x: -96 + i * 52, y: -138, width: 8, height: 126, rx: 4, fill: HF.shade(C.teal, 0.08) }, crate);
+      HF.text(crate, '500 chairs', { x: 0, y: -66, size: 26, color: '#0B1D3A', weight: 900 });
+      const CX = 420;
+      gsap.set(crate, { x: -260, y: G });
+
+      const VB = { x: 230, w: 80, h: 300 }; // the value bar: $10,000 = 300 px, so 10% = 30 px
+      const value = HF.g(mid);
+      const vbBody = HF.box(value, { x: VB.x, y: G - VB.h, w: VB.w, h: VB.h - 30, r: 10, color: C.gold });
+      const vbTop = HF.g(value);
+      HF.box(vbTop, { x: VB.x, y: G - VB.h, w: VB.w, h: 30, r: 8, color: C.coral, hi: false });
+      HF.text(vbTop, '10%', { x: VB.x + VB.w / 2, y: G - VB.h + 22, size: 18, color: '#0B1D3A', weight: 900 });
+      HF.text(value, '$10,000', { x: VB.x + VB.w / 2, y: G - VB.h - 14, size: 26, color: C.gold, weight: 900 });
+      gsap.set(value, { opacity: 0 });
+      void vbBody;
+
+      // chairs on the crate (shown during the specific duty)
+      function chair(parent, x) {
+        const g = HF.g(parent, { transform: `translate(${x} 0)` });
+        HF.el('path', { d: 'M-12 0 L-12 -22 L10 -22 L10 0 M-12 -22 L-12 -46', stroke: '#F4F1DE', 'stroke-width': 6, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+        return g;
+      }
+      const chairs = HF.g(front);
+      const chairList = [-150, -90, -30, 30, 90, 150].map((x) => chair(chairs, x));
+      gsap.set(chairs, { x: CX + 10, y: G - 168 });
+      gsap.set(chairList, { scale: 0, transformOrigin: '50% 100%' });
+      const coins = chairList.map((c, i) => {
+        const g = HF.g(front);
+        HF.coin(g, { r: 19, color: C.coral, mark: '$2' });
+        gsap.set(g, { x: CX + 10 + [-150, -90, -30, 30, 90, 150][i], y: -60 });
+        return g;
+      });
+
+      // the two coral blocks that make the compound duty
+      const avBlock = HF.g(front);
+      HF.box(avBlock, { x: -100, y: -38, w: 200, h: 38, r: 10, color: C.coral, hi: false });
+      HF.text(avBlock, '10% of value', { x: 0, y: -11, size: 22, color: '#0B1D3A', weight: 900 });
+      const spBlock = HF.g(front);
+      HF.box(spBlock, { x: -100, y: -38, w: 200, h: 38, r: 10, color: HF.shade(C.coral, 0.06), hi: false });
+      HF.text(spBlock, '$2 × each chair', { x: 0, y: -11, size: 22, color: '#0B1D3A', weight: 900 });
+      gsap.set([avBlock, spBlock], { opacity: 0 });
+
+      // ---------------------------------------------------------------- the variable-levy chart (to the right, x 1280–2560)
+      const OX = 1280;
+      const chart = HF.g(back);
+      const PY = (p) => G - p * 1.05; // price → y
+      const BX = OX + 560, BW = 150;
+      HF.el('line', { x1: OX + 380, y1: PY(350), x2: OX + 940, y2: PY(350), stroke: C.gold, 'stroke-width': 5, 'stroke-dasharray': '16 12', 'stroke-linecap': 'round' }, chart);
+      HF.text(chart, 'Support price $350', { x: OX + 950, y: PY(350) + 8, size: 24, color: C.gold, weight: 900, anchor: 'start' });
+      const world = HF.el('rect', { x: BX, y: PY(320), width: BW, height: 320 * 1.05, rx: 12, fill: C.teal }, chart);
+      const levy = HF.el('rect', { x: BX, y: PY(350), width: BW, height: 30 * 1.05, rx: 10, fill: C.coral }, chart);
+      const spring = HF.el('path', { d: '', fill: 'none', stroke: HF.shade(C.coral, 0.2), 'stroke-width': 4, 'stroke-linejoin': 'round' }, chart);
+      const wNum = HF.text(chart, 'World $320', { x: BX - 20, y: PY(160), size: 26, color: C.teal, weight: 900, anchor: 'end' });
+      const lNum = HF.text(chart, 'Levy $30', { x: BX + BW + 20, y: PY(335), size: 26, color: C.coral, weight: 900, anchor: 'start' });
+      gsap.set(chart, { opacity: 0 });
+      // world price over time (a pure function of t): 320 → 340 → 300
+      const W = { p: 320 };
+      HF.every(() => {
+        const p = W.p, top = PY(p), lv = 350 - p;
+        world.setAttribute('y', top.toFixed(1));
+        world.setAttribute('height', (G - top).toFixed(1));
+        levy.setAttribute('y', PY(350).toFixed(1));
+        levy.setAttribute('height', Math.max(0, top - PY(350)).toFixed(1));
+        let d = `M${BX + BW / 2} ${PY(350)}`;
+        const n = 6, h = top - PY(350);
+        for (let i = 1; i <= n; i++) d += ` L${BX + BW / 2 + (i % 2 ? 16 : -16)} ${PY(350) + (h * (i - 0.5)) / n}`;
+        d += ` L${BX + BW / 2} ${top}`;
+        spring.setAttribute('d', h > 4 ? d : '');
+        wNum.textContent = `World $${Math.round(p)}`;
+        wNum.setAttribute('y', ((top + G) / 2 + 9).toFixed(1));
+        lNum.textContent = `Levy $${Math.round(lv)}`;
+        lNum.setAttribute('y', ((top + PY(350)) / 2 + 9).toFixed(1));
+      });
+
+      // ---------------------------------------------------------------- labels
+      const L = (t, x, y, cls = 'lg') => HF.label(t, { x, y, cls, hud: true, html: true });
+      const lShip = L('<span class="hf-num">$10,000</span> of chairs', 640, 130);
+      const lAv = L('Ad valorem · 10% of value = <span class="hf-coral">$1,000</span>', 640, 130);
+      const lSp = L('Specific · <span class="hf-coral">$2</span> per chair', 640, 130);
+      const lCo = L('Compound · both together', 640, 130);
+      const lLevy = L('Variable levy · locks the price at $350', 640, 110);
+
+      // ================================================================ choreography
+      // 0.0–0.6 the shipment arrives
+      HF.pop(tl, arch, 0.0, { origin: '50% 100%' });
+      tl.to(crate, { x: CX, duration: 0.35, ease: 'power2.out' }, 0.03);
+      HF.wobble(tl, crate, 0.36, { amount: 3, dur: 0.2 });
+      HF.say(tl, lShip, 0.2, 0.62);
+
+      // 0.6–1.2 ad valorem: 10% of the value bar is cut off and sent through customs
+      tl.to(value, { opacity: 1, duration: 0.15 }, 0.6);
+      HF.say(tl, lAv, 0.68, 1.22);
+      tl.to(vbTop, { x: 70, y: -40, rotation: -8, duration: 0.2, ease: 'power2.out', transformOrigin: '50% 50%' }, 0.78);
+      tl.to(vbTop, { x: 560, y: 120, rotation: 0, scale: 0.6, opacity: 0, duration: 0.2, ease: 'power2.in' }, 0.98);
+
+      // 1.2–2.6 specific: $2 on every chair; then compound: both blocks stack on the crate
+      tl.to(value, { opacity: 0, duration: 0.15 }, 1.2);
+      HF.say(tl, lSp, 1.25, 1.95);
+      HF.pop(tl, chairList, 1.25, { origin: '50% 100%', stagger: 0.05 });
+      coins.forEach((c, i) => {
+        tl.to(c, { y: G - 228, duration: 0.24, ease: 'power2.in' }, 1.5 + i * 0.06);
+        HF.land(tl, c, 1.74 + i * 0.06, { amount: 0.2, origin: '50% 50%' });
+      });
+      HF.say(tl, lCo, 2.0);
+      tl.to(coins, { x: CX + 10, y: G - 190, scale: 0.4, opacity: 0, duration: 0.25, ease: 'power2.in' }, 2.0);
+      tl.to(chairList, { scale: 0, duration: 0.2 }, 2.05);
+      gsap.set(avBlock, { x: CX, y: G - 150 }); gsap.set(spBlock, { x: CX, y: G - 150 });
+      tl.fromTo(avBlock, { y: G - 330, opacity: 0 }, { y: G - 152, opacity: 1, duration: 0.3, ease: 'power2.in', immediateRender: false }, 2.1);
+      tl.fromTo(spBlock, { y: G - 330, opacity: 0 }, { y: G - 192, opacity: 1, duration: 0.3, ease: 'power2.in', immediateRender: false }, 2.25);
+      HF.land(tl, [avBlock, spBlock], 2.55, { amount: 0.1 });
+
+      // 3.0–4.3 variable levy
+      tl.to(lCo, { scale: 0, duration: 0.15 }, 3.0);
+      HF.camera(tl, { x: -1280 }, 3.0, 0.55, { easeName: 'power2.inOut' });
+      tl.to(chart, { opacity: 1, duration: 0.25 }, 3.05);
+      tl.to(W, { keyframes: { p: [320, 340, 300] }, duration: 1.1, ease: 'sine.inOut' }, 3.2);
+      HF.say(tl, lLevy, 4.05);
+      const sum = HF.label('World <span class="hf-teal">$300</span> + Levy <span class="hf-coral">$50</span> = <span class="hf-gold">$350</span>', { x: 640, y: 660, cls: 'pill', html: true, hud: true });
+      HF.pop(tl, sum, 4.3);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { BookOpen, Check, Eye, GripVertical, Lightbulb, Plus, X } from 'lucide-react';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { BookOpen, Check, Eye, Lightbulb, Plus, X } from 'lucide-react';
+import { SortCard } from '../lib/SortCard';
 import { checkBlank, checkMatch, matchSlotRight, checkMcq, checkMulti, checkNumeric, checkOrder, checkJournalEntry, parseNumber, normAccount, DEFAULT_CURRENCY, type QuizInstance, type NumericSpec } from '@kodigo/schema';
 import { frac, moneyText } from '@kodigo/sdk';
 import { EntriesView, ScheduleView } from '../widgets/accounting';
@@ -128,12 +128,10 @@ function numText(v: number) {
 }
 
 function SortRow({ id, children, locked, tone }: { id: string; children: React.ReactNode; locked: boolean; tone?: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: locked });
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('flex items-center gap-2 rounded-lg border bg-panel px-3 py-2 text-sm', tone ? `tone-${tone} mark-bg` : 'border-line', isDragging && 'z-10 shadow-lg')}>
-      {!locked && <button aria-label="drag" className="cursor-grab text-muted" {...attributes} {...listeners}><GripVertical size={15} /></button>}
-      <div className="min-w-0 flex-1">{children}</div>
-    </li>
+    <SortCard id={id} locked={locked} className={cn('flex items-center gap-2 rounded-lg border bg-panel px-3 py-2 text-sm', tone ? `tone-${tone} mark-bg` : 'border-line')}>
+      {(grip) => <>{grip}<div className="min-w-0 flex-1">{children}</div></>}
+    </SortCard>
   );
 }
 
@@ -154,12 +152,10 @@ function Sortable({ ids, onMove, render, locked, toneOf }: { ids: string[]; onMo
  * as tall as the taller of the two and the pairs always line up, however the text wraps.
  */
 function MatchCard({ id, children, locked, tone }: { id: string; children: React.ReactNode; locked: boolean; tone?: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: locked });
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('flex h-full items-center gap-2 rounded-lg border bg-panel px-3 py-2 text-sm', tone ? `tone-${tone} mark-bg` : 'border-line', isDragging && 'relative z-10 shadow-lg')}>
-      {!locked && <button aria-label="drag" className="cursor-grab text-muted" {...attributes} {...listeners}><GripVertical size={15} /></button>}
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
+    <SortCard id={id} locked={locked} as="div" fill className={cn('flex items-center gap-2 rounded-lg border bg-panel px-3 py-2 text-sm', tone ? `tone-${tone} mark-bg` : 'border-line')}>
+      {(grip) => <>{grip}<div className="min-w-0 flex-1">{children}</div></>}
+    </SortCard>
   );
 }
 

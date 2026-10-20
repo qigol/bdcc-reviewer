@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Newer ways to organize</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Org Design · newer-forms, beats 1–4 · 5 s. Segments: 0–1.3 reengineering, 1.3–2.6 resources outside the firm (unnamed: beat 2 asks which form), 2.6–3.8 horizontal corporation, 3.8–5.0 dynamic network. Hidden while the sorter is open. -->
+  <div id="stage" data-composition-id="newer-org-forms" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Org Design · newer-forms, 5 s. One picture per form, cross-fading in the same frame.
+     *   0.0–1.3  a tall five-layer pyramid of boxes; the middle layers dissolve and it settles into two flat layers
+     *   1.3–2.6  a small teal firm; dashed lines reach out to a design studio, a factory, a delivery van and two remote
+     *            workers outside it
+     *   2.6–3.8  five peers in a row, linked side to side by arcs, inside one soft gold ring (a shared philosophy)
+     *   3.8–5.0  a small violet headquarters hub linked to five little agile companies around it; hold
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['newer-org-forms'] = tl;
+      const back = HF.layer('back');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const CX = 640, CY = 390;
+      const L = (t) => HF.label(t, { x: 640, y: 76, cls: 'lg', hud: true, html: true });
+
+      // ================================================================ 1 · reengineering
+      const P1 = HF.g(mid);
+      const layers = [1, 2, 3, 4, 5].map((n, r) => {
+        const row = HF.g(P1);
+        for (let i = 0; i < n; i++) HF.box(row, { x: CX + (i - (n - 1) / 2) * 92 - 38, y: 170 + r * 76, w: 76, h: 50, r: 12, color: r === 0 ? C.violet : r === 4 ? C.teal : '#5C6FA8' });
+        gsap.set(row, { scale: 0, transformOrigin: '50% 50%' });
+        return row;
+      });
+      const flatRow = HF.g(P1);
+      for (let i = 0; i < 7; i++) HF.box(flatRow, { x: CX + (i - 3) * 92 - 38, y: 330, w: 76, h: 50, r: 12, color: C.teal });
+      gsap.set(flatRow, { opacity: 0 });
+      const tFlat = HF.label('Fewer layers', { x: CX, y: 440, cls: 'sm pill hf-teal' });
+
+      // ================================================================ 2 · resources outside the firm
+      const P2 = HF.g(mid);
+      const firm = HF.g(P2, { transform: `translate(${CX} ${CY})` });
+      const firmIn = HF.g(firm);
+      HF.el('circle', { cx: 0, cy: 0, r: 70, fill: C.teal }, firmIn);
+      HF.text(firmIn, 'Firm', { x: 0, y: 10, size: 28, color: '#0B1D3A', weight: 900 });
+      gsap.set(firmIn, { scale: 0, transformOrigin: '50% 50%' });
+      const OUT = [['Design studio', 260, 230, C.gold], ['Factory', 1020, 230, C.gold], ['Delivery', 1020, 560, C.gold], ['Remote', 260, 560, '#F2A3A3'], ['Remote', 640, 610, '#F2A3A3']];
+      const outLines = [], outNodes = [];
+      OUT.forEach(([t, x, y, col]) => {
+        const l = HF.el('line', { x1: CX, y1: CY, x2: x, y2: y, stroke: col, 'stroke-width': 5, 'stroke-dasharray': '10 10', 'stroke-linecap': 'round', opacity: 0 }, back);
+        outLines.push(l);
+        const n = HF.g(P2, { transform: `translate(${x} ${y})` });
+        const ni = HF.g(n);
+        if (t === 'Remote') { HF.character(ni, { x: 0, y: 26, color: col, size: 0.75 }); HF.box(ni, { x: -26, y: 14, w: 52, h: 14, r: 4, color: '#C9D3F2' }); }
+        else HF.box(ni, { x: -90, y: -30, w: 180, h: 60, r: 18, color: col });
+        if (t !== 'Remote') HF.text(ni, t, { x: 0, y: 9, size: 24, color: '#0B1D3A', weight: 900 });
+        gsap.set(ni, { scale: 0, transformOrigin: '50% 50%' });
+        outNodes.push(ni);
+      });
+      const ring2 = HF.el('circle', { cx: CX, cy: CY, r: 120, fill: 'none', stroke: C.teal, 'stroke-width': 4, opacity: 0 }, back);
+
+      // ================================================================ 3 · horizontal corporation
+      const P3 = HF.g(mid);
+      const peers = [0, 1, 2, 3, 4].map((i) => { const c = HF.character(P3, { x: 340 + i * 150, y: CY + 70, color: [C.teal, C.gold, C.coral, C.violet, '#7FD3D0'][i], size: 1.1, look: 0 }); gsap.set(c.g, { scale: 0, transformOrigin: '50% 100%' }); return c.g; });
+      const arcs = [0, 1, 2, 3].map((i) => {
+        const x0 = 340 + i * 150, x1 = x0 + 150;
+        const a = HF.el('path', { d: `M${x0 + 20} ${CY - 20} Q${(x0 + x1) / 2} ${CY - 90} ${x1 - 20} ${CY - 20}`, fill: 'none', stroke: '#C9D3F2', 'stroke-width': 6, 'stroke-linecap': 'round' }, back);
+        const len = a.getTotalLength();
+        gsap.set(a, { attr: { 'stroke-dasharray': len, 'stroke-dashoffset': len } });
+        return a;
+      });
+      const philo = HF.el('ellipse', { cx: CX, cy: CY + 20, rx: 420, ry: 150, fill: C.gold, opacity: 0, filter: 'url(#hf-glow)' }, back);
+      const philoLine = HF.el('ellipse', { cx: CX, cy: CY + 20, rx: 420, ry: 150, fill: 'none', stroke: C.gold, 'stroke-width': 5, opacity: 0 }, back);
+      const tPhilo = HF.label('One shared philosophy', { x: CX, y: CY + 210, cls: 'sm pill hf-gold' });
+
+      // ================================================================ 4 · dynamic network
+      const P4 = HF.g(mid);
+      const hub = HF.g(P4, { transform: `translate(${CX} ${CY})` });
+      const hubIn = HF.g(hub);
+      HF.el('circle', { cx: 0, cy: 0, r: 46, fill: C.violet }, hubIn);
+      HF.text(hubIn, 'HQ', { x: 0, y: 9, size: 26, color: '#F4F1DE', weight: 900 });
+      gsap.set(hubIn, { scale: 0, transformOrigin: '50% 50%' });
+      const NET = [0, 1, 2, 3, 4].map((i) => { const a = (-90 + i * 72) * Math.PI / 180; return [CX + Math.cos(a) * 250, CY + 10 + Math.sin(a) * 190]; });
+      const spokes = NET.map(([x, y]) => { const l = HF.el('line', { x1: CX, y1: CY, x2: x, y2: y, stroke: '#9B8FD8', 'stroke-width': 5, 'stroke-linecap': 'round' }, back); const len = Math.hypot(x - CX, y - CY); gsap.set(l, { attr: { 'stroke-dasharray': len, 'stroke-dashoffset': len } }); return l; });
+      const smalls = NET.map(([x, y], i) => { const g = HF.g(P4, { transform: `translate(${x} ${y})` }); const gi = HF.g(g); HF.el('circle', { cx: 0, cy: 0, r: 52, fill: [C.teal, C.gold, C.coral, '#7FD3D0', '#F2A3A3'][i] }, gi); HF.box(gi, { x: -22, y: -18, w: 44, h: 32, r: 8, color: '#0B1D3A', hi: false }); gsap.set(gi, { scale: 0, transformOrigin: '50% 50%' }); return gi; });
+
+      // ================================================================ labels (HUD)
+      const l1 = L('<span class="hf-teal">Reengineering</span> · redesign to work leaner');
+      const l2 = L('Value from resources <span class="hf-gold">outside the firm</span>');
+      const l3 = L('<span class="hf-gold">Horizontal corporation</span> · decisions across');
+      const l4 = L('<span class="hf-violet">Dynamic network</span> · small companies, small HQ');
+
+      // ================================================================ choreography
+      // 0.0–1.3 reengineering
+      HF.say(tl, l1, 0.05, 1.3);
+      layers.forEach((r, i) => HF.pop(tl, r, 0.05 + i * 0.07));
+      tl.to(layers.slice(1, 4), { scale: 0, opacity: 0, duration: 0.25, ease: 'power2.in', stagger: 0.05 }, 0.65);
+      tl.to(layers[4], { opacity: 0, duration: 0.15 }, 0.85);
+      tl.to(flatRow, { opacity: 1, duration: 0.15 }, 0.85);
+      tl.to(layers[0], { y: 60, duration: 0.3, ease: 'power2.inOut' }, 0.8);
+      HF.land(tl, flatRow, 0.88, { amount: 0.06 });
+      HF.pop(tl, tFlat, 1.0);
+      tl.to(P1, { opacity: 0, duration: 0.2 }, 1.3);
+      tl.to(tFlat, { scale: 0, duration: 0.12 }, 1.3);
+
+      // 1.3–2.6 outside resources
+      HF.say(tl, l2, 1.4, 2.6);
+      HF.pop(tl, firmIn, 1.4);
+      outLines.forEach((l, i) => tl.to(l, { opacity: 0.8, duration: 0.15 }, 1.6 + i * 0.08));
+      HF.pop(tl, outNodes, 1.65, { stagger: 0.08 });
+      tl.to(ring2, { opacity: 0.6, duration: 0.2 }, 1.55);
+      tl.to([P2, ...outLines, ring2], { opacity: 0, duration: 0.2 }, 2.6);
+
+      // 2.6–3.8 horizontal
+      HF.say(tl, l3, 2.7, 3.8);
+      HF.pop(tl, peers, 2.7, { origin: '50% 100%', stagger: 0.05 });
+      arcs.forEach((a, i) => tl.to(a, { attr: { 'stroke-dashoffset': 0 }, duration: 0.2 }, 2.95 + i * 0.07));
+      tl.to(philo, { opacity: 0.14, duration: 0.3 }, 3.25);
+      tl.to(philoLine, { opacity: 0.7, duration: 0.3 }, 3.25);
+      HF.pop(tl, tPhilo, 3.35);
+      tl.to([P3, ...arcs, philo, philoLine], { opacity: 0, duration: 0.2 }, 3.8);
+      tl.to(tPhilo, { scale: 0, duration: 0.12 }, 3.8);
+
+      // 3.8–5.0 dynamic network
+      HF.say(tl, l4, 3.9);
+      HF.pop(tl, hubIn, 3.9);
+      spokes.forEach((s, i) => tl.to(s, { attr: { 'stroke-dashoffset': 0 }, duration: 0.2 }, 4.05 + i * 0.05));
+      HF.pop(tl, smalls, 4.15, { stagger: 0.05 });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>
