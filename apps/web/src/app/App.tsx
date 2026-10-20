@@ -20,11 +20,12 @@ import { ReviewPage } from '../quiz/ReviewPage';
 import { AdminPage } from '../admin/AdminPage';
 import { useDueReviews, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
+import { useReducedMotion } from '../lib/reducedMotion';
 import { PopupProvider, isEmbedded, useEmbeddedEscape, usePopup } from '../lib/popup';
 
 function useTheme() {
   const [theme, setTheme] = useSetting('theme');
-  const [reduced] = useSetting('reducedMotion');
+  const reduced = useReducedMotion();
   useEffect(() => {
     const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);

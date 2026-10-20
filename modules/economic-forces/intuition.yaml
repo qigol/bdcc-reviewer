@@ -7,8 +7,15 @@ scenes:
     derive:
       - { fn: gniPerCapita, in: { gni: '@gni', population: '@population' }, out: g }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: GNI (billions of dollars), value: '@gni' }
+            - { label: Population (millions), value: '@population' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: GNI (billions of dollars), value: '@gni' }
@@ -21,11 +28,15 @@ scenes:
         hidden: true
         props: { label: Population (millions), min: 10, max: 100, step: 10 }
         bind: { value: population }
-      - id: player
-        widget: StepPlayer
-        region: bottom
+      - id: caution-note
+        widget: Callout
         hidden: true
-        props: { fn: gniPerCapita, in: { gni: '@gni', population: '@population' }, roles: { r: r }, speed: 0.8 }
+        props:
+          kind: note
+          title: Two cautions when reading GNI
+          body: |
+            - **Economic growth rate**: how fast output is expanding (a sign of rising demand)
+            - **Underground economy**: cash and informal activity missing from official GDP/GNI
     beats:
       - say: |
           A company selling abroad faces forces it cannot control. The **foreign environment** is all the forces outside the
@@ -46,17 +57,10 @@ scenes:
           question: What is GNI per capita, in dollars?
           answer: { value: 15000, tol: 5 }
           explain: 600 billion × 1,000 ÷ 40 million = 15,000 dollars per person.
-      - say: Watch the division being done.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
       - say: |
           Now change the population. More people sharing the same income means less for each.
-        hide: [player]
-        show: [pop]
+        hide: [r-in]
+        show: [r, pop]
         gate:
           type: when
           prompt: Raise the population until GNI per capita falls below 10,000 dollars.
@@ -66,6 +70,8 @@ scenes:
           Two cautions. The **economic growth rate** shows how fast income is rising, which hints at growing demand.
           The **underground economy** is income that official statistics miss, such as unreported cash work.
         define: [economic-growth-rate, underground-economy]
+        hide: [pop]
+        show: [caution-note]
       - say: Now try one with new numbers.
         gate:
           type: practice
@@ -77,8 +83,19 @@ scenes:
     goal: How do we sort countries by how well off they are?
     skills: [development-level]
     stage:
+      - id: groups-note
+        widget: Callout
+        props:
+          kind: note
+          title: World Bank GNI per capita cutoffs (dollars)
+          body: |
+            - **High income**: over 13,845
+            - **Upper-middle income**: 4,466 to 13,845
+            - **Lower-middle income**: 1,136 to 4,465
+            - **Low income**: below 1,136
       - id: sorter
         widget: DropBins
+        hidden: true
         props:
           check: instant
           shuffle: true
@@ -104,10 +121,10 @@ scenes:
         define: [developed-economy]
         gate:
           type: predict
-          question: Which country in the sorter is above the high-income cutoff of 13,845?
-          options: [Norway, Mexico, India, Nigeria]
+          question: China's Atlas GNI per capita in Table 7.2 is 12,850 dollars. Which World Bank group does it fall into?
+          options: [Upper-middle income, High income, Lower-middle income, Low income]
           answer: 0
-          explain: Norway's GNI per capita is 95,510 dollars, far above the cutoff.
+          explain: 12,850 dollars lies between 4,466 and 13,845, which is upper-middle income.
       - say: |
           **Developing economies** have lower incomes, less advanced infrastructure, lower living standards and often an
           unequal sharing of income with a very small middle class.
@@ -116,6 +133,8 @@ scenes:
           In between are **emerging market economies**: low to middle incomes that are moving toward developed status.
           India and China are the lecture's examples. Sort the six countries by group.
         define: [emerging-market-economy]
+        hide: [groups-note]
+        show: [sorter]
         gate:
           type: event
           prompt: Place every country in its income group.
@@ -123,6 +142,8 @@ scenes:
           event: solved
           hint: Compare each number with the three cutoffs.
       - say: Classify a new one.
+        hide: [sorter]
+        show: [groups-note]
         gate:
           type: practice
           template: group-mcq
@@ -146,13 +167,35 @@ scenes:
       - { fn: basketPPP, in: { table: '@basket' }, out: b }
       - { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, out: a }
     stage:
+      - id: basket-sched
+        widget: Schedule
+        hidden: true
+        props:
+          title: Shopping basket in Thailand vs the United States (slide 14)
+          columns: [Thai baht, US dollars]
+          decimals: 2
+          rows:
+            - { label: Soap (bar), amounts: [50, 1.25], format: number }
+            - { label: Rice (pound), amounts: [35, 0.55], format: number }
+            - { label: Shoes (pair), amounts: [905, 70], format: number }
+            - { label: Dress, amounts: [780, 85], format: number }
+            - { label: Socks (pair), amounts: [95, 3.25], format: number }
+            - { label: Total basket cost, amounts: ['@b.bahtTotal', '@b.usdTotal'], style: total, format: number }
       - id: r1
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Basket in baht, value: '@b.bahtTotal', tone: accent }
             - { label: Basket in dollars, value: '@b.usdTotal', tone: accent }
             - { label: Implied baht per dollar, value: '@b.rate', format: 3, tone: good }
+      - id: r2-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: 'Turkey: Atlas income', value: '@atlas' }
+            - { label: 'Turkey: PPP income', value: '@ppp' }
       - id: r2
         widget: Readout
         hidden: true
@@ -162,20 +205,9 @@ scenes:
             - { label: 'Turkey: PPP income', value: '@ppp' }
             - { label: Ratio, value: '@a.ratio', format: 2, tone: accent }
             - { label: Extra dollars at PPP, value: '@a.gap', tone: good }
-      - id: player1
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: basketPPP, in: { table: '@basket' }, roles: { r: r1 }, speed: 0.8 }
-      - id: player2
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, roles: { r: r2 }, speed: 0.8 }
       - id: anim
         widget: Animation
         region: top
-        hidden: true
         props:
           src: [assets/anim/ppp-scale.webm, assets/anim/ppp-scale.mp4]
           poster: assets/anim/ppp-scale.poster.jpg
@@ -196,26 +228,21 @@ scenes:
           lecture prices five goods in Thailand (in baht) and the United States (in dollars): soap, rice, shoes, a dress
           and socks.
         define: [purchasing-power-parity]
-        show: [anim]
         gate:
           type: predict
           question: The baskets cost 1,865 baht and 160.05 dollars. Roughly how many baht per dollar does PPP imply?
           answer: { value: 11.65, tol: 0.05 }
           explain: 1,865 ÷ 160.05 = 11.65 baht per dollar.
-      - say: Add the baskets good by good.
+      - say: |
+          See how the five items add up to 1,865 baht and 160.05 dollars, leveling the scale at 11.65 baht per dollar.
         set: { animFrom: 1.8, animTo: 5 }
-        show: [player1]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player1
-          event: done
+        show: [basket-sched, r1]
       - say: |
           Two more ideas. **Inflation** is a sustained rise in prices. The **Atlas conversion factor** is the World Bank's
           exchange rate: an average over three years, adjusted for inflation, to smooth out swings.
         define: [inflation, atlas-conversion-factor]
-        hide: [r1, player1, anim]
-        show: [r2]
+        hide: [basket-sched, r1, anim]
+        show: [r2-in]
       - say: |
           Turkey's income is 10,590 dollars at Atlas rates but 36,920 dollars at PPP. Estimate how many times as large.
         gate:
@@ -223,14 +250,9 @@ scenes:
           question: How many times as large is Turkey's PPP income as its Atlas income?
           answer: { value: 3.49, tol: 0.03 }
           explain: 36,920 ÷ 10,590 = 3.49. Local prices are low, so money goes about three and a half times as far.
-      - say: Watch the ratio and gap being worked out.
-        show: [player2]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player2
-          event: done
       - say: A basket on your own.
+        hide: [r2-in]
+        show: [r2]
         gate:
           type: practice
           template: basket-numeric
@@ -248,8 +270,24 @@ scenes:
     derive:
       - { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, out: x }
     stage:
+      - id: gini-note
+        widget: Callout
+        props:
+          kind: note
+          title: Income distribution and the Gini index
+          body: |
+            A country's average income can hide wide inequality. A **lower Gini index** means income is shared more evenly; a **higher Gini index** means income is concentrated in fewer hands.
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Gross household income, value: '@income' }
+            - { label: Taxes paid, value: '@tax' }
+            - { label: Essential purchases, value: '@essentials' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Income, value: '@income' }
@@ -261,11 +299,6 @@ scenes:
         hidden: true
         props: { label: Essential purchases, min: 4000, max: 20000, step: 2000 }
         bind: { value: essentials }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           Two countries can have the same average income and very different markets. **Income distribution** is how a
@@ -279,6 +312,8 @@ scenes:
           For one household, what matters is what is left to spend. **Disposable income** is income after tax. A household
           earns 30,000 dollars and pays 4,000 in tax.
         define: [disposable-income]
+        hide: [gini-note]
+        show: [r-in]
         gate:
           type: predict
           question: What is the household's disposable income?
@@ -286,23 +321,17 @@ scenes:
           explain: 30,000 − 4,000 = 26,000 dollars.
       - say: |
           Subtract essentials such as food and housing and you get **discretionary income**: what can be spent on choices.
-          That is what firms selling non-essentials care about most.
+          That is what firms selling non-essentials care about most. Now change the essentials.
         define: [discretionary-income]
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
-      - say: Now change the essentials.
-        hide: [player]
-        show: [ess]
+        hide: [r-in]
+        show: [r, ess]
         gate:
           type: when
           prompt: Cut essential spending until discretionary income reaches 18,000 dollars.
           when: 'x.discretionary >= 18000'
           hint: Disposable income is 26,000. Essentials of 8,000 leave 18,000.
       - say: One more on your own.
+        hide: [ess]
         gate:
           type: practice
           template: disc-numeric
@@ -318,13 +347,27 @@ scenes:
       - { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, out: u }
       - { fn: debtGrowth, in: { table: '@debt', country: '@country' }, out: d }
     stage:
-      - id: r1
+      - id: r1-in
         widget: Readout
         props:
           items:
             - { label: Total direct labor cost, value: '@totalLabor' }
             - { label: Units produced, value: '@units' }
+      - id: r1
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Total direct labor cost, value: '@totalLabor' }
+            - { label: Units produced, value: '@units' }
             - { label: Unit labor cost, value: '@u.ulc', format: 2, tone: good }
+      - id: r2-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Debt in 1980 (billions), value: '@d.first' }
+            - { label: Debt in 2022 (billions), value: '@d.last' }
       - id: r2
         widget: Readout
         hidden: true
@@ -334,6 +377,16 @@ scenes:
             - { label: Debt in 2022 (billions), value: '@d.last' }
             - { label: Times larger, value: '@d.ratio', format: 2, tone: accent }
             - { label: Percent of the 1980 debt, value: '@d.pct', format: 0, tone: good }
+      - id: debt-chart
+        widget: Chart
+        hidden: true
+        props:
+          kind: bar
+          title: External debt in 2022 (billions of US dollars, Table 7.7)
+          xLabel: Country
+          yLabel: 2022 debt ($B)
+          series:
+            - { name: 2022 debt, x: [China, India, Mexico, Brazil, Turkey, Indonesia, Argentina], y: [2389, 617, 600, 579, 459, 396, 248] }
       - id: pick
         widget: Choice
         region: side
@@ -350,16 +403,6 @@ scenes:
             - { value: Indonesia, label: Indonesia }
             - { value: Argentina, label: Argentina }
         bind: { value: country }
-      - id: player1
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, roles: { r: r1 }, speed: 0.8 }
-      - id: player2
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: debtGrowth, in: { table: '@debt', country: '@country' }, roles: { r: r2 }, speed: 0.8 }
     beats:
       - say: |
           Pay is only part of the story. **Unit labor cost** is the total direct labor cost divided by the number of units
@@ -370,14 +413,9 @@ scenes:
           question: What is the labor cost per unit?
           answer: { value: 5, tol: 0.01 }
           explain: 50,000 ÷ 10,000 = 5 dollars per unit.
-      - say: Watch the division.
-        show: [player1]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player1
-          event: done
       - say: Now do one on your own.
+        hide: [r1-in]
+        show: [r1]
         gate:
           type: practice
           template: ulc-numeric
@@ -385,26 +423,21 @@ scenes:
           Countries borrow too. **External debt** is money a country owes to lenders abroad. Heavy debt can limit its
           access to foreign currency for imports, and governments may restrict imports to save it.
         define: [external-debt]
-        hide: [r1, player1]
-        show: [r2, pick]
+        hide: [r1]
+        show: [r2-in]
         gate:
           type: predict
           question: China owed 5 billion dollars in 1980 and 2,389 billion in 2022. About how many times larger?
           answer: { value: 478, tol: 2 }
           explain: 2,389 ÷ 5 = 477.8, which the slide prints as 47,780% of the 1980 debt.
-      - say: Pick India to compare.
+      - say: Compare the seven debtor nations and find one whose 2022 debt was less than 10 times its 1980 debt.
+        hide: [r2-in]
+        show: [debt-chart, r2, pick]
         gate:
           type: when
-          prompt: Select India from the menu.
-          when: "country == 'India'"
-          hint: Use the Country menu.
-      - say: Watch the ratio built up.
-        show: [player2]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player2
-          event: done
+          prompt: Find a country in the menu whose 2022 debt is less than 10 times its 1980 debt.
+          when: 'd.ratio < 10'
+          hint: Try Brazil (72 billion in 1980) or Argentina (27 billion in 1980).
       - say: And one for you.
         gate:
           type: practice
@@ -419,8 +452,15 @@ scenes:
     derive:
       - { fn: populationDensity, in: { population: '@population', area: '@area' }, out: p }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: Population, value: '@population' }
+            - { label: Area (square kilometers), value: '@area' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Population, value: '@population' }
@@ -432,6 +472,15 @@ scenes:
         hidden: true
         props: { label: Area (square kilometers), min: 50000, max: 200000, step: 25000 }
         bind: { value: area }
+      - id: demo-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: Demographic forces that shape demand
+          body: |
+            - **Age distribution**: younger populations in developing economies vs aging populations in industrial nations
+            - **Rural-to-urban shift**: migration into cities concentrates buyers and changes what they purchase
     beats:
       - say: |
           Population is the most general sign of market size, and analysts look at it first. But size alone says little
@@ -443,7 +492,8 @@ scenes:
           answer: { value: 50, tol: 0.5 }
           explain: 5,000,000 ÷ 100,000 = 50 people per square kilometer.
       - say: Change the land area and watch the density.
-        show: [land]
+        hide: [r-in]
+        show: [r, land]
         gate:
           type: when
           prompt: Raise the area until the density falls below 30.
@@ -453,11 +503,14 @@ scenes:
           Who the people are matters too. **Age distribution** is how a population divides into age groups. Developing
           countries usually have younger populations; some industrial countries face aging that strains pensions.
         define: [age-distribution]
+        hide: [land]
+        show: [demo-note]
       - say: |
           Where people live also changes. The **rural-to-urban shift** is the movement of a nation's people from the
           countryside to cities, which changes what they buy and where.
         define: [rural-to-urban-shift]
       - say: A density question for you.
+        hide: [demo-note]
         gate:
           type: practice
           template: density-numeric

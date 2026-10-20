@@ -3,7 +3,7 @@ scenes:
     title: From gold to floating money
     goal: Who decides what a peso, a dollar or a euro is worth next to each other?
     skills: [monetary-system]
-    state: { animFrom: 0, animTo: 1.8 }
+    state: { animFrom: 0, animTo: 0.9 }
     stage:
       - id: eras
         widget: DropBins
@@ -22,19 +22,19 @@ scenes:
             - { id: bw, label: Bretton Woods }
             - { id: float, label: Floating rates }
           solution: { c1: gold, c2: bw, c3: float, c4: gold, c5: bw, c6: float }
-      - id: note
-        widget: Text
+      - id: era-note
+        widget: Callout
+        hidden: true
         props:
+          kind: note
+          title: Three eras of money
           body: |
-            **Three eras of money**
-
-            1. Gold: money is a weight of metal.
-            2. Bretton Woods: gold plus the dollar.
-            3. Floating: the market decides.
+            - **Gold standard (1717–1930s):** Each currency is worth a fixed weight of gold.
+            - **Bretton Woods (1945–1971):** The U.S. dollar is tied to gold at \$35/oz, and other currencies fix a **par value** to the dollar.
+            - **Floating rates (since 1971 / Jamaica Agreement):** Major currencies move with supply and demand in the FX market.
       - id: anim
         widget: Animation
         region: top
-        hidden: true
         props:
           src: [assets/anim/gold-to-floating.webm, assets/anim/gold-to-floating.mp4]
           poster: assets/anim/gold-to-floating.poster.jpg
@@ -55,7 +55,7 @@ scenes:
           For a long time the price was easy: money was a weight of metal. Under the **gold standard**, each unit of a
           currency was worth a fixed amount of gold. Governments could not print money freely, so they lacked flexibility.
         define: [gold-standard]
-        show: [anim]
+        set: { animFrom: 0.9, animTo: 1.8 }
       - say: |
           Tying every currency to gold meant currencies were tied to each other. That is a **fixed exchange rate**: the
           government promises to keep the price where it is.
@@ -85,7 +85,6 @@ scenes:
         define: [floating-exchange-rate]
         set: { animFrom: 3.6, animTo: 6 }
         show: [eras]
-        hide: [note]
         gate:
           type: event
           prompt: Place every fact in the right era.
@@ -93,6 +92,8 @@ scenes:
           event: solved
           hint: Check the dates and the words "gold" and "dollar".
       - say: Think about what you have seen.
+        hide: [eras, anim]
+        show: [era-note]
         gate:
           type: reflect
           prompt: In your own words, why was the Bretton Woods system hard to keep going?
@@ -127,11 +128,27 @@ scenes:
             - { value: '2019', label: '2019' }
             - { value: '2022', label: '2022' }
         bind: { value: year }
-      - id: player
-        widget: StepPlayer
-        region: bottom
+      - id: r-groups
+        widget: Readout
+        region: side
         hidden: true
-        props: { fn: regimeShares, in: { table: '@regimes', year: '@year' }, roles: { grid: grid }, speed: 0.7 }
+        props:
+          items:
+            - { label: Hard peg, value: '@r.hard', format: 1 }
+            - { label: Soft peg, value: '@r.soft', format: 1, tone: accent }
+            - { label: Floating, value: '@r.floating', format: 1 }
+            - { label: Residual, value: '@r.residual', format: 1 }
+      - id: r-total
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Hard peg, value: '@r.hard', format: 1 }
+            - { label: Soft peg, value: '@r.soft', format: 1 }
+            - { label: Floating, value: '@r.floating', format: 1 }
+            - { label: Residual, value: '@r.residual', format: 1 }
+            - { label: Printed four-group sum, value: '@r.total', format: 1, tone: good }
     beats:
       - say: |
           Most countries choose how tightly to hold their exchange rate. The table shows what share of countries chose
@@ -151,28 +168,25 @@ scenes:
           options: [Hard peg, Soft peg, Floating, Residual]
           answer: 1
           explain: Soft pegs were 43.5%, ahead of floating at 34.0%.
-      - say: Choose the year 2019 and read down the column.
+      - say: Compare the four years to see how soft pegs changed over time.
+        show: [r-groups]
         gate:
           type: when
-          prompt: Switch the table to 2019.
-          when: "year == '2019'"
-          hint: Use the Year buttons.
-      - say: Now add the four group totals, one group per step.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the addition to the end.
-          target: player
-          event: done
+          prompt: Find the year in which soft pegs reached their highest share of countries (above 46.5%).
+          when: 'r.soft > 46.5'
+          hint: Use the Year buttons and watch the Soft peg subtotal.
       - say: |
-          Each year's four groups should add to about 100%. Now look at 2009. Its printed totals look wrong.
+          Each year's four group subtotals should add to 100%. In 2014, 2019 and 2022 they do—now look at 2009. Its
+          printed group totals look wrong.
         set: { year: '2009' }
         gate:
           type: predict
-          question: What do the four 2009 group totals add to?
+          question: What do the four 2009 group totals (12.2, 34.6, 34.7 and 8.9) add to?
           answer: { value: 90.4, tol: 0.1 }
           explain: 12.2 + 34.6 + 34.7 + 8.9 = 90.4. The slide's 2009 column does not add to 100, so we log it as an error in the printed table.
       - say: Try one yourself, using a different year.
+        hide: [r-groups]
+        show: [r-total]
         gate:
           type: practice
           template: regime-sum-numeric
@@ -241,6 +255,8 @@ scenes:
           target: sorter
           event: solved
       - say: One more thought.
+        hide: [sorter]
+        show: [summary]
         gate:
           type: reflect
           prompt: Why might a government prefer to issue a CBDC rather than let people use a cryptocurrency?
@@ -258,8 +274,24 @@ scenes:
     derive:
       - { fn: spreadQuote, in: { bid: '@bid', ask: '@ask' }, out: q }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: Bid (bank buys EUR), value: '@bid', format: 4 }
+            - { label: Ask (bank sells EUR), value: '@ask', format: 4 }
+      - id: r-spread
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Bid, value: '@bid', format: 4 }
+            - { label: Ask, value: '@ask', format: 4 }
+            - { label: Spread, value: '@q.spread', format: 4, tone: accent }
+            - { label: Midpoint, value: '@q.mid', format: 5, tone: accent }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Bid, value: '@bid', format: 4 }
@@ -274,11 +306,6 @@ scenes:
         hidden: true
         props: { label: Ask price, min: 1.0956, max: 1.1010, step: 0.0001 }
         bind: { value: ask }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: spreadQuote, in: { bid: '@bid', ask: '@ask' }, roles: { r: r }, speed: 0.7 }
     beats:
       - say: |
           Billions of pesos, dollars and euros are swapped every day in the **foreign exchange market**, or FX market. It is
@@ -302,7 +329,8 @@ scenes:
           The gap between the two prices is the **bid-ask spread**. Here it is 1.0957 − 1.0955 = 0.0002, which is 2 pips
           (a pip is 0.0001). Make the spread wider and watch the readout.
         define: [bid-ask-spread]
-        show: [askslider]
+        hide: [r-in]
+        show: [r-spread, askslider]
         gate:
           type: when
           prompt: Raise the ask until the spread reaches 5 pips.
@@ -310,16 +338,11 @@ scenes:
           hint: The ask should be 5 pips (0.0005) above the bid.
       - say: |
           Quotes also come flipped. The **reciprocal quote** states the same rate the other way round: divide 1 by it.
-          The old ask makes the new bid, and the old bid makes the new ask.
+          The old ask makes the new bid ($1 / 1.0957 = 0.9126$), and the old bid makes the new ask ($1 / 1.0955 = 0.9128$).
         define: [reciprocal-quote]
         set: { ask: 1.0957 }
-        hide: [askslider]
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to see each number appear.
-          target: player
-          event: done
+        hide: [r-spread, askslider]
+        show: [r]
       - say: One for you, on new numbers.
         gate:
           type: practice
@@ -339,8 +362,17 @@ scenes:
     derive:
       - { fn: crossRate, in: { bid1: '@bid1', ask1: '@ask1', bid2: '@bid2', ask2: '@ask2' }, out: x }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: 'EUR/USD bid', value: '@bid1', format: 4 }
+            - { label: 'EUR/USD ask', value: '@ask1', format: 4 }
+            - { label: 'USD/GBP bid', value: '@bid2', format: 4 }
+            - { label: 'USD/GBP ask', value: '@ask2', format: 4 }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: 'EUR/USD bid', value: '@bid1', format: 4 }
@@ -349,11 +381,6 @@ scenes:
             - { label: 'USD/GBP ask', value: '@ask2', format: 4 }
             - { label: 'EUR/GBP bid', value: '@x.bid', format: 4, tone: good }
             - { label: 'EUR/GBP ask', value: '@x.ask', format: 4, tone: good }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: crossRate, in: { bid1: '@bid1', ask1: '@ask1', bid2: '@bid2', ask2: '@ask2' }, roles: { r: r }, speed: 0.7 }
     beats:
       - say: |
           You hold euros and want pounds. The bank lists euros against dollars and dollars against pounds, but no
@@ -362,21 +389,17 @@ scenes:
           A **cross rate** is a rate between two currencies worked out from each one's rate against a third, usually the
           dollar. The dollar cancels: euros → dollars → pounds.
         define: [cross-rate]
-      - say: EUR/USD is about 1.0955 and USD/GBP is about 0.7838. Estimate EUR/GBP before the walk.
+      - say: EUR/USD bid is 1.0955 and USD/GBP bid is 0.7838. Work out the EUR/GBP bid.
         gate:
           type: predict
           question: What is the EUR/GBP bid? (Multiply the two bids.)
           answer: { value: 0.8587, tol: 0.001 }
           explain: 1.0955 × 0.7838 = 0.8587, matching the lecture's Table 8.2.
-      - say: Now watch the bid side, then the ask side, one multiplication per step.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
       - say: |
-          Bids multiply bids and asks multiply asks. The lecture prints EUR/GBP as 0.8587 / 0.8589, the same numbers.
+          Bids multiply bids ($1.0955 \times 0.7838 = 0.8587$) and asks multiply asks ($1.0957 \times 0.7839 = 0.8589$).
+          The lecture prints EUR/GBP as 0.8587 / 0.8589, the exact same numbers.
+        hide: [r-in]
+        show: [r]
       - say: Your turn, on new rates.
         gate:
           type: practice
@@ -395,8 +418,18 @@ scenes:
     derive:
       - { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' }, out: p }
     stage:
+      - id: loop-note
+        widget: Callout
+        props:
+          kind: note
+          title: One product, two markets
+          body: |
+            - **Manila price:** 25,000 pesos (worth \$500 at 50 pesos per dollar)
+            - **New York price:** \$500 (drops to \$450 when supply rises in New York)
+            - **Law of one price:** Identical goods should sell for the same price once expressed in a common currency.
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Today's rate (pesos per dollar), value: '@spot', format: 2 }
@@ -410,18 +443,13 @@ scenes:
         hidden: true
         props: { label: Home inflation (0.03 = 3%), min: 0, max: 0.1, step: 0.005 }
         bind: { value: piHome }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' }, roles: { r: r }, speed: 0.7 }
     beats:
       - say: |
           A phone costs 25,000 pesos in Manila and 500 dollars in New York. At 50 pesos per dollar these are the same
           price. The **law of one price** says that in an efficient market, the same product sells for the same price
           everywhere.
         define: [law-of-one-price]
-      - say: Suppose the phone drops to 450 dollars in New York, still 500 in Manila.
+      - say: Suppose the phone drops to 450 dollars in New York, still 500 dollars' worth in Manila.
         gate:
           type: predict
           question: What will traders do?
@@ -436,6 +464,8 @@ scenes:
           Prices do not stay still. **Inflation** is a sustained rise in the general level of prices. Say prices rise
           3% a year in the Philippines and 2% in the United States.
         define: [inflation]
+        hide: [loop-note]
+        show: [r]
       - say: |
           Peso goods get dearer faster than dollar goods. For the same money to keep buying the same goods, the peso
           must weaken. That is **purchasing power parity**: exchange rates adjust to equalize what money buys.
@@ -446,15 +476,8 @@ scenes:
           prompt: Raise home inflation until the expected rate goes above 52.
           when: 'p.expected > 51.9'
           hint: You need an inflation gap of 4 points, so push home inflation to 6%.
-      - say: Walk through the arithmetic once, step by step.
-        show: [player]
-        hide: [infl]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
       - say: Your turn, with new inflation rates.
+        hide: [infl]
         gate:
           type: practice
           template: ppp-numeric
@@ -476,13 +499,28 @@ scenes:
       - { fn: fisher, in: { nominal: '@nominal', inflation: '@inflation' }, out: fi }
       - { fn: forwardRate, in: { spot: '@spot', iHome: '@iHome', iForeign: '@iForeign' }, out: fw }
     stage:
-      - id: r1
+      - id: r1-in
         widget: Readout
         props:
           items:
             - { label: Nominal rate, value: '{=nominal|pct1}' }
             - { label: Expected inflation, value: '{=inflation|pct1}' }
+      - id: r1
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Nominal rate, value: '{=nominal|pct1}' }
+            - { label: Expected inflation, value: '{=inflation|pct1}' }
             - { label: Real rate, value: '{=fi.real|pct1}', tone: good }
+      - id: r2-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Spot rate, value: '@spot', format: 4 }
+            - { label: Home interest, value: '{=iHome|pct1}' }
+            - { label: Foreign interest, value: '{=iForeign|pct1}' }
       - id: r2
         widget: Readout
         hidden: true
@@ -493,11 +531,6 @@ scenes:
             - { label: Foreign interest, value: '{=iForeign|pct1}' }
             - { label: Interest gap, value: '{=fw.diff|pct1}', tone: accent }
             - { label: Forward rate, value: '@fw.forward', format: 4, tone: good }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: forwardRate, in: { spot: '@spot', iHome: '@iHome', iForeign: '@iForeign' }, roles: { r: r2 }, speed: 0.7 }
     beats:
       - say: |
           A bank advertises 8% a year. That is the **nominal interest rate**: the rate quoted before taking price rises
@@ -513,6 +546,8 @@ scenes:
           What you really gain is the **real interest rate**: the nominal rate minus expected inflation. The
           **Fisher effect** is this link between the two rates.
         define: [real-interest-rate, fisher-effect]
+        hide: [r1-in]
+        show: [r1]
       - say: Try it with new numbers.
         gate:
           type: practice
@@ -522,7 +557,7 @@ scenes:
           on a fixed future date, often 30, 60, 90 or 180 days away.
         define: [forward-rate]
         hide: [r1]
-        show: [r2]
+        show: [r2-in]
       - say: |
           Which forward rate is fair? **Covered interest rate parity** says the percentage gap between forward and spot
           equals the gap between the two countries' interest rates. Otherwise arbitrage would be free money.
@@ -532,17 +567,12 @@ scenes:
           question: Spot is 1.25. Home interest is 5%, foreign is 3%. What is the forward rate?
           answer: { value: 1.275, tol: 0.002 }
           explain: The gap is 5% − 3% = 2%, so the forward is 1.25 × 1.02 = 1.275, above spot.
-      - say: Watch it computed, one step at a time.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
       - say: |
-          The same gap also hints at where the rate will go. The **International Fisher effect** says that the gap
-          between two currencies' interest rates reflects the exchange rate change people expect.
+          With a 2% interest gap, the forward rate is $1.25 \times 1.02 = 1.2750$. The **International Fisher effect** says
+          that the gap between two currencies' interest rates also reflects the exchange rate change people expect.
         define: [international-fisher-effect]
+        hide: [r2-in]
+        show: [r2]
       - say: Now a forward rate of your own.
         gate:
           type: practice
@@ -575,11 +605,6 @@ scenes:
             - { label: Random walk average error, value: '@rw.mae', format: 4, tone: accent }
             - { label: 3-month average error, value: '@rw.maMae', format: 4, tone: accent }
             - { label: Last error, value: '@rw.lastError', format: 4 }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: randomWalk, in: { series: '@spotseries', window: 3 }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           Here is a made-up six-month run of dollars per euro. Everyone from importers to banks would love to know the
@@ -601,13 +626,10 @@ scenes:
           Others still try. The **fundamental approach** builds economic models of inflation, interest rates and trade.
           **Technical analysis** studies past prices for trends and projects them forward.
         define: [fundamental-approach, technical-analysis]
-      - say: Score the random walk on the six months, one forecast per step.
-        show: [r, player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+      - say: |
+          Scoring the random walk across the five month-to-month steps gives an average absolute error of **0.0200**, slightly
+          better than a 3-month moving average (**0.0267**). Beating today's price is harder than it looks.
+        show: [r]
       - say: One for you.
         gate:
           type: practice
@@ -630,25 +652,40 @@ scenes:
     derive:
       - { fn: vatChain, in: { prices: '@prices', rate: '@rate' }, out: v }
     stage:
-      - id: r
+      - id: controls-note
+        widget: Callout
+        props:
+          kind: note
+          title: Government tools on money and income
+          body: |
+            - **Currency exchange controls:** Ration foreign currency to protect central bank reserves, making the local currency **nonconvertible** at an official rate above the free-market rate.
+            - **Income tax:** Direct tax on personal and corporate earnings.
+            - **Withholding tax:** Tax deducted at the source on passive income (interest, dividends, royalties) paid across borders.
+      - id: r-in
         widget: Readout
+        hidden: true
         props:
           items:
+            - { label: Stage 1 sale price, value: 100 }
+            - { label: Stage 2 sale price, value: 150 }
+            - { label: Stage 3 final price, value: 250 }
+            - { label: VAT rate, value: '{=rate|pct}', tone: accent }
+      - id: r
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Stage 1 tax (on 100), value: '@v.stages.0.remit', format: 2 }
+            - { label: Stage 2 tax (on +50 added), value: '@v.stages.1.remit', format: 2 }
+            - { label: Stage 3 tax (on +100 added), value: '@v.stages.2.remit', format: 2 }
             - { label: Total tax to the government, value: '@v.totalRemit', format: 2, tone: good }
-            - { label: Tax on the final price, value: '@v.finalTax', format: 2, tone: good }
-            - { label: Stage 1 tax, value: '@v.stages.0.remit', format: 2 }
-            - { label: Stage 2 tax, value: '@v.stages.1.remit', format: 2 }
+            - { label: Tax on the final price (250), value: '@v.finalTax', format: 2, tone: good }
       - id: rateslider
         widget: Slider
         region: side
         hidden: true
         props: { label: Tax rate (0.12 = 12%), min: 0.05, max: 0.25, step: 0.01 }
         bind: { value: rate }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: vatChain, in: { prices: '@prices', rate: '@rate' }, roles: { r: r }, speed: 0.7 }
     beats:
       - say: |
           A country running short of foreign money may limit who can buy it. These are **currency exchange controls**:
@@ -672,27 +709,25 @@ scenes:
           The **value-added tax**, or VAT, is a sales tax collected at every step of production. Each firm charges tax on its
           sale, then gets a credit for the tax already paid on its inputs. Tax is 12% here.
         define: [value-added-tax]
+        hide: [controls-note]
+        show: [r-in]
         gate:
           type: predict
           question: A firm buys at 100 and sells at 150. How much VAT does it pay the government at 12%?
           answer: { value: 6, tol: 0.01 }
           explain: It collects 12% × 150 = 18 and gets a credit of 12% × 100 = 12, so it pays 18 − 12 = 6.
-      - say: Follow the whole chain, one firm at a time.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
-      - say: Now change the rate and watch the total.
-        hide: [player]
-        show: [rateslider]
+      - say: |
+          Across all three stages (12 + 6 + 12 = 30), the government collects the exact same amount as 12% of the final price
+          (250). Now change the tax rate and watch the total.
+        hide: [r-in]
+        show: [r, rateslider]
         gate:
           type: when
           prompt: Set the tax rate so the government collects a total of 50.
           when: 'v.totalRemit > 49.9 and v.totalRemit < 50.1'
           hint: The total is the rate times the final price of 250. What rate gives 50?
       - say: One more on new prices.
+        hide: [rateslider]
         gate:
           type: practice
           template: vat-numeric
@@ -706,19 +741,24 @@ scenes:
     derive:
       - { fn: bopSummary, in: { table: '@bopdemo' }, out: b }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: 'Exports (credit +)', value: 120 }
+            - { label: 'Imports (debit −)', value: -150 }
+            - { label: Current account, value: '@b.current', tone: accent }
+            - { label: 'Foreign investment in (credit +)', value: 80 }
+            - { label: 'Resident investment abroad (debit −)', value: -50 }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Current account, value: '@b.current', tone: accent }
             - { label: Capital account, value: '@b.capital', tone: accent }
             - { label: Official reserves, value: '@b.official', tone: accent }
             - { label: Total, value: '@b.net', tone: good }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: bopSummary, in: { table: '@bopdemo' }, roles: { r: r }, speed: 0.7 }
     beats:
       - say: |
           Every country trades with the world: goods go out, goods come in, investors move money. The
@@ -740,13 +780,11 @@ scenes:
           question: What is the capital account total?
           answer: { value: 30, tol: 0.5 }
           explain: 80 − 50 = +30. It matches the −30 current account deficit, so reserves do not need to change.
-      - say: Walk through the three accounts.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+      - say: |
+          Because the +30 capital account surplus offsets the −30 current account deficit, official reserves stay at 0 and the
+          three accounts sum to zero.
+        hide: [r-in]
+        show: [r]
       - say: A deficit is money that left. The capital account shows money that came back. Try a new country.
         gate:
           type: practice

@@ -9,6 +9,7 @@ import { GateView, gateSatisfied, type GateState } from '../engine/Gate';
 import type { WidgetCommand } from '../engine/types';
 import { Markdown, Tex } from '../lib/md';
 import { cn } from '../lib/util';
+import { useReducedMotion } from '../lib/reducedMotion';
 import { markProgress, setSetting, useModuleProgress, useSetting, saveNote, useNote } from '../storage/progress';
 import { db } from '../storage/db';
 import { speak, stopSpeaking } from '../lib/speech';
@@ -61,8 +62,18 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
   const { mod, base } = useModuleCtx();
   const nav = useNavigate();
   const [narration, setNarration] = useSetting('narration');
-  const [reducedMotionSetting] = useSetting('reducedMotion');
-  const reducedMotion = reducedMotionSetting || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const reducedMotion = useReducedMotion();
+  // the narration card sticks over the bottom of the screen; widgets are told how tall it is (the card is re-keyed each beat)
+  const [coverBottom, setCoverBottom] = useState(0);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const cardRef = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
+    if (!el) { setCoverBottom(0); return; }
+    const measure = () => setCoverBottom(Math.ceil(el.getBoundingClientRect().height + 12));
+    measure();
+    if (typeof ResizeObserver !== 'undefined') { roRef.current = new ResizeObserver(measure); roRef.current.observe(el); }
+  }, []);
   const [beat, setBeat] = useState(0);
   const [finished, setFinished] = useState(false);
   const [gates, setGates] = useState<Record<number, GateState>>({});
@@ -144,7 +155,7 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
   useEffect(() => () => stopSpeaking(), []);
 
   return (
-    <StageProvider mod={mod} spec={{ data: scene.data, derive: scene.derive }} state={state} setState={setState} cmds={cmds} onEvent={onEvent} reducedMotion={reducedMotion} replayKey={replayKey}>
+    <StageProvider mod={mod} spec={{ data: scene.data, derive: scene.derive }} state={state} setState={setState} cmds={cmds} onEvent={onEvent} reducedMotion={reducedMotion} coverBottom={finished ? 0 : coverBottom} replayKey={replayKey}>
       {(scope) => {
         let whenTrue = false;
         if (cur?.gate?.type === 'when') whenTrue = !!evalExpr(cur.gate.when, scope);
@@ -174,7 +185,7 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
             <Stage widgets={scene.stage} hidden={hidden} />
             <AnimatePresence mode="wait">
               {!finished ? (
-                <motion.div key={`beat-${beat}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reducedMotion ? 0.1 : 0.25 }}
+                <motion.div key={`beat-${beat}`} ref={cardRef} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reducedMotion ? 0.1 : 0.25 }}
                   className="card sticky bottom-3 z-10 flex flex-col gap-3 p-4 shadow-lg">
                   <Markdown text={cur.say} className="text-[15px]" />
                   {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}

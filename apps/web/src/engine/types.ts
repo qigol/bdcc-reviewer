@@ -35,6 +35,8 @@ export interface StageCtxValue {
   registerTrace: (playerId: string, view: TraceView | null) => void;
   registerPlayer: (playerId: string, api: PlayerApi | null) => void;
   reducedMotion: boolean;
+  /** height (px) of a card that sticks over the bottom of the viewport; a widget under it does not count as on screen */
+  coverBottom: number;
   /** key that changes when a beat is replayed (re-triggers transient animations) */
   replayKey: number;
   players: Record<string, PlayerApi>;

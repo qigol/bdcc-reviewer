@@ -7,8 +7,25 @@ scenes:
     derive:
       - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
     stage:
+      - id: ev-market-note
+        widget: Callout
+        props:
+          kind: note
+          title: China's electric vehicle market
+          body: |
+            - **Powertrains:** BYD sells about half pure battery electric vehicles (BEVs) and half plug-in hybrids (PHEVs).
+            - **Scale & crowding:** ~55 million cars of annual factory capacity vs. ~34 million sold across ~100 automakers.
+            - **EV adoption:** ~50% of new vehicle sales in China, vs. ~25% worldwide and ~8% in the United States.
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Model life of Chinese EVs (years), value: '@base' }
+            - { label: Model life of foreign brands (years), value: '@other' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Model life of Chinese EVs (years), value: '@base' }
@@ -16,11 +33,6 @@ scenes:
             - { label: Difference, value: '@c.diff', format: 1, tone: accent }
             - { label: Times longer, value: '@c.ratio', format: 2, tone: accent }
             - { label: Fraction above the base, value: '{=c.pctOver|pct1}', tone: good }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: compare, in: { base: '@base', other: '@other' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           BYD, China's leading maker of **electric vehicles**, sells cars powered by a battery instead of fuel. It sells about
@@ -31,15 +43,19 @@ scenes:
           make about 55 million cars, though it sold about 34 million a year, and it has about 100 car companies.
         define: [internal-combustion-engine]
       - say: |
-          A company's **market share** is the part of all sales that is its own. Where do EVs stand? Around half of new
-          vehicles sold in China were EVs.
+          A company's **market share** is the part of all sales that is its own. Across the whole Chinese car market, EVs
+          reached about 50% of new vehicles sold, against 25% worldwide and 8% in the United States.
         define: [market-share]
         gate:
           type: predict
-          question: About what share of new vehicles sold in China were electric?
-          options: [About 8%, About 25%, About 50%, About 90%]
-          answer: 2
-          explain: The case says EVs made up 50% of new vehicles sold in China, against about 25% worldwide and 8% in the United States.
+          question: Why did EVs capture half of new car sales in China while staying near 8% in the United States?
+          options:
+            - Fierce local price competition, government buyer incentives and weak buyer attachment to legacy gas brands
+            - China banned all internal combustion engine cars in 2015
+            - China had only one state-owned automaker selling cars
+            - Foreign brands refused to sell cars in China
+          answer: 0
+          explain: Roughly 100 carmakers, government support and buyers focused on price and technology pushed EV share to 50% in China.
       - say: |
           Chinese makers also had no old habits to carry. A **late-mover advantage** comes from starting later, so you can
           build new systems without being held back by old ones. They also built an **ecosystem**: a network of parts makers,
@@ -50,22 +66,21 @@ scenes:
           choose on price and performance, so makers update models fast. Chinese EVs stayed on the market 1.2 years and
           foreign brands 4.2.
         define: [price-war]
+        hide: [ev-market-note]
+        show: [r-in]
         gate:
           type: predict
           question: How many times longer do foreign brands stay on the market?
           answer: { value: 3.5, tol: 0.05 }
           explain: 4.2 ÷ 1.2 = 3.5.
-      - say: Watch the comparison worked out.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
-      - say: One more comparison.
+      - say: |
+          At 4.2 years vs. 1.2 years, foreign models sit on the market 3.5 times as long (250% above the Chinese cycle).
+          Check the key market terms before moving on.
+        hide: [r-in]
+        show: [r]
         gate:
           type: practice
-          template: cycle-numeric
+          template: market-match
     takeaway: China's EV market is huge and fast-moving, and a late-mover ecosystem helped its makers move faster.
 
   - id: batteries-and-parts
@@ -93,6 +108,13 @@ scenes:
             - { id: lfp, label: LFP battery }
             - { id: nmc, label: NMC battery }
           solution: { b1: lfp, b2: nmc, b3: lfp, b4: nmc, b5: nmc, b6: lfp }
+      - id: r-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: CATL capital cost per GWh (millions), value: '@base' }
+            - { label: Rival capital cost per GWh (millions), value: '@other' }
       - id: r
         widget: Readout
         hidden: true
@@ -109,6 +131,15 @@ scenes:
         hidden: true
         props: { label: Rival capital cost per GWh (millions), min: 60, max: 120, step: 5 }
         bind: { value: other }
+      - id: parts-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: BYD's vertical integration on the Seal
+          body: |
+            - **In-house share:** About **75%** of the parts in the BYD Seal are made by BYD itself.
+            - **Supplier margin saved:** Making Tier 1 and Tier 2 components in-house eliminates roughly **\$2,400** per vehicle in outside supplier profit margins.
     beats:
       - say: |
           The battery is the costliest part of an EV. An **LFP battery** (lithium iron phosphate) is cheaper and safer but
@@ -124,14 +155,15 @@ scenes:
           Chinese makers chose affordability over energy density. CATL kept capital costs below 60 million dollars per
           gigawatt hour. Korean makers were at 88. Estimate how much higher.
         hide: [sorter]
-        show: [r]
+        show: [r-in]
         gate:
           type: predict
-          question: By what fraction is the Korean cost above CATL's?
-          answer: { value: 0.467, tol: 0.005 }
-          explain: (88 − 60) ÷ 60 = 0.467, about 47% above.
+          question: By what fraction is the Korean cost above CATL's? (Enter a decimal like 0.467 or a percentage like 46.7%.)
+          answer: { value: 0.467, tol: 0.005, percent: true }
+          explain: (88 − 60) ÷ 60 = 0.467, about 46.7% above.
       - say: Now raise the rival's cost.
-        show: [rival]
+        hide: [r-in]
+        show: [r, rival]
         gate:
           type: when
           prompt: Raise the rival's capital cost until it is more than 70% above CATL's.
@@ -141,12 +173,15 @@ scenes:
           BYD goes further. **Vertical integration** means a company makes many of the parts and inputs itself instead of
           buying them. About 75% of the parts in its Seal were made in-house.
         define: [vertical-integration]
-        hide: [rival]
+        hide: [r, rival]
+        show: [parts-note]
       - say: |
           That removes the **supplier margin**: the profit a supplier adds to the price of a part. The case estimates that
           making Tier 1 and Tier 2 parts in-house eliminated about 2,400 dollars of supplier margin per vehicle.
         define: [supplier-margin]
       - say: A check on the comparison.
+        hide: [parts-note]
+        show: [r]
         gate:
           type: practice
           template: compare-over-numeric
@@ -161,8 +196,15 @@ scenes:
     derive:
       - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: BYD Shenzhen worker pay, value: '@base' }
+            - { label: Tesla Shanghai worker pay, value: '@other' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: BYD Shenzhen worker pay, value: '@base' }
@@ -170,11 +212,6 @@ scenes:
             - { label: Difference, value: '@c.diff', tone: accent }
             - { label: Ratio, value: '@c.ratio', format: 2 }
             - { label: Fraction above BYD, value: '{=c.pctOver|pct1}', tone: good }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: compare, in: { base: '@base', other: '@other' }, roles: { r: r }, speed: 0.8 }
       - id: anim
         widget: Animation
         region: top
@@ -197,22 +234,21 @@ scenes:
           in Shanghai. Estimate how far below that is.
         gate:
           type: predict
-          question: BYD pay is what fraction below Tesla's? (Gap divided by Tesla's pay.)
-          answer: { value: 0.25, tol: 0.005 }
+          question: BYD pay is what fraction below Tesla's? (Gap divided by Tesla's pay; decimal or percent.)
+          answer: { value: 0.25, tol: 0.005, percent: true }
           explain: (1,000 − 750) ÷ 1,000 = 0.25, so BYD pay is 25% below.
-      - say: Watch the numbers compared.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+      - say: |
+          Notice how the base matters: the 250-dollar gap is **25% below Tesla's 1,000**, and **33.3% above BYD's 750**.
+        hide: [r-in]
+        show: [r]
       - say: |
           Pay was one of several sources. BYD also spent about 1,700 dollars less per vehicle on administration and R&D and
           about 2,400 less in supplier margins, and its battery cost 128 dollars per kWh against 175 for Renault.
+        hide: [r]
         show: [anim]
       - say: Compare two prices for yourself.
         hide: [anim]
+        show: [r]
         gate:
           type: practice
           template: compare-under-numeric
@@ -230,8 +266,16 @@ scenes:
     derive:
       - { fn: growthRate, in: { start: '@start', end: '@end', years: '@years' }, out: g }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: Cars in 2021, value: '@start' }
+            - { label: Cars in 2025, value: '@end' }
+            - { label: Years between 2021 and 2025, value: '@years' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Cars in 2021, value: '@start' }
@@ -244,11 +288,6 @@ scenes:
         hidden: true
         props: { label: Years taken, min: 2, max: 8, step: 1 }
         bind: { value: years }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: growthRate, in: { start: '@start', end: '@end', years: '@years' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           BYD sold 741,000 cars in 2021 and more than 4.6 million in 2025. A fast climb like that can be measured two ways:
@@ -260,16 +299,11 @@ scenes:
           question: How many times larger were BYD's 2025 sales than its 2021 sales?
           answer: { value: 6.2, tol: 0.05 }
           explain: 4,600,000 ÷ 741,000 = 6.21.
-      - say: Watch the multiple and the yearly rate worked out.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
-      - say: The same jump over a longer time is slower each year.
-        hide: [player]
-        show: [yrs]
+      - say: |
+          Growing 6.21-fold in 4 years equals a 57.8% compound annual growth rate. The same jump over a longer time is
+          slower each year.
+        hide: [r-in]
+        show: [r, yrs]
         gate:
           type: when
           prompt: Stretch the time until the yearly growth falls below 40%.
@@ -279,6 +313,7 @@ scenes:
           Size matters in cars. The **break-even volume** is the number of units a company must sell for its income to cover
           costs. The case puts it at about 400,000 for an EV brand.
         define: [break-even-volume]
+        set: { years: 4 }
         hide: [yrs]
         gate:
           type: predict
@@ -303,8 +338,16 @@ scenes:
     derive:
       - { fn: overseasGap, in: { total: '@total', overseas: '@overseas', targetShare: '@targetShare' }, out: o }
     stage:
+      - id: r-in
+        widget: Readout
+        props:
+          items:
+            - { label: Total sales (2025), value: '@total' }
+            - { label: Sold abroad (exports), value: '@overseas' }
+            - { label: 2030 target share abroad, value: '{=targetShare|pct}' }
       - id: r
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Total sales, value: '@total' }
@@ -318,32 +361,22 @@ scenes:
         hidden: true
         props: { label: Target share abroad (0.5 = 50%), min: 0.3, max: 0.7, step: 0.1 }
         bind: { value: targetShare }
-      - id: player
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: overseasGap, in: { total: '@total', overseas: '@overseas', targetShare: '@targetShare' }, roles: { r: r }, speed: 0.8 }
     beats:
       - say: |
           In 2025 BYD exported 1.05 million vehicles out of 4.6 million, and its target is half of sales outside China by
           2030. Overseas profit is also two to three times home profit, so the push matters.
         gate:
           type: predict
-          question: What share of BYD's cars were exported in 2025?
-          answer: { value: 0.228, tol: 0.005 }
-          explain: 1.05 ÷ 4.6 = 0.228, about 23%.
-      - say: Watch the gap to the target worked out.
-        show: [player]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player
-          event: done
+          question: What share of BYD's cars were exported in 2025? (Enter a decimal like 0.228 or a percentage like 22.8%.)
+          answer: { value: 0.228, tol: 0.005, percent: true }
+          explain: 1.05 ÷ 4.6 = 0.228, about 22.8%.
       - say: |
-          Building plants abroad helps avoid tariffs. A **CKD assembly** plant puts cars together locally from parts shipped in.
-          BYD has one in Brazil, where it leads the EV market with about 70%.
+          At 4.6 million total sales, a 50% overseas target requires 2.3 million cars abroad—1.25 million more than 2025
+          exports. Building plants abroad also helps avoid tariffs: a **CKD assembly** plant puts cars together locally from
+          parts shipped in, like BYD's plant in Brazil.
         define: [ckd-assembly]
-        hide: [player]
+        hide: [r-in]
+        show: [r]
       - say: |
           BYD also uses partners. A **joint venture** is a business owned and run together by two or more companies. In
           China, many carmakers pair with foreign firms this way.
@@ -355,6 +388,7 @@ scenes:
           when: 'o.extra > 1500000'
           hint: A 60% target needs about 1.7 million more.
       - say: Now one on new numbers.
+        hide: [tgt]
         gate:
           type: practice
           template: overseas-extra-numeric
@@ -376,14 +410,28 @@ scenes:
       - { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' }, out: t }
       - { fn: subsidyShare, in: { advantage: '@advantage', share: '@share' }, out: s }
     stage:
+      - id: r1-in
+        widget: Readout
+        props:
+          items:
+            - { label: Price before the tariff, value: '@price' }
+            - { label: Tariff rate, value: '{=tariff|pct}' }
       - id: r1
         widget: Readout
+        hidden: true
         props:
           items:
             - { label: Price before the tariff, value: '@price' }
             - { label: Tariff rate, value: '{=tariff|pct}' }
             - { label: Duty, value: '@t.duty', tone: accent }
             - { label: Price after the tariff, value: '@t.total', tone: good }
+      - id: r2-in
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Cost advantage per car, value: '@advantage' }
+            - { label: Share from subsidies, value: '{=share|pct}' }
       - id: r2
         widget: Readout
         hidden: true
@@ -399,16 +447,6 @@ scenes:
         hidden: true
         props: { label: Tariff rate (1 = 100%), min: 0, max: 1.5, step: 0.25 }
         bind: { value: tariff }
-      - id: player1
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' }, roles: { r: r1 }, speed: 0.8 }
-      - id: player2
-        widget: StepPlayer
-        region: bottom
-        hidden: true
-        props: { fn: subsidyShare, in: { advantage: '@advantage', share: '@share' }, roles: { r: r2 }, speed: 0.8 }
     beats:
       - say: |
           The United States put tariffs of 100% or more on Chinese cars. A **tariff** is a tax on imported goods that raises
@@ -419,16 +457,10 @@ scenes:
           question: What would the Seal cost after a 100% tariff, before any other cost?
           answer: { value: 53144, tol: 0.5 }
           explain: 26,572 + 26,572 = 53,144. The price doubles.
-      - say: Watch it worked out.
-        show: [player1]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player1
-          event: done
-      - say: Now change the tariff.
-        hide: [player1]
-        show: [rate]
+      - say: |
+          A 100% tariff adds 26,572 dollars of duty, doubling the price to 53,144. Now raise the tariff rate further.
+        hide: [r1-in]
+        show: [r1, rate]
         gate:
           type: when
           prompt: Raise the tariff until the price after the tariff passes 60,000 dollars.
@@ -439,20 +471,17 @@ scenes:
           or boosts its sales. BYD's per-car advantage over Tesla was 4,700 dollars, and about 5% came from subsidies.
         define: [subsidy]
         hide: [rate, r1]
-        show: [r2]
+        show: [r2-in]
         gate:
           type: predict
           question: How many dollars of the 4,700 came from subsidies?
           answer: { value: 235, tol: 0.5 }
           explain: 5% × 4,700 = 235 dollars.
-      - say: Watch the split.
-        show: [player2]
-        gate:
-          type: event
-          prompt: Play the walk to the end.
-          target: player2
-          event: done
-      - say: A tariff question on new numbers.
+      - say: |
+          Only 235 dollars of the 4,700-dollar edge came from direct subsidies; the remaining 4,465 came from in-house parts,
+          leaner overhead, lower wages and battery costs. Try a tariff calculation on new numbers.
+        hide: [r2-in]
+        show: [r2]
         gate:
           type: practice
           template: tariff-total-numeric
