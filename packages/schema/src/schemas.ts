@@ -49,6 +49,8 @@ export const Manifest = z
     guide: z.union([z.literal(1), z.literal(2)]).optional(),
     /** 'code' (default): Math & Code with Python · 'journal': Math & Journal with entries, schedules, T-accounts */
     workbench: Workbench.optional(),
+    /** name of the second study tab, e.g. 'Analysis' for a business course; default from the workbench (Math & Code / Math & Journal) */
+    workbenchLabel: z.string().trim().min(1).max(20, 'workbenchLabel must be ≤ 20 characters').optional(),
     /** currency symbol for journal amounts and the |money format (default ₱) */
     currency: z.string().min(1).max(4).optional(),
     /** what the learner can do after the module, each tied to skills (guide §5.1, shown on the Path tab) */
@@ -468,5 +470,5 @@ export const REQUIRED_FILES = [
   'application.yaml',
   'quiz.yaml',
 ] as const;
-export const OPTIONAL_FILES = ['WIDGET_REQUESTS.md'] as const;
+export const OPTIONAL_FILES = ['WIDGET_REQUESTS.md', 'ANIMATIONS.md'] as const;
 export const OPTIONAL_DIRS = ['datasets/', 'assets/', 'sources/'] as const;

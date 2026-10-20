@@ -28,6 +28,7 @@ export const WIDGET_COMPONENTS: Record<string, W> = {
   Schedule: lazy(() => import('./Schedule')),
   Text: lazy(() => import('./Text')),
   Image: lazy(() => import('./Image')),
+  Animation: lazy(() => import('./Animation')),
 };
 
 export function getWidget(name: string): W | undefined {

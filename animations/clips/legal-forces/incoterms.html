@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Incoterms: who pays for what</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Legal Forces · shipping-terms, beats 1–3 · 6 s. Segments: 0–0.7 port, 0.7–1.6 FAS, 1.6–2.6 FOB, 2.6–4.4 CFR, 4.4–5.3 CIF, 5.3–6 hold. -->
+  <div id="stage" data-composition-id="incoterms" data-start="0" data-width="1280" data-height="720" data-duration="6"></div>
+  <script>
+    /*
+     * Legal Forces · Incoterms (scene shipping-terms, beats 1–3), 6 s.
+     *   0.0–0.7  night port: warehouse, crane, ship at the quay; a coral container pops out; coral risk orb above it
+     *   0.7–1.6  a truck carries it to the quay edge; price counts to 19,500; "FAS"; a dotted line drops at the edge
+     *   1.6–2.6  the crane lifts it on board (+500 → 20,000); the risk orb drifts to the teal buyer; "FOB · risk passes on board"
+     *   2.6–4.4  the ship sails, the camera pans with it; coins arc into the hull (+2,000 → 22,000); "CFR"
+     *   4.4–5.3  a violet umbrella-shield snaps open over the container (+300 → 22,300); "CIF"
+     *   5.3–6.0  hold mid-ocean, the four price tags along the bottom
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(6);
+      window.__timelines['incoterms'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const far = HF.layer('far');
+      const sea = HF.layer('sea');
+      const land = HF.layer('land');
+      const mid = HF.layer('mid');
+      const front = HF.layer('front');
+      const fx = HF.layer('fx');
+      const { svg: hudSvg } = HF.hud();
+
+      const GROUND = 520, EDGE = 560, DECK = 480;
+      const SLATE = '#8FA3D9', HULL = '#4B6CC1', WALL = '#3A4F92';
+
+      // ---------------------------------------------------------------- sea, far shore, quay
+      const shore = HF.g(far);
+      HF.el('path', { d: 'M1110 540 Q1150 500 1210 498 Q1290 496 1330 512 L1500 512 L1500 560 L1110 560 Z', fill: '#34498C' }, shore);
+      HF.el('path', { d: 'M1150 512 Q1180 503 1215 502', stroke: '#4A5FA6', 'stroke-width': 6, fill: 'none', 'stroke-linecap': 'round' }, shore);
+      const buyer = HF.character(far, { x: 1222, y: 502, color: C.teal, size: 0.72, look: -0.7 });
+      gsap.set(buyer.g, { scale: 0, transformOrigin: '50% 100%' });
+
+      const seaBack = HF.wave(sea, { y: 536, amp: 4, len: 160, color: '#1D3A73' });
+      const quay = HF.g(land);
+      HF.box(quay, { x: -320, y: GROUND, w: EDGE + 320, h: 260, r: 10, color: '#2C3F7E', shadeSide: 'right', shadeK: 0.08 });
+      HF.el('rect', { x: -320, y: GROUND, width: EDGE + 320, height: 8, fill: '#41569A' }, quay);
+      for (let x = 0; x < EDGE - 20; x += 70) HF.el('rect', { x, y: GROUND + 22, width: 40, height: 6, rx: 3, fill: '#24356C' }, quay);
+
+      // warehouse
+      const wh = HF.g(land);
+      HF.el('path', { d: 'M30 352 L155 296 L280 352 Z', fill: HF.shade(WALL, 0.08) }, wh);
+      HF.box(wh, { x: 40, y: 344, w: 230, h: GROUND - 344, r: 12, color: WALL });
+      HF.box(wh, { x: 104, y: 412, w: 104, h: GROUND - 412, r: 10, color: '#1A2858', hi: false });
+      for (let i = 0; i < 4; i++) HF.el('rect', { x: 110, y: 420 + i * 24, width: 92, height: 4, rx: 2, fill: '#24356C' }, wh);
+
+      // crane (ship-to-shore gantry)
+      const crane = HF.g(mid);
+      HF.box(crane, { x: 286, y: 160, w: 26, h: GROUND - 160, r: 8, color: SLATE, shadeSide: 'right' });
+      HF.box(crane, { x: 250, y: 158, w: 680, h: 24, r: 10, color: SLATE });
+      HF.el('path', { d: 'M299 160 L420 120 L640 158', stroke: SLATE, 'stroke-width': 8, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, crane);
+      const trolley = HF.g(mid);
+      HF.box(trolley, { x: -22, y: 176, w: 44, h: 18, r: 6, color: HF.shade(SLATE, 0.15), hi: false });
+      gsap.set(trolley, { x: 475 });
+      const cable = HF.el('line', { x1: 475, y1: 190, x2: 475, y2: 200, stroke: '#C9D3F2', 'stroke-width': 4, 'stroke-linecap': 'round', opacity: 0 }, mid);
+
+      // ship (origin: its own coordinates; slides as a group)
+      const ship = HF.g(mid);
+      HF.el('path', { d: 'M600 480 L904 480 Q930 482 942 500 L912 560 Q906 572 890 572 L640 572 Q624 572 618 560 L596 500 Q592 482 600 480 Z', fill: HF.shade(HULL, 0.1) }, ship);
+      HF.el('path', { d: 'M600 480 L904 480 Q930 482 942 500 L930 520 L606 520 L596 500 Q592 482 600 480 Z', fill: HULL }, ship);
+      HF.el('rect', { x: 612, y: 488, width: 140, height: 7, rx: 3.5, fill: HF.light(HULL, 0.18), opacity: 0.6 }, ship);
+      HF.box(ship, { x: 608, y: 412, w: 64, h: 70, r: 10, color: '#E3E6F5' });
+      for (let i = 0; i < 2; i++) HF.el('rect', { x: 618 + i * 24, y: 424, width: 18, height: 12, rx: 4, fill: C.gold }, ship);
+      HF.box(ship, { x: 630, y: 384, w: 20, h: 30, r: 6, color: C.coral, hi: false });
+
+      // waves in front of the hull, rolling
+      const seaFront = HF.wave(front, { y: 556, amp: 5, len: 140, color: '#25488A', opacity: 0.96 });
+      HF.loop(tl, seaBack, { x: 0 }, { x: -160, ease: 'none' }, 0, 2, 6);
+      HF.loop(tl, seaFront, { x: 0 }, { x: -140, ease: 'none' }, 0, 1.2, 6);
+
+      // ---------------------------------------------------------------- truck, container, risk orb
+      const truck = HF.g(mid);
+      HF.box(truck, { x: -80, y: -30, w: 152, h: 16, r: 6, color: '#5A6FB0', hi: false });
+      HF.box(truck, { x: -132, y: -66, w: 56, h: 52, r: 12, color: C.teal });
+      HF.el('rect', { x: -124, y: -58, width: 22, height: 16, rx: 5, fill: '#BFF3EE', opacity: 0.85 }, truck);
+      for (const wx of [-108, -48, 44]) HF.disc(truck, { x: wx, y: -10, r: 13, color: '#1A2858', hi: false });
+      gsap.set(truck, { x: 175, y: GROUND, scale: 0, transformOrigin: '50% 100%' });
+
+      const box = HF.g(front);
+      HF.box(box, { x: -65, y: -72, w: 130, h: 72, r: 8, color: C.coral });
+      for (let i = 0; i < 6; i++) HF.el('rect', { x: -50 + i * 20, y: -60, width: 6, height: 48, rx: 3, fill: HF.shade(C.coral, 0.08) }, box);
+      const BOX_ON_TRUCK = GROUND - 30;
+      gsap.set(box, { x: 170, y: BOX_ON_TRUCK, scale: 0, transformOrigin: '50% 100%' });
+
+      const orb = HF.g(fx);
+      const orbCoral = HF.g(orb, { filter: 'url(#hf-glow)' });
+      HF.disc(orbCoral, { r: 15, color: C.coral });
+      const orbTeal = HF.g(orb, { filter: 'url(#hf-glow)', opacity: 0 });
+      HF.disc(orbTeal, { r: 15, color: C.teal });
+      const ORB_UP = 120; // above the container's base
+      gsap.set(orb, { x: 170, y: BOX_ON_TRUCK - ORB_UP, scale: 0, transformOrigin: '50% 50%' });
+
+      const fasLine = HF.el('line', { x1: EDGE, y1: 250, x2: EDGE, y2: GROUND, stroke: C.text, 'stroke-width': 4, 'stroke-dasharray': '2 14', 'stroke-linecap': 'round', opacity: 0.85 }, fx);
+      gsap.set(fasLine, { scaleY: 0, transformOrigin: '50% 0%' });
+
+      // umbrella-shield (insurance)
+      const umb = HF.g(fx);
+      HF.el('rect', { x: -4, y: -4, width: 8, height: 92, rx: 4, fill: HF.shade(C.violet, 0.2) }, umb);
+      HF.el('path', { d: 'M-104 0 Q-100 -92 0 -96 Q100 -92 104 0 Q86 -16 70 0 Q52 -16 35 0 Q17 -16 0 0 Q-17 -16 -35 0 Q-52 -16 -70 0 Q-86 -16 -104 0 Z', fill: C.violet }, umb);
+      HF.el('path', { d: 'M-60 -60 Q-30 -82 6 -84', stroke: HF.light(C.violet, 0.2), 'stroke-width': 8, fill: 'none', 'stroke-linecap': 'round', opacity: 0.6 }, umb);
+      HF.el('path', { d: 'M-16 -62 L16 -62 L16 -44 Q16 -30 0 -24 Q-16 -30 -16 -44 Z', fill: C.gold }, umb);
+      gsap.set(umb, { x: 920, y: 404, scaleX: 0, scaleY: 0, transformOrigin: '50% 100%' });
+
+      // coins for the freight
+      const coins = [];
+      for (let i = 0; i < 5; i++) { const c = HF.g(fx); HF.coin(c, { r: 13 }); coins.push(c); gsap.set(c, { x: -100, y: -100 }); }
+
+      // ---------------------------------------------------------------- HUD: price counter and tags
+      const price = HF.label('<span class="hf-label-k">PRICE</span> <span class="hf-num">0</span>', { x: 1236, y: 64, anchor: 'right', cls: 'pill', html: true, hud: true });
+      price.querySelector('.hf-label-k').style.cssText = 'font-size:18px;opacity:.7;margin-right:6px';
+      const priceNum = price.querySelector('.hf-num');
+      const tags = [['FAS', 19500, C.coral], ['FOB', 20000, C.coral], ['CFR', 22000, C.gold], ['CIF', 22300, '#C4A3F2']].map(([k, v, col], i) =>
+        HF.label(`<span style="color:${col}">${k}</span> ${HF.fmt(v)}`, { x: 250 + i * 260, y: 672, cls: 'pill sm', html: true, hud: true }));
+      const term = (t) => HF.label(t, { x: 900, y: 300, cls: 'lg', hud: true });
+      const lFas = term('FAS'), lFob = term('FOB · risk passes on board'), lCfr = term('CFR'), lCif = term('CIF');
+
+      // ================================================================ choreography
+      // 0.0–0.7 the port
+      HF.pop(tl, [wh, ship], 0.0, { origin: '50% 100%', stagger: 0.08 });
+      HF.pop(tl, crane, 0.1, { origin: '50% 100%' });
+      HF.pop(tl, buyer.g, 0.2, { origin: '50% 100%' });
+      HF.pop(tl, truck, 0.25, { origin: '50% 100%' });
+      HF.pop(tl, price, 0.3, { origin: '100% 50%' });
+      HF.pop(tl, box, 0.42, { origin: '50% 100%' });
+      HF.pop(tl, orb, 0.55);
+
+      // 0.7–1.6 truck to the quay edge: FAS
+      const TRUCK_X = 480, BOX_X = 475;
+      tl.to(truck, { x: TRUCK_X, duration: 0.75, ease: 'power2.inOut' }, 0.72);
+      tl.to(box, { x: BOX_X, duration: 0.75, ease: 'power2.inOut' }, 0.72);
+      tl.to(orb, { x: BOX_X, duration: 0.75, ease: 'power2.inOut' }, 0.72);
+      HF.wobble(tl, [truck, box], 1.45, { amount: 2.5 });
+      HF.count(priceNum, 0, 19500, 0.75, 0.8);
+      tl.to(fasLine, { scaleY: 1, duration: 0.3, ease: 'power2.out' }, 1.05);
+      HF.say(tl, lFas, 1.0, 1.62);
+      HF.pop(tl, tags[0], 1.4);
+
+      // 1.6–2.6 crane lifts the container on board: FOB, risk passes to the buyer
+      const TOP_ON_TRUCK = BOX_ON_TRUCK - 72, LIFT = 300, BOARD_X = 760;
+      tl.set(cable, { opacity: 1 }, 1.45);
+      tl.fromTo(cable, { attr: { y2: 192 } }, { attr: { y2: TOP_ON_TRUCK }, duration: 0.15, ease: 'power1.out', immediateRender: false }, 1.45);
+      tl.to(box, { y: LIFT + 72, duration: 0.3, ease: 'power2.inOut' }, 1.62);
+      tl.to(orb, { y: LIFT + 72 - ORB_UP, duration: 0.3, ease: 'power2.inOut' }, 1.62);
+      tl.to(cable, { attr: { y2: LIFT }, duration: 0.3, ease: 'power2.inOut' }, 1.62);
+      tl.to([box, orb, trolley], { x: BOARD_X, duration: 0.32, ease: 'power2.inOut' }, 1.92);
+      tl.to(cable, { attr: { x1: BOARD_X, x2: BOARD_X }, duration: 0.32, ease: 'power2.inOut' }, 1.92);
+      tl.to(box, { y: DECK, duration: 0.22, ease: 'power2.in' }, 2.24);
+      tl.to(cable, { attr: { y2: DECK - 72 }, duration: 0.22, ease: 'power2.in' }, 2.24);
+      HF.land(tl, box, 2.46);
+      tl.to(cable, { attr: { y2: 192 }, duration: 0.18, ease: 'power1.in' }, 2.5);
+      tl.set(cable, { opacity: 0 }, 2.68);
+      HF.count(priceNum, 19500, 20000, 2.28, 0.26); // done by 2.55: the FOB segment holds at 2.6
+      // the risk orb drifts across to the buyer and turns teal
+      tl.to(orb, { x: 1222, y: 438, duration: 0.55, ease: 'sine.inOut' }, 2.4);
+      tl.to(orbTeal, { opacity: 1, duration: 0.35 }, 2.55);
+      tl.to(orbCoral, { opacity: 0, duration: 0.35 }, 2.55);
+      HF.land(tl, buyer.g, 2.95, { amount: 0.1 });
+      HF.say(tl, lFob, 1.98, 2.9);
+      HF.pop(tl, tags[1], 2.28); // fully in by 2.6, where the FOB segment holds
+
+      // 2.6–4.4 the ship sails, the camera pans with it; freight coins arc into the hull: CFR
+      const SAIL = 160;
+      tl.to(ship, { x: SAIL, duration: 1.8, ease: 'power1.inOut' }, 2.6);
+      tl.to(box, { x: BOARD_X + SAIL, duration: 1.8, ease: 'power1.inOut' }, 2.6);
+      HF.camera(tl, { x: -120, scale: 1.03 }, 2.6, 1.9);
+      coins.forEach((c, i) => {
+        const at = 3.0 + i * 0.12;
+        HF.arc(tl, c, { x0: 470 + i * 26, y0: 120, x1: 850 + i * 22 + 70, y1: 505 }, at, 0.55, { spin: 240 });
+        tl.to(c, { scale: 0, duration: 0.12, transformOrigin: '50% 50%' }, at + 0.53);
+      });
+      HF.count(priceNum, 20000, 22000, 3.2, 0.9);
+      HF.say(tl, lCfr, 3.1, 4.38);
+      HF.pop(tl, tags[2], 4.1);
+
+      // 4.4–5.3 insurance: the umbrella-shield snaps open: CIF
+      tl.to(umb, { keyframes: { scaleX: [0, 1.14, 0.96, 1], scaleY: [0.2, 1.08, 0.98, 1], easeEach: 'power2.out' }, duration: 0.36, ease: 'none' }, 4.5);
+      HF.count(priceNum, 22000, 22300, 4.55, 0.45);
+      HF.say(tl, lCif, 4.55);
+      HF.pop(tl, tags[3], 4.95);
+      HF.wobble(tl, umb, 4.86, { amount: 3 });
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

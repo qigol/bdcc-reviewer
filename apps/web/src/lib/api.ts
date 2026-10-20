@@ -23,9 +23,10 @@ export const api = {
   fileUrl: (id: string, path: string) => `/api/modules/${id}/files/${path}`,
   exportUrl: (id: string) => `/api/modules/${id}/export`,
   checkAdmin: (token: string) => fetch('/api/admin/check', { headers: { authorization: `Bearer ${token}` } }).then((r) => j<{ ok: true }>(r)),
-  install: (token: string, body: FormData | { files: Record<string, string | { base64: string }> }, opts: { allowDowngrade?: boolean; dryRun?: boolean } = {}) => {
+  install: (token: string, body: FormData | { files: Record<string, string | { base64: string }> }, opts: { allowDowngrade?: boolean; dryRun?: boolean; keepAssets?: boolean } = {}) => {
     const q = new URLSearchParams();
     if (opts.allowDowngrade) q.set('allowDowngrade', '1');
+    if (opts.keepAssets) q.set('keepAssets', '1');
     if (opts.dryRun) q.set('dryRun', '1');
     const isForm = body instanceof FormData;
     return fetch(`/api/modules${q.toString() ? `?${q}` : ''}`, {

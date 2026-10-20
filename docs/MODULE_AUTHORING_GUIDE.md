@@ -24,6 +24,7 @@ Title: <full title>
 Short title (≤ 12 chars): <course-menu label>
 Course: <course code, e.g. BDCC or MANACC> (exactly as the course's other modules spell it)
 Workbench: <code | journal>   (code = Math & Code with Python; journal = Math & Journal for accounting)
+Tab label: <optional, e.g. Analysis>   (renames the second tab; copy it from the course's other modules)
 Lecture: Sessions <x–y>, dated <yyyy-mm-dd>
 Prerequisite modules: <ids, or none>
 Anything my professor emphasized / exam format notes: <optional>
@@ -66,6 +67,8 @@ And it turns on these lints: 3–6 `objectives`; ≥ 3 `practice` gates and ≥ 
 ### 1.2 Workbenches: code or journal
 
 The second study tab pairs each derivation with a **workbench**: the place where the learner sees the idea *done*. Pick it per course with `workbench:` in the manifest.
+
+**Tab label.** The tab is called Math & Code or Math & Journal unless the manifest sets `workbenchLabel` (≤ 20 characters). Courses whose second tab is not really math or code, such as framework-heavy business courses, set one name for the whole course and every module in it uses the same one (INTB uses `workbenchLabel: Analysis`). The dashboard ring shows its first word.
 
 | | `workbench: code` (default) | `workbench: journal` |
 |---|---|---|
@@ -120,7 +123,9 @@ Do these in order. Don't skip steps 1–4; they are what makes the module *corre
 ├─ application.yaml     (required)
 ├─ quiz.yaml            (required)
 ├─ WIDGET_REQUESTS.md   (optional; see §10)
+├─ ANIMATIONS.md        (optional; one brief per animation clip, §9a.3)
 ├─ assets/…             (optional; svg/png referenced by Image widgets)
+├─ assets/anim/…        (optional; rendered animation clips and posters for Animation widgets, §9a)
 └─ sources/…            (optional; the original PDF, attached by the user in the admin panel. Never output it yourself,
                          just name it in manifest.sources[].file so "slide n" links can open it)
 ```
@@ -268,6 +273,7 @@ interface Manifest {
   requires: { widgets: string[] }; // every widget name used anywhere in the module
   guide?: 1 | 2;                   // authoring-guide edition; write 2 (§1.1)
   workbench?: 'code' | 'journal';  // default 'code' (§1.2)
+  workbenchLabel?: string;          // ≤ 20 chars; renames the second tab, same value across a course (§1.2)
   currency?: string;               // journal modules: symbol for amounts and |money (default '₱')
   objectives?: { id: Id; text: string; skills?: Id[] }[];      // 3–6 learning objectives (guide 2)
   authoring?: { generatedBy?: string; generatedAt?: string; notes?: string };
@@ -1440,6 +1446,7 @@ of unexplained words than because of hard ideas.
 | **Schedule** | `rows` [{id?, label, amount \| amounts, indent?, style? `line`\|`heading`\|`subtotal`\|`total`, format? `money`\|`number`\|`pct`\|`ratio`\|`units`, anchor?}], `columns?`, `currency?`, `decimals?`, `title?` (null amounts stay blank) | — | `row:<id or n>`, `cell:<row>,<col>`, `anchor:<name>` | — | — |
 | **Text** | `body` (Markdown) | — | — | — | — |
 | **Image** | `src` (`assets/…`), `alt`, `caption?`, `width?` | — | — | — | — |
+| **Animation** | `src` (one `assets/…` path or a list of the same clip, best first: `.webm`, `.mp4`, `.gif`/`.webp`/`.apng`, or a frame folder `assets/anim/x/`), `alt`, `poster?`, `srcDark?`, `posterDark?`, `caption?`, `width?`, `aspect?`, `loop?` (default true), `autoplay?` (default true), `controls?` (default true), `rate?`, `start?`, `end?`, `fps?` (frame folders), `bare?`, `stills?` (reduced motion: key-frame times) | — | `frame` | `play`, `pause`, `restart`, `seek {t}` | `ended` |
 
 All widgets also accept the common commands `highlight`, `pulse`, `annotate` and `clear` (§4.7).
 
@@ -1450,11 +1457,200 @@ All widgets also accept the common commands `highlight`, `pulse`, `annotate` and
 
 ---
 
+## 9a. Animations (HyperFrames renders)
+
+Some parts of a lesson are **stale**: a definition, a cause and its effect, a process, a framework, something that
+changes over time. The catalog widgets can only show these as text or a still picture. For those moments a module can
+ship a short **animation**: a 3–8 second, silent, looping clip in a flat motion-graphics style (think Kurzgesagt),
+composed in [HyperFrames](https://github.com/heygen-com/hyperframes) (HTML + GSAP, with Three.js for 3D), rendered to a
+video file, and played on stage by the `Animation` widget.
+
+### 9a.1 When to animate, and when not to
+
+- **Animate what moves or changes:** costs flowing from Raw Materials to Work in Process, a tariff pushing prices up
+  the supply chain, baskets being scanned for an itemset, two vectors turning until they line up, a surface in 3D.
+- **Don't animate the work the learner should do.** Count-along (§7.5) stays in the interactive widgets. A clip can
+  pose the scene's question or show what a result *means*; it never produces the number a gate asks for.
+- **Never give a gate away (§7.1b).** A clip on stage while a predict gate is open must not show the answer: put it
+  on the beat after the gate (`hidden: true`, then `show`), or end the clip before the reveal.
+- **One idea per clip, at most one clip per scene,** usually 3–8 per module. Each clip sits next to a beat whose
+  narration explains it. Clips are silent and nearly wordless (≤ 6 words on screen, large): the narration carries the
+  words, because text burned into video can't be searched, translated or read by a screen reader.
+- **Terms are still taught in beats.** A clip can show what a term means, but the beat still `define`s it (§7.1a), and
+  on-screen words use the glossary's spelling.
+- **Numbers on screen come from the module.** If a clip shows ₱600,000 or 0.67, that value must be what `logic.js`
+  and the datasets give, so the clip and the lesson never disagree.
+
+### 9a.2 The workflow
+
+| Step | Where | Result |
+|---|---|---|
+| 1. Plan | chat or repo | one brief per clip in `ANIMATIONS.md` (§9a.3) |
+| 2. Compose | repo, with the HyperFrames skills (`npx skills add heygen-com/hyperframes`) | one HTML composition per clip in the repo's HyperFrames project, `animations/clips/<module-id>/<clip-id>.html`, built on the shared motion kit in `animations/kit/` (§9a.7). The project lives **outside** `modules/`, so it never ships in a module or the Docker image |
+| 3. Check | `pnpm anim:lint`, `pnpm anim:preview` (Studio), or `pnpm anim:render --draft <clip-id>` | a clip that follows §9a.4 |
+| 4. Render | `pnpm anim:render <clip-id>` runs `npx hyperframes render animations -c clips/<module-id>/<clip-id>.html --format webm --fps 30 --quality high` … | any HyperFrames output (§9a.5) |
+| 5. Convert | … then `pnpm kodigo animation animations/renders/<clip-id>.webm modules/<module-id>/assets/anim/<clip-id> --flatten --bg '#0B1D3A'` (the same command step 4 runs; use it alone for renders made elsewhere) | `<clip-id>.webm`, `<clip-id>.mp4`, `<clip-id>.poster.jpg` and the YAML to paste |
+| 6. Place | the module's YAML | an `Animation` widget on a stage, shown on its beat (§9a.6) |
+| 7. Validate | `pnpm kodigo validate modules/<module-id>` | clean |
+
+**Chat mode does step 1 only.** It writes `ANIMATIONS.md` and places **no** Animation widgets: a pasted text bundle
+can't carry video files, and an Animation whose file is missing fails validation. A repo session later renders the
+briefs and adds the widgets. Once a module's clips are installed, re-importing it from a pasted bundle (a fix request,
+a text revision) keeps them: the server keeps the installed version's `assets/` and `sources/` files the paste doesn't
+include. To add or replace a clip, import a **zip or folder**, or work in the repo.
+
+### 9a.3 `ANIMATIONS.md` (optional; the brief for each clip)
+
+Not shown to learners. It's the storyboard a HyperFrames session works from, and the record of what each clip must and
+must not show. One `##` section per clip, keyed by the clip id (kebab-case; it becomes the file name and the widget id):
+
+```markdown
+# Animations: <module title>
+
+## overhead-spreads
+- Where: intuition › why-a-rate › after the predict gate (stage widget `overhead-spreads`, region main)
+- Idea: a fixed pile of overhead is shared by every labor-hour, so fewer hours make each hour dearer.
+- Length: 6 s, loops · Shape: 16:9 · Background: opaque, the module colour #b45309 on cream
+- Storyboard:
+  - 0.0–1.5 s: a pile of peso coins labelled "Overhead" drops onto a factory floor.
+  - 1.5–4.0 s: the coins split evenly onto 8 clocks (labor-hours); each clock gets a small stack.
+  - 4.0–6.0 s: 4 clocks fade out; their coins slide onto the remaining 4, whose stacks double.
+- On-screen words: "Overhead", "per hour"
+- Numbers: none (the beat computes ₱15 per hour)
+- Must not show: a rate in pesos (the practice gate on the next beat asks for one)
+- 3D: no
+```
+
+### 9a.4 Composing for Qdigo (house rules)
+
+- **Size and timing:** `data-width="1280" data-height="720"` (16:9; use 1080 × 1080 for a square clip in a side
+  region), 30 fps, `data-duration` 3–8 s. Hold the final state for about half a second, or make the last frame match
+  the first so the loop is seamless.
+- **Paint the background.** Clips are opaque by default: give the root a background colour that works on both themes,
+  or render a second version for dark mode (`srcDark`). Transparency (unpainted background, rendered to `.webm` or
+  `.mov`) works in Chrome, Edge and Firefox but not reliably in Safari, so use it only for clips that still read on a
+  solid fill.
+- **Style:** flat vector shapes, a small palette (3–4 colours plus the module's `color`), thick outlines, soft
+  shadows, simple characters and icons that stay the same across a module's clips. Large type when there is any.
+- **Silent:** the site always plays clips muted. Leave out audio tracks.
+- **Deterministic:** HyperFrames renders by seeking, so every frame must be a pure function of time. One paused GSAP
+  timeline registered on `window.__timelines['<composition-id>']`; no `Math.random()` without a fixed seed, no clocks
+  (`Date`, `performance.now`, `requestAnimationFrame` loops), no network requests, and finite repeats (never
+  `repeat: -1`; the site loops the clip). Keep fonts and images inside the project.
+- **Three.js:** drive the scene from the timeline (tween plain objects with GSAP and render the scene from the
+  timeline's time, or use the HyperFrames Three.js frame adapter as its docs describe); never animate on Three's own
+  clock. Keep scenes light (a few hundred objects): it's an illustration, not a game.
+- **Accessible motion:** no flashing (more than 3 flashes a second), no full-screen strobing, gentle camera moves.
+  Learners who ask for reduced motion see the poster (for a segment: its last frame), so the **poster frame** (by
+  default the last frame) should show the idea on its own. Their Play button shows the clip as 3–4 still frames that
+  crossfade: list those times in `stills`.
+
+### 9a.5 Formats: what the site plays
+
+`pnpm kodigo animation` converts any of these into a VP9 `.webm` (keeps transparency), an H.264 `.mp4` (plays
+everywhere; transparency flattened onto `--bg`) and a poster still. Convert even when the render already plays: the
+converter also scales to ≤ 1280 px, strips audio, adds the fast-start flag and writes the poster.
+
+| HyperFrames `--format` | Plays as is? | Notes |
+|---|---|---|
+| `mp4` (default) | yes | opaque only |
+| `webm` | yes | keeps transparency |
+| `mov` (ProRes 4444) | **no**, Safari only | convert |
+| `gif` | yes, as an animated image | can't seek or report `ended`, and is large: convert |
+| `png-sequence` | yes, as a frame folder (`src: assets/anim/<clip-id>/`, `fps`) | ~20× larger than video: convert |
+| `hls` | **no** | convert the folder |
+| the composition `index.html` | **no** (needs the HyperFrames runtime) | render it first |
+
+Converter options: `--width <px>` (default 1280), `--fps <n>` (frame folders; default 30), `--poster end|start|<seconds>`
+(default `end`), `--flatten` (drop transparency), `--bg '#hex'` (the colour transparency is flattened onto, default
+white), `--crf-webm <n>` / `--crf-mp4 <n>` (higher = smaller), `--no-mp4`, `--no-webm`. It needs `ffmpeg` and `ffprobe`
+on the PATH, which HyperFrames needs too.
+
+**The validator checks** that every `src`, `srcDark`, `poster` and `posterDark` file is in `assets/`, that its format
+plays (a `.mov`, `.m3u8`, `.html` or unknown file is an error that names the converter command), that a `src` list
+doesn't mix videos with images, that a frame folder has at least 2 frames, that `end` comes after `start`, and warns
+about any file over 8 MB. Aim for 0.3–3 MB per clip: a module import is one upload, capped by the server's `MAX_UPLOAD_MB` (30 MB by default, which leaves room for about 20 MB of assets once the admin page encodes them).
+
+### 9a.6 Placing a clip
+
+```yaml
+stage:
+  - id: overhead-spreads
+    widget: Animation
+    hidden: true                       # appears on the beat after the predict gate
+    props:
+      src: [assets/anim/overhead-spreads.webm, assets/anim/overhead-spreads.mp4]
+      poster: assets/anim/overhead-spreads.poster.jpg
+      alt: A pile of overhead coins is shared by fewer and fewer labor-hours, so each hour carries more.
+beats:
+  # … the predict gate on the rate comes first …
+  - say: |
+      Watch what happens to each hour's share when the factory works **fewer** hours.
+    show: [overhead-spreads]
+    do: [{ target: overhead-spreads, cmd: restart }]
+    gate: { type: event, prompt: Watch it once., target: overhead-spreads, event: ended }
+```
+
+- **`src`** lists the same clip in several formats, best first; the browser plays the first it can. Keep `.webm`
+  first and `.mp4` second.
+- **`alt`** (required) says in one sentence what the clip shows. Screen readers read it, and the stage shows it if the
+  file is missing.
+- **Behaviour:** muted, loops (`loop: false` to stop at the end), plays while at least a third of it is on screen and
+  pauses when scrolled away (`autoplay: false` to wait for the learner), with play/pause and restart buttons and a thin
+  progress bar (`controls: false` for a purely decorative loop). `rate`, `start`/`end` (a segment, in seconds),
+  `width`, `aspect` (reserve the clip's shape before it loads; default `'16:9'`), `caption` and `bare` (no card
+  frame) are in §9 and `WIDGETS.md`.
+- **Reduced motion:** clips never start by themselves. The learner sees the poster (for a segment, the segment's last
+  frame) and a play button that shows the `stills` (3–4 key-frame times; default four evenly spaced frames) as
+  crossfading still frames. A beat's `play` or `restart` command only rewinds the clip.
+- **One clip across several beats:** to step through a clip in time with the narration, put one widget on stage with
+  `start: '@animFrom'` and `end: '@animTo'`, declare both keys in the scene `state`, and `set` them on the beats that
+  move on (`set: { animFrom: 2.6, animTo: 5 }`). The clip stays on stage and plays the new segment in place; going back
+  a beat plays that beat's segment again. Use `loop: false` so each segment holds its last frame, and make sure no
+  segment shows a number a gate asks for while that gate is open.
+- **Commands:** `play`, `pause`, `restart`, `seek {t}`, plus `highlight`/`pulse`/`annotate` on the selector `frame`.
+  A StepPlayer trace can address a clip by role like any widget.
+- **Event:** `ended` fires each time a video or frame-folder clip reaches its end (on every pass when looping), so an
+  `event` gate can wait for one full viewing. Event gates are skippable by default; keep them so for clips. Animated
+  images (`.gif`/`.webp`) never emit `ended`.
+- **Dark theme:** `srcDark` and `posterDark` switch with the site's theme.
+- **Anywhere a stage exists:** Intuition scenes, a Math section's `live` widgets, an Application cell's `stage`, a
+  quiz template's `show`. List `Animation` in `manifest.requires.widgets`.
+
+---
+
+### 9a.7 The repo's motion kit (`animations/`)
+
+`animations/` is one HyperFrames project. `index.html` is a short style card; each clip is
+`clips/<module-id>/<clip-id>.html`, a full page whose scene script is inline (the HyperFrames linter reads inline
+scripts) and which loads the shared kit:
+
+```html
+<link rel="stylesheet" href="../../kit/kit.css">
+<script src="../../kit/vendor/gsap.min.js"></script>
+<script src="../../kit/kit.js"></script>
+…
+<div id="stage" data-composition-id="<clip-id>" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+<script> /* the scene: HF.timeline(5), window.__timelines['<clip-id>'] = tl, shapes, choreography */ </script>
+<script type="module" src="../../kit/kit-three.js"></script>
+```
+
+The kit draws the house look (navy → indigo sky with drifting specks in Three.js, Nunito labels) and gives each scene
+helpers that enforce the motion rules: `HF.timeline(seconds)`, layers and a heads-up layer the camera doesn't move,
+flat shapes with one highlight and one shade (`HF.box`, `HF.disc`, `HF.coin`, `HF.coinStack`, `HF.character`,
+`HF.cap`, `HF.wave`…), labels (`HF.label` + `HF.say`), pop-ins with a 110% overshoot (`HF.pop`), moves that settle with
+a wobble (`HF.move`, `HF.wobble`, `HF.land`), arcs for coins (`HF.arc`), numbers that count up (`HF.count`), slow camera
+pushes (`HF.camera`), bounded loops (`HF.loop`, `HF.bob`) and seeded randomness (`HF.rng`). Every frame is a pure
+function of the timeline's time, so HyperFrames can seek it. Copy an existing clip as a starting point.
+
+---
+
 ## 10. When the catalog isn't enough
 
 Don't invent widgets, props or commands. Instead:
 1. Build the best approximation from catalog widgets. Most things can be done with `Matrix`, `Chart`, `Tree`, `DropBins`, `Formula` and `Callout`.
 2. Add `WIDGET_REQUESTS.md` describing the widget you wish existed: name, purpose, props, selectors, commands, events, the scene that needs it, and your fallback. The site owner can add it to the catalog, and a later module version can use it.
+3. If what you need is motion the widgets can't express, plan an animation instead (§9a).
 
 ---
 
@@ -1473,6 +1669,7 @@ Don't invent widgets, props or commands. Instead:
 | reflect gate `model` | 80 words |
 | journal entry | 8 lines |
 | schedule block | 20 rows |
+| animation clip | 3–8 s, ≤ 1280 px wide, ≤ 6 on-screen words; aim for ≤ 3 MB per file (warning above 8 MB) |
 
 ---
 
@@ -1496,6 +1693,7 @@ Don't invent widgets, props or commands. Instead:
 - [ ] Every glossary term is `define`d in exactly one beat, at its first use, and that beat's narration names it; later mentions use `[[term-id]]` (§7.1a).
 - [ ] A complete beginner could follow it (§7.6): basic words (model, feature, training/test set, probability, correlation…) are glossary terms defined early; every symbol and acronym is explained the first time; goals and prompts use only words already taught; sentences are short and plain.
 - [ ] ≥ 3 `practice` gates and ≥ 2 `reflect` gates; every math section has `tryIt`; at least half the templates (and every numeric, hand-calc, journal-entry, schedule-fill) have `hints`.
+- [ ] Animations (if any): each has a brief in `ANIMATIONS.md`, its files in `assets/anim/` (converted with `pnpm kodigo animation`), an `alt`, a poster, and no clip shows the answer of a gate that is open while it plays (§9a). Chat mode: briefs only, no Animation widgets.
 - [ ] Journal workbench: every section has a `journal` pane; every lecture entry and statement appears; account titles match the lecture exactly; every entry balances; amounts are positive.
 - [ ] Every skill appears in manifest, scenes, sections and quiz templates; every `lessonRef` points to an existing id.
 - [ ] Every math-code function has a docstring, and every trace step carries `ops` that show its line on the live-example widgets.
@@ -1531,6 +1729,7 @@ Don't invent widgets, props or commands. Instead:
   differing conventions (account titles, allocation basis, report formats) in glossary `long` fields rather than
   renaming accounts the journal grader matches.
 - Teaching a check as catching errors it mathematically can't. Before you write "this test detects X", try X in `logic.js` and confirm the check fails.
+- Animations that do the learner's work (the clip computes what the next gate asks), that carry the explanation in burned-in text instead of the narration, that show numbers `logic.js` doesn't produce, or that reference a `.mov`/`.gif`/frame folder straight from the render instead of the converted `.webm` + `.mp4`.
 - Journal: an account title spelled differently in the quiz than in the lesson; a static entry whose sides should flip with the inputs (build it in logic.js); negative amounts instead of the opposite side; unquoted titles containing commas in YAML flow maps (`{ title: 'Job cost sheet, Job 101' }`).
 
 ---
@@ -1539,5 +1738,6 @@ Don't invent widgets, props or commands. Instead:
 
 - **Fix request from the importer:** output **only the files listed**, each **complete**, in bundle format, with the same `id` and `version` unless told otherwise.
 - **Content revision:** bump `version` (patch for fixes, minor for new scenes or templates), keep all existing IDs, and add a line to `authoring.notes`.
+- **Adding animations to an existing module:** add the clips and widgets in the repo (or import a zip), give each clip a new widget id, and bump the minor version. A later text-only fix request keeps the installed clips.
 - **Splitting a module:** the new module gets a new id; the old one keeps its ids for the content that stays.
 - **Upgrading an edition-1 module to guide 2:** add `guide: 2` and `objectives`; add `define:` to the beat where each glossary term first appears (the validator lists the missing ones); add practice and reflect gates, `tryIt`, and `hints`; bump the minor version. Existing ids don't change, so progress carries over.

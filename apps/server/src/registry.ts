@@ -221,7 +221,12 @@ export class Registry {
     await this.saveState();
   }
 
-  async install(files: FileMap, opts: { allowDowngrade?: boolean } = {}) {
+  /**
+   * Install a module version. With `keepAssets` (a re-import from pasted bundle text, which carries text files only),
+   * the installed version's assets/ and sources/ files that the import doesn't include are kept (guide §9a.2).
+   */
+  async install(files: FileMap, opts: { allowDowngrade?: boolean; keepAssets?: boolean } = {}) {
+    if (opts.keepAssets) files = await this.withInstalledAssets(files);
     const report = await this.validate(files);
     const { module, ...rest } = report;
     if (!report.ok || !module) return { ok: false as const, status: 422, report: rest };
@@ -253,6 +258,16 @@ export class Registry {
     return { ok: true as const, status: 200, report: rest, id, version, upgradedFrom: current?.version };
   }
 
+  /** Add the currently installed version's assets/ and sources/ files that `files` lacks. */
+  async withInstalledAssets(files: FileMap): Promise<FileMap> {
+    const id = await idFromManifest(files);
+    const installed = id ? await this.files(id) : null;
+    if (!installed) return files;
+    const out: FileMap = { ...files };
+    for (const [p, c] of Object.entries(installed)) if (/^(assets|sources)\//.test(p) && !(p in out)) out[p] = c;
+    return out;
+  }
+
   async remove(id: string) {
     const vs = (await this.importedVersions())[id] ?? [];
     if (!vs.length) throw Object.assign(new Error('Only imported modules can be deleted (built-ins can be disabled).'), { statusCode: 400 });
@@ -263,4 +278,15 @@ export class Registry {
     this.healthCache.delete(id);
     await this.saveState();
   }
+}
+
+/** The module id declared in a file map's manifest (without validating it). */
+async function idFromManifest(files: FileMap): Promise<string | null> {
+  const text = files['manifest.yaml'] ?? files['manifest.yml'] ?? files['manifest.json'];
+  if (typeof text !== 'string') return null;
+  try {
+    const YAML = await import('yaml');
+    const m = YAML.parse(text);
+    return typeof m?.id === 'string' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(m.id) ? m.id : null;
+  } catch { return null; }
 }

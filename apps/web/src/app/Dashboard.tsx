@@ -5,6 +5,7 @@ import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
 import { useAllModules } from '../modules/useAll';
 import { levelOf, LEVEL_COLOR, useAllProgress, useDueReviews, useMastery, useSetting } from '../storage/progress';
+import { workbenchShortLabel } from '@kodigo/schema';
 import { Ring } from './Ring';
 import { ModuleIcon } from './icons';
 import { Markdown } from '../lib/md';
@@ -189,7 +190,7 @@ function ModuleCard({ mod, progress, mastery }: { mod: LoadedModule; progress: R
         <Markdown text={m.summary} raw className="mt-2 line-clamp-3 text-sm text-muted" />
         <div className="mt-3 flex justify-between px-1">
           <Ring value={intuition} label="Intuition" color={m.color} />
-          <Ring value={math} label="Math" color={m.color} />
+          <Ring value={math} label={workbenchShortLabel(m)} color={m.color} />
           <Ring value={appDone} label="Apply" color={m.color} />
           <Ring value={quiz} label="Mastery" color="rgb(var(--good))" />
         </div>

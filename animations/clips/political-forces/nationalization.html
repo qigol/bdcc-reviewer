@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Nationalization and privatization</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Political Forces · economic-systems, beats 2–3 · 5 s. Segments: 0–2.6 nationalization, 2.6–5 privatization. -->
+  <div id="stage" data-composition-id="nationalization" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Political Forces · nationalization ↔ privatization (scene economic-systems, beats 2–3), 5 s.
+     *   0.0–0.8  track (PRIVATE ↔ GOVERNMENT), factory pops in near the left, worker waves
+     *   0.8–2.2  violet crane-hand drags the factory right; it turns violet; cap swaps to violet + star; "Nationalization"
+     *   2.2–2.6  hold, factory wobbles into place
+     *   2.6–4.3  coin stack drops, factory rides it back left, turns teal; a teal buyer catches the keys; "Privatization"
+     *   4.3–5.0  hold, camera eases out to show the whole track
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['nationalization'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const back = HF.layer('track');
+      const mid = HF.layer('actors');
+      const front = HF.layer('front');
+      const { defs } = HF.world();
+
+      // ---------------------------------------------------------------- the track
+      const TY = 520;
+      const grad = HF.el('linearGradient', { id: 'track-grad', x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
+      HF.el('stop', { offset: '0%', 'stop-color': C.teal }, grad);
+      HF.el('stop', { offset: '100%', 'stop-color': C.violet }, grad);
+      const track = HF.g(back);
+      HF.el('rect', { x: 150, y: TY - 9, width: 980, height: 18, rx: 9, fill: 'url(#track-grad)', filter: 'url(#hf-glow)' }, track);
+      HF.el('rect', { x: 168, y: TY - 6, width: 360, height: 4, rx: 2, fill: '#ffffff', opacity: 0.28 }, track);
+      for (let i = 1; i < 8; i++) HF.el('circle', { cx: 150 + (980 * i) / 8, cy: TY, r: 3, fill: '#ffffff', opacity: 0.35 }, track);
+      const endL = HF.disc(track, { x: 150, y: TY, r: 24, color: C.teal });
+      const endR = HF.disc(track, { x: 1130, y: TY, r: 24, color: C.violet });
+      const capL = HF.text(track, 'PRIVATE', { x: 150, y: TY + 64, size: 22, color: C.teal, weight: 900 });
+      const capR = HF.text(track, 'GOVERNMENT', { x: 1130, y: TY + 64, size: 22, color: '#C4A3F2', weight: 900 });
+
+      // ---------------------------------------------------------------- the factory (teal and violet copies, crossfaded)
+      function factoryArt(parent, color) {
+        const f = HF.g(parent);
+        HF.box(f, { x: 112, y: -168, w: 28, h: 84, r: 7, color: HF.shade(color, 0.04) });
+        HF.el('path', {
+          d: 'M0 -100 L0 -132 Q1 -139 8 -136 L56 -112 L56 -132 Q57 -139 64 -136 L112 -112 L112 -132 Q113 -139 120 -136 L170 -110 L170 -100 Z',
+          fill: HF.shade(color, 0.12),
+        }, f);
+        HF.box(f, { x: 0, y: -110, w: 170, h: 110, r: 16, color });
+        for (let i = 0; i < 3; i++) HF.box(f, { x: 16 + i * 50, y: -90, w: 38, h: 28, r: 8, color: C.gold, hi: false });
+        HF.box(f, { x: 60, y: -60, w: 50, h: 60, r: 12, color: HF.shade(color, 0.3), hi: false });
+        return f;
+      }
+      const fac = HF.g(mid);
+      const smoke = HF.g(fac);
+      const facTeal = factoryArt(fac, C.teal);
+      const facViolet = factoryArt(fac, C.violet);
+      gsap.set(facViolet, { opacity: 0 });
+
+      // smoke puffs drifting up from the chimney, looping for the whole film
+      for (let i = 0; i < 3; i++) {
+        const p = HF.g(smoke, { opacity: 0 });
+        HF.el('circle', { cx: 126, cy: -182, r: 15, fill: '#E4E2F2' }, p);
+        HF.el('circle', { cx: 140, cy: -188, r: 11, fill: '#E4E2F2' }, p);
+        HF.el('circle', { cx: 114, cy: -186, r: 10, fill: '#E4E2F2' }, p);
+        HF.loop(tl, p, { x: 0, y: 0, scale: 0.35, opacity: 0.85, transformOrigin: '50% 50%' },
+          { x: 22, y: -78, scale: 1.3, opacity: 0, ease: 'sine.out' }, 0.1 + i * 0.5, 1.5, 5);
+      }
+
+      // the worker in the doorway
+      const worker = HF.character(fac, { x: 85, y: 0, color: '#E9E1C9', size: 0.74, arm: true, look: -0.3 });
+      const capTeal = HF.cap(worker.hat, { color: C.teal });
+      const capViolet = HF.cap(worker.hat, { color: C.violet, badge: true });
+      gsap.set(capViolet, { scale: 0, transformOrigin: '50% 100%' });
+
+      const FX0 = 330 - 85, FX1 = 985 - 85, FX2 = 520 - 85; // factory left edge for each stop
+      gsap.set(fac, { x: FX0, y: TY - 10 });
+
+      // ---------------------------------------------------------------- the crane-hand (government)
+      const crane = HF.g(front);
+      HF.box(crane, { x: -13, y: -560, w: 26, h: 520, r: 13, color: HF.shade(C.violet, 0.06), shadeSide: 'right' });
+      const hand = HF.g(crane);
+      HF.box(hand, { x: -42, y: -48, w: 84, h: 62, r: 26, color: C.violet });
+      HF.disc(hand, { x: -40, y: -4, r: 16, color: C.violet });
+      for (let i = 0; i < 3; i++) HF.el('rect', { x: -26 + i * 20, y: 2, width: 14, height: 24, rx: 7, fill: HF.shade(C.violet, 0.1) }, hand);
+      const GRIP_Y = TY - 10 - 182; // the hand closes around the chimney
+      gsap.set(crane, { x: 330 + 41, y: -120 });
+
+      // ---------------------------------------------------------------- privatization props
+      const stack = HF.coinStack(mid, { x: 0, y: 0, n: 6, w: 150, h: 18 });
+      gsap.set(stack, { x: 820, y: -200 });
+      const buyer = HF.character(mid, { x: 300, y: TY - 10, color: C.teal, size: 1.05, look: 0.8 });
+      const brief = HF.g(buyer.inner);
+      HF.box(brief, { x: 14, y: -32, w: 34, h: 26, r: 6, color: HF.shade(C.teal, 0.3), hi: false });
+      HF.el('rect', { x: 24, y: -38, width: 14, height: 8, rx: 4, fill: 'none', stroke: HF.shade(C.teal, 0.3), 'stroke-width': 3 }, brief);
+      gsap.set(buyer.g, { scale: 0, transformOrigin: '50% 100%' });
+
+      const keys = HF.g(front);
+      const keyArt = HF.g(keys);
+      HF.el('circle', { cx: 0, cy: 0, r: 13, fill: 'none', stroke: C.gold, 'stroke-width': 7 }, keyArt);
+      HF.el('rect', { x: 10, y: -3.5, width: 34, height: 7, rx: 3.5, fill: C.gold }, keyArt);
+      HF.el('rect', { x: 32, y: 1, width: 6, height: 10, rx: 2, fill: C.gold }, keyArt);
+      HF.el('rect', { x: 22, y: 1, width: 6, height: 7, rx: 2, fill: C.gold }, keyArt);
+      gsap.set(keys, { opacity: 0 });
+
+      // ---------------------------------------------------------------- labels
+      const lNat = HF.label('Nationalization', { x: 640, y: 128, cls: 'lg hf-violet' });
+      const lPriv = HF.label('Privatization', { x: 640, y: 128, cls: 'lg hf-teal' });
+
+      // ================================================================ choreography
+      // 0.0–0.8 set the scene
+      HF.pop(tl, track, 0.0, { dur: 0.3 });
+      HF.pop(tl, [endL, endR], 0.12, { stagger: 0.06 });
+      HF.pop(tl, [capL, capR], 0.2, { stagger: 0.06 });
+      HF.pop(tl, fac, 0.3, { origin: '50% 100%' });
+      tl.fromTo(worker.arm, { rotation: 0 }, { keyframes: { rotation: [0, -38, 8, -38, 8, 0], easeEach: 'sine.inOut' }, transformOrigin: '0% 50%', duration: 0.9, ease: 'none', immediateRender: false }, 0.45);
+
+      // 0.8–2.2 the crane swoops in, grabs and drags right
+      tl.to(crane, { y: GRIP_Y, duration: 0.38, ease: 'back.out(1.3)' }, 0.8);
+      tl.to(hand, { keyframes: { scaleY: [1, 0.86, 0.94], scaleX: [1, 1.06, 1.02] }, transformOrigin: '50% 0%', duration: 0.2, ease: 'none' }, 1.12);
+      HF.say(tl, lNat, 1.0, 2.55);
+      tl.to(fac, { y: TY - 22, duration: 0.15, ease: 'power2.out' }, 1.25);
+      tl.to([fac, crane], { x: (i) => (i === 0 ? FX1 : 985 + 41), duration: 0.85, ease: 'power2.inOut' }, 1.3);
+      tl.to(fac, { keyframes: { rotation: [0, -5, -3, 0] }, transformOrigin: '50% 0%', duration: 0.85, ease: 'none' }, 1.3);
+      tl.to(facViolet, { opacity: 1, duration: 0.6, ease: 'sine.inOut' }, 1.45);
+      HF.popOut(tl, capTeal, 1.55);
+      HF.pop(tl, capViolet, 1.68, { origin: '50% 100%' });
+      tl.to(fac, { y: TY - 10, duration: 0.14, ease: 'power2.in' }, 2.12);
+      tl.to(hand, { scaleY: 1, scaleX: 1, duration: 0.12, ease: 'sine.out' }, 2.15);
+
+      // 2.2–2.6 hold; the factory settles and the crane lifts away
+      HF.land(tl, fac, 2.24);
+      HF.wobble(tl, fac, 2.28, { amount: 3 });
+      tl.to(crane, { y: -140, duration: 0.42, ease: 'power2.in' }, 2.2);
+
+      // 2.6–4.3 coins drop, the factory rides them back left and turns teal; the buyer catches the keys
+      HF.say(tl, lPriv, 2.75);
+      tl.to(stack, { y: TY - 10, duration: 0.32, ease: 'power2.in' }, 2.6);
+      HF.land(tl, stack, 2.92, { amount: 0.16 });
+      HF.pop(tl, buyer.g, 2.95, { origin: '50% 100%' });
+      const STACK_TOP = TY - 10 - 6 * 16;
+      HF.arc(tl, fac, { x0: FX1, y0: TY - 10, x1: 820 - 85, y1: STACK_TOP }, 3.02, 0.32, { fall: 'sine.inOut' });
+      HF.land(tl, fac, 3.34);
+      tl.to(stack, { x: 520, duration: 0.75, ease: 'power2.inOut' }, 3.42);
+      tl.to(fac, { x: FX2, duration: 0.75, ease: 'power2.inOut' }, 3.42);
+      tl.to(facViolet, { opacity: 0, duration: 0.6, ease: 'sine.inOut' }, 3.5);
+      HF.popOut(tl, capViolet, 3.55);
+      HF.pop(tl, capTeal, 3.66, { origin: '50% 100%' });
+      tl.set(keys, { opacity: 1 }, 3.62);
+      HF.arc(tl, keys, { x0: 640, y0: TY - 140, x1: 336, y1: TY - 58 }, 3.62, 0.5, { fall: 'sine.in', spin: -300 });
+      HF.land(tl, buyer.g, 4.1, { amount: 0.14 });
+      HF.wobble(tl, [fac, stack], 4.15, { amount: 2.5 });
+
+      // camera: a slow push for most of the film, then ease out a touch to show the whole track
+      HF.camera(tl, { scale: 1.05, y: 10 }, 0, 4.2);
+      HF.camera(tl, { scale: 0.98, y: 0 }, 4.3, 0.6);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>

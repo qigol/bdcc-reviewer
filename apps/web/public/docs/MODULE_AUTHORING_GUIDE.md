@@ -24,6 +24,7 @@ Title: <full title>
 Short title (≤ 12 chars): <course-menu label>
 Course: <course code, e.g. BDCC or MANACC> (exactly as the course's other modules spell it)
 Workbench: <code | journal>   (code = Math & Code with Python; journal = Math & Journal for accounting)
+Tab label: <optional, e.g. Analysis>   (renames the second tab; copy it from the course's other modules)
 Lecture: Sessions <x–y>, dated <yyyy-mm-dd>
 Prerequisite modules: <ids, or none>
 Anything my professor emphasized / exam format notes: <optional>
@@ -66,6 +67,8 @@ And it turns on these lints: 3–6 `objectives`; ≥ 3 `practice` gates and ≥ 
 ### 1.2 Workbenches: code or journal
 
 The second study tab pairs each derivation with a **workbench**: the place where the learner sees the idea *done*. Pick it per course with `workbench:` in the manifest.
+
+**Tab label.** The tab is called Math & Code or Math & Journal unless the manifest sets `workbenchLabel` (≤ 20 characters). Courses whose second tab is not really math or code, such as framework-heavy business courses, set one name for the whole course and every module in it uses the same one (INTB uses `workbenchLabel: Analysis`). The dashboard ring shows its first word.
 
 | | `workbench: code` (default) | `workbench: journal` |
 |---|---|---|
@@ -268,6 +271,7 @@ interface Manifest {
   requires: { widgets: string[] }; // every widget name used anywhere in the module
   guide?: 1 | 2;                   // authoring-guide edition; write 2 (§1.1)
   workbench?: 'code' | 'journal';  // default 'code' (§1.2)
+  workbenchLabel?: string;          // ≤ 20 chars; renames the second tab, same value across a course (§1.2)
   currency?: string;               // journal modules: symbol for amounts and |money (default '₱')
   objectives?: { id: Id; text: string; skills?: Id[] }[];      // 3–6 learning objectives (guide 2)
   authoring?: { generatedBy?: string; generatedAt?: string; notes?: string };

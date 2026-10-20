@@ -31,6 +31,7 @@ Persistence rule: `highlight` and `pulse` are transient (current beat / trace st
 | [Schedule](#schedule) | A financial statement or cost schedule: indented labels, one or more amount columns, subtotal/total rules. Unfilled cells (null) stay blank, so a derived fn can fill it in step by step. |
 | [Text](#text) | Static Markdown on stage. |
 | [Image](#image) | An image from the module’s assets/. |
+| [Animation](#animation) | A short, silent animation clip (rendered with HyperFrames + GSAP + Three.js and converted by `pnpm kodigo animation`): a video, an animated image or a frame folder from the module’s assets/. Muted; plays while a third of it is on screen; with reduced motion it shows still frames instead. |
 
 ## TransactionTable
 
@@ -590,4 +591,44 @@ An image from the module’s assets/. *(used by: all)*
 - id: img
   widget: Image
   props: { src: assets/fp-tree.svg, alt: FP-tree }
+```
+
+## Animation
+
+A short, silent animation clip (rendered with HyperFrames + GSAP + Three.js and converted by `pnpm kodigo animation`): a video, an animated image or a frame folder from the module’s assets/. Muted; plays while a third of it is on screen; with reduced motion it shows still frames instead. *(used by: all)*
+
+| Prop | Required | Description |
+|---|---|---|
+| `src` | yes | assets/… path, or a list of the same clip best first (.webm, .mp4, then .gif/.webp/.apng), or a frame folder assets/anim/<clip>/ |
+| `alt` | yes | one sentence saying what the clip shows (screen readers; also shown if the file is missing) |
+| `poster` |  | still image shown before playback and with reduced motion (the converter writes <clip>.poster.jpg) |
+| `srcDark` |  | the same clip rendered for the dark theme |
+| `posterDark` |  | poster for the dark theme |
+| `caption` |  | Markdown caption under the clip |
+| `width` |  | maximum width in px (default 760) |
+| `aspect` |  | reserved shape before the file loads, e.g. '16:9' (default) or '1:1' |
+| `loop` |  | loop the clip (default true); false holds the last frame |
+| `autoplay` |  | play while at least a third of it is on screen (default true); never with reduced motion |
+| `controls` |  | play/pause, restart and a progress bar (default true) |
+| `rate` |  | playback speed (default 1) |
+| `start` |  | segment start in seconds (default 0) |
+| `end` |  | segment end in seconds (default the end of the clip) |
+| `fps` |  | frames per second of a frame folder (default 30) |
+| `bare` |  | no card frame |
+| `stills` |  | reduced motion: times (s) of 3–4 key frames shown as crossfading stills when the learner presses play (default four evenly spaced frames ending at `end`) |
+
+**Selectors:** `frame`
+
+**Commands:** `play` {} — play from the current position (reduced motion: show the stills); `pause` {} — pause; `restart` {} — rewind to `start` and play (reduced motion: rewind only); `seek` {t} — jump to t seconds (clip time) and pause
+
+**Events:** `ended` the clip reached `end` (on every pass when looping; never for .gif/.webp/.apng)
+
+```yaml
+- id: overhead-spreads
+  widget: Animation
+  hidden: true
+  props:
+    src: [assets/anim/overhead-spreads.webm, assets/anim/overhead-spreads.mp4]
+    poster: assets/anim/overhead-spreads.poster.jpg
+    alt: A pile of overhead coins is shared by fewer and fewer labor-hours, so each hour carries more.
 ```

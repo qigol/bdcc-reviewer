@@ -31,6 +31,11 @@ interface Store {
 }
 
 const Ctx = createContext<Store | null>(null);
+/** media types for previewed (not yet installed) module files */
+const BLOB_TYPES: Record<string, string> = {
+  svg: 'image/svg+xml', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', apng: 'image/apng', webm: 'video/webm', mp4: 'video/mp4', m4v: 'video/mp4',
+};
 const cache = new Map<string, Promise<LoadedModule>>();
 const loadedMap = new Map<string, LoadedModule>();
 
@@ -46,7 +51,7 @@ export function buildLoaded(files: FileMap, opts: { preview?: boolean; binary?: 
   const fileUrl = opts.fileUrl ?? ((p: string) => {
     const c = files[p];
     if (c === undefined) return '';
-    if (!blobUrls[p]) blobUrls[p] = URL.createObjectURL(new Blob([c as BlobPart], { type: p.endsWith('.svg') ? 'image/svg+xml' : p.endsWith('.pdf') ? 'application/pdf' : undefined }));
+    if (!blobUrls[p]) blobUrls[p] = URL.createObjectURL(new Blob([c as BlobPart], { type: BLOB_TYPES[p.split('.').pop()!.toLowerCase()] }));
     return blobUrls[p];
   });
   return {
@@ -99,7 +104,11 @@ export function ModuleStoreProvider({ children }: { children: ReactNode }) {
     let p = cache.get(id);
     if (!p) {
       p = api.files(id).then(({ files, binary }) => {
-        const m = buildLoaded(files, { binary, fileUrl: (path) => api.fileUrl(id, path) });
+        // binary files (animation clips, images, the PDF) stay on the server; list them as empty placeholders so the
+        // in-browser integrity check sees that they exist
+        const all: FileMap = { ...files };
+        for (const p of binary) if (!(p in all)) all[p] = new Uint8Array(0);
+        const m = buildLoaded(all, { binary, fileUrl: (path) => api.fileUrl(id, path) });
         loadedMap.set(id, m);
         force((x) => x + 1);
         return m;

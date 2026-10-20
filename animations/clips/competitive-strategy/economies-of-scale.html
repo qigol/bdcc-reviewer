@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>Economies of scale</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+</head>
+<body>
+  <!-- Competitive Strategy · getting-cheaper, beat 0 · 5 s. Hold for the predict gate at 0.8 (before the gauge shows $25). -->
+  <div id="stage" data-composition-id="economies-of-scale" data-start="0" data-width="1280" data-height="720" data-duration="5"></div>
+  <script>
+    /*
+     * Competitive Strategy · economies of scale (scene getting-cheaper, beat 0), 5 s.
+     *   0.0–0.8  a coral "Fixed cost $20,000" block (rent and machine icons); gold product boxes wait on a conveyor
+     *   0.8–2.0  the block slices up; one slice flies onto each box, on top of a teal $5 base; gauge: $25 per unit
+     *   2.0–4.0  the conveyor speeds up and boxes pour in (1,000 → 4,000 units); the same block slices thinner, every
+     *            box's slice shrinks, the gauge swings to $10, and a small cost curve draws itself, sloping down
+     *   4.0–5.0  hold on the long row of boxes with paper-thin slices
+     * Cost stacks use 1.6 px per dollar: $5 base = 8 px, $20 slice = 32 px, $5 slice = 8 px.
+     */
+    (() => {
+      const { C } = HF;
+      const tl = HF.timeline(5);
+      window.__timelines['economies-of-scale'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const back = HF.layer('back');
+      const belt = HF.layer('belt');
+      const items = HF.layer('items');
+      const fly = HF.layer('fly');
+
+      const FLOOR = 600, BELT_Y = 560, PX = 1.6;
+
+      // ---------------------------------------------------------------- the fixed-cost block
+      const block = HF.g(back);
+      HF.box(block, { x: 60, y: 250, w: 240, h: FLOOR - 250, r: 22, color: C.coral, shadeSide: 'right' });
+      // rent (a little house) and machines (a gear) on its face
+      const house = HF.g(block);
+      HF.el('path', { d: 'M110 350 L145 318 L180 350 L180 392 L110 392 Z', fill: HF.light(C.coral, 0.16) }, house);
+      HF.el('rect', { x: 136, y: 366, width: 18, height: 26, rx: 4, fill: HF.shade(C.coral, 0.14) }, house);
+      const gear = HF.g(block);
+      const gx = 230, gy = 360;
+      for (let k = 0; k < 8; k++) HF.el('rect', { x: gx - 7, y: gy - 38, width: 14, height: 18, rx: 4, fill: HF.light(C.coral, 0.16), transform: `rotate(${k * 45} ${gx} ${gy})` }, gear);
+      HF.el('circle', { cx: gx, cy: gy, r: 26, fill: HF.light(C.coral, 0.16) }, gear);
+      HF.el('circle', { cx: gx, cy: gy, r: 10, fill: HF.shade(C.coral, 0.1) }, gear);
+      HF.text(block, 'Fixed cost', { x: 180, y: 456, size: 28, color: C.text, weight: 900 });
+      HF.text(block, '$20,000', { x: 180, y: 494, size: 34, color: C.text, weight: 900 });
+      // slice lines across the block (first coarse, then fine)
+      const cutsA = HF.g(block, { opacity: 0 }), cutsB = HF.g(block, { opacity: 0 });
+      for (let x = 84; x < 290; x += 22) HF.el('rect', { x, y: 262, width: 2.5, height: FLOOR - 274, rx: 1.2, fill: '#FFFFFF', opacity: 0.35 }, cutsA);
+      for (let x = 72; x < 292; x += 7) HF.el('rect', { x, y: 262, width: 1.4, height: FLOOR - 274, rx: 0.7, fill: '#FFFFFF', opacity: 0.3 }, cutsB);
+
+      // ---------------------------------------------------------------- conveyor
+      const conv = HF.g(belt);
+      HF.box(conv, { x: 330, y: BELT_Y, w: 980, h: 26, r: 13, color: '#5468A8', hi: false });
+      const stripes = HF.el('line', { x1: 345, y1: BELT_Y + 9, x2: 1300, y2: BELT_Y + 9, stroke: '#7F95D6', 'stroke-width': 6, 'stroke-dasharray': '18 22', 'stroke-linecap': 'round' }, conv);
+      for (let x = 360; x < 1300; x += 110) HF.disc(conv, { x, y: BELT_Y + 36, r: 12, color: '#3A4F92', hi: false });
+
+      // ---------------------------------------------------------------- boxes with cost stacks
+      const N1 = 9, N2 = 17;
+      const X1 = (i) => 400 + i * 100, X2 = (i) => 372 + i * 54.5;
+      const boxes = [];
+      for (let i = 0; i < N2; i++) {
+        const b = HF.g(items);
+        HF.box(b, { x: -28, y: -48, w: 56, h: 48, r: 10, color: C.gold });
+        HF.el('rect', { x: -4, y: -48, width: 8, height: 48, fill: HF.shade(C.gold, 0.12) }, b);
+        const base = HF.g(b);
+        HF.box(base, { x: -24, y: -48 - 5 * PX, w: 48, h: 5 * PX, r: 5, color: C.teal, hi: false, shadeK: 0.1 });
+        const slab = HF.g(b);
+        HF.box(slab, { x: -24, y: -48 - 5 * PX - 20 * PX, w: 48, h: 20 * PX, r: 6, color: C.coral, hi: false, shadeK: 0.1 });
+        const late = i >= N1;
+        gsap.set(b, { x: late ? 1360 + (i - N1) * 90 : X1(i), y: BELT_Y, scale: late ? 1 : 0, transformOrigin: '50% 100%' });
+        gsap.set(base, { scale: late ? 1 : 0, transformOrigin: '50% 100%' });
+        gsap.set(slab, { scaleY: late ? 0.25 : 1, opacity: late ? 1 : 0, transformOrigin: '50% 100%' });
+        boxes.push({ b, base, slab });
+      }
+
+      // flying slices (block → each of the first boxes)
+      const flyers = [];
+      for (let i = 0; i < N1; i++) {
+        const f = HF.g(fly);
+        HF.box(f, { x: -24, y: -10 * PX, w: 48, h: 20 * PX, r: 6, color: C.coral, hi: false });
+        gsap.set(f, { x: -200, y: -200 });
+        flyers.push(f);
+      }
+
+      // ---------------------------------------------------------------- gauge, units counter, cost curve
+      const G = { x: 1110, y: 190, r: 86 };
+      const gauge = HF.g(back);
+      HF.el('path', { d: `M${G.x - G.r} ${G.y} A${G.r} ${G.r} 0 0 1 ${G.x + G.r} ${G.y} Z`, fill: '#13254B' }, gauge);
+      HF.el('path', { d: `M${G.x - G.r + 10} ${G.y} A${G.r - 10} ${G.r - 10} 0 0 1 ${G.x + G.r - 10} ${G.y}`, fill: 'none', stroke: C.teal, 'stroke-width': 12, opacity: 0.35 }, gauge);
+      const needle = HF.g(gauge);
+      HF.el('rect', { x: G.x - 4, y: G.y - G.r + 22, width: 8, height: G.r - 22, rx: 4, fill: C.gold }, needle);
+      HF.disc(gauge, { x: G.x, y: G.y, r: 11, color: C.gold, hi: false });
+      const gVal = HF.text(gauge, '$0', { x: G.x, y: G.y + 46, size: 38, color: C.gold, weight: 900 });
+      HF.text(gauge, 'per unit', { x: G.x, y: G.y + 74, size: 20, color: C.text, weight: 800, opacity: 0.85 });
+      const needleAt = (v) => -90 + (v / 30) * 180;
+      gsap.set(needle, { rotation: needleAt(0), svgOrigin: `${G.x} ${G.y}` });
+      gsap.set(gauge, { scale: 0, transformOrigin: '50% 70%' });
+
+      const units = HF.label('<span class="hf-num">1,000</span> <span style="font-size:22px;opacity:.8">units</span>', { x: 640, y: 118, cls: 'lg pill', html: true });
+      const unitsNum = units.querySelector('.hf-num');
+
+      const chart = HF.g(back);
+      const CH = { x: 76, y: 214, w: 220, h: 120 }; // axes: units → average cost (above the block)
+      HF.el('path', { d: `M${CH.x} ${CH.y - CH.h} L${CH.x} ${CH.y} L${CH.x + CH.w} ${CH.y}`, stroke: '#7F95D6', 'stroke-width': 4, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, chart);
+      HF.text(chart, 'cost per unit', { x: CH.x + 6, y: CH.y - CH.h - 12, size: 16, color: C.text, weight: 800, anchor: 'start', opacity: 0.8 });
+      // average cost = 20000/q + 5 for q = 1,000 … 4,000, scaled into the chart
+      const cx = (q) => CH.x + ((q - 600) / 3800) * CH.w, cy = (v) => CH.y - (v / 30) * CH.h;
+      let d = '';
+      for (let q = 1000; q <= 4000; q += 100) d += `${q === 1000 ? 'M' : 'L'}${cx(q).toFixed(1)} ${cy(20000 / q + 5).toFixed(1)} `;
+      const curve = HF.el('path', { d, stroke: C.teal, 'stroke-width': 5, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, chart);
+      const curveLen = curve.getTotalLength();
+      gsap.set(curve, { strokeDasharray: curveLen, strokeDashoffset: curveLen });
+      const dot = HF.g(chart);
+      HF.disc(dot, { r: 8, color: C.gold, hi: false });
+      gsap.set(dot, { x: cx(1000), y: cy(25), scale: 0, transformOrigin: '50% 50%' });
+      gsap.set(chart, { opacity: 0 });
+
+      // ================================================================ choreography
+      // 0.0–0.8 the block and the waiting boxes
+      HF.pop(tl, block, 0.0, { origin: '50% 100%', dur: 0.35 });
+      HF.pop(tl, conv, 0.1, { origin: '0% 50%' });
+      boxes.slice(0, N1).forEach((k, i) => HF.pop(tl, k.b, 0.22 + i * 0.05, { origin: '50% 100%' }));
+      HF.pop(tl, units, 0.45);
+      tl.to(stripes, { strokeDashoffset: -40, duration: 0.8, ease: 'none' }, 0);
+
+      // 0.8–2.0 slice! one slice onto each box, on a $5 base; gauge reads $25
+      tl.to(cutsA, { opacity: 1, duration: 0.15 }, 0.8);
+      HF.wobble(tl, block, 0.82, { amount: 2 });
+      boxes.slice(0, N1).forEach((k, i) => HF.pop(tl, k.base, 0.92 + i * 0.05, { origin: '50% 100%' }));
+      flyers.forEach((f, i) => {
+        const at = 0.98 + i * 0.07;
+        const landY = BELT_Y - 48 - 5 * PX - 10 * PX;
+        HF.arc(tl, f, { x0: 296, y0: 330, x1: X1(i), y1: landY }, at, 0.42, { fall: 'power1.in', spin: 0 });
+        // a thin sliver from the block turns into the flat slice it lands as
+        tl.fromTo(f, { scaleX: 0.18, scaleY: 2.6, rotation: 0 }, { scaleX: 1, scaleY: 1, rotation: 360, transformOrigin: '50% 50%', duration: 0.42, ease: 'power1.inOut', immediateRender: false }, at);
+        tl.set(f, { opacity: 0 }, at + 0.42);
+        tl.set(boxes[i].slab, { opacity: 1 }, at + 0.42);
+        HF.land(tl, boxes[i].b, at + 0.42, { amount: 0.08 });
+      });
+      HF.pop(tl, gauge, 1.2);
+      tl.to(needle, { rotation: needleAt(25), svgOrigin: `${G.x} ${G.y}`, duration: 0.6, ease: 'back.out(1.4)' }, 1.4);
+      HF.count(gVal, 0, 25, 1.4, 0.6, { format: (v) => `$${Math.round(v)}` });
+
+      // 2.0–4.0 scale up: more boxes, thinner slices, cheaper units
+      tl.to(stripes, { strokeDashoffset: -760, duration: 2.0, ease: 'power1.in' }, 2.0);
+      boxes.forEach((k, i) => {
+        tl.to(k.b, { x: X2(i), scale: 0.66, duration: 1.3, ease: 'power2.inOut' }, 2.0 + Math.max(0, i - N1) * 0.07);
+        if (i < N1) tl.to(k.slab, { scaleY: 0.25, duration: 1.4, ease: 'power2.inOut' }, 2.2 + i * 0.03);
+      });
+      tl.to(cutsA, { opacity: 0, duration: 0.5 }, 2.3);
+      tl.to(cutsB, { opacity: 1, duration: 0.8 }, 2.3);
+      HF.count(unitsNum, 1000, 4000, 2.05, 1.85, { easeName: 'power1.inOut' });
+      tl.to(needle, { rotation: needleAt(10), svgOrigin: `${G.x} ${G.y}`, duration: 1.8, ease: 'power2.inOut' }, 2.1);
+      HF.count(gVal, 25, 10, 2.1, 1.8, { format: (v) => `$${Math.round(v)}`, easeName: 'power2.inOut' });
+      tl.to(chart, { opacity: 1, duration: 0.3 }, 2.0);
+      tl.to(curve, { strokeDashoffset: 0, duration: 1.8, ease: 'power1.inOut' }, 2.15);
+      HF.pop(tl, dot, 2.1);
+      const prox = { q: 1000 };
+      tl.to(prox, { q: 4000, duration: 1.8, ease: 'power1.inOut' }, 2.15);
+      HF.every(() => { gsap.set(dot, { x: cx(prox.q), y: cy(20000 / prox.q + 5) }); });
+
+      // camera: a slow push, settling for the hold
+      HF.camera(tl, { scale: 1.04, y: -8 }, 0, 4.0);
+    })();
+  </script>
+  <script type="module" src="../../kit/kit-three.js"></script>
+</body>
+</html>
