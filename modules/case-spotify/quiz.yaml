@@ -91,6 +91,10 @@ templates:
       - Radio had disappeared
       - Piracy was not an issue
     answer: 0
+    optionFeedback:
+      1: "The case has physical and digital level in 2014, at about 6.85 billion dollars each, so neither had overtaken the other."
+      2: "Radio was still a major channel; the case is about digital catching up with physical sales."
+      3: "Piracy was a central concern, and Spotify's free tier was pitched as a way to fight it."
     hints:
       - Look at Exhibit 1a.
     explanation: The case puts physical and digital at 6.85 billion dollars each in 2014, and says digital rivaled physical for the first time.
@@ -188,9 +192,38 @@ templates:
       - Revenue fell 16%
       - The company made a 16% profit
     answer: 0
+    optionFeedback:
+      1: "The loss went from 80 to 93 million, so it grew. The minus sign flags the change as bad news."
+      2: "The figure is about the operating result, not revenue."
+      3: "Both figures are losses; there was no profit."
     hints:
       - A negative operating result is a loss.
     explanation: The loss grew from 80 to 93, an increase of 13 on 80, or about 16%. The sign marks it as bad news.
+    variants:
+      - prompt: A company's loss went from 50 million to 40 million. The report prints the change as +20%. What does that mean?
+        options:
+          - The loss got 20% smaller, which is good news
+          - The loss got 20% bigger
+          - Revenue rose 20%
+          - The company made a 20% profit
+        answer: 0
+        optionFeedback:
+          1: A smaller loss is an improvement, shown as positive.
+          2: The figure is about the result, not revenue.
+          3: It's still a loss.
+        explanation: 10 on 50 is 20%, and a shrinking loss is good news.
+      - prompt: Revenue grew from 750 million to 1,080 million. What is the growth rate?
+        options:
+          - '44%'
+          - '330%'
+          - '31%'
+          - '144%'
+        answer: 0
+        optionFeedback:
+          1: 330 million is the increase, not a percent.
+          2: You divided the increase by the new value.
+          3: 144% is the ratio new ÷ old, not the growth.
+        explanation: (1,080 − 750) ÷ 750 = 44%.
 
   # ------------------------------------------------------------------ business-model
   - id: conversion-numeric
@@ -242,6 +275,10 @@ templates:
       - It stops ads
       - It removes the need for subscriptions
     answer: 0
+    optionFeedback:
+      1: "Free users don't pay labels; ad revenue and later subscriptions do."
+      2: "The free tier is ad-supported, so it carries ads rather than stopping them."
+      3: "The free tier is meant to feed subscriptions, not replace them."
     hints:
       - Think about how users become paying customers.
     explanation: Spotify's head of communications called the free tier a critical element to driving subscriber growth.
@@ -415,6 +452,12 @@ templates:
       - Spotify pays every artist directly and equally
       - The payout is the same in every country
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: roughly 70% of revenue goes to rights holders."
+      1: "Yes: each rights holder's share follows its artists' share of streams."
+      2: "Yes: labels typically pass 15–20% of their payment on to artists."
+      3: "Spotify pays rights holders, mostly labels, who then pay artists under their own contracts."
+      4: "Payouts are calculated country by country, so they differ."
     hints:
       - Shares are by streams and by country.
     explanation: Spotify pays rights holders by stream share, calculated by country, and the labels decide how artists are paid.
@@ -505,9 +548,38 @@ templates:
       - Downloads cost nothing
       - Labels do not get paid for streams
     answer: 0
+    optionFeedback:
+      1: "Streams are paid, just at well under a cent each."
+      2: "A download sells for a price and earns the label about 0.69 dollars."
+      3: "Labels are paid for streams; that's where the 70% goes."
     hints:
       - Compare per-stream pay with the label's share of a download.
     explanation: A download earns the label about 0.69 dollars, while a stream pays well under a cent, so about a hundred streams match one sale.
+    variants:
+      - prompt: A song earns its label about 0.69 dollars per download and about 0.007 dollars per stream. About how many streams equal one download?
+        options:
+          - About 100
+          - About 10
+          - About 1,000
+          - About 1
+        answer: 0
+        optionFeedback:
+          1: 10 streams earn about 0.07 dollars.
+          2: 1,000 streams earn about 7 dollars.
+          3: One stream earns well under a cent.
+        explanation: 0.69 ÷ 0.007 ≈ 100 streams.
+      - prompt: Why might an artist with a song that's played for years earn more from streaming than from downloads?
+        options:
+          - Streams keep paying every time it's played, while a download pays once
+          - Streams pay more per play than downloads
+          - Downloads stop paying after a month
+          - Streaming pays artists directly at a fixed salary
+        answer: 0
+        optionFeedback:
+          1: Per play, streams pay far less.
+          2: A download pays once, at the sale.
+          3: Artists are paid through rights holders by stream share.
+        explanation: Repeated plays add up over time.
 
   - id: dl-code
     type: code-fill
@@ -574,6 +646,10 @@ templates:
       - The album was not on sale
       - The request came from a competitor
     answer: 0
+    optionFeedback:
+      1: "The issue was policy: Big Machine wanted market and tier restrictions that Spotify wouldn't allow."
+      2: "The album was on sale; the dispute was about how it would be streamed."
+      3: "Big Machine was Swift's own label, not a competitor."
     hints:
       - The requests were paid subscribers only, and not in the US.
     explanation: Spotify did not let rights holders choose markets or skip the free tier, and it felt that restricting content pushes listeners to piracy.
@@ -593,3 +669,253 @@ templates:
     hints:
       - The requests come before the takedown.
     explanation: The label asked for special terms, Spotify refused, and the catalogue was taken down in the album's first week of sale.
+
+  # ------------------------------------------------------------------ new formats (case, find-error, two-tier, explain, cloze)
+  - id: royalty-case
+    type: case
+    skills: [royalty-model]
+    difficulty: 3
+    tags: [math]
+    generator: royaltyQ
+    lessonRef: { tab: math-code, id: royalty-chain }
+    prompt: |
+      **Follow the money from a listener to an artist.** Spotify's revenue this month is **{=revenue|comma}** million. It pays
+      about **{=payoutRate|pct}** to rights holders. One label's artists drew **{=streamShare|pct}** of all streams, and an artist
+      on that label gets **{=artistCut|pct}** of what the label is paid.
+    parts:
+      - type: numeric
+        prompt: The pool for rights holders (millions)
+        answer: { var: pool, tol: 0.05 }
+        explanation: '{=payoutRate|pct} × {=revenue|comma} = {=pool|comma2} million.'
+      - type: numeric
+        prompt: The label's payment (millions)
+        answer: { var: holder, tol: 0.005 }
+        misconceptions:
+          - { var: wrongNoPayout, feedback: 'That uses all the revenue. Only the payout pool is shared by stream share.' }
+        explanation: '{=streamShare|pct} × {=pool|comma2} = {=holder|2} million.'
+      - type: numeric
+        prompt: "The artist's share (millions)"
+        answer: { var: artist, tol: 0.005 }
+        misconceptions:
+          - { var: wrongArtistFull, feedback: "That's the label's whole payment. The artist gets only their cut of it." }
+        explanation: '{=artistCut|pct} × {=holder|2} = {=artist|3} million.'
+      - type: two-tier
+        prompt: Who decides how much of the label's payment the artist receives?
+        options: ['The label, under the artist''s contract', 'Spotify, the same for every artist', 'Each country''s government']
+        answer: 0
+        reasons:
+          - Spotify pays rights holders; contracts between labels and artists decide the split
+          - Spotify pays every artist directly
+          - Royalty splits are set by law
+        reasonAnswer: 0
+        reasonFeedback:
+          1: Spotify pays rights holders, not artists.
+          2: The case describes contracts, not laws.
+        explanation: Spotify → rights holder by stream share → artist by contract.
+    hints: [Revenue → payout pool → label by stream share → artist by contract cut.]
+    explanation: Pool {=pool|comma2}; label {=holder|2}; artist {=artist|3} million.
+
+  - id: royalty-find-error
+    type: find-error
+    skills: [royalty-model]
+    difficulty: 2
+    tags: [math]
+    generator: royaltyQ
+    lessonRef: { tab: math-code, id: royalty-chain }
+    prompt: 'A blogger estimates an artist''s monthly royalty from revenue of {=revenue|comma} million, a {=streamShare|pct} stream share and a {=artistCut|pct} artist cut. **One step is wrong.** Click it and give the correct amount.'
+    steps:
+      - 'Pool for rights holders = {=payoutRate|pct} × {=revenue|comma} = {=pool|comma2} million'
+      - 'Label''s payment = {=streamShare|pct} × {=pool|comma2} = {=holder|2} million'
+      - 'Artist''s share = {=artistCut|pct} × {=revenue|comma} = {=wrongAllRevenue|2} million'
+    wrong: 2
+    fix: { var: artist, tol: 0.005 }
+    fixPrompt: "What is the artist's correct share (millions)?"
+    misconceptions:
+      - { var: wrongAllRevenue, feedback: "That still applies the cut to all of Spotify's revenue. Apply it to the label's payment." }
+    stepFeedback:
+      0: The 70% payout pool is right.
+      1: Sharing the pool by stream share is right.
+    hints: [The artist's cut is a share of what the label receives.]
+    explanation: Artist = {=artistCut|pct} × {=holder|2} = {=artist|3} million.
+
+  - id: freemium-two-tier
+    type: two-tier
+    skills: [business-model]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: how-spotify-earns }
+    prompt: Why did Spotify refuse to let artists keep new albums off its free tier?
+    options: ['The free tier is its funnel to paid subscriptions and its weapon against piracy', 'Free users pay higher royalties than subscribers', 'Its contracts with advertisers required every album']
+    answer: 0
+    reasons:
+      - Holding music back from free listeners pushes them toward piracy and away from upgrading
+      - The free tier earns more than subscriptions
+      - Advertisers choose which albums appear
+    reasonAnswer: 0
+    optionFeedback:
+      1: Free listening pays less per stream, not more.
+      2: The case ties the policy to the funnel and to piracy, not to advertisers.
+    reasonFeedback:
+      1: Subscriptions bring in most of the revenue; the free tier feeds them.
+      2: Advertisers don't pick the catalogue.
+    hints: [What does the free tier lead to?]
+    explanation: Spotify treats the free tier as a funnel and an anti-piracy tool, so it wanted all content on it.
+
+  - id: streams-explain
+    type: explain
+    skills: [streams-vs-sales]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: streams-versus-sales }
+    prompt: Explain why some artists felt streaming paid them less than downloads, and what Spotify argued in reply.
+    model: |
+      A download earns the label about 0.69 dollars once, while a stream pays well under a cent, so it takes roughly a hundred
+      streams to match one sale. Artists like Taylor Swift saw streaming as cheapening their work. Spotify argued that streams
+      keep paying every time a song is played, that most revenue goes back to rights holders, and that the alternative for many
+      listeners is piracy, which pays nothing.
+    checklist:
+      - One download pays far more than one stream
+      - It takes about a hundred streams to match a download
+      - Streams keep paying over time and about 70% of revenue goes to rights holders
+      - Spotify's alternative is piracy, which pays nothing
+    hints: [Compare one sale with one play, then think about time.]
+    explanation: Per-unit pay is lower, but plays repeat, and the comparison Spotify draws is with piracy.
+
+  - id: spotify-cloze
+    type: code-fill
+    lang: text
+    skills: [business-model, royalty-model]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: how-spotify-earns }
+    prompt: Fill in the terms from the case.
+    code: |
+      A free, ad-supported tier that leads users to a paid plan is a __BLANK_1__ model. Spotify pays about 70% of its revenue to
+      __BLANK_2__ holders, shared by their artists' share of __BLANK_3__.
+    blanks:
+      '1': { accept: [freemium], hint: 'f…' }
+      '2': { accept: [rights, right], hint: 'r…' }
+      '3': { accept: [streams, plays, stream share], hint: 's…' }
+    hints: [The first is a blend of "free" and "premium".]
+    explanation: Freemium; rights holders; shared by stream share.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-freemium
+    type: mcq
+    skills: [business-model]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: how-spotify-earns }
+    prompt: A language-learning app offers free lessons with ads and a paid ad-free plan with extra features. What business model is this?
+    options: ['Freemium', 'Pay-per-download', 'Pure subscription with no free tier', 'Licensing']
+    answer: 0
+    optionFeedback:
+      1: Users don't pay per item.
+      2: There is a free tier.
+      3: It sells plans to users, not licenses to companies.
+    hints: [Free plus premium.]
+    explanation: A free, ad-supported tier funnels users to a paid plan, like Spotify.
+    variants:
+      - prompt: A news site lets everyone read five articles a month, then asks for a subscription. What is the free part's main job?
+        options: ['To draw readers in and convert some to paying', 'To earn most of the revenue', 'To replace subscriptions', 'To stop ads']
+        answer: 0
+        optionFeedback:
+          1: Most revenue comes from subscribers.
+          2: It feeds subscriptions.
+          3: Free readers usually see ads.
+        explanation: The free tier is a funnel.
+      - prompt: A freemium game's free players never pay. Why might the company still want them?
+        options: ['They see ads, invite friends and may convert later', 'They pay the developers directly', 'They reduce server costs', 'They are required by law']
+        answer: 0
+        optionFeedback:
+          1: Free players don't pay.
+          2: They add server costs.
+          3: No law requires them.
+        explanation: Free users bring ad revenue, network effects and future conversions.
+
+  - id: transfer-share
+    type: mcq
+    skills: [royalty-model]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: share-of }
+    prompt: 'A podcast platform pays 60% of its 200 million in revenue to creators by listening share. A creator has 1% of all listening. How much does that creator get (millions)?'
+    options: ['1.2', '2', '120', '0.6']
+    answer: 0
+    optionFeedback:
+      1: That's 1% of all revenue; only the 60% pool is shared.
+      2: That's the whole pool.
+      3: That's 1% of 60, not of 120.
+    hints: [Pool first, then the share.]
+    explanation: 0.60 × 200 = 120 million pool; 1% of 120 = 1.2 million.
+    variants:
+      - prompt: 'A video site pays 55% of 400 million to channels by watch-time share. A channel has 0.5% of watch time. What does it earn (millions)?'
+        options: ['1.1', '2', '220', '0.55']
+        answer: 0
+        optionFeedback:
+          1: That's 0.5% of all revenue.
+          2: That's the whole pool.
+          3: "Check the decimal: 0.5% of 220 is 1.1."
+        explanation: 0.55 × 400 = 220; 0.5% of 220 = 1.1 million.
+      - prompt: 'A label receives 3 million from streaming and pays its artist 18%. How much does the artist get (millions)?'
+        options: ['0.54', '3', '2.46', '18']
+        answer: 0
+        optionFeedback:
+          1: That's the label's whole payment.
+          2: That's what the label keeps.
+          3: 18 is the percent, not the amount.
+        explanation: 0.18 × 3 = 0.54 million.
+
+  - id: transfer-windowing
+    type: two-tier
+    skills: [swift-takedown]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: the-swift-takedown }
+    prompt: A big film studio wants to keep its new movie off a streaming service's cheaper ad-supported plan for six months. If the service's policy, like Spotify's, is "the same catalogue for every tier", what is the likely outcome?
+    options: ['The service refuses, and the studio may hold the movie back', 'The service makes an exception automatically', 'The movie appears only on the free plan']
+    answer: 0
+    reasons:
+      - A same-catalogue policy means the service won't let rights holders choose tiers
+      - Policies never apply to big studios
+      - Free plans always get new releases first
+    reasonAnswer: 0
+    optionFeedback:
+      1: The policy is exactly about not making such exceptions.
+      2: That's the opposite of what the studio wants.
+    reasonFeedback:
+      1: Spotify applied its policy even to Taylor Swift's label.
+      2: There's no such rule.
+    hints: [Recall what happened with Big Machine Records.]
+    explanation: Like Spotify with Big Machine, the service sticks to its policy and the rights holder may withdraw.
+    variants:
+      - prompt: Why does a streaming service argue that keeping content off its free tier can encourage piracy?
+        options: ['Listeners who can''t get it legally for free may turn to pirated copies', 'Free users pay more than subscribers', 'Piracy is legal on free tiers']
+        answer: 0
+        reasons:
+          - The free tier competes with piracy as a free option
+          - Free users fund most royalties
+          - Free tiers allow downloads
+        reasonAnswer: 0
+        optionFeedback:
+          1: Free users pay less, not more.
+          2: Piracy is never legal.
+        reasonFeedback:
+          1: Subscriptions bring in most revenue.
+          2: Free tiers stream; they don't hand out files.
+        explanation: Spotify framed its free tier as an alternative to piracy.
+      - prompt: An artist's label wants a new album only on paid tiers. What does the artist gain if the service agrees?
+        options: ['Possibly higher earnings per play, since paid plays pay more', 'More free listeners', 'No change at all']
+        answer: 0
+        reasons:
+          - Paid-tier streams usually generate more royalty per play than ad-supported ones
+          - Restricting tiers always increases listeners
+          - Tier never affects payouts
+        reasonAnswer: 0
+        optionFeedback:
+          1: Restricting tiers reduces free listening.
+          2: Payouts differ by tier.
+        reasonFeedback:
+          1: It usually reduces reach.
+          2: Per-stream payouts differ.
+        explanation: The trade-off is reach versus revenue per play.

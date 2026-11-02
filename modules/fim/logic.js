@@ -1075,7 +1075,7 @@ export default function register(sdk) {
       const wrongRelA = r.conf / r.relA;
       const wrongConf = r.conf;
       if (approxEq(wrongRelA, r.lift) || approxEq(wrongConf, r.lift)) continue;
-      return { vars: { transactions, A: [a], B: [b], conf: r.conf, relB: r.relB, supB: r.supB, supA: r.supA, supAB: r.supAB, n, lift: r.lift, wrongRelA, wrongConf, verdict: r.verdict }, misconceptions: [
+      return { vars: { transactions, A: [a], B: [b], conf: r.conf, relB: r.relB, supB: r.supB, supA: r.supA, supAB: r.supAB, n, lift: r.lift, wrongRelA, wrongConf, verdict: r.verdict, liftAbove: r.lift > 1 ? 0 : 1 }, misconceptions: [
         { var: 'wrongRelA', feedback: 'You divided by RelSup(A). Lift compares the rule with how common the **consequent** B is: conf / RelSup(B).' },
         { var: 'wrongConf', feedback: 'That is just the confidence. Lift divides it by RelSup(B).' },
       ] };

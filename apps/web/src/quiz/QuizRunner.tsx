@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, BookMarked, Calculator as CalcIcon, Clock, Dices, Flag, RotateCcw, Trophy } from 'lucide-react';
-import { calculatorMode, type QuizInstance } from '@kodigo/schema';
+import { calculatorMode, variantCount, type QuizInstance } from '@kodigo/schema';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
 import { getRunState, getSession, instantiate, newSession, randomSeed, saveRunState, QTYPE_LABEL, MODE_LABEL, type QuizSession } from './session';
 import { QuestionView, emptyResponse, grade, isAnswered, solutionShown, type Graded } from './Question';
 import { Calculator, calcAutoOpenPref } from './Calculator';
 import { recordAttempt } from '../storage/progress';
+import { CONFIDENCE_LABEL, calibration, type Confidence } from '../storage/confidence';
 import { cn } from '../lib/util';
 import { usePopup } from '../lib/popup';
 
 /** `seed` is set once the learner asks for new numbers; otherwise the session item's seed is used. */
-interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number }
+interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number; confidence?: Confidence }
 
 export function QuizRunner() {
   const { sessionId } = useParams();
@@ -31,7 +32,7 @@ function Runner({ session }: { session: QuizSession }) {
   const [saved] = useState(() => getRunState(session.id));
   const [slots, setSlots] = useState<Slot[]>(() => session.items.map((_, i) => {
     const sv = saved?.slots[i];
-    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed } : {};
+    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed, confidence: sv.confidence } : {};
   }));
   const [idx, setIdx] = useState(() => Math.min(saved?.idx ?? 0, session.items.length - 1));
   const [finished, setFinished] = useState(() => saved?.finished ?? false);
@@ -43,7 +44,7 @@ function Runner({ session }: { session: QuizSession }) {
   useEffect(() => {
     saveRunState(session.id, {
       idx, finished, deadline,
-      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed })),
+      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed, confidence: s.confidence })),
     });
   }, [slots, idx, finished]);
 
@@ -78,6 +79,7 @@ function Runner({ session }: { session: QuizSession }) {
 
   const slot = slots[idx];
   const setResponse = (r: any) => setSlots((s) => { const n = s.slice(); n[idx] = { ...n[idx], response: r }; return n; });
+  const setConfidence = (c: Confidence | undefined) => setSlots((s) => { const n = s.slice(); n[idx] = { ...n[idx], confidence: c }; return n; });
 
   // Calculator: offered for accounting (journal-workbench) questions, and opened by itself for the
   // ones that need arithmetic (calculatorMode), except on phone-width screens where it would cover
@@ -104,7 +106,7 @@ function Runner({ session }: { session: QuizSession }) {
     if (!sl.inst || !sl.mod || sl.mod.preview) return;
     await recordAttempt({
       key: sl.inst.key, templateId: sl.inst.templateId, moduleId: sl.inst.moduleId, seed: sl.inst.seed, type: sl.inst.type,
-      skills: sl.inst.skills, score: g.score, response: g.response, timeMs: sl.timeMs ?? (sl.startedAt ? Date.now() - sl.startedAt : 0), mode: session.mode, difficulty: sl.inst.difficulty,
+      skills: sl.inst.skills, score: g.score, response: g.response, timeMs: sl.timeMs ?? (sl.startedAt ? Date.now() - sl.startedAt : 0), mode: session.mode, difficulty: sl.inst.difficulty, confidence: sl.confidence,
     });
   };
 
@@ -118,14 +120,15 @@ function Runner({ session }: { session: QuizSession }) {
   };
   // Practice: after checking, rebuild this question with a fresh seed so the learner can try it unaided.
   // The checked attempt is already recorded; the new one replaces it on this quiz's scorecard.
-  const generated = !!slot?.inst && !!slot.mod?.parsed.quiz.find((t) => t.id === slot.inst!.templateId)?.generator;
+  const tpl = slot?.inst ? slot.mod?.parsed.quiz.find((t) => t.id === slot.inst!.templateId) : undefined;
+  const generated = !!tpl && (!!tpl.generator || variantCount(tpl) > 1);
   const newNumbers = async () => {
     if (!slot?.mod) return;
     const at = idx;
     const seed = randomSeed();
     try {
       const inst = await instantiate(slot.mod, { ...session.items[at], seed });
-      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined }; return n; });
+      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined, confidence: undefined }; return n; });
     } catch (e: any) {
       setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], error: String(e?.message ?? e) }; return n; });
     }
@@ -188,6 +191,15 @@ function Runner({ session }: { session: QuizSession }) {
         {slot?.error ? <div className="text-sm text-bad">Couldn't generate this question: {slot.error}</div>
           : !slot?.inst ? <div className="h-40 animate-pulse rounded-lg bg-panel2" />
           : <QuestionView key={`${idx}:${slot.inst.seed}`} inst={slot.inst} mod={slot.mod!} response={slot.response} setResponse={setResponse} graded={exam ? null : slot.graded ?? null} reveal={practice && !!slot.graded} practice={practice} />}
+        {slot?.inst && !slot.error && (practice ? !slot.graded : true) && (
+          <ConfidencePicker value={slot.confidence} onChange={setConfidence} />
+        )}
+        {practice && slot?.graded && slot.confidence === 3 && slot.graded.score < 0.5 && (
+          <div className="mt-3 rounded-lg border border-bad/40 bg-bad/5 px-3 py-2 text-sm" data-testid="confident-wrong"><b>You were certain, and it was wrong.</b> That's the best moment to learn it: read the explanation closely. This question will come back soon.</div>
+        )}
+        {practice && slot?.graded?.correct && slot.confidence === 1 && (
+          <div className="mt-3 rounded-lg bg-warn/10 px-3 py-2 text-sm">Right, but you were guessing. It will come back soon so you can get it right on purpose.</div>
+        )}
         <div className="mt-4 flex items-center justify-between gap-2">
           <button className="btn" onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0}>Back</button>
           {slot?.error ? <button className="btn-primary" onClick={goNext}>Skip <ArrowRight size={15} /></button>
@@ -234,6 +246,7 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
         {wrong > 0 && <button className="btn" onClick={onRetry}><RotateCcw size={15} /> Retry {wrong} missed with new numbers</button>}
         <Link to="/quiz" className="btn-primary">New quiz</Link>
       </div>
+      <CalibrationCard slots={graded} />
       <h3 className="mb-2 mt-6 font-semibold">By skill</h3>
       <div className="card divide-y divide-line">
         {Object.entries(bySkill).sort((a, b) => a[1].sum / a[1].n - b[1].sum / b[1].n).map(([k, v]) => (
@@ -258,6 +271,39 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** "How sure are you?" before checking. Optional: it shapes the review schedule and the calibration summary. */
+function ConfidencePicker({ value, onChange }: { value?: Confidence; onChange: (c: Confidence | undefined) => void }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-1.5 text-sm" role="radiogroup" aria-label="How sure are you?" data-testid="confidence">
+      <span className="mr-1 text-muted">How sure are you?</span>
+      {([1, 2, 3] as Confidence[]).map((c) => (
+        <button key={c} role="radio" aria-checked={value === c} onClick={() => onChange(value === c ? undefined : c)}
+          className={cn('rounded-full border px-2.5 py-0.5 text-xs transition', value === c ? 'border-accent bg-accent/10 font-semibold text-accent' : 'border-line text-muted hover:text-ink')}>
+          {CONFIDENCE_LABEL[c]}
+        </button>
+      ))}
+      <span className="text-[11px] text-muted">(optional)</span>
+    </div>
+  );
+}
+
+function CalibrationCard({ slots }: { slots: Slot[] }) {
+  const cal = calibration(slots.map((s) => ({ confidence: s.confidence, correct: !!s.graded?.correct, score: s.graded?.score ?? 0 })));
+  if (!cal.rated) return null;
+  return (
+    <div className="card mt-4 p-4 text-sm" data-testid="calibration">
+      <div className="mb-1 font-semibold">Confidence check</div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1">
+        {([3, 2, 1] as Confidence[]).filter((c) => cal.byLevel[c].n).map((c) => (
+          <span key={c}>{CONFIDENCE_LABEL[c]}: <b>{cal.byLevel[c].right} of {cal.byLevel[c].n}</b> right</span>
+        ))}
+      </div>
+      {cal.confidentlyWrong > 0 && <div className="mt-1 text-bad">{cal.confidentlyWrong} answer{cal.confidentlyWrong > 1 ? 's' : ''} you were certain of {cal.confidentlyWrong > 1 ? 'were' : 'was'} wrong. Those are the misconceptions to fix first; they're scheduled to come back soonest.</div>}
+      {cal.luckyGuesses > 0 && <div className="mt-1 text-muted">{cal.luckyGuesses} lucky guess{cal.luckyGuesses > 1 ? 'es' : ''}: right, but you weren't sure. They'll come back soon too.</div>}
     </div>
   );
 }

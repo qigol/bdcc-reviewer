@@ -44,6 +44,31 @@ templates:
       A CSV is a [[row-layout|row layout]]: to reach each fare, Spark reads whole rows. Parquet is a
       [[columnar-layout|columnar layout]]: it opens only the `fare_amount` column, already packed small and typed.
       Same trips, far less to read.
+    variants:
+      - prompt: Why does counting rows with a filter on one column read less data from Parquet than from CSV?
+        options:
+          - Parquet stores columns separately, so only the needed column is read
+          - Parquet files have fewer rows
+          - CSV files are encrypted
+          - Spark caches Parquet automatically
+        answer: 0
+        optionFeedback:
+          1: Both hold the same rows.
+          2: CSV isn't encrypted.
+          3: Caching isn't automatic.
+        explanation: Columnar storage lets Spark skip unneeded columns.
+      - prompt: A Parquet table has 120 columns, and a query uses 2. Roughly what share of the column data must Spark read?
+        options:
+          - Only the 2 needed columns
+          - All 120 columns
+          - Half of the columns
+          - None; Parquet answers from metadata
+        answer: 0
+        optionFeedback:
+          1: That's CSV behaviour.
+          2: There's no fixed half.
+          3: Values still have to be read.
+        explanation: Column pruning reads just what the query needs.
 
   - id: layout-match
     type: match
@@ -105,6 +130,10 @@ templates:
       - 'Two folders, `PULocationID/` and `DOLocationID/`, each holding one column'
       - One single file, sorted by pickup zone and then by drop-off zone
     answer: 0
+    optionFeedback:
+      1: "Partitioning groups many rows into each folder; it doesn't make a file per trip."
+      2: "Folders are named `column=value`, one per value, not one per column."
+      3: "partitionBy splits rows into nested folders rather than sorting them into one file."
     hints:
       - Look for the pattern column=value.
     explanation: |
@@ -155,6 +184,10 @@ templates:
       - 'Neither: partition columns are lost when you write'
       - '`tip_amount`, then `total_amount`: the split columns stay where they were'
     answer: 0
+    optionFeedback:
+      1: "Spark appends the partition columns in the order of the partitionBy list."
+      2: "The values live on in the folder names, and Spark adds them back as columns."
+      3: "The split columns move to the end of the schema."
     hints:
       - Where are the vendor and the flag stored after a partitioned write?
     explanation: |
@@ -246,6 +279,12 @@ templates:
       - The full `describe()` of every number and text column ran much faster on Parquet
       - Parquet lost some trips, so the counts differed
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: the same data gives the same answers."
+      1: "Yes: Parquet stores types; a plain CSV read is all strings."
+      2: "Yes: freqItems is an estimate, so its lists can differ."
+      3: "The full describe() was not much faster in the real run."
+      4: "Both formats held the same trips, so the counts matched."
     hints:
       - Two statements contradict the timing table or the counts.
     explanation: |
@@ -267,6 +306,10 @@ templates:
       - Zone numbers above 99 became NULL in the text read, and max skips NULL
       - describe() looks only at the first 99 rows of a CSV
     answer: 0
+    optionFeedback:
+      1: "The trips are all there; the mean matched on both reads."
+      2: "Text values aren't NULL; they compare as strings."
+      3: "describe() covers every row."
     hints:
       - What type does a CSV column get without inferSchema or a schema?
     explanation: |
@@ -299,6 +342,7 @@ templates:
       - "NameError: name 'trips' is not defined"
     answer: 0
     optionFeedback:
+      1: "Python fails on the missing name before Spark resolves any column."
       '2': 'A restart forgets everything that earlier sessions imported.'
       '3': 'The setup cell ran after the restart and read `trips` again, so `trips` exists. The missing name is the borrowed `explode`.'
     hints:
@@ -365,6 +409,7 @@ templates:
     options: ['251', '255', '11', '4']
     answer: 0
     optionFeedback:
+      3: "4 isn't in the message; ACTUAL is the function's result, 251."
       '1': 'DESIRED is what the test expected, not what the code produced.'
       '2': 'That is the line number of the test that failed.'
     hints:
@@ -393,6 +438,10 @@ templates:
       - Change the test cell so it expects `pickup_location`
       - Return both column names so that either one passes
     answer: 0
+    optionFeedback:
+      1: "The test is what checks your work, so match what it expects."
+      2: "Editing the test to pass hides the mismatch instead of resolving it."
+      3: "A function returns one column name; the test checks for exactly one."
     hints:
       - Which cell decides whether your answer passes?
     explanation: |
@@ -671,6 +720,10 @@ templates:
       - A list of logins, one per commit
       - A second table stored next to the events
     answer: 0
+    optionFeedback:
+      1: "The indented `login` line is a field inside `actor`, not a text value."
+      2: "A list would show `array`; this is `struct`."
+      3: "It's a column of this table holding a nested field."
     hints:
       - A line indented under a column is a field inside it.
     explanation: |
@@ -721,6 +774,8 @@ templates:
       - Import `login` from `pyspark.sql.functions`
     answer: 0
     optionFeedback:
+      2: "inferSchema is for CSV types; this is a nested JSON field."
+      3: "`login` is a data field, not a function to import."
       '1': '`org` also holds a `login`, but it names the organization, not the person who did the event.'
     hints:
       - Which suggestion holds the person who did the event?
@@ -742,11 +797,40 @@ templates:
       - "['type', 'payload']"
       - "['commits']"
     answer: 0
+    optionFeedback:
+      1: "A dot-path result is named after its last part, `commits`."
+      2: "Only the `commits` field is selected, not the whole `payload` struct."
+      3: "`type` is selected too and keeps its name."
     hints:
       - The result keeps only one part of each path.
     explanation: |
       The real output's header reads `type` and `commits`. A [[dot-path|dot path]] result is named after its last
       part, and a top-level column keeps its name. Use `.alias(...)` when you want a clearer name.
+    variants:
+      - prompt: 'What does `events.select("actor.login", "repo.name").columns` return?'
+        options:
+          - "['login', 'name']"
+          - "['actor.login', 'repo.name']"
+          - "['actor', 'repo']"
+          - "['login']"
+        answer: 0
+        optionFeedback:
+          1: A dot-path result is named after its last part.
+          2: Only the nested fields are selected, not the whole structs.
+          3: Both selected fields come back.
+        explanation: Each dot-path column is named after its last part.
+      - prompt: 'How do you get a column named `user` from the nested field `actor.login`?'
+        options:
+          - 'events.select(F.col("actor.login").alias("user"))'
+          - 'events.select("actor.login").rename("user")'
+          - 'events.select("user.login")'
+          - 'events.select("actor.user")'
+        answer: 0
+        optionFeedback:
+          1: DataFrames have no rename method; use alias or withColumnRenamed.
+          2: There's no `user` struct.
+          3: The field is `login`, not `user`.
+        explanation: alias() names the result column.
 
   # =================================================================== Session 6: ranking with ties (Problem 5)
   - id: stars-numeric
@@ -792,6 +876,7 @@ templates:
       - It changes from run to run
     answer: 0
     optionFeedback:
+      2: "limit(13) keeps exactly 13 rows, and these two are 13th and 14th."
       '1': 'Spark compares character codes, and every capital letter comes before every small letter: "P" sorts before "a".'
       '3': 'Only without a tie-break. Sorting by repo_name as well fixes the order.'
     hints:
@@ -942,6 +1027,12 @@ templates:
       - The number of rows always equals the number of events
       - A push with 2 commits gives 1 row holding both
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: explode makes a row per element."
+      1: "Yes: the other selected columns are copied onto each row."
+      2: "Yes: NULL arrays produce no rows."
+      3: "Row counts follow the number of commits, not events."
+      4: "Two commits give two rows."
     hints:
       - 'Check against the lesson data: 8 events, 3 commits.'
     explanation: |
@@ -1032,11 +1123,40 @@ templates:
       ```
     options: ['3', '1', '35061', '8']
     answer: 0
+    optionFeedback:
+      1: "There are three files, so three distinct paths."
+      2: "That's a row count; distinct() keeps one row per file."
+      3: "8 is the lesson file's event count, not the number of files."
     hints:
       - '`distinct()` keeps one row per different value.'
     explanation: |
       One row per hour file: the `-15`, `-16` and `-17` files, in no fixed order (add `.orderBy("file_path")` to
       sort them). On the single lesson file it prints one row.
+    variants:
+      - prompt: '`spark.read.json` reads `gharchive/2015-01-01-*.json.gz`, which matches 24 hourly files. How many rows does `select("_metadata.file_path").distinct().count()` return?'
+        options:
+          - '24'
+          - '1'
+          - The number of events
+          - '0'
+        answer: 0
+        optionFeedback:
+          1: Each file has its own path.
+          2: distinct() collapses the events to one row per file.
+          3: Every event comes from some file.
+        explanation: One distinct path per matched file.
+      - prompt: 'Why might you add `_metadata.file_path` to a DataFrame read from many files?'
+        options:
+          - To trace each row back to the file it came from
+          - To make the read faster
+          - To sort the files alphabetically on disk
+          - To change the files' names
+        answer: 0
+        optionFeedback:
+          1: It adds a column; it doesn't speed reading.
+          2: It doesn't touch the files on disk.
+          3: It only reads the path.
+        explanation: The hidden _metadata column records each row's source file.
 
   - id: json-match
     type: match
@@ -1116,3 +1236,262 @@ templates:
       Fix the cause, not the place where it shows. The typo sits in Cell 7 although the error appears in Cell 9:
       Spark checks most column names only when an [[action]] runs. The flag holds the letters N and Y, so declaring
       it INT turns every value into NULL without any error.
+
+  # ------------------------------------------------------------------ new formats (find-error, case, two-tier, explain, Parsons)
+  - id: login-find-error
+    type: find-error
+    code: true
+    skills: [nested-select, json-nested]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: folder-of-files }
+    prompt: This cell should count the distinct users who pushed code, but it stops with an AnalysisException. Click the line that causes it.
+    steps:
+      - 'events = spark.read.json(f"{BASE}/gharchive/*.json.gz")'
+      - 'pushes = events.filter(F.col("type") == "PushEvent")'
+      - 'logins = pushes.select("login")'
+      - 'logins.distinct().count()'
+    wrong: 2
+    stepFeedback:
+      0: Reading the JSON files with a glob is fine.
+      1: '`type` is a top-level column, so this filter works.'
+      3: This line only reports what the earlier lines built.
+    hints: [Where does `login` live in the schema?]
+    explanation: '`login` is a field inside the `actor` struct, so Spark can''t find a top-level `login`. Select `"actor.login"`.'
+
+  - id: group-mean-case
+    type: case
+    skills: [aggregations]
+    difficulty: 3
+    tags: [code, math]
+    generator: groupMeanQ
+    lessonRef: { tab: math-code, id: group-mean }
+    prompt: |
+      **Average per group, by hand and in code.** The table `sample` holds:
+
+      {=table}
+    parts:
+      - type: numeric
+        prompt: How many trips start in zone {=zone}?
+        answer: { var: trips, tol: 0 }
+        explanation: '{=trips} rows have PULocationID {=zone}.'
+      - type: numeric
+        prompt: The {=alias} for zone {=zone} (two decimals)
+        answer: { var: mean, tol: 0.01 }
+        misconceptions:
+          - { var: overall, feedback: "That's the mean over every row. groupBy averages each zone's rows separately." }
+          - { var: sum, feedback: "That's the zone's total. Divide by its number of trips." }
+        explanation: '({=terms}) ÷ {=trips} = {=mean|2}.'
+      - type: two-tier
+        prompt: 'Which line computes this for every zone at once?'
+        options: ['`sample.groupBy("PULocationID").agg(F.avg("{=value}"))`', '`sample.agg(F.avg("{=value}"))`', '`sample.groupBy("PULocationID").show()`']
+        answer: 0
+        reasons:
+          - groupBy forms one group per zone, and agg summarizes each group
+          - agg alone averages within each zone automatically
+          - groupBy returns a DataFrame you can show directly
+        reasonAnswer: 0
+        reasonFeedback:
+          1: Without groupBy, agg gives one overall average.
+          2: groupBy returns GroupedData, which needs a summary before show().
+        explanation: groupBy then agg(avg) gives one row per zone.
+    hints: [Only the rows of that zone count.]
+    explanation: Zone {=zone} has {=trips} trips averaging {=mean|2}; the overall mean ({=overall|2}) mixes every zone.
+
+  - id: types-two-tier
+    type: two-tier
+    skills: [csv-vs-parquet, columnar-parquet]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: novel-vs-cabinet }
+    prompt: The same trips are read from CSV (plain `header=True`) and from Parquet. `max("PULocationID")` gives 99 on CSV and 265 on Parquet. Which is right, and why?
+    options: ['265; Parquet stores the column as numbers, while the CSV read compares text', '99; CSV is the original format', 'Neither; the files hold different trips']
+    answer: 0
+    reasons:
+      - Text comparison goes character by character, so "99" sorts after "265"
+      - Parquet rounds numbers on write
+      - CSV drops rows with large IDs
+    reasonAnswer: 0
+    optionFeedback:
+      1: Being the original file doesn't make a text comparison numeric.
+      2: The counts and means match, so the trips are the same.
+    reasonFeedback:
+      1: Parquet keeps values exactly.
+      2: No rows are dropped; the comparison is the issue.
+    hints: [What type does a plain CSV read give every column?]
+    explanation: Parquet keeps the integer type, so max is numeric. The CSV read is all strings, and string max is alphabetical.
+
+  - id: parquet-explain
+    type: explain
+    skills: [columnar-parquet, read-write-parquet]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: novel-vs-cabinet }
+    prompt: Explain why Parquet is usually a better storage format than CSV for analysis with Spark.
+    model: |
+      Parquet is columnar: values of one column are stored together, so a query reading three columns skips the rest, and
+      similar values compress well. It also stores each column's type in the file, so a read gives numbers as numbers without
+      inferSchema's extra pass, avoiding text-comparison surprises. CSV is row-based text with no types, so Spark must read
+      every column and either guess types or treat them as strings.
+    checklist:
+      - Parquet stores data by column, so unused columns are skipped
+      - Columnar data compresses well
+      - Parquet keeps column types; CSV is untyped text
+      - Reading CSV needs inferSchema or a schema, or everything is a string
+    hints: [Think about which bytes a query needs to read, and about types.]
+    explanation: Columnar layout plus stored types make Parquet faster and safer to analyse.
+
+  - id: parquet-parsons
+    type: order
+    code: true
+    skills: [read-write-parquet]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: parquet-read-write }
+    prompt: Build the cells that save the trips as Parquet partitioned by pickup zone and read zone 74 back. Two lines don't belong.
+    items:
+      - 'trips.write.parquet(f"{BASE}/output/trips_pq", mode="overwrite", partitionBy=["PULocationID"])'
+      - 'pq = spark.read.parquet(f"{BASE}/output/trips_pq")'
+      - 'pq.filter(F.col("PULocationID") == 74).count()'
+    distractors:
+      - 'pq = spark.read.csv(f"{BASE}/output/trips_pq", header=True)'
+      - 'trips.write.parquet(f"{BASE}/output/trips_pq", partitionBy="PULocationID=74")'
+    hints: [Write first, read back with the matching reader, then filter.]
+    explanation: Write once with partitionBy, read with spark.read.parquet, filter on the partition column (Spark only opens that zone's folder). A CSV reader can't read Parquet, and partitionBy takes column names, not values.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-partition
+    type: mcq
+    skills: [read-write-parquet, columnar-parquet]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: nested-folders }
+    prompt: 'A retailer saves sales as Parquet with `partitionBy=["store_id"]` and most queries filter on one store. Why does this help?'
+    options:
+      - Spark reads only that store's folder and skips the rest
+      - Parquet files become smaller than CSV only when partitioned
+      - partitionBy sorts every row by date
+      - It makes every query return faster results regardless of filters
+    answer: 0
+    optionFeedback:
+      1: Parquet compresses well whether or not it's partitioned.
+      2: partitionBy splits into folders by value; it doesn't sort by date.
+      3: Queries that don't filter on store_id still read everything.
+    hints: [What does a partition folder hold?]
+    explanation: A filter on the partition column lets Spark skip other folders.
+    variants:
+      - prompt: 'A log table is partitioned by `user_id`, which has 2 million distinct values. What problem does that cause?'
+        options:
+          - Millions of tiny folders and files, which slow everything down
+          - Nothing; more partitions are always better
+          - Spark refuses to write it
+          - The data is stored twice
+        answer: 0
+        optionFeedback:
+          1: Too many small files is a classic performance problem.
+          2: Spark writes them, slowly.
+          3: Each row is still stored once.
+        explanation: Partition on columns with few values that queries filter on.
+      - prompt: 'Which column is the best candidate for `partitionBy` in a taxi-trip table queried by month?'
+        options: ['pickup_month', 'trip_id', 'fare_amount', 'tip_amount']
+        answer: 0
+        optionFeedback:
+          1: Every trip ID is unique, giving one folder per trip.
+          2: Continuous amounts give countless folders.
+          3: Continuous amounts give countless folders.
+        explanation: A low-cardinality column that queries filter on.
+
+  - id: transfer-format-choice
+    type: two-tier
+    skills: [csv-vs-parquet]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: novel-vs-cabinet }
+    prompt: 'A bank analyst queries 3 columns out of 80 in a 500-GB table, every day. Should the table be stored as CSV or Parquet?'
+    options: ['Parquet', 'CSV', 'It makes no difference']
+    answer: 0
+    reasons:
+      - A columnar format reads only the 3 needed columns and keeps their types
+      - CSV is faster for large tables
+      - Formats only matter for small files
+    reasonAnswer: 0
+    optionFeedback:
+      1: CSV forces Spark to read every column of every row.
+      2: Reading 3 of 80 columns is exactly where columnar storage wins.
+    reasonFeedback:
+      1: CSV is row-based text, so it reads everything.
+      2: The bigger the table, the bigger the saving.
+    hints: [How much of the data does each query need?]
+    explanation: Parquet's columnar layout skips the other 77 columns.
+    variants:
+      - prompt: 'A partner company needs to open your export in a spreadsheet program. Which format should you send?'
+        options: ['CSV', 'Parquet', 'Either; spreadsheets read both']
+        answer: 0
+        reasons:
+          - CSV is plain text that almost any tool opens
+          - Parquet opens in every spreadsheet
+          - Format never matters for sharing
+        reasonAnswer: 0
+        optionFeedback:
+          1: Most spreadsheet programs can't open Parquet directly.
+          2: They read CSV, but usually not Parquet.
+        reasonFeedback:
+          1: Parquet needs specialized tools.
+          2: The receiving tool decides what works.
+        explanation: For exchange with everyday tools, CSV is the safe choice.
+      - prompt: 'After switching from CSV to Parquet, the column `age` now has type int instead of string. Why?'
+        options: ['Parquet stores each column''s type in the file', 'Parquet guesses types randomly', 'Spark always converts strings to numbers']
+        answer: 0
+        reasons:
+          - The type was saved with the data when it was written
+          - Parquet runs inferSchema on every read
+          - Types are lost in Parquet
+        reasonAnswer: 0
+        optionFeedback:
+          1: Types are stored, not guessed.
+          2: Spark doesn't convert types on its own.
+        reasonFeedback:
+          1: No inference is needed; the schema is in the file.
+          2: Keeping types is one of Parquet's strengths.
+        explanation: Parquet keeps column types, so reads come back typed.
+
+  - id: transfer-explode
+    type: mcq
+    skills: [explode-arrays]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: rank-repos }
+    prompt: 'An orders table has one row per order and a column `items` holding an array of products. Three orders have 2, 0 (NULL) and 4 items. How many rows does `explode("items")` give?'
+    options: ['6', '3', '7', '8']
+    answer: 0
+    optionFeedback:
+      1: explode makes one row per element, not per order.
+      2: A NULL array gives no rows, not one.
+      3: That counts 2 × 4.
+    hints: [One row per element; NULL arrays give none.]
+    explanation: 2 + 0 + 4 = 6 rows.
+    variants:
+      - prompt: 'After `select("customer", F.explode("items").alias("item"))`, what happens to `customer` on the new rows?'
+        options:
+          - It is copied onto every row made from the same order
+          - It appears only on the first row
+          - It is dropped
+          - It is exploded too
+        answer: 0
+        optionFeedback:
+          1: Every new row keeps the other selected columns.
+          2: It's selected, so it's kept.
+          3: Only the array column is exploded.
+        explanation: explode copies the other selected columns onto each element's row.
+      - prompt: 'Why might you explode an array column before a groupBy?'
+        options:
+          - To count or aggregate the individual elements
+          - To make the table smaller
+          - To sort the arrays
+          - To remove NULLs from other columns
+        answer: 0
+        optionFeedback:
+          1: Exploding usually makes it bigger.
+          2: It doesn't sort.
+          3: It doesn't touch other columns' NULLs.
+        explanation: One row per element lets groupBy count elements, e.g. commits per user.

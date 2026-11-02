@@ -360,26 +360,48 @@ export const QuizJournalEntry = z
   .strict();
 /** `given`: column indexes of a blank row that stay printed (e.g. the physical-units column of an equivalent-units row) */
 export const QuizScheduleRow = ScheduleRow.extend({ blank: z.boolean().optional(), given: z.array(z.number().int().nonnegative()).optional(), tol: z.number().nonnegative().optional() }).strict();
-export const Template = z.discriminatedUnion('type', [
-  z.object({ ...QBase, type: z.literal('mcq'), options: z.array(Markdown).optional(), answer: z.number().int().optional(), shuffle: z.boolean().optional(), optionFeedback: z.record(z.string(), Markdown).optional() }).strict(),
-  z.object({ ...QBase, type: z.literal('multi'), options: z.array(Markdown).optional(), answer: z.array(z.number().int()).optional(), shuffle: z.boolean().optional() }).strict(),
-  z.object({ ...QBase, type: z.literal('numeric'), answer: NumericAnswer, misconceptions: z.array(Misconception).optional() }).strict(),
-  z.object({
-    ...QBase,
+/** estimate-first: a quick range/sign choice the learner makes before working out a numeric answer */
+export const Estimate = z.object({ prompt: Markdown, options: RefOr(z.array(Markdown).min(2)), answer: RefOr(z.number().int()), feedback: Markdown.optional() }).strict();
+const OptionFeedback = z.record(z.string(), Markdown);
+const RefInt = RefOr(z.number().int().nonnegative());
+/**
+ * An alternative scenario for a conceptual question (mcq, multi, two-tier): one is picked per attempt (the template's own
+ * fields are scenario 0), so a second attempt asks about a different case instead of the same remembered option.
+ */
+export const Variant = z
+  .object({
+    prompt: Markdown.optional(),
+    explanation: Markdown.optional(),
+    options: z.array(Markdown).min(2),
+    answer: z.union([z.number().int().nonnegative(), z.array(z.number().int().nonnegative())]),
+    optionFeedback: OptionFeedback.optional(),
+    reasonPrompt: Markdown.optional(),
+    reasons: z.array(Markdown).min(2).optional(),
+    reasonAnswer: z.number().int().nonnegative().optional(),
+    reasonFeedback: OptionFeedback.optional(),
+  })
+  .strict();
+export type Variant = z.infer<typeof Variant>;
+/** The type-specific fields of every question type, shared by templates and by the parts of a `case`. */
+const Q = {
+  mcq: { type: z.literal('mcq'), options: z.array(Markdown).optional(), answer: z.number().int().optional(), shuffle: z.boolean().optional(), optionFeedback: OptionFeedback.optional(), variants: z.array(Variant).optional() },
+  multi: { type: z.literal('multi'), options: z.array(Markdown).optional(), answer: z.array(z.number().int()).optional(), shuffle: z.boolean().optional(), optionFeedback: OptionFeedback.optional(), variants: z.array(Variant).optional() },
+  numeric: { type: z.literal('numeric'), answer: NumericAnswer, misconceptions: z.array(Misconception).optional(), estimate: Estimate.optional() },
+  'code-fill': {
     type: z.literal('code-fill'),
+    /** `text` = a prose cloze: rendered as Markdown, blanks matched case-insensitively */
     lang: z.string().optional(),
     code: z.string(),
     blanks: z.record(z.string(), z.object({ accept: z.array(z.string()).optional(), regex: z.string().optional(), hint: z.string().optional() }).strict()),
-  }).strict(),
-  z.object({ ...QBase, type: z.literal('match'), pairs: z.array(z.tuple([Markdown, Markdown])).min(2), pick: z.number().int().positive().optional() }).strict(),
-  z.object({ ...QBase, type: z.literal('order'), items: z.array(Markdown).min(2) }).strict(),
-  z.object({
-    ...QBase,
+  },
+  match: { type: z.literal('match'), pairs: z.array(z.tuple([Markdown, Markdown])).min(2), pick: z.number().int().positive().optional() },
+  /** `distractors` (Parsons): lines that don't belong; the learner builds the solution from the right lines only */
+  order: { type: z.literal('order'), items: z.array(Markdown).min(2), distractors: z.array(Markdown).optional(), code: z.boolean().optional() },
+  'hand-calc': {
     type: z.literal('hand-calc'),
     steps: z.array(z.object({ prompt: Markdown, answer: NumericAnswer, misconceptions: z.array(Misconception).optional(), hint: Markdown.optional() }).strict()).min(1),
-  }).strict(),
-  z.object({
-    ...QBase,
+  },
+  'journal-entry': {
     type: z.literal('journal-entry'),
     /** chart of accounts offered in the dropdowns (include plausible distractors) */
     accounts: RefOr(z.array(z.string().min(1)).min(2)),
@@ -387,16 +409,73 @@ export const Template = z.discriminatedUnion('type', [
     entries: RefOr(z.array(QuizJournalEntry).min(1)),
     tol: z.number().nonnegative().optional(),
     relTol: z.number().nonnegative().optional(),
-  }).strict(),
-  z.object({
-    ...QBase,
+  },
+  'schedule-fill': {
     type: z.literal('schedule-fill'),
     columns: z.array(z.string()).optional(),
     /** the statement; rows with `blank: true` become inputs */
     rows: RefOr(z.array(QuizScheduleRow).min(2)),
     tol: z.number().nonnegative().optional(),
     relTol: z.number().nonnegative().optional(),
-  }).strict(),
+  },
+  /** a worked solution with one wrong step: the learner picks it, then (with `fix`) types the corrected value */
+  'find-error': {
+    type: z.literal('find-error'),
+    steps: RefOr(z.array(Markdown).min(3)),
+    /** index of the wrong step */
+    wrong: RefInt,
+    /** the corrected value of the wrong step (optional second half of the question) */
+    fix: NumericAnswer.optional(),
+    fixPrompt: Markdown.optional(),
+    misconceptions: z.array(Misconception).optional(),
+    /** feedback shown when the learner blames a step that is actually right (key = step index) */
+    stepFeedback: OptionFeedback.optional(),
+    /** render steps as code lines */
+    code: z.boolean().optional(),
+  },
+  /** answer, then the reason for it; full credit needs both */
+  'two-tier': {
+    type: z.literal('two-tier'),
+    options: RefOr(z.array(Markdown).min(2)),
+    answer: RefInt,
+    reasonPrompt: Markdown.optional(),
+    reasons: RefOr(z.array(Markdown).min(2)),
+    reasonAnswer: RefInt,
+    shuffle: z.boolean().optional(),
+    optionFeedback: OptionFeedback.optional(),
+    reasonFeedback: OptionFeedback.optional(),
+    variants: z.array(Variant).optional(),
+  },
+  /** self-explanation: write, compare with a model answer, tick the checklist points you covered (not in exams) */
+  explain: { type: z.literal('explain'), model: Markdown, checklist: z.array(Markdown).min(2).max(5) },
+} as const;
+/** Common fields of one part of a `case` (the case itself carries id, skills, difficulty, tags, generator, data). */
+const PartBase = {
+  prompt: Markdown,
+  show: z.array(StageWidget).optional(),
+  explanation: Markdown.optional(),
+  hints: z.array(Markdown).optional(),
+};
+const PART_TYPES = ['mcq', 'multi', 'numeric', 'code-fill', 'match', 'order', 'hand-calc', 'journal-entry', 'schedule-fill', 'find-error', 'two-tier'] as const;
+export const CasePart = z.discriminatedUnion('type', PART_TYPES.map((k) => z.object({ ...PartBase, ...Q[k] }).strict()) as any) as z.ZodType<CasePartT>;
+type Fields<K extends keyof typeof Q> = z.infer<z.ZodObject<(typeof Q)[K]>>;
+type PartBaseT = z.infer<z.ZodObject<typeof PartBase>>;
+export type CasePartT = { [K in (typeof PART_TYPES)[number]]: PartBaseT & Fields<K> }[(typeof PART_TYPES)[number]];
+export const Template = z.discriminatedUnion('type', [
+  z.object({ ...QBase, ...Q.mcq }).strict(),
+  z.object({ ...QBase, ...Q.multi }).strict(),
+  z.object({ ...QBase, ...Q.numeric }).strict(),
+  z.object({ ...QBase, ...Q['code-fill'] }).strict(),
+  z.object({ ...QBase, ...Q.match }).strict(),
+  z.object({ ...QBase, ...Q.order }).strict(),
+  z.object({ ...QBase, ...Q['hand-calc'] }).strict(),
+  z.object({ ...QBase, ...Q['journal-entry'] }).strict(),
+  z.object({ ...QBase, ...Q['schedule-fill'] }).strict(),
+  z.object({ ...QBase, ...Q['find-error'] }).strict(),
+  z.object({ ...QBase, ...Q['two-tier'] }).strict(),
+  z.object({ ...QBase, ...Q.explain }).strict(),
+  /** a multi-part problem: one generator draw feeds 2–6 linked parts of other types */
+  z.object({ ...QBase, type: z.literal('case'), parts: z.array(CasePart).min(2).max(6) }).strict(),
 ]);
 export const QuizFile = z.object({ templates: z.array(Template).min(1) }).strict();
 

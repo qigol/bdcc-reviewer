@@ -109,7 +109,7 @@ function Shell() {
           <Route path="/quiz" element={<QuizBuilder />} />
           <Route path="/quiz/run/:sessionId" element={<QuizRunner />} />
           <Route path="/review" element={<ReviewPage />} />
-          <Route path="/glossary" element={<GlossaryPage />} />
+          <Route path="/glossary/*" element={<GlossaryPage />} />
           <Route path="/cheatsheet" element={<CheatsheetPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />

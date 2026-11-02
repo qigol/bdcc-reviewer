@@ -17,7 +17,7 @@ import { termHomes } from './guided';
 import { texAnchors, parseCodeAnchors } from './anchors';
 import { sectionLiveWidgets, liveRoleTarget, PANE_ROLES } from './live';
 import { parseExpr, varsOf } from './expr';
-import { buildInstance, valuesEqual } from './quiz';
+import { buildInstance, valuesEqual, variantCount, type QuizInstance } from './quiz';
 import type { FileMap } from './bundle';
 
 export type Step = 'structure' | 'yaml' | 'schema' | 'refs' | 'logic' | 'quiz' | 'lint';
@@ -260,7 +260,10 @@ function uniqueIds(list: { id?: string }[], kind: string, file: string, ctx: Ctx
 }
 
 function checkText(text: unknown, scope: Set<string> | null, file: string, path: string, ctx: Ctx) {
-  if (typeof text !== 'string' || scope === null) return;
+  if (typeof text !== 'string') return;
+  // {=a+b} isn't an interpolation (paths only), so it would be printed literally
+  for (const m of text.matchAll(/\{=([^}|]*[+*/][^}|]*)(\|[^}]*)?\}/g)) ctx.issues.push({ level: 'error', step: 'refs', file, path, message: `{=${m[1]}} is an expression; interpolation takes a path only (compute it in the generator)` });
+  if (scope === null) return;
   for (const { path: p, format } of collectInterps(text)) {
     const head = p.split('.')[0];
     if (!scope.has(head)) ctx.issues.push({ level: 'error', step: 'refs', file, path, message: `{=${p}} does not resolve: "${head}" is not a dataset, state key or derived value in this scope` });
@@ -648,9 +651,9 @@ function checkApplication(ctx: Ctx) {
   });
 }
 
-function checkTemplate(t: Template, i: number, ctx: Ctx) {
+function checkTemplate(t: Template, i: number, ctx: Ctx, at?: string) {
   const file = 'quiz.yaml';
-  const p = `templates[${i}]`;
+  const p = at ?? `templates[${i}]`;
   checkSkills(t.skills, file, `${p}.skills`, ctx);
   checkLessonRef(t.lessonRef, file, `${p}.lessonRef`, ctx);
   for (const d of t.data ?? []) if (!ctx.mod.datasets[d]) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.data`, message: `Unknown dataset "${d}"` });
@@ -703,6 +706,33 @@ function checkTemplate(t: Template, i: number, ctx: Ctx) {
       });
       break;
     }
+    case 'find-error': {
+      const refs = typeof t.steps === 'string' || typeof t.wrong === 'string' || !!t.fix?.var;
+      if (refs && !t.generator) ctx.issues.push({ level: 'error', step: 'refs', file, path: p, message: "'@refs' in steps/wrong and fix.var need a generator" });
+      if (Array.isArray(t.steps) && typeof t.wrong === 'number' && t.wrong >= t.steps.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.wrong`, message: 'wrong is not a step index' });
+      if (Array.isArray(t.steps)) t.steps.forEach((x, k) => checkText(x, scope, file, `${p}.steps[${k}]`, ctx));
+      checkText(t.fixPrompt, scope, file, `${p}.fixPrompt`, ctx);
+      if (t.fix && (t.misconceptions?.length ?? 0) < 1 && !t.generator) ctx.issues.push({ level: 'warning', step: 'lint', file, path: p, message: 'a find-error fix should name at least one misconception' });
+      break;
+    }
+    case 'two-tier': {
+      const refs = [t.options, t.reasons, t.answer, t.reasonAnswer].some((x) => typeof x === 'string');
+      if (refs && !t.generator) ctx.issues.push({ level: 'error', step: 'refs', file, path: p, message: "'@refs' in options/reasons/answers need a generator" });
+      if (Array.isArray(t.options) && typeof t.answer === 'number' && t.answer >= t.options.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.answer`, message: 'answer index out of range' });
+      if (Array.isArray(t.reasons) && typeof t.reasonAnswer === 'number' && t.reasonAnswer >= t.reasons.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.reasonAnswer`, message: 'reasonAnswer index out of range' });
+      if (!t.reasonFeedback && !t.optionFeedback) ctx.issues.push({ level: 'warning', step: 'lint', file, path: p, message: 'two-tier: give reasonFeedback (or optionFeedback) naming the misconception behind each wrong choice' });
+      break;
+    }
+    case 'explain':
+      checkText(t.model, scope, file, `${p}.model`, ctx);
+      t.checklist.forEach((c, k) => checkText(c, scope, file, `${p}.checklist[${k}]`, ctx));
+      break;
+    case 'case':
+      t.parts.forEach((part, k) => checkTemplate({ ...part, id: `${t.id}#${k + 1}`, skills: t.skills, difficulty: t.difficulty, tags: t.tags, generator: t.generator, data: t.data, explanation: part.explanation ?? '' } as Template, i, ctx, `${p}.parts[${k}]`));
+      break;
+    case 'order':
+      if (t.distractors?.some((d) => t.items.includes(d))) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.distractors`, message: 'a distractor repeats one of the items' });
+      break;
     case 'schedule-fill':
       if (typeof t.rows === 'string' && !t.generator) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.rows`, message: "a '@ref' for rows needs a generator" });
       if (Array.isArray(t.rows)) {
@@ -712,6 +742,16 @@ function checkTemplate(t: Template, i: number, ctx: Ctx) {
       break;
   }
   t.hints?.forEach((h, k) => checkText(h, scope, file, `${p}.hints[${k}]`, ctx));
+}
+
+/** Every learner-facing string of a built question (parts of a case included), for the unresolved-{=} check. */
+function instanceTexts(inst: QuizInstance): string[] {
+  return [inst.prompt, inst.explanation, ...(inst.options ?? []), ...(inst.steps?.map((x) => x.prompt) ?? []), ...(inst.misconceptions?.map((m) => m.feedback) ?? []),
+    ...(inst.hints ?? []), ...(inst.entries?.map((e) => e.prompt ?? '') ?? []), ...(inst.schedule?.rows.map((r) => r.label) ?? []),
+    ...(inst.lines ?? []), ...(inst.reasons ?? []), inst.fixPrompt ?? '', inst.reasonPrompt ?? '', inst.model ?? '', ...(inst.checklist ?? []),
+    ...(inst.estimate ? [inst.estimate.prompt, ...inst.estimate.options, inst.estimate.feedback ?? ''] : []),
+    ...Object.values(inst.optionFeedback ?? {}), ...Object.values(inst.reasonFeedback ?? {}), ...Object.values(inst.stepFeedback ?? {}),
+    ...(inst.parts ?? []).flatMap(instanceTexts)];
 }
 
 /** [[term-id]] links must name glossary terms (guide §4.2). */
@@ -864,6 +904,14 @@ export function lintModule(mod: ParsedModule): Issue[] {
   if (!mod.application.tradeoffs) w('application.yaml', 'no tradeoffs table');
   mod.glossary.forEach((t, i) => limit(t.short, 25, 'glossary.yaml', `terms[${i}].short`, `glossary "${t.id}" short`));
   if (mod.glossary.length < 10) w('glossary.yaml', `${mod.glossary.length} terms (guide: typically 10–25)`);
+  // a term with no links either way is a lone dot in the glossary graph (guide §5.6)
+  const linkedTerms = new Set<string>();
+  mod.glossary.forEach((t) => {
+    const to = [...(t.related ?? []), ...collectTermLinks(t.long).map((l) => l.id)];
+    if (to.length) linkedTerms.add(t.id);
+    to.forEach((r) => linkedTerms.add(r));
+  });
+  mod.glossary.forEach((t, i) => { if (!linkedTerms.has(t.id)) w('glossary.yaml', `term "${t.id}" is not linked to any other term (add 2–5 \`related\` ids so it joins the glossary graph)`, `terms[${i}]`); });
   const q = mod.quiz;
   if (q.length < 25) w('quiz.yaml', `${q.length} templates (guide: ≥ 25)`);
   q.forEach((t, i) => limit(t.explanation, 120, 'quiz.yaml', `templates[${i}].explanation`, 'explanation'));
@@ -1060,6 +1108,13 @@ export async function runLogicChecks(
       if (t.generator && !genSet.has(t.generator)) continue;
       const nSeeds = t.generator ? seeds : 1;
       const problems = new Set<string>();
+      // every scenario of a variant template is built and checked, not only the one a seed happens to pick
+      if (!t.generator) for (let k = 1; k < variantCount(t); k++) {
+        const vi = buildInstance({ moduleId: mod.manifest.id, datasets: data }, t, 1, undefined, k);
+        vi.problems.forEach((x) => problems.add(`scenario ${k + 1}: ${x}`));
+        for (const tx of instanceTexts(vi)) for (const m of interpolate(tx, vi.scope, { mode: 'md', labels: mod.labels }).missing) problems.add(`scenario ${k + 1}: unresolved {=${m}}`);
+        instances++;
+      }
       let slow = 0;
       let collapsed = 0;
       let misconceptionCount = (t.type === 'numeric' ? t.misconceptions?.length ?? 0 : 0);
@@ -1077,10 +1132,9 @@ export async function runLogicChecks(
         instances++;
         if (inst.numeric) misconceptionCount = Math.max(misconceptionCount, inst.misconceptions?.length ?? 0);
         // a misconception within tolerance of the answer is dropped, so that wrong method is graded correct
-        const checks = inst.numeric ? [{ spec: inst.numeric, miscs: inst.misconceptions }] : (inst.steps ?? []).map((st) => ({ spec: st.numeric, miscs: st.misconceptions }));
+        const checks = inst.numeric ? [{ spec: inst.numeric, miscs: inst.misconceptions }] : inst.fix ? [{ spec: inst.fix, miscs: inst.misconceptions }] : (inst.steps ?? []).map((st) => ({ spec: st.numeric, miscs: st.misconceptions }));
         if (checks.some(({ spec, miscs }) => miscs?.some((m) => Math.abs(m.value - spec.value) <= Math.max(spec.tol, (spec.relTol ?? 0) * Math.abs(spec.value)) + 1e-12))) collapsed++;
-        const texts: string[] = [inst.prompt, inst.explanation, ...(inst.options ?? []), ...(inst.steps?.map((x) => x.prompt) ?? []), ...(inst.misconceptions?.map((m) => m.feedback) ?? []),
-          ...(inst.hints ?? []), ...(inst.entries?.map((e) => e.prompt ?? '') ?? []), ...(inst.schedule?.rows.map((r) => r.label) ?? [])];
+        const texts: string[] = instanceTexts(inst);
         for (const tx of texts) for (const m of interpolate(tx, inst.scope, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}}`);
         if (t.show) {
           const missing: string[] = [];
@@ -1092,7 +1146,9 @@ export async function runLogicChecks(
         }
       }
       for (const pr of problems) E('quiz', 'quiz.yaml', p, `template "${t.id}": ${pr}`);
-      if (t.generator && collapsed / nSeeds > 0.1) W('lint', 'quiz.yaml', p, `template "${t.id}": in ${collapsed} of ${nSeeds} seeds a misconception lands within tolerance of the answer: either the wrong method is then graded correct, or the data never separates it from the right one, so the question doesn't test it (redraw such cases, guide §5.10)`);
+      // find-error: the misconception is the value printed on the "wrong" step, so if it equals the fix the step isn't wrong at all
+      if (t.type === 'find-error' && collapsed) E('quiz', 'quiz.yaml', p, `template "${t.id}": in ${collapsed} of ${nSeeds} seeds the wrong step's value equals the corrected value, so the "error" is correct (redraw those cases in the generator)`);
+      else if (t.generator && collapsed / nSeeds > 0.1) W('lint', 'quiz.yaml', p, `template "${t.id}": in ${collapsed} of ${nSeeds} seeds a misconception lands within tolerance of the answer: either the wrong method is then graded correct, or the data never separates it from the right one, so the question doesn't test it (redraw such cases, guide §5.10)`);
       if (slow) W('quiz', 'quiz.yaml', p, `template "${t.id}": generator took ${slow.toFixed(0)} ms (limit 50 ms)`);
       if (t.type === 'numeric' && misconceptionCount < 2) W('lint', 'quiz.yaml', p, `numeric template "${t.id}" has ${misconceptionCount} misconceptions (guide: ≥ 2)`);
     }

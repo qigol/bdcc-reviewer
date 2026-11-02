@@ -11,6 +11,28 @@ async function loadModule(page: Page, id: string) {
   return module;
 }
 
+/**
+ * Put some answer into every open control of the current question so it can be checked: the first option of each
+ * choice group (mcq, two-tier answer and reason, estimate, find-error step), a checkbox, numbers and blanks, a
+ * Parsons line, an explanation (then "Compare"), and "Show step" on hand calculations.
+ */
+async function answerVisible(page: Page) {
+  for (const g of await page.$$('[data-testid=question] [role=radiogroup]')) {
+    const r = await g.$('[role=radio]:enabled'); if (r && (await r.getAttribute('aria-checked')) !== 'true') { await r.click(); await page.waitForTimeout(50); }
+  }
+  const check = await page.$('[role=checkbox]:enabled'); if (check && (await check.getAttribute('aria-checked')) !== 'true') await check.click();
+  for (const s of await page.$$('input[aria-label$="answer"]:enabled, input[aria-label="corrected value"]:enabled')) if (!(await s.inputValue())) await s.fill('1');
+  for (const b of await page.$$('input[aria-label^="blank"]:enabled')) if (!(await b.inputValue())) await b.fill('x');
+  for (const sel of await page.$$('select[aria-label$=" account"]:enabled')) if (!(await sel.inputValue())) await sel.selectOption({ index: 1 });
+  for (const d of await page.$$('input[aria-label$=" line 1 debit"]:enabled')) if (!(await d.inputValue())) await d.fill('1');
+  for (const c of await page.$$('input[aria-label$=" line 2 credit"]:enabled')) if (!(await c.inputValue())) await c.fill('1');
+  for (const cell of await page.$$('[data-testid=schedule-fill] input:enabled')) if (!(await cell.inputValue())) await cell.fill('1');
+  const line = await page.$('[data-testid=parsons] button:enabled:not([aria-label])'); if (line) await line.click();
+  const why = await page.$('textarea[aria-label="your explanation"]:enabled');
+  if (why) { await why.fill('An explanation long enough to compare with the model answer.'); await page.click('[data-testid=explain-compare]'); }
+  for (let k = 0; k < 8; k++) { const s = await page.$('button:has-text("Show step")'); if (!s) break; await s.click(); await page.waitForTimeout(100); }
+}
+
 function collectErrors(page: Page) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -50,6 +72,24 @@ test('dashboard, glossary, cheatsheet and settings render', async ({ page }) => 
     await page.goto(path);
     await page.waitForLoadState('networkidle');
   }
+  expect(errors).toEqual([]);
+});
+
+test('glossary notes: old ?term= links redirect, links open notes, graph mode renders', async ({ page }) => {
+  const errors = collectErrors(page);
+  const mod = await loadModule(page, modules[0]);
+  const t = mod.glossary.find((x) => x.related?.length)!;
+  await page.goto(`/glossary?term=${t.id}`);
+  await expect(page).toHaveURL(new RegExp(`/glossary/${t.id}$`));
+  const note = page.getByTestId('glossary-note');
+  await expect(note.getByRole('heading', { level: 2 })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('img', { name: /Terms linked to/ })).toBeVisible();
+  // a link chip opens that term's note
+  await note.locator(`a[href="/glossary/${t.related![0]}"]`).first().click();
+  await expect(page).toHaveURL(new RegExp(`/glossary/${t.related![0]}$`));
+  await page.getByRole('tab', { name: 'Graph' }).click();
+  await expect(page).toHaveURL(/\/glossary\/graph$/);
+  await expect(page.getByRole('img', { name: /Graph of \d+ glossary terms/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -114,12 +154,14 @@ test('every quiz template instantiates and can be answered', async ({ page }) =>
       const metaText = async () => (await page.getByTestId('question-meta').textContent().catch(() => '')) ?? '';
       const meta = await metaText();
       seen.add(meta.split('·')[1]?.trim() ?? '');
-      const radio = await page.$('[role=radio]'); if (radio) await radio.click();
-      const check = await page.$('[role=checkbox]'); if (check) await check.click();
-      const num = await page.$('input[aria-label=answer]'); if (num) await num.fill('1');
-      for (const b of await page.$$('input[aria-label^="blank"]')) await b.fill('x');
-      for (let k = 0; k < 8; k++) { const s = await page.$('button:has-text("Show step")'); if (!s) break; await s.click(); await page.waitForTimeout(100); }
-      for (const s of await page.$$('input[aria-label$="answer"]')) if (!(await s.inputValue())) await s.fill('1');
+      // a multi-part case opens its parts one at a time, so answer and check up to 6 rounds
+      for (let round = 0; round < 6; round++) {
+        await answerVisible(page);
+        const part = await page.$('[data-testid=case-check-part]:enabled');
+        if (!part) break;
+        await part.click();
+        await page.waitForTimeout(150);
+      }
       const submit = await page.$('[data-testid=submit-answer]');
       if (submit && (await submit.isEnabled())) await submit.click();
       await page.waitForTimeout(200);

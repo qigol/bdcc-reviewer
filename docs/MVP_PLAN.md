@@ -171,7 +171,7 @@ bdcc-midterms-reviewer/
 | `/quiz` | Session builder: course (one per quiz), modules, types, skills, difficulty, count, mode |
 | `/quiz/run/:sessionId` | Question runner |
 | `/review` | Spaced-repetition queue and mistake journal |
-| `/glossary` | All terms across modules (searchable, filterable by module) |
+| `/glossary`, `/glossary/:termId`, `/glossary/graph` | Terms as linked notes: one note per term id across modules (each module's definition as a tab), links (`related` + `[[links]]`), backlinks, lessons that mention it, a local graph; graph mode shows every term (searchable, filterable by course or module) |
 | `/cheatsheet` | Auto-built printable formula sheet per course (key formulas, exam tips, errata) |
 | `/admin` | Module manager (token-protected) |
 

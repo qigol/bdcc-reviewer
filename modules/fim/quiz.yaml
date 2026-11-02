@@ -203,6 +203,7 @@ templates:
       - Frequent itemsets always contain the most frequent item
     answer: 0
     optionFeedback:
+      3: "Frequent itemsets can leave out the most frequent item entirely. The principle is about supersets of infrequent itemsets."
       '1': 'Backwards: supersets can lose baskets. {milk} is frequent but {milk, butter} is not.'
       '2': 'Subsets of an infrequent itemset can be frequent: {bread, eggs} is infrequent but {bread} is frequent.'
     hints:
@@ -223,10 +224,37 @@ templates:
       - It always loses exactly the itemsets of support 2
     answer: 0
     optionFeedback:
+      1: "A higher cutoff can't admit anything new: every support stays the same, and the bar only rises."
+      2: "Supports don't change when minsup changes, so a higher bar can only drop itemsets, never add them."
       '3': Close, but it loses every itemset with support exactly 2, and that may be none.
     hints:
       - Does changing minsup change any itemset's support?
     explanation: Each itemset's support is fixed; a higher cutoff keeps a subset of what a lower cutoff kept.
+    variants:
+      - prompt: You lower minsup from 4 to 2. What happens to the set of frequent itemsets?
+        options:
+          - It can only grow or stay the same
+          - It can only shrink or stay the same
+          - It can grow or shrink depending on the data
+          - It always gains exactly the itemsets of support 2 and 3
+        answer: 0
+        optionFeedback:
+          1: A lower bar can't drop anything that already passed.
+          2: Supports don't change, so a lower bar only adds itemsets.
+          3: It gains every itemset with support 2 or 3, which may be none.
+        explanation: Each support is fixed; a lower cutoff keeps everything the higher cutoff kept, and possibly more.
+      - prompt: An itemset {tea, sugar} has support 5. You raise minsup from 3 to 6. What happens to {tea, sugar, milk}?
+        options:
+          - It is infrequent, whatever its own count
+          - It becomes frequent if milk is common
+          - It stays as frequent as before
+          - It depends on the order of the items
+        answer: 0
+        optionFeedback:
+          1: Its support can't exceed 5, its subset's support, so it can't reach 6.
+          2: It was at most 5 before too, so it couldn't stay frequent at 6.
+          3: Item order doesn't affect support.
+        explanation: A superset's support is at most its subset's (5), so at minsup 6 it is infrequent.
 
   - id: apriori-steps
     type: order
@@ -317,6 +345,12 @@ templates:
       - Different prefixes can be mined independently, which makes it parallelizable
       - It finds fewer frequent itemsets than Apriori
     answer: [0, 1, 3]
+    optionFeedback:
+      0: "Yes: FP-growth only extends prefixes that actually occur in the projected rows."
+      1: "Yes: each row of a prefix's projected database is a transaction containing that prefix, so the row count is the support."
+      2: "That's Apriori's pattern. FP-growth reads the database to build its structure, then works on ever-smaller projections."
+      3: "Yes: each prefix's projected database is independent, so branches can run on different workers."
+      4: "Both methods find exactly the same frequent itemsets. They differ only in how they search."
     hints:
       - Think about what a prefix's filtered table contains.
     explanation: Projected databases shrink as the prefix grows; their row count is the support; each branch is independent, so it can be split across machines. It finds exactly the same itemsets as Apriori.
@@ -753,11 +787,37 @@ templates:
       - None of them; all three are sequential
     answer: 0
     optionFeedback:
+      3: "FP-growth's prefixes are independent, which is exactly what makes it parallelizable."
       '1': 'Apriori: "faster but more complicated than brute force".'
       '2': 'Brute force: "simple but computationally expensive".'
     hints:
       - Which method splits the work into independent filtered tables?
     explanation: Projected databases for different prefixes are independent, so FP-growth splits across workers (Spark's parallel FP-growth).
+    variants:
+      - prompt: Which method does the lecture describe as checking every possible itemset, which explodes as the number of items grows?
+        options:
+          - Brute force
+          - Apriori
+          - FP-growth
+          - All three equally
+        answer: 0
+        optionFeedback:
+          1: Apriori prunes candidates using infrequent subsets.
+          2: FP-growth never generates candidates that don't occur.
+          3: Only brute force enumerates every itemset.
+        explanation: Brute force checks all 2^n − 1 itemsets.
+      - prompt: Which method does the lecture describe as generating candidates level by level and pruning any whose subset is infrequent?
+        options:
+          - Apriori
+          - Brute force
+          - FP-growth
+          - None of them
+        answer: 0
+        optionFeedback:
+          1: Brute force checks everything without pruning.
+          2: FP-growth works on projected databases, without candidate levels.
+          3: That's exactly Apriori.
+        explanation: Apriori grows candidates level by level and prunes using the Apriori principle.
 
   - id: act-on-rule
     type: mcq
@@ -780,3 +840,229 @@ templates:
       - Which rules have lift clearly above 1?
       - Of those, which one touches enough customers to matter?
     explanation: Look for lift clearly above 1 **and** enough support to matter. Cough syrup → lozenges has both.
+
+  # ------------------------------------------------------------------ new formats (case, estimate, two-tier, cloze)
+  - id: rule-case
+    type: case
+    skills: [confidence, lift, interpretation]
+    difficulty: 3
+    tags: [math]
+    generator: liftQ
+    lessonRef: { tab: math-code, id: lift }
+    prompt: |
+      **Judge one rule from the raw baskets:** ${=A|set} \rightarrow {=B|set}$.
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    parts:
+      - type: numeric
+        prompt: Confidence of the rule (two decimals)
+        answer: { var: conf, tol: 0.01 }
+        explanation: 'Conf = Sup(A ∪ B) / Sup(A) = {=supAB}/{=supA} = {=conf|2}.'
+      - type: numeric
+        prompt: Lift of the rule (two decimals)
+        answer: { var: lift, tol: 0.02 }
+        misconceptions:
+          - { var: wrongRelA, feedback: 'You divided by RelSup(A). Lift divides the confidence by how common the **consequent** is: RelSup(B).' }
+          - { var: wrongConf, feedback: 'That is just the confidence. Lift divides it by RelSup(B).' }
+        explanation: 'Lift = {=conf|2} / ({=supB}/{=n}) = {=lift|2}.'
+      - type: two-tier
+        prompt: What does the lift say about this rule?
+        options: ['Baskets with A hold B **more** often than average', 'Baskets with A hold B **less** often than average']
+        answer: '@liftAbove'
+        reasons:
+          - Lift compares the rule's confidence with B's base rate across all baskets
+          - A confidence above 0.5 means a positive association
+          - Lift measures how often A and B appear together out of all baskets
+        reasonAnswer: 0
+        reasonFeedback:
+          1: A high confidence can still be below B's base rate (the milk trap). Lift is what checks that.
+          2: That's the support of A ∪ B. Lift is confidence relative to how common B is.
+        explanation: 'Lift {=lift|2}: baskets with A hold B at {=lift|2}× the usual rate, a {=verdict} association.'
+    hints:
+      - Count Sup(A), Sup(B) and Sup(A ∪ B) first.
+      - Lift = Conf / RelSup(B); above 1 means positive association.
+    explanation: Conf {=conf|2}, lift {=lift|2} ({=verdict} association).
+
+  - id: lift-estimate
+    type: numeric
+    skills: [lift]
+    difficulty: 2
+    tags: [math]
+    generator: liftQ
+    lessonRef: { tab: math-code, id: lift }
+    prompt: |
+      Compute $\text{Lift}({=A|set} \rightarrow {=B|set})$ (two decimals).
+    show:
+      - { id: t, widget: TransactionTable, props: { transactions: '@transactions' } }
+    estimate:
+      prompt: Before computing, compare the rule's confidence with how common B is. Will the lift be above or below 1?
+      options: [Above 1, Below 1]
+      answer: '@liftAbove'
+      feedback: Lift is above 1 exactly when Conf(A → B) is bigger than RelSup(B).
+    answer: { var: lift, tol: 0.02 }
+    hints:
+      - First the confidence, Sup(A ∪ B) / Sup(A).
+      - Then divide by the consequent's base rate, Sup(B) / |D|.
+    explanation: |
+      $\text{Conf} = {=supAB}/{=supA} = {=conf|2}$, $\text{RelSup}(B) = {=supB}/{=n} = {=relB|2}$, so $\text{Lift} = {=lift|2}$ ({=verdict}).
+
+  - id: high-conf-two-tier
+    type: two-tier
+    skills: [lift, interpretation]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: milk-trap }
+    prompt: A sari-sari store finds {bread} → {rice} with confidence **0.85**. Rice is in **90%** of all baskets. Should the owner shelve rice next to bread to boost rice sales?
+    options: ['No, the rule tells us little', 'Yes, 85% is a strong rule']
+    answer: 0
+    reasons:
+      - Bread buyers buy rice slightly **less** often than shoppers overall, so the lift is below 1
+      - Any confidence above 0.8 is a strong rule
+      - Confidence measures how often both items appear in all baskets
+    reasonAnswer: 0
+    optionFeedback:
+      1: 85% looks strong, but 90% of all shoppers already buy rice. Bread buyers are slightly below that.
+    reasonFeedback:
+      1: Confidence alone can't tell a real association from a popular consequent. That's what lift is for.
+      2: That's the support of {bread, rice}. Confidence is conditional on buying bread.
+    hints: [Compare 0.85 with how common rice is anyway.]
+    explanation: Lift = 0.85 / 0.90 ≈ 0.94 < 1. Rice is popular everywhere, and bread buyers take it a bit less often, so moving it gains nothing.
+
+  - id: measures-cloze
+    type: code-fill
+    lang: text
+    skills: [support, confidence, lift]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: lift }
+    prompt: Fill in the measure names.
+    code: |
+      The number of baskets that contain an itemset is its __BLANK_1__. For a rule A → B, Sup(A ∪ B) ÷ Sup(A) is the
+      __BLANK_2__, and dividing that by B's relative support gives the __BLANK_3__.
+    blanks:
+      '1': { accept: [support, support count, absolute support], hint: 's…' }
+      '2': { accept: [confidence], hint: 'c…' }
+      '3': { accept: [lift], hint: 'l…' }
+    hints: [Count, then a conditional share, then a comparison with the base rate.]
+    explanation: Support counts baskets; confidence = Sup(A ∪ B)/Sup(A); lift = confidence / RelSup(B).
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-rule-use
+    type: two-tier
+    skills: [lift, interpretation]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: milk-trap }
+    prompt: 'A pharmacy finds {vitamin C} → {paracetamol} with confidence 0.30. Paracetamol is in 10% of all baskets. Is this rule worth acting on, e.g. by shelving them together?'
+    options: ['Yes; the lift is 3, a strong positive association', 'No; 0.30 confidence is too low to matter', 'No; paracetamol is too common']
+    answer: 0
+    reasons:
+      - Lift compares confidence with paracetamol's base rate, 0.30 ÷ 0.10
+      - Only confidence above 0.5 matters
+      - Common items can't be in useful rules
+    reasonAnswer: 0
+    optionFeedback:
+      1: Low confidence can still be three times the usual rate.
+      2: Paracetamol is in only 10% of baskets.
+    reasonFeedback:
+      1: Confidence alone can't judge a rule; lift compares it with the base rate.
+      2: Commonness matters only through lift.
+    hints: [Compare 0.30 with how common paracetamol is.]
+    explanation: Lift = 0.30 ÷ 0.10 = 3, so vitamin-C buyers buy paracetamol three times as often as average.
+    variants:
+      - prompt: 'A hardware store finds {paint} → {brush} with confidence 0.60. Brushes are in 65% of all baskets. Is the rule useful?'
+        options: ['No; the lift is below 1', 'Yes; 60% confidence is strong', 'Yes; brushes are popular']
+        answer: 0
+        reasons:
+          - Lift = 0.60 ÷ 0.65 ≈ 0.92, so paint buyers take brushes slightly less often than average
+          - Any confidence above 0.5 means a good rule
+          - Popular items always make strong rules
+        reasonAnswer: 0
+        optionFeedback:
+          1: 60% is below the 65% base rate.
+          2: Popularity inflates confidence without making the rule useful.
+        reasonFeedback:
+          1: Confidence has to be compared with the base rate.
+          2: A popular consequent is the milk trap.
+        explanation: Lift ≈ 0.92 < 1; this is the milk trap again.
+      - prompt: 'An online bookstore finds {cookbook} → {apron} with confidence 0.08. Aprons are in 1% of all orders. Is the rule interesting?'
+        options: ['Yes; lift is 8, a strong association despite low confidence', 'No; 8% confidence is negligible', 'No; aprons are rare']
+        answer: 0
+        reasons:
+          - Lift = 0.08 ÷ 0.01 = 8
+          - Rules below 50% confidence never matter
+          - Rare consequents can't form rules
+        reasonAnswer: 0
+        optionFeedback:
+          1: Eight times the base rate is a strong signal.
+          2: Rarity is why lift is so high here.
+        reasonFeedback:
+          1: Confidence must be judged against the base rate.
+          2: Rare items can still form rules; check support too.
+        explanation: Lift 8; check support too before acting.
+
+  - id: transfer-support-meaning
+    type: mcq
+    skills: [support, frequent-itemset]
+    difficulty: 1
+    tags: [application]
+    lessonRef: { tab: math-code, id: support }
+    prompt: 'A milk-tea chain''s 2,000 orders today include 300 with both taro and nata de coco. What is the relative support of {taro, nata de coco}?'
+    options: ['0.15', '300', '0.30', '6.67']
+    answer: 0
+    optionFeedback:
+      1: 300 is the absolute support; relative support divides by the 2,000 orders.
+      2: That would be 600 orders.
+      3: You divided the wrong way round.
+    hints: [Relative support = count ÷ number of transactions.]
+    explanation: 300 ÷ 2,000 = 0.15.
+    variants:
+      - prompt: 'A grocer has 500 baskets; 40 contain {rice, eggs}. With a relative minsup of 0.10, is {rice, eggs} frequent?'
+        options: ['No; its relative support is 0.08', 'Yes; 40 is more than 10', 'Yes; eggs are common', 'No; pairs are never frequent']
+        answer: 0
+        optionFeedback:
+          1: Minsup here is relative; 40 ÷ 500 = 0.08 < 0.10.
+          2: The pair's own support decides it, not eggs alone.
+          3: Pairs are frequent if their support passes the bar.
+        explanation: 40 ÷ 500 = 0.08, below 0.10.
+      - prompt: 'A pharmacy keeps itemsets bought in at least 2% of its 15,000 receipts. What absolute support does that mean?'
+        options: ['300 receipts', '2 receipts', '30 receipts', '7,500 receipts']
+        answer: 0
+        optionFeedback:
+          1: 2 is the percent, not a count.
+          2: That's 0.2%.
+          3: That's half the receipts.
+        explanation: 0.02 × 15,000 = 300 receipts.
+
+  - id: transfer-apriori-prune
+    type: mcq
+    skills: [apriori]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: apriori-principle }
+    prompt: 'In a hardware store''s data, {nails} and {hammer} are frequent but {glue} is not. Which candidate can Apriori prune without counting it?'
+    options: ['{nails, glue}', '{nails, hammer}', '{hammer}', 'None; every candidate must be counted']
+    answer: 0
+    optionFeedback:
+      1: Both its subsets are frequent, so it must be counted.
+      2: "{hammer} is already known to be frequent."
+      3: Apriori skips candidates with an infrequent subset.
+    hints: [Which candidate contains an infrequent item?]
+    explanation: '{glue} is infrequent, so any superset, such as {nails, glue}, is infrequent too.'
+    variants:
+      - prompt: '{bread, butter} is infrequent. Which itemset must be infrequent too?'
+        options: ['{bread, butter, jam}', '{bread}', '{butter}', '{bread, jam}']
+        answer: 0
+        optionFeedback:
+          1: A subset of an infrequent itemset can still be frequent.
+          2: A subset of an infrequent itemset can still be frequent.
+          3: It doesn't contain {bread, butter}.
+        explanation: Supersets of an infrequent itemset are infrequent.
+      - prompt: 'All of {a, b}, {a, c} and {b, c} are frequent. What can you say about {a, b, c} before counting?'
+        options: ['Nothing yet; it must be counted', 'It is frequent', 'It is infrequent', 'It has the same support as {a, b}']
+        answer: 0
+        optionFeedback:
+          1: Frequent subsets don't guarantee a frequent superset.
+          2: Its subsets are all frequent, so Apriori can't prune it.
+          3: Its support is at most {a, b}'s, not necessarily equal.
+        explanation: Apriori can only prune when a subset is infrequent; here it must count.

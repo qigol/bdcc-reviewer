@@ -26,7 +26,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       ...m.parsed.intuition.map((s) => ({ kind: 'scene' as const, title: s.title, sub: `${t} · Intuition · ${s.goal}`, to: `/m/${m.id}/intuition/${s.id}` })),
       ...m.parsed.mathCode.map((s) => ({ kind: 'section' as const, title: s.title, sub: `${t} · ${workbenchTabLabel(m.parsed.manifest)}`, to: `/m/${m.id}/math-code/${s.id}` })),
       ...m.parsed.mathCode.filter((s) => s.keyFormula).map((s) => ({ kind: 'formula' as const, title: s.title, sub: `${t} · formula`, to: `/m/${m.id}/math-code/${s.id}`, tex: s.keyFormula })),
-      ...m.parsed.glossary.map((g) => ({ kind: 'term' as const, title: g.term, sub: `${t} · ${g.short}`, to: `/glossary?term=${g.id}` })),
+      ...m.parsed.glossary.map((g) => ({ kind: 'term' as const, title: g.term, sub: `${t} · ${g.short}`, to: `/glossary/${g.id}` })),
     ];
   }), [mods, courses]);
   const ql = q.toLowerCase().trim();

@@ -374,6 +374,8 @@ templates:
       - nothing; item-based CF uses the raw ratings
     answer: 0
     optionFeedback:
+      2: "One global mean wouldn't remove each user's own harshness or generosity."
+      3: "The lecture centers by the user's mean first; that's what makes it the adjusted cosine."
       '1': 'Centering by the item mean is the Pearson correlation between items, a different measure. The lecture centers the whole table by user means and then compares columns.'
     explanation: The same user-centered matrix serves both flavours; comparing its columns is the adjusted cosine.
 
@@ -390,6 +392,10 @@ templates:
       - TW has the lowest average rating of all the films
       - Similarities below 0.5 are rounded down to 0
     answer: 0
+    optionFeedback:
+      1: "Opposite ratings give a negative similarity, not exactly 0."
+      2: "An item's average doesn't decide the similarity; co-ratings do, and there are none."
+      3: "Nothing is rounded. 0 is the default when no user rated both items."
     explanation: Only B rated HP3 and only A and C rated TW, so the co-rated set is empty and similarity defaults to 0.
 
   - id: dcg-numeric
@@ -650,9 +656,35 @@ templates:
       - So the most popular items stop dominating every similarity
     answer: 0
     optionFeedback:
+      1: "Centering changes the values, not how many ratings each user has."
       '2': 'Missing ratings stay missing; centering never turns blanks into zeros.'
       '3': 'That would be centering by the item (column) mean. The lecture subtracts each user''s own mean.'
     explanation: A 4 from a harsh rater and a 5 from a generous one can mean the same thing. Centering expresses both as deviations from that person's usual.
+    variants:
+      - prompt: Two users rate only films they like, but one uses 4s and the other 5s. Why does centering matter when comparing them?
+        options:
+          - It shows both rate the same films above their own usual, so they agree
+          - It makes their ratings identical
+          - It removes the films they didn't rate
+          - It turns all ratings into 0 or 1
+        answer: 0
+        optionFeedback:
+          1: Centering subtracts each user's mean; the values can still differ.
+          2: Unrated films stay blank; centering doesn't touch them.
+          3: Centering keeps the full scale, just shifted.
+        explanation: Centering expresses each rating relative to the user's own mean, so different scales compare fairly.
+      - prompt: Without centering, why can two users with opposite tastes still get a high cosine similarity?
+        options:
+          - All ratings are positive, so the raw vectors point in similar directions
+          - Cosine ignores the ratings
+          - Opposite tastes always give a high cosine
+          - Blank cells count as agreement
+        answer: 0
+        optionFeedback:
+          1: Cosine uses the ratings; the problem is they're all positive.
+          2: After centering, opposite tastes give a negative cosine.
+          3: Only co-rated cells are compared.
+        explanation: Raw 1–5 ratings are all positive, which pushes cosines up; centering lets disagreement show as negative values.
 
   - id: positive-only
     type: mcq
@@ -667,6 +699,10 @@ templates:
       - D has the lowest mean rating of the candidates
       - Only the top two of the k = 3 are ever used
     answer: 0
+    optionFeedback:
+      1: "How D rated item c doesn't decide this; D's similarity to B does."
+      2: "Means aren't the filter. The rule drops neighbours with sim ≤ 0."
+      3: "All top-k neighbours are used if their similarity is positive. D is dropped for being negative."
     explanation: The rule is top-k, then keep sim > 0. D fills a top-3 slot (sim −0.72) but is dropped.
 
   - id: blank-when
@@ -682,6 +718,10 @@ templates:
       - When k is larger than the number of candidates
       - Only when nobody at all has rated the target item
     answer: 0
+    optionFeedback:
+      1: "A low mean doesn't blank a prediction; a missing positive neighbour does."
+      2: "With fewer candidates than k, the lecture uses the ones there are."
+      3: "Others may have rated it; the cell is blank when none of them has a positive similarity."
     explanation: 'C''s rated items all have similarity 0 with HP2, so there is no positive neighbour and nothing to average.'
 
   - id: one-overlap
@@ -697,6 +737,10 @@ templates:
       - B rated more movies than A, so their vectors differ in length
       - A centered cosine reaches 1 only when both rated every movie
     answer: 0
+    optionFeedback:
+      1: "Different means are removed by centering and can't cause a rounding error."
+      2: "Similarity uses only the co-rated items, so extra ratings don't matter."
+      3: "A centered cosine can be 1 with partial overlap; with one shared item, ±1 is guaranteed."
     explanation: With one shared item, the centered "vectors" are single numbers, so the cosine is just their sign. It is not strong evidence.
 
   - id: sparsity-statements
@@ -713,6 +757,12 @@ templates:
       - Many predictions can be blank because no positive neighbour exists
       - Sparsity only affects item-based CF
     answer: [0, 1, 3]
+    optionFeedback:
+      0: "Yes: a similarity from one or two shared items is mostly noise."
+      1: "Yes: with no ratings there is nothing to compare, which is the cold-start problem."
+      2: "Centering shifts existing ratings; blanks stay blank."
+      3: "Yes: when no neighbour has a positive similarity, the cell stays empty."
+      4: "Both flavours depend on overlaps, so both suffer."
     explanation: Overlaps, cold start and blank predictions are all symptoms of sparsity. Centering does not fill blanks, and both flavours suffer.
 
   - id: why-item-based
@@ -728,6 +778,10 @@ templates:
       - User-based CF cannot handle users with different rating scales
       - Item-based CF always reaches a higher NDCG than user-based CF
     answer: 0
+    optionFeedback:
+      1: "Item-based CF can leave blanks too when no positive neighbour exists."
+      2: "Mean-centering handles different scales in user-based CF."
+      3: "Neither flavour always wins on NDCG; the argument is about cost and stability."
     explanation: 'There are far fewer item pairs than user pairs, and item relations are stable. That is Amazon''s classic argument.'
 
   - id: dcg-top-discount
@@ -743,7 +797,36 @@ templates:
       - '1/2, half of its gain'
       - 'It depends on k'
     answer: 0
+    optionFeedback:
+      1: "The discount is log₂(i + 1), so position 1 uses log₂2 = 1, not log₂1."
+      2: "Half its gain would be log₂4 = 2, the discount for position 3."
+      3: "The discount depends on the position only; k just says where the list stops."
     explanation: 'Positions are discounted by log₂(i + 1), so position 1 divides by log₂2 = 1.'
+    variants:
+      - prompt: In the lecture's DCG, what is the discount for the item in position 3?
+        options:
+          - log₂(4) = 2, so its gain is halved
+          - log₂(3) ≈ 1.58
+          - 3, the position itself
+          - 1, the same as position 1
+        answer: 0
+        optionFeedback:
+          1: The discount uses i + 1, so position 3 uses log₂4.
+          2: The position isn't used directly; its log₂(i + 1) is.
+          3: Only position 1 has discount 1.
+        explanation: Position i is discounted by log₂(i + 1), so position 3 divides by 2.
+      - prompt: In the lecture's DCG, what is the discount for the item in position 7?
+        options:
+          - log₂(8) = 3
+          - log₂(7) ≈ 2.81
+          - "7"
+          - "8"
+        answer: 0
+        optionFeedback:
+          1: Use i + 1 = 8, not 7.
+          2: The position goes through log₂(i + 1).
+          3: 8 is i + 1 before taking the logarithm.
+        explanation: log₂(7 + 1) = 3.
 
   - id: ndcg-meaning
     type: mcq
@@ -758,4 +841,278 @@ templates:
       - The list contains exactly one relevant item
       - The list's DCG@5 is exactly 1
     answer: 0
+    optionFeedback:
+      1: "Relevances can be any grades; NDCG = 1 is about the order."
+      2: "NDCG = 1 means the ideal order, whatever the number of relevant items."
+      3: "DCG itself can be any size; it's DCG ÷ IDCG that equals 1."
     explanation: NDCG = DCG / IDCG reaches 1 only when the list matches the ideal ordering.
+
+  # ------------------------------------------------------------------ new formats (case, find-error, two-tier, explain, Parsons)
+  - id: ub-case
+    type: case
+    skills: [ubcf-predict, neighbors, mean-centering]
+    difficulty: 3
+    tags: [math]
+    generator: ubPredictQ
+    lessonRef: { tab: intuition, id: add-the-mean-back }
+    prompt: |
+      **Predict one rating end to end.** User-based CF with k = {=k}, for {=user} · {=item}.
+    show:
+      - { id: r, widget: Matrix, props: { data: '@matrix', format: int, showRowMeans: true, title: Original ratings } }
+      - { id: c, widget: Matrix, props: { data: '@centeredM', format: 2, title: Centered ratings, showRowMeans: false } }
+      - { id: s, widget: Matrix, props: { data: '@sims', format: 2, heatmap: div, title: User similarities } }
+    parts:
+      - type: numeric
+        prompt: "{=user}'s mean rating (two decimals)"
+        answer: { var: mean, tol: 0.01 }
+        explanation: 'Average of the ratings {=user} gave: {=mean|2}.'
+      - type: two-tier
+        prompt: Suppose one of the top-{=k} candidates has a negative similarity to {=user}. What happens to that user?
+        options: ['They are dropped before averaging', 'Their centered rating is used with its sign flipped', 'They are replaced by the next user down the list']
+        answer: 0
+        reasons:
+          - The lecture keeps the top k, then keeps only those with similarity > 0
+          - A negative similarity means they agree with the target user
+          - k must always be filled exactly
+        reasonAnswer: 0
+        reasonFeedback:
+          1: A negative similarity means their tastes run opposite to the target user's.
+          2: The lecture doesn't refill the list; it uses the positive ones it has.
+        explanation: 'Top-{=k}: {=top|list}; used after dropping sim ≤ 0: {=used|list}.'
+      - type: numeric
+        prompt: The centered prediction ŝ (two decimals)
+        answer: { var: pred, tol: 0.02 }
+        explanation: 'ŝ = {=num|3} ÷ {=den|3} = {=pred|2}.'
+      - type: numeric
+        prompt: The predicted **rating** (two decimals; do not clip)
+        answer: { var: rating, tol: 0.02 }
+        misconceptions:
+          - { var: wrongNoMean, feedback: "That's ŝ, the centered prediction. Add the user's mean to get a rating." }
+        explanation: 'r̂ = ŝ + μ = {=pred|2} + {=mean|2} = {=rating|2}.'
+    hints:
+      - Rank the other raters of the item by similarity, keep the top k, then drop sim ≤ 0.
+      - ŝ is the similarity-weighted average of their centered ratings; add the mean back at the end.
+    explanation: Mean {=mean|2}; neighbours {=used|list}; ŝ = {=pred|2}; rating {=rating|2}.
+
+  - id: dcg-find-error
+    type: find-error
+    skills: [dcg]
+    difficulty: 2
+    tags: [math]
+    generator: dcgQ
+    lessonRef: { tab: math-code, id: dcg }
+    prompt: |
+      True relevance: {=ratingsText}. A recommender returns **{=list|list}**. A classmate computes DCG@{=k}. **One step is wrong.**
+      Click it and give the correct DCG.
+    steps:
+      - 'List the relevance of each recommended item, in order'
+      - 'Gain of each item = its relevance, rel'
+      - 'Discount at position i = log₂(i + 1)'
+      - 'DCG@{=k} = Σ gain ÷ discount = {=wrongLinear|2}'
+    wrong: 1
+    fix: { var: dcg, tol: 0.05 }
+    fixPrompt: What is the correct DCG@{=k} (two decimals)?
+    misconceptions:
+      - { var: wrongLinear, feedback: "That still uses rel as the gain. The lecture's gain is 2^rel − 1." }
+    stepFeedback:
+      0: Reading off the relevances in list order is right.
+      2: log₂(i + 1) is the lecture's discount.
+      3: The sum follows from the gains before it; fix the gain first.
+    hints: [Check the gain formula against the lecture.]
+    explanation: 'With gain 2^rel − 1: {=terms}, so DCG = {=dcg|2}. Linear gains give {=wrongLinear|2}.'
+
+  - id: center-two-tier
+    type: two-tier
+    skills: [mean-centering, similarity]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: borrowing-opinions }
+    prompt: Ana rates everything 4–5; Ben rates everything 1–2. They rank the same films in the same order. Without mean-centering, their raw cosine similarity is high but loses information. What does centering make visible?
+    options: ['That they agree: both rate the same films above their own average', 'That they disagree, because their ratings are far apart', 'Nothing, since centering only rescales']
+    answer: 0
+    reasons:
+      - Centering turns each rating into "above or below this person's usual"
+      - Centering makes all ratings positive
+      - Raw ratings already compare people on a common scale
+    reasonAnswer: 0
+    optionFeedback:
+      1: Distance between rating levels is a scale difference, not disagreement.
+      2: Centering shifts each person's ratings by their own mean, which changes the comparison.
+    reasonFeedback:
+      1: Centering produces negative values for below-average ratings.
+      2: Harsh and generous raters use the scale differently; that's why centering is needed.
+    hints: [What does a 4 mean to someone who gives everything a 4 or 5?]
+    explanation: After centering, Ana's and Ben's above-average films line up, so their centered cosine is high for the right reason.
+
+  - id: ub-ib-explain
+    type: explain
+    skills: [ibcf-predict, sparsity-pitfalls]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: borrowing-opinions }
+    prompt: Explain the difference between user-based and item-based CF, and why a large shop might prefer item-based.
+    model: |
+      User-based CF finds users similar to the target user and averages their ratings of the item. Item-based CF finds items
+      similar to the target item (by comparing item columns of the centered matrix) and averages the user's own ratings of those
+      items. A shop with many more users than items prefers item-based: there are far fewer item pairs, item relations change
+      slowly, so similarities can be precomputed and reused.
+    checklist:
+      - User-based compares users and borrows their ratings of the item
+      - Item-based compares items and uses the user's own ratings of similar items
+      - Item pairs are far fewer than user pairs when users outnumber items
+      - Item similarities are stable, so they can be precomputed
+    hints: [Count the pairs to compare in each flavour.]
+    explanation: Same idea, transposed; item-based scales better when items are few and stable.
+
+  - id: ub-parsons
+    type: order
+    skills: [ubcf-predict]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: intuition, id: add-the-mean-back }
+    prompt: Build the lecture's user-based prediction procedure from the bank. Two lines don't belong.
+    items:
+      - Mean-center each user's ratings
+      - Compute the target user's similarity to every other user over co-rated items
+      - Among users who rated the item, keep the top k by similarity
+      - Drop neighbours with similarity ≤ 0
+      - Take the similarity-weighted average of their centered ratings (ŝ)
+      - Add the target user's mean back to get the rating
+    distractors:
+      - Fill every blank with 0 before computing similarities
+      - Use every user who rated the item, whatever their similarity
+    hints: [Centering comes first, and the mean comes back last.]
+    explanation: Center → similarity → top-k → keep sim > 0 → weighted average ŝ → add the mean. Blanks stay blank, and neighbours are filtered.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-cf-flavor
+    type: mcq
+    skills: [ibcf-predict, sparsity-pitfalls]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: item-based-ab }
+    prompt: A Philippine streaming app has 8 million users and 3,000 shows. It wants to precompute similarities overnight. Which neighbourhood CF flavour fits better?
+    options:
+      - Item-based, because there are far fewer show pairs and they change slowly
+      - User-based, because users are more interesting than shows
+      - User-based, because it never leaves blank predictions
+      - Either; they cost the same to precompute
+    answer: 0
+    optionFeedback:
+      1: Interest isn't the issue; the number of pairs is.
+      2: Both flavours can leave blanks.
+      3: 8 million users means vastly more user pairs.
+    hints: [Count the pairs to compare.]
+    explanation: About 4.5 million show pairs vs about 32 trillion user pairs, and show relations are stable.
+    variants:
+      - prompt: A small book club app has 40 members who rate a growing library of 20,000 books. Which flavour is cheaper to compute?
+        options:
+          - User-based, because there are only 780 member pairs
+          - Item-based, because items are always cheaper
+          - Item-based, because members change often
+          - Neither; both are equally expensive
+        answer: 0
+        optionFeedback:
+          1: Here items far outnumber users, so item pairs are the expensive side.
+          2: Members are few and stable.
+          3: 780 member pairs vs about 200 million book pairs.
+        explanation: Compare the pair counts; here users are the small side.
+      - prompt: A new user signs up and rates nothing yet. What can user-based CF recommend to them?
+        options:
+          - Nothing personal yet; there are no ratings to compare (cold start)
+          - The same as the most similar user
+          - Their own top-rated items
+          - Random items with predicted rating 5
+        answer: 0
+        optionFeedback:
+          1: Without ratings there's no similarity to find a most-similar user.
+          2: They have no ratings.
+          3: Predictions need neighbours.
+        explanation: This is the cold-start problem; fall back to popularity until they rate something.
+
+  - id: transfer-overlap
+    type: two-tier
+    skills: [similarity, sparsity-pitfalls]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: one-overlap-trap }
+    prompt: 'On a restaurant review site, two users share exactly one rated restaurant, and their centered similarity is 1. Should the site treat them as near-identical tastes?'
+    options: ['No; one shared item makes any centered cosine ±1', 'Yes; similarity 1 is the strongest possible', 'Yes, if both rated it 5']
+    answer: 0
+    reasons:
+      - With one co-rated item the centered "vectors" are single numbers, so only their signs matter
+      - Similarity 1 always means identical tastes
+      - Rating values above 4 make similarities reliable
+    reasonAnswer: 0
+    optionFeedback:
+      1: Perfect similarity here is an artifact of one overlap.
+      2: The value doesn't fix the overlap problem.
+    reasonFeedback:
+      1: Only with many co-rated items does 1 mean strong agreement.
+      2: Reliability comes from the size of the overlap.
+    hints: [How many numbers does the cosine compare?]
+    explanation: Tiny overlaps give extreme, unreliable similarities; require a minimum overlap or shrink them.
+    variants:
+      - prompt: 'Two shoppers share 40 rated products and have centered similarity 0.72. Two others share 2 products and have similarity 0.99. Which similarity is more trustworthy?'
+        options: ['The 0.72 based on 40 shared products', 'The 0.99, since it is higher', 'Both equally']
+        answer: 0
+        reasons:
+          - A similarity from many co-rated items is far less noisy
+          - Higher similarities are always more reliable
+          - Overlap size doesn't affect similarity
+        reasonAnswer: 0
+        optionFeedback:
+          1: Two shared items can't support a strong conclusion.
+          2: Overlap size changes how reliable a similarity is.
+        reasonFeedback:
+          1: A high value from little data is mostly noise.
+          2: It changes the noise, not the formula.
+        explanation: Overlap size matters as much as the value.
+      - prompt: 'Two users have no co-rated items at all. What similarity does the lecture assign, and what does it mean?'
+        options: ['0, meaning no evidence either way', '1, meaning identical', '−1, meaning opposite']
+        answer: 0
+        reasons:
+          - With nothing to compare, similarity defaults to 0
+          - No overlap proves identical tastes
+          - No overlap proves opposite tastes
+        reasonAnswer: 0
+        optionFeedback:
+          1: There's nothing to show they agree.
+          2: There's nothing to show they disagree.
+        reasonFeedback:
+          1: No data can't prove agreement.
+          2: No data can't prove disagreement.
+        explanation: "An empty co-rated set gives 0: no basis for a neighbour."
+
+  - id: transfer-ndcg
+    type: mcq
+    skills: [ndcg, dcg]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: judging-a-ranking }
+    prompt: A job site shows each user 5 recommended job ads. Which metric rewards putting the most relevant ads at the top?
+    options: ['NDCG@5', 'Accuracy', 'The number of ads shown', 'Average rating of all jobs']
+    answer: 0
+    optionFeedback:
+      1: Accuracy ignores the order of the list.
+      2: Every list has 5 ads.
+      3: That ignores the user and the order.
+    hints: [Which metric discounts lower positions?]
+    explanation: NDCG discounts lower positions and normalizes by the ideal list.
+    variants:
+      - prompt: Recommender A's NDCG@5 is 0.92 and B's is 0.61 on the same users. What does that say?
+        options: ['A ranks relevant items closer to the ideal order', 'A recommends more items', 'B is 61% accurate', 'A has more users']
+        answer: 0
+        optionFeedback:
+          1: Both show 5 items.
+          2: NDCG isn't an accuracy percentage.
+          3: Same users for both.
+        explanation: NDCG closer to 1 means closer to the ideal ranking.
+      - prompt: Swapping the items in positions 1 and 4 of a list moves a highly relevant item from position 4 to 1. What happens to DCG?
+        options: ['It rises', 'It falls', 'It stays the same', 'It becomes 1']
+        answer: 0
+        optionFeedback:
+          1: The relevant item now gets the smallest discount.
+          2: Position matters in DCG.
+          3: DCG isn't normalized; NDCG is.
+        explanation: Moving a high-gain item up reduces its discount, raising DCG.

@@ -997,6 +997,29 @@ export default function register(sdk) {
   }
 
   // Pampanga-style chain: the rate in January, one job during the year, then the year-end gap.
+  /**
+   * A four-step year-end overhead close with one real mistake in it: dividing by actual hours (step 1),
+   * applying the rate to budgeted hours (step 2), or subtracting the wrong way round (step 3). The steps
+   * after the mistake are worked consistently from it, so the learner has to find where it went wrong.
+   * Returns null when the mistake wouldn't show (e.g. it gives the right number).
+   */
+  function closeWithError({ rng, rate, budgetOH, budgetDLH, actualDLH, actualOH }) {
+    const wrong = rng.int(0, 2);
+    let r = rate, app = rate * actualDLH, diff = actualOH - app, fix, wrongValue, why;
+    if (wrong === 0) { r = budgetOH / actualDLH; app = r * actualDLH; diff = actualOH - app; fix = rate; wrongValue = r; why = 'The rate divides budgeted overhead by **budgeted** hours, not actual hours.'; }
+    if (wrong === 1) { app = rate * budgetDLH; diff = actualOH - app; fix = rate * actualDLH; wrongValue = app; why = 'Applied overhead is the rate × the hours **actually** worked, not the budgeted hours.'; }
+    if (wrong === 2) { diff = app - actualOH; fix = actualOH - app; wrongValue = diff; why = 'The gap is **actual − applied**: positive means underapplied.'; }
+    if (Math.abs(wrongValue - fix) < 1 || Math.abs(diff) < 1) return null;
+    const verdict = diff > 0 ? `underapplied by ${P(diff)}: debit COGS, credit Factory Overhead` : `overapplied by ${P(-diff)}: debit Factory Overhead, credit COGS`;
+    const steps = [
+      `Rate = ${P(budgetOH)} ÷ ${C(wrong === 0 ? actualDLH : budgetDLH)} hours = ${P2(r)} per hour`,
+      `Applied overhead = ${C(wrong === 1 ? budgetDLH : actualDLH)} hours × ${P2(r)} = ${P(app)}`,
+      wrong === 2 ? `Gap = ${P(app)} − ${P(actualOH)} = ${P(diff)}` : `Gap = ${P(actualOH)} − ${P(app)} = ${P(diff)}`,
+      `So overhead is ${verdict}.`,
+    ];
+    return { steps, wrong, fix, wrongValue, why };
+  }
+
   function chainQ({ rng }) {
     for (;;) {
       const rate = rng.pick([40, 50, 60, 75, 80, 120, 150]);
@@ -1012,9 +1035,15 @@ export default function register(sdk) {
       const actualOH = Math.round((applied + nice(rng, -0.06 * applied, 0.06 * applied, 5000)) / 1000) * 1000;
       const yr = overheadClose({ actualOH, rate, actualBase: actualDLH });
       if (yr.amt < 5000) continue;
+      // find-error: a trainee's year-end close with one wrong step (later steps follow from it)
+      const fe = closeWithError({ rng, rate, budgetOH, budgetDLH, actualDLH, actualOH });
+      if (!fe) continue;
       return {
         vars: { rate, budgetDLH, budgetOH, dm, hours, wage, dl: job.dl, oh: job.oh, total: job.total, actualDLH, actualOH,
-          appliedYear: applied, signedDiff: yr.diff, amt: yr.amt, kindTxt: yr.kind, cogsDir: yr.under ? 'increases' : 'decreases' },
+          appliedYear: applied, signedDiff: yr.diff, amt: yr.amt, kindTxt: yr.kind, cogsDir: yr.under ? 'increases' : 'decreases',
+          under: yr.under ? 1 : 0, kindIdx: yr.under ? 0 : 1,
+          entries: yr.entries, accounts: [AC.cogs, AC.foh, AC.wip, AC.fg, AC.ap, AC.wages],
+          feSteps: fe.steps, feWrong: fe.wrong, feFix: fe.fix, feWrongValue: fe.wrongValue, feWhy: fe.why },
         misconceptions: [
           { value: budgetOH / actualDLH, for: 'rate', feedback: 'You divided by **actual** hours. The rate is set in January from **budgeted** hours.' },
           { value: dm + job.dl, for: 'total', feedback: 'You left out applied overhead: the rate × the job\'s hours.' },

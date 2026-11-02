@@ -65,7 +65,7 @@ export function QuizBuilder() {
 
   const courseMods = useMemo(() => mods.filter((m) => courseOf(m.id) === cfg.course), [mods, cfg.course, courseOf]);
   // only offer the question types this course's modules actually have (e.g. journal entries for accounting)
-  const courseTypes = useMemo(() => new Set<string>(['mcq', ...courseMods.flatMap((m) => m.parsed.quiz.map((t) => t.type))]), [courseMods]);
+  const courseTypes = useMemo(() => new Set<string>(['mcq', 'code-fill', ...courseMods.flatMap((m) => m.parsed.quiz.map((t) => t.type))]), [courseMods]);
   const effective = (c: SessionConfig): SessionConfig => {
     const ids = courseMods.map((m) => m.id);
     const chosen = c.modules.filter((id) => ids.includes(id));
@@ -162,7 +162,7 @@ export function QuizBuilder() {
           <div className="flex items-center gap-3">
             <input type="range" min={3} max={40} value={cfg.count} onChange={(e) => set('count', Number(e.target.value))} className="w-56 accent-[rgb(var(--accent))]" />
             <b className="w-8">{cfg.count}</b>
-            <span className="text-xs text-muted">{cands.length} templates match</span>
+            <span className="text-xs text-muted">{cands.filter((c) => !c.glossary).length} unique questions available{cfg.glossary ? ' (plus glossary questions)' : ''}{cfg.count > cands.length && cands.length > 0 ? ' · some will repeat with new numbers' : ''}</span>
           </div>
         </Field>
       </div>

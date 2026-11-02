@@ -1,5 +1,6 @@
 import { createContext, memo, useContext, useMemo, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -55,11 +56,16 @@ function linkTerms(text: string, terms: Record<string, Term>): string {
   });
 }
 
+/** When set (the glossary's note view), [[term]] links navigate to this href instead of showing a hover card. */
+export const TermHrefContext = createContext<((id: string) => string) | null>(null);
+
 export function TermLink({ id, children }: { id: string; children: ReactNode }) {
   const terms = useContext(GlossaryContext);
+  const href = useContext(TermHrefContext);
   const [pinned, setPinned] = useState(false);
   const t = terms[id];
   if (!t) return <>{children}</>;
+  if (href) return <Link to={href(id)} className="term-link" style={{ cursor: 'pointer' }} data-term={id}>{children}</Link>;
   return (
     <span className="group relative inline">
       <span role="button" tabIndex={0} className="term-link" aria-expanded={pinned} data-term={id}

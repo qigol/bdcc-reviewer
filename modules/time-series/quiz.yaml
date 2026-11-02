@@ -28,6 +28,10 @@ templates:
       - Its last value only
       - Its direction only
     answer: 0
+    optionFeedback:
+      1: "A steady climb means the level keeps rising, so its usual level would fall behind."
+      2: "The last value ignores both the climb and the yearly shape."
+      3: "Direction alone misses the repeating yearly shape."
     hints:
       - Which two patterns does the description mention?
     explanation: 'That is series C in the first scene. The trend gives the direction, seasonality the repeating shape.'
@@ -46,6 +50,12 @@ templates:
       - The trend must be a straight line
       - The remainder is whatever trend and seasonality do not explain
     answer: [0, 1, 2, 4]
+    optionFeedback:
+      0: "Yes: it's a lens on the series, written with ≈, not a law."
+      1: "Yes: some series multiply, with swings that grow with the level."
+      2: "Yes: a series can be weekly and yearly at once, for example."
+      3: "The trend can curve and change direction."
+      4: "Yes: the remainder is what's left over."
     hints:
       - 'Look out for options that say "must".'
     explanation: '"≈, not =". The trend can curve and change direction.'
@@ -83,10 +93,39 @@ templates:
       - The value four years ago
       - The average of the last four quarters
     answer: 0
+    optionFeedback:
+      1: "Lags count steps of the data. Here a step is a quarter, not a month."
+      2: "Four steps of quarterly data make one year, not four."
+      3: "y at t − 4 is a single past value, not an average."
     hints:
       - k counts steps of the data. What is one step here?
     explanation: |
       k counts steps of the data. Four quarters = one year. For monthly data the same idea is t − 12; for daily data, t − 7 is a week ago.
+    variants:
+      - prompt: The data are monthly. What is y at time t − 12?
+        options:
+          - The same month one year ago
+          - The value twelve days ago
+          - The value twelve years ago
+          - The average of the last twelve months
+        answer: 0
+        optionFeedback:
+          1: Lags count steps of the data; here a step is a month.
+          2: Twelve monthly steps make one year.
+          3: A lag is a single past value, not an average.
+        explanation: Twelve monthly steps back is the same month last year.
+      - prompt: The data are daily. Which lag gives the same weekday last week?
+        options:
+          - t − 7
+          - t − 1
+          - t − 52
+          - t − 30
+        answer: 0
+        optionFeedback:
+          1: t − 1 is yesterday.
+          2: 52 is weeks in a year, not days.
+          3: t − 30 is about a month ago, a different weekday.
+        explanation: Seven daily steps back is the same weekday.
 
 
   - id: lag-code
@@ -120,10 +159,39 @@ templates:
       - 'It rescales the values, so the scores are in the wrong units'
       - 'It keeps too few test months to score the model fairly'
     answer: 0
+    optionFeedback:
+      1: "Shuffling deletes no rows; it scrambles their order."
+      2: "Splitting doesn't rescale anything."
+      3: "The test size is set separately; the problem is that order is lost."
     hints:
       - 'After shuffling, which months could end up in training?'
     explanation: |
       Shuffling deletes nothing but destroys the order, and the order is the information. Learn from the past, test on the future.
+    variants:
+      - prompt: A team forecasts daily electricity demand and uses 5-fold cross-validation with shuffling. What is wrong?
+        options:
+          - Folds mix future days into training, so the scores are too optimistic
+          - 5 folds is too many for daily data
+          - Cross-validation drops weekends
+          - Shuffling changes the demand values
+        answer: 0
+        optionFeedback:
+          1: The number of folds isn't the issue; the order is.
+          2: Nothing is dropped.
+          3: Shuffling keeps values, only scrambles order.
+        explanation: Use time-ordered splits (train on the past, test on the future).
+      - prompt: Which split is honest for forecasting next quarter's sales?
+        options:
+          - Train on all quarters before the test period, test on the following quarters
+          - Randomly pick 20% of quarters for testing
+          - Test on the oldest quarters, train on the newest
+          - Train and test on the same quarters
+        answer: 0
+        optionFeedback:
+          1: Random picks let the model see the future.
+          2: That trains on the future to predict the past.
+          3: That measures memory, not forecasting.
+        explanation: Learn from the past, test on the future.
 
 
   - id: forecast-workflow
@@ -163,6 +231,10 @@ templates:
       - The forest had too few trees, so its forecasts were too noisy
       - The trees overfit the training months and needed to be pruned
     answer: 0
+    optionFeedback:
+      1: "The date split had plenty of test months; it exposed the forest's ceiling."
+      2: "More trees wouldn't let a forest forecast above its training maximum."
+      3: "Pruning can't lift the ceiling: trees can only output values they've seen."
     hints:
       - Compare where the test months sat in time under each split.
     explanation: |
@@ -198,6 +270,12 @@ templates:
       - Small wiggles
       - Predictable values
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: a steady level is one condition."
+      1: "Yes: steady variance is another."
+      2: "Yes: a steady autocorrelation is the third."
+      3: "Big wiggles are fine if they stay consistent, like sunspots."
+      4: "Stationary doesn't mean predictable."
     hints:
       - 'Stationary means "behaves the same throughout", not "small" or "easy to predict".'
     explanation: |
@@ -296,6 +374,12 @@ templates:
       - It removes all noise from the series
       - Differencing more than needed is always harmless
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: the first value has nothing before it."
+      1: "Yes: the model now forecasts changes, which must be added back."
+      2: "Yes: a yearly pattern can survive a first difference."
+      3: "Differencing changes the question; the noise stays."
+      4: "Over-differencing creates patterns that weren't there."
     hints:
       - Two of the options are too good to be true.
     explanation: |
@@ -461,6 +545,10 @@ templates:
       - 'It uses less information than naive, because it ignores the last value'
       - 'Its forecast changes every month, so small misses add up over four years'
     answer: 0
+    optionFeedback:
+      1: "MAE weighs every miss the same; the problem is the level, not the shape."
+      2: "Seasonal naive uses last year's values, so it isn't using less information; it's anchored to an older level."
+      3: "Changing month to month isn't the problem. Both miss by roughly the level gap."
     hints:
       - 'Are the forecasts above or below the real values, and does that change from month to month?'
     explanation: |
@@ -662,6 +750,10 @@ templates:
       - The model is differenced too much; go back to d = 0
       - The model needs a larger p to reach 12 months back
     answer: 0
+    optionFeedback:
+      1: "0.58 is far too large for noise."
+      2: "Over-differencing shows up as a negative lag-1 spike, not a lag-12 one."
+      3: "The yearly pattern needs seasonal terms, not a big AR order."
     hints:
       - What happens every 12 months in monthly data?
     explanation: |
@@ -718,6 +810,10 @@ templates:
       - Without the shift, the test months line up better with training
       - With fifteen input columns, a regression always fits the data exactly
     answer: 0
+    optionFeedback:
+      1: "Smoothness can't give an exact 0; only leaking the answer can."
+      2: "The split didn't change; the inputs now contain the target."
+      3: "Column count isn't it; one column now holds the answer."
     hints:
       - 'Which month does `rolling(3)` include by default?'
     explanation: 'Leakage: the month being predicted got into the inputs. Shift before rolling.'
@@ -771,6 +867,10 @@ templates:
       - 'The rolling mean: it smooths away the yearly wiggle'
       - 'The lag_12 column: it carries last year''s shape alone'
     answer: 0
+    optionFeedback:
+      1: "Both scenarios used the same months."
+      2: "The rolling mean is in both A and B."
+      3: "lag_12 is in A too; the month columns are what B adds."
     hints:
       - Which kind of information did scenario B add that the others lacked?
     explanation: 'Nine more lags (scenario C, 0.232) did not help; the calendar did.'
@@ -855,6 +955,10 @@ templates:
       - 'The ratio should use RMSE, because big misses matter more here'
       - 'Nothing: a lower MAE on the same months settles the question'
     answer: 0
+    optionFeedback:
+      1: "MAE compares any models on the same test, as long as the forecast setups match."
+      2: "The problem isn't the metric; it's comparing one-step with multi-step forecasts."
+      3: "A one-step score shouldn't be compared with a multi-step one."
     hints:
       - Which forecast gets to see the real value of the month before?
     explanation: |
@@ -874,6 +978,10 @@ templates:
       - The last few changes of the differenced series
       - The model's own forecasts for the previous months
     answer: 0
+    optionFeedback:
+      1: "That's a rolling mean of values. ARIMA's MA averages past shocks."
+      2: "Past changes are the AR part on the differenced series."
+      3: "MA uses past errors, not past forecasts."
     hints:
       - 'AR looks at past values (or changes). What is left for MA?'
     explanation: |
@@ -929,6 +1037,13 @@ templates:
       - Which calendar month it is
       - The number of customers connected at the start of the month
     answer: [0, 1, 4, 5]
+    optionFeedback:
+      0: "Yes: last month is known."
+      1: "Yes: last year is known."
+      2: "It includes this month's sales, the answer, so it leaks."
+      3: "This month's measured temperature isn't known when the month starts."
+      4: "Yes: the calendar is always known."
+      5: "Yes: the customer count at the start is known."
     hints:
       - For each column, ask whether its value exists on the first day of the month.
     explanation: |
@@ -1049,3 +1164,277 @@ templates:
       lag_1 = {=lag1}, lag_12 = {=lag12}, roll_mean_3 = {=roll|2} (November, December, January). Forecast
       {=b0} + {=w1}·{=lag1} + {=w12}·{=lag12} + {=w3}·{=roll|2} = {=fc|2}; the real value was {=actual}. The leaky window
       (December to February, {=leaky|2}) would have slipped the answer into the inputs.
+
+  # ------------------------------------------------------------------ new formats (find-error, case, two-tier, explain, Parsons)
+  - id: mape-find-error
+    type: find-error
+    skills: [forecast-metrics]
+    difficulty: 2
+    tags: [math]
+    generator: metricsQ
+    lessonRef: { tab: math-code, id: forecast-metrics }
+    prompt: A classmate scores these four forecasts. **One step is wrong.** Click it and give the correct MAPE.
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 0 } }
+    steps:
+      - 'Errors e = actual − forecast: {=errors|list}'
+      - 'MAE = mean |e| = {=mae|2}'
+      - 'RMSE = √(mean e²) = {=rmse|2}'
+      - 'MAPE = mean of |e| ÷ forecast × 100 = {=wrongMapeByF|2}%'
+    wrong: 3
+    fix: { var: mape, tol: 0.01, percent: true }
+    fixPrompt: What is the correct MAPE (%)?
+    misconceptions:
+      - { var: wrongMapeByF, feedback: "That still divides by the forecast. MAPE divides each error by the **actual** value." }
+    stepFeedback:
+      0: Errors as actual − forecast is right.
+      1: MAE is the mean absolute error, which is right.
+      2: RMSE is the root of the mean squared error, which is right.
+    hints: [Percentage of what?]
+    explanation: MAPE = mean of |e| ÷ actual × 100 = {=mape|2}%.
+
+  - id: diff-case
+    type: case
+    skills: [differencing, stationarity]
+    difficulty: 3
+    tags: [math]
+    generator: diffQ
+    lessonRef: { tab: math-code, id: differencing }
+    prompt: '**Difference a short series and use it.** The series is {=valsList}.'
+    show:
+      - { id: t, widget: Matrix, props: { data: '@table', format: 1 } }
+    parts:
+      - type: numeric
+        prompt: How many values does the first-differenced series have?
+        answer: { var: nd, tol: 0 }
+        explanation: 'Differencing loses one value: {=n} − 1 = {=nd}.'
+      - type: numeric
+        prompt: The last value of the differenced series (one decimal)
+        answer: { var: dLast, tol: 0.05 }
+        explanation: '{=last} − {=prev} = {=dLast|1}.'
+      - type: numeric
+        prompt: The mean of the differenced series (two decimals)
+        answer: { var: meanD, tol: 0.01 }
+        explanation: 'Mean change = {=meanD|2}.'
+      - type: two-tier
+        prompt: A model forecasts the **differenced** series as {=meanD|2} for next month. What is the forecast of the series itself?
+        options: ['The last value plus that change', 'That number itself', 'The mean of the original series']
+        answer: 0
+        reasons:
+          - A differenced forecast is a change, which has to be added back to the last value
+          - Differencing rescales the series, so its forecasts are already levels
+          - Differenced series are always forecast by the mean
+        reasonAnswer: 0
+        reasonFeedback:
+          1: Differencing turns levels into changes; it doesn't rescale.
+          2: The mean is one forecast choice; either way it's a change that must be added back.
+        explanation: '{=last} + {=meanD|2}: forecasts of changes are integrated back onto the last level.'
+    hints: [Each difference is a value minus the one before it.]
+    explanation: '{=nd} differences, last {=dLast|1}, mean {=meanD|2}; a forecast of change is added back to {=last}.'
+
+  - id: split-two-tier
+    type: two-tier
+    skills: [chrono-split]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lag-features }
+    prompt: A team forecasting monthly sales uses `train_test_split(X, y, shuffle=True)` and gets a great test score. Should they trust it?
+    options: ['No; they should split by date, training on the past and testing on the future', 'Yes; shuffling makes the test set more representative', 'Yes, as long as the test set is 20% of the data']
+    answer: 0
+    reasons:
+      - With shuffling, test months sit between training months, so the model fills gaps instead of forecasting
+      - Shuffling removes the trend
+      - Time series can't be split at all
+    reasonAnswer: 0
+    optionFeedback:
+      1: Representative for gap-filling, not for forecasting the future.
+      2: The share isn't the problem; the order is.
+    reasonFeedback:
+      1: Shuffling keeps every value; it only destroys the order.
+      2: They can, by date.
+    hints: ["What will the model see in real use: the months around the target, or only the past?"]
+    explanation: Split chronologically; a shuffled split leaks the future into training and flatters the score.
+
+  - id: stationary-explain
+    type: explain
+    skills: [stationarity, differencing]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: differencing }
+    prompt: Explain what stationarity means and why a trending series is usually differenced before fitting ARIMA.
+    model: |
+      A stationary series has a steady typical level, a steady amount of wiggle, and a steady link with its own past; it can
+      still swing a lot. A trend breaks the first condition, because the level keeps moving. ARIMA's AR and MA parts assume a
+      stationary series, so we difference: model the month-to-month changes, which often are stationary, then add the forecast
+      changes back onto the last value (the "I" in ARIMA).
+    checklist:
+      - Stationary means steady level, steady spread and steady autocorrelation
+      - A trend makes the level drift, so the series isn't stationary
+      - Differencing models changes instead of levels
+      - Forecasts of changes are added back (integrated)
+    hints: [Which of the three conditions does a trend break?]
+    explanation: Difference to remove the drifting level, model the changes, then integrate back.
+
+  - id: forecast-parsons
+    type: order
+    skills: [baselines, chrono-split, forecast-metrics]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: baselines }
+    prompt: Build an honest forecasting workflow from the bank. Two lines don't belong.
+    items:
+      - Split the series by date into training and test periods
+      - Score a naive baseline on the test period
+      - Fit the model on the training period only
+      - Check the residuals for leftover patterns
+      - Score the model on the test period and compare it with the baseline
+    distractors:
+      - Shuffle the rows so that every month appears in training
+      - Fit the model on all the data, then score it on the test period
+    hints: [Nothing from the test period may reach the model before scoring.]
+    explanation: Split by date → baseline → fit on train → check residuals → compare on test. Shuffling or fitting on everything leaks the test period.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-baseline
+    type: mcq
+    skills: [baselines, forecast-metrics]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: baselines }
+    prompt: A Manila bakery's daily sales have a strong weekly pattern (busy weekends). Which simple baseline should a new forecasting model beat?
+    options:
+      - Seasonal naive, using the same day last week
+      - The overall mean of all days
+      - Zero for every day
+      - A forecast that copies the highest day ever
+    answer: 0
+    optionFeedback:
+      1: The mean ignores the weekly pattern.
+      2: Zero isn't a meaningful baseline.
+      3: That ignores the pattern and the level.
+    hints: [Which baseline already captures the weekly pattern?]
+    explanation: With a strong seasonal pattern, seasonal naive is the natural baseline.
+    variants:
+      - prompt: A stock's daily closing price moves like a random walk. Which baseline is hard to beat?
+        options:
+          - Naive, using yesterday's price
+          - Seasonal naive, using last week's price
+          - The mean of the last year
+          - The highest price this month
+        answer: 0
+        optionFeedback:
+          1: There's no weekly pattern to copy.
+          2: The level drifts, so an old mean lags.
+          3: That's not a forecasting method.
+        explanation: For a random walk, today's value is the best single guess for tomorrow.
+      - prompt: A new model's MAE is 12.4; seasonal naive's is 11.8 on the same test months. What should the team conclude?
+        options:
+          - The model doesn't beat the simple baseline yet
+          - The model is 5% better
+          - MAE can't compare these two
+          - The model is good because 12.4 is small
+        answer: 0
+        optionFeedback:
+          1: Lower MAE is better; the model's is higher.
+          2: Same test months make them comparable.
+          3: Small or large only means something next to a baseline.
+        explanation: A model must beat the baseline to be worth its complexity.
+
+  - id: transfer-differencing
+    type: two-tier
+    skills: [differencing, stationarity]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: differencing }
+    prompt: A city's monthly water use climbs steadily year after year. Before fitting ARIMA, what should the analyst try first?
+    options: ['First differencing', 'Shuffling the months', 'Removing the last year']
+    answer: 0
+    reasons:
+      - A steady climb means the level drifts; differences remove that trend
+      - Shuffling makes the series stationary
+      - Recent data causes non-stationarity
+    reasonAnswer: 0
+    optionFeedback:
+      1: Shuffling destroys the time order.
+      2: Dropping data doesn't remove a trend.
+    reasonFeedback:
+      1: Shuffling isn't a valid transformation for a series.
+      2: The trend runs through all the years.
+    hints: [Which of the stationarity conditions does a trend break?]
+    explanation: Differencing turns levels into changes, removing the drifting level.
+    variants:
+      - prompt: A shop's monthly sales have no trend, but every December spikes. After a first difference, an ACF spike at lag 12 remains. What next?
+        options: ['A seasonal difference (lag 12)', 'Difference again at lag 1', 'Nothing; the series is fine']
+        answer: 0
+        reasons:
+          - A yearly pattern needs a difference at the seasonal lag
+          - Every pattern is removed by lag-1 differences
+          - ACF spikes at 12 are normal noise
+        reasonAnswer: 0
+        optionFeedback:
+          1: More lag-1 differencing can over-difference without removing the yearly pattern.
+          2: A lag-12 spike is the yearly pattern still there.
+        reasonFeedback:
+          1: Lag-1 differences don't remove a yearly repeat.
+          2: A clear lag-12 spike is a signal, not noise.
+        explanation: Seasonality calls for a seasonal difference or seasonal terms.
+      - prompt: A series that is already stationary is differenced twice. What risk does that bring?
+        options: ['Over-differencing creates patterns that weren''t there', 'It makes the series more stationary, which is always good', 'It has no effect']
+        answer: 0
+        reasons:
+          - Extra differencing adds artificial correlation, such as a negative lag-1 spike
+          - More differencing always helps
+          - Differencing can't change a stationary series
+        reasonAnswer: 0
+        optionFeedback:
+          1: More isn't better; it distorts the series.
+          2: It changes the series and its ACF.
+        reasonFeedback:
+          1: Over-differencing is a known problem.
+          2: Each difference changes the values.
+        explanation: Difference only as much as needed.
+
+  - id: transfer-leakage
+    type: mcq
+    skills: [lag-features, chrono-split]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: lag-features }
+    prompt: At the start of each week, a hospital forecasts that week's admissions with a regression. Which input is NOT safe to use?
+    options:
+      - The average daily temperature measured during that week
+      - Admissions last week
+      - Admissions in the same week last year
+      - Whether the week contains a public holiday
+    answer: 0
+    optionFeedback:
+      1: Last week is known at the start of this week.
+      2: Last year is known.
+      3: Holidays are on the calendar in advance.
+    hints: [What is known when the forecast is made?]
+    explanation: That week's measured temperature isn't known yet when the forecast is made.
+    variants:
+      - prompt: Which rolling feature leaks the answer when forecasting this month's sales?
+        options:
+          - The mean of this month's and the two previous months' sales
+          - The mean of the three months before this one
+          - Sales twelve months ago
+          - The number of selling days this month
+        answer: 0
+        optionFeedback:
+          1: Shifting before rolling keeps it safe.
+          2: Last year is known.
+          3: The calendar is known in advance.
+        explanation: A rolling mean that includes the target month contains the answer.
+      - prompt: A model's test MAE suddenly drops to 0.0 after adding a feature. What should you suspect first?
+        options:
+          - Leakage; the feature contains the answer
+          - The model became perfect
+          - The test set is too small
+          - The metric is broken
+        answer: 0
+        optionFeedback:
+          1: Real forecasts are never perfect.
+          2: A small test set wouldn't give exactly 0.
+          3: The metric is fine; the input isn't.
+        explanation: An error of exactly 0 almost always means leakage.
