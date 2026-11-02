@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, CalendarClock, Dumbbell, GraduationCap, PlayCircle, Repeat, Target } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, Dumbbell, GraduationCap, PlayCircle, Repeat, Sparkles, Target, X } from 'lucide-react';
+import { HIGHLIGHTS, type Highlight } from './highlights';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
 import { useAllModules } from '../modules/useAll';
@@ -68,6 +69,7 @@ export function Dashboard() {
         <h1 className="text-2xl font-bold">Qdigo</h1>
         <p className="text-muted">Q's got your Qs.</p>
       </div>
+      <Highlights items={HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))} />
       <div className="mb-6 grid gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
           <PlayCircle className="shrink-0 text-accent" size={32} />
@@ -163,6 +165,49 @@ export function Dashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+const DISMISSED_KEY = 'kodigo-dismissed-highlights';
+const readDismissed = (): string[] => { try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]'); } catch { return []; } };
+
+function Highlights({ items }: { items: Highlight[] }) {
+  const [dismissed, setDismissed] = useState(readDismissed);
+  const shown = items.filter((h) => !dismissed.includes(h.id));
+  if (!shown.length) return null;
+  const dismiss = (id: string) => {
+    const next = [...dismissed, id];
+    setDismissed(next);
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
+  };
+  return (
+    <section className="mb-6 grid gap-3" aria-label="What's new" data-testid="highlights">
+      {shown.map((h) => {
+        const body = (
+          <>
+            <Sparkles className="shrink-0 text-accent" size={28} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="label">{h.course ? `${h.course} · ` : ''}What's new</span>
+                <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', h.to ? 'tone-good mark-bg' : 'tone-accent mark-bg')}>{h.badge}</span>
+              </div>
+              <div className="font-semibold">{h.title}</div>
+              <div className="text-sm text-muted">{h.blurb}</div>
+            </div>
+            {h.to && <span className="btn-primary hidden sm:inline-flex">Try it <ArrowRight size={15} /></span>}
+          </>
+        );
+        return (
+          <div key={h.id} className="card relative overflow-hidden border-accent/40" data-highlight={h.id}>
+            <div className="absolute inset-y-0 left-0 w-1 bg-accent" />
+            {h.to
+              ? <Link to={h.to} className="flex items-center gap-3 p-4 pr-10 transition hover:bg-panel2">{body}</Link>
+              : <div className="flex items-center gap-3 p-4 pr-10">{body}</div>}
+            <button className="btn-ghost btn-sm absolute right-1.5 top-1.5" onClick={() => dismiss(h.id)} title="Dismiss" aria-label={`Dismiss ${h.title}`}><X size={14} /></button>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
