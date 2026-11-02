@@ -121,9 +121,38 @@ templates:
       - It stays the same
       - It cannot be known
     answer: 0
+    optionFeedback:
+      1: "More people per manager means fewer managers are needed above them, so layers fall."
+      2: "Doubling the span cuts the managers needed at each level, which removes layers."
+      3: "With the same workforce, a wider span always means fewer managers per level, so the direction is known."
     hints:
       - Wider spans need fewer managers.
     explanation: A wider span means fewer managers at each layer and fewer layers overall.
+    variants:
+      - prompt: A company narrows its span of control from 12 to 4. What happens to the number of management layers?
+        options:
+          - It rises, because each manager oversees fewer people
+          - It falls
+          - It stays the same
+          - It can't be known
+        answer: 0
+        optionFeedback:
+          1: Narrower spans need more managers, stacked in more layers.
+          2: Span directly sets how many managers each level needs.
+          3: With the same workforce, the direction is clear.
+        explanation: Narrow spans make a taller hierarchy.
+      - prompt: With 1,000 workers and a span of control of 10, how many first-line managers are needed?
+        options:
+          - '100'
+          - '10'
+          - '1,000'
+          - '1'
+        answer: 0
+        optionFeedback:
+          1: That's the second layer, the managers of the 100 managers.
+          2: Each manager handles 10 workers, not one.
+          3: That's the top of the pyramid.
+        explanation: 1,000 ÷ 10 = 100 first-line managers.
 
   # ------------------------------------------------------------------ decision-allocation
   - id: central-numeric
@@ -157,6 +186,10 @@ templates:
       - Made at random
       - Made by customers
     answer: 0
+    optionFeedback:
+      1: "The lecture says the opposite: experience and policies pile up at headquarters, so more is decided there."
+      2: "The lecture ties decision-making to the firm's age and size, not to chance."
+      3: "Customers shape demand but don't make the company's internal decisions."
     hints:
       - Experience at headquarters builds up with age.
     explanation: The longer a company has been a multinational, the more experienced executives and policies it has at headquarters, and the more decisions are made there.
@@ -240,9 +273,38 @@ templates:
       - It only works for oil companies
       - It forbids international sales
     answer: 0
+    optionFeedback:
+      1: "A matrix has managers on both axes; that double reporting is the problem."
+      2: "Matrix structures are used across industries; their drawback is the multiple reporting lines."
+      3: "The matrix form says nothing about where a firm may sell."
     hints:
       - Think about having two bosses.
     explanation: The lecture says the disadvantages of multiple reporting relationships kept most worldwide companies from adopting it.
+    variants:
+      - prompt: An engineer reports both to a product manager and to a country manager. What structure is this?
+        options:
+          - A matrix organization
+          - A geographic region structure
+          - A global functional structure
+          - A virtual corporation
+        answer: 0
+        optionFeedback:
+          1: A geographic structure has one reporting line, by region.
+          2: A functional structure groups by function, with one boss.
+          3: A virtual corporation outsources most activities.
+        explanation: Two reporting lines is the mark of a matrix.
+      - prompt: What is the main drawback of the matrix structure?
+        options:
+          - Conflicting orders from two bosses
+          - It has no managers
+          - It can only be used in one country
+          - It forbids teamwork
+        answer: 0
+        optionFeedback:
+          1: It has managers on both axes.
+          2: It's used internationally.
+          3: It's meant to encourage collaboration.
+        explanation: Double reporting causes conflict and slow decisions.
 
   - id: structure-lookup-mcq
     type: mcq
@@ -257,6 +319,10 @@ templates:
       - Global functional structure
       - Virtual corporation
     answer: 0
+    optionFeedback:
+      1: "A matrix suits firms juggling several dimensions at once and is rarely used because of double reporting."
+      2: "A functional structure is organized by business function, not by geography."
+      3: "A virtual corporation outsources most activities; the lecture doesn't tie it to low-tech products."
     hints:
       - It puts area managers in charge.
     explanation: The geographic region structure simplifies directing worldwide operations and suits products with low or stable technology.
@@ -291,6 +357,12 @@ templates:
       - A strategic business unit is small enough for one manager to control
       - A matrix overlay requires double reporting
     answer: [0, 1, 2, 3]
+    optionFeedback:
+      0: "Yes: once foreign business is large, a separate international division stops making sense."
+      1: "Yes: each product division keeps one set of product experts for the world."
+      2: "Yes: adding a worldwide product division on top of regions creates a hybrid."
+      3: "Yes: an SBU is sized so one manager can run it."
+      4: "A matrix overlay is used precisely to get expert input without double reporting."
     hints:
       - The overlay was invented to avoid double reporting.
     explanation: A matrix overlay lets top divisions heed a staff of experts without double reporting.
@@ -497,6 +569,12 @@ templates:
       - Placing its own people in key executive jobs
       - Owning no connection at all
     answer: [0, 1, 2, 3]
+    optionFeedback:
+      0: "Yes: a management contract can hand the parent operating control."
+      1: "Yes: controlling the money controls the decisions."
+      2: "Yes: a partner that depends on the parent's technology follows its lead."
+      3: "Yes: the parent's people in key jobs steer the company."
+      4: "With no connection there is nothing to control through."
     hints:
       - The lecture lists four tools.
     explanation: A management contract, finances, technology and key people can give control without a majority of the votes.
@@ -534,3 +612,251 @@ templates:
     hints:
       - A majority is more than half.
     explanation: More than 50 percent of the voting stock gives a majority.
+
+  # ------------------------------------------------------------------ new formats (case, find-error, two-tier, explain, cloze)
+  - id: transfer-case
+    type: case
+    skills: [transfer-pricing]
+    difficulty: 3
+    tags: [math, application]
+    generator: transQ
+    lessonRef: { tab: math-code, id: transfer-pricing }
+    prompt: |
+      **Two subsidiaries, two tax rates.** Alpha earns **{=alphaPretax}** million before tax at **{=alphaRate|pct}**. Beta earns
+      **{=betaPretax}** million before tax at **{=betaRate|pct}**.
+    parts:
+      - type: numeric
+        prompt: Total tax paid by the two subsidiaries (millions)
+        answer: { var: totalTax, tol: 0.05 }
+        explanation: '{=alphaTax|2} + {=betaTax|2} = {=totalTax|2} million.'
+      - type: numeric
+        prompt: Combined after-tax profit (millions)
+        answer: { var: totalAfter, tol: 0.05 }
+        misconceptions:
+          - { var: wrongPretax, feedback: "That is the profit before tax. Take each firm's tax away first." }
+        explanation: '{=totalPretax} − {=totalTax|2} = {=totalAfter|2} million.'
+      - type: numeric
+        prompt: If transfer prices shift **{=shift}** million of profit from Alpha to Beta, what is the new combined after-tax profit (millions)?
+        answer: { var: newAfter, tol: 0.05 }
+        explanation: 'The shifted profit is taxed at {=betaRate|pct} instead of {=alphaRate|pct}, adding {=gain|2} million: {=newAfter|2}.'
+      - type: two-tier
+        prompt: May the company set any transfer price it likes to make this shift?
+        options: ['No; tax authorities expect arm''s-length prices, like those between unrelated firms', 'Yes; transfer prices are internal and nobody checks them', 'Yes, as long as both subsidiaries agree']
+        answer: 0
+        reasons:
+          - Governments challenge transfer prices that move profit to low-tax countries without a business reason
+          - Internal prices never affect reported profit
+          - Agreement between units makes any price legal
+        reasonAnswer: 0
+        reasonFeedback:
+          1: They decide which country reports the profit, which is why governments care.
+          2: Tax rules apply whatever the units agree.
+        explanation: Transfer prices change where profit is taxed, so they're scrutinized against arm's-length prices.
+    hints: [Tax = profit × rate for each subsidiary.]
+    explanation: After-tax {=totalAfter|2} million; shifting {=shift} million to the lower-tax unit adds {=gain|2} million, within the limits of arm's-length rules.
+
+  - id: central-find-error
+    type: find-error
+    skills: [decision-allocation]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: who-decides }
+    prompt: A consultant reasons about where a multinational's decisions get made. **One step is wrong.** Click it.
+    steps:
+      - The longer a firm has been a multinational, the more experienced executives and policies sit at headquarters
+      - So older, larger multinationals tend to make more decisions at headquarters
+      - A subsidiary that is very large and important tends to get more control from headquarters
+      - Decisions where local knowledge matters most, such as local hiring, are often left to subsidiaries
+    wrong: 2
+    stepFeedback:
+      0: That's the lecture's point about experience at headquarters.
+      1: That follows from the step before.
+      3: Local knowledge favours local decisions, which is right.
+    hints: [Does a big, important subsidiary usually get more or less freedom?]
+    explanation: Large, capable subsidiaries usually get more autonomy, not less, because they have the people and knowledge to decide.
+
+  - id: span-two-tier
+    type: two-tier
+    skills: [org-dimensions]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: hierarchy-levels }
+    prompt: A company widens every manager's span of control. What happens to its hierarchy?
+    options: ['It gets flatter, with fewer layers', 'It gets taller, with more layers', 'It doesn''t change']
+    answer: 0
+    reasons:
+      - Each manager covers more people, so fewer managers and layers are needed
+      - Wider spans need extra supervisors in between
+      - Span affects pay, not structure
+    reasonAnswer: 0
+    optionFeedback:
+      1: More layers come from narrower spans.
+      2: Span directly sets how many managers each layer needs.
+    reasonFeedback:
+      1: Wider spans remove layers rather than adding them.
+      2: Span is a structural choice.
+    hints: ["Count the managers needed for 100 people at a span of 5, then 10."]
+    explanation: "Wider spans mean fewer managers per level and fewer levels: a flatter organization."
+
+  - id: structure-explain
+    type: explain
+    skills: [structure-types]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: Explain when a company might choose a geographic region structure, and when a global product structure.
+    model: |
+      A geographic structure groups everything a region needs under one regional manager. It suits firms whose products have
+      low or stable technology and must be adapted to local tastes and rules, such as food or consumer goods. A global product
+      structure gives each product division worldwide responsibility. It suits diverse, technical product lines that are much
+      the same everywhere, and avoids duplicating product experts in each region.
+    checklist:
+      - Geographic structure groups operations by region
+      - It suits low or stable technology and local adaptation
+      - Product structure gives each product line worldwide responsibility
+      - It suits diverse, technical products and avoids duplicate experts
+    hints: ["What differs more across your business: regions or products?"]
+    explanation: Organize around whatever varies most, regions or products.
+
+  - id: org-cloze
+    type: code-fill
+    lang: text
+    skills: [org-dimensions, structure-types]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: Fill in the organization-design terms.
+    code: |
+      The number of people who report to one manager is the __BLANK_1__ of control. A structure where people report to both a
+      product manager and a regional manager is a __BLANK_2__. Making most decisions at headquarters is __BLANK_3__.
+    blanks:
+      '1': { accept: [span], hint: 's…' }
+      '2': { accept: [matrix, matrix organization, matrix structure], hint: 'm…' }
+      '3': { accept: [centralization, centralisation, centralized decision making], hint: 'c…' }
+    hints: [The second one is famous for double reporting lines.]
+    explanation: Span of control; matrix; centralization.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-centralize
+    type: two-tier
+    skills: [decision-allocation]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: who-decides }
+    prompt: A fast-food chain lets each country manager choose local menu items, but headquarters sets the brand and food-safety standards. Where are decisions made?
+    options: ['Partly decentralized: local where local knowledge matters, central where consistency matters', 'Fully centralized', 'Fully decentralized']
+    answer: 0
+    reasons:
+      - Decisions needing local knowledge go to subsidiaries; brand and safety need consistency
+      - Every decision is made at headquarters
+      - Subsidiaries decide everything
+    reasonAnswer: 0
+    optionFeedback:
+      1: Menu choices are made locally.
+      2: Brand and safety are set centrally.
+    reasonFeedback:
+      1: Menus are decided locally.
+      2: Standards are set centrally.
+    hints: [Which decisions need local knowledge?]
+    explanation: Most multinationals split decisions by where knowledge and consistency matter.
+    variants:
+      - prompt: A bank's head office approves every loan above a small amount worldwide. Is this centralized or decentralized?
+        options: ['Centralized', 'Decentralized', 'Neither']
+        answer: 0
+        reasons:
+          - Decisions are made at headquarters
+          - Branches decide freely
+          - Loans aren't decisions
+        reasonAnswer: 0
+        optionFeedback:
+          1: Branches can't decide most loans.
+          2: It's clearly centralized.
+        reasonFeedback:
+          1: Headquarters approves.
+          2: They are major decisions.
+        explanation: Decisions at headquarters mean centralization.
+      - prompt: A subsidiary in a fast-changing market needs to answer competitors within days. Which way should decision rights lean?
+        options: ['Toward the subsidiary (decentralized)', 'Toward headquarters (centralized)', 'To an outside consultant']
+        answer: 0
+        reasons:
+          - Local managers know the market and can act quickly
+          - Headquarters always knows local markets best
+          - Speed doesn't matter
+        reasonAnswer: 0
+        optionFeedback:
+          1: Sending every decision to headquarters slows responses.
+          2: Consultants don't run the subsidiary.
+        reasonFeedback:
+          1: Local managers usually know more.
+          2: Here it does.
+        explanation: Speed and local knowledge favour decentralization.
+
+  - id: transfer-structure
+    type: mcq
+    skills: [structure-types]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: structures }
+    prompt: A snack-food maker sells products that must suit very different tastes in Asia, Europe and Latin America, with simple, stable technology. Which structure fits?
+    options: ['Geographic region structure', 'Global product structure', 'Matrix organization', 'Virtual corporation']
+    answer: 0
+    optionFeedback:
+      1: Product structures suit diverse technical lines that are the same everywhere.
+      2: A matrix brings double reporting, which most firms avoid.
+      3: Outsourcing nearly everything doesn't address regional tastes.
+    hints: ["What differs most: regions or products?"]
+    explanation: Regional differences with stable technology favour a geographic structure.
+    variants:
+      - prompt: An electronics firm makes very different product lines (chips, TVs, medical scanners) that are the same worldwide. Which structure fits?
+        options: ['Global product structure', 'Geographic region structure', 'An international division only', 'No structure']
+        answer: 0
+        optionFeedback:
+          1: Products differ more than regions do.
+          2: Large global firms usually outgrow a single international division.
+          3: Every firm needs a structure.
+        explanation: Diverse technical product lines favour product divisions.
+      - prompt: A small firm whose foreign sales are only 5% of revenue sets up one department to handle all exports. What structure is this?
+        options: ['An international division', 'A matrix', 'A global product structure', 'A virtual corporation']
+        answer: 0
+        optionFeedback:
+          1: A matrix has double reporting.
+          2: That organizes the whole firm by product worldwide.
+          3: A virtual corporation outsources most activities.
+        explanation: Small foreign operations are often grouped in an international division.
+
+  - id: transfer-control
+    type: mcq
+    skills: [control-influence]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: control-without-ownership }
+    prompt: A foreign firm owns 40% of a Philippine joint venture but supplies all its key technology. How might it keep control?
+    options:
+      - Through control of the technology the venture depends on
+      - It can't; only a majority owner has control
+      - By owning shares in a different company
+      - By ignoring the venture
+    answer: 0
+    optionFeedback:
+      1: Control can come from technology, finances, contracts or key people.
+      2: That doesn't affect this venture.
+      3: Ignoring it gives up control.
+    hints: [What does the venture need from the foreign firm?]
+    explanation: Dependence on its technology gives the minority owner influence.
+    variants:
+      - prompt: A minority partner places its own people as CEO and CFO of the joint venture. What does that give it?
+        options: ['Control over key decisions through key people', 'No influence at all', 'A majority of the votes', 'A trade secret']
+        answer: 0
+        optionFeedback:
+          1: Key executives run the company day to day.
+          2: Votes still follow shares.
+          3: That's unrelated.
+        explanation: Placing people in key jobs is a way to control without a majority.
+      - prompt: A hotel company owns none of a resort but runs it under a management contract. Who runs daily operations?
+        options: ['The hotel company, under the contract', 'Nobody', 'The guests', 'The government']
+        answer: 0
+        optionFeedback:
+          1: The contract gives operations to the hotel company.
+          2: Guests don't run the resort.
+          3: It's a private arrangement.
+        explanation: Management contracts give control without ownership.

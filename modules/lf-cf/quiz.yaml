@@ -277,6 +277,8 @@ templates:
       - It is a rounding artifact
     answer: 0
     optionFeedback:
+      2: "Least squares gives identical columns only when it starts from identical ones."
+      3: "The columns are exactly equal by construction, not by rounding."
       '1': 'Even with richer data, a symmetric start stays symmetric. Random initialization lets the factors differ.'
     hints: [What did U look like before the first V-step?]
     explanation: With identical columns in U, the V-step gives identical rows in V, and the U-step then keeps U's columns identical. That is the symmetry trap.
@@ -295,6 +297,12 @@ templates:
       - Run more ALS iterations from all ones
       - Start ALS from U = all twos instead of all ones
     answer: [0, 1]
+    optionFeedback:
+      0: "Yes: a random start makes the factors differ from the beginning."
+      1: "Yes: a single coordinate update already makes U's columns unequal."
+      2: "Ridge shrinks the factors, but from a symmetric start the ridge step is symmetric too."
+      3: "More iterations keep the columns identical forever."
+      4: "Any start with equal columns stays symmetric."
     hints:
       - Ask whether each change makes the two factors start, or become, different.
     explanation: |
@@ -315,6 +323,10 @@ templates:
       - Coordinate descent ignores the missing ratings
       - ALS uses regularization and coordinate descent doesn't
     answer: 0
+    optionFeedback:
+      1: "Both solve their sub-problems exactly; there's no step size. The difference is what gets updated."
+      2: "Both methods sum only over observed ratings."
+      3: "Neither run uses regularization here."
     hints: [Look at U's first row right after x = u₁₁ = 2.6.]
     explanation: After the first update U's row 1 is (2.6, 1), so the columns are no longer copies. ALS updates whole columns together and keeps them equal; coordinate descent breaks the tie with its first move.
 
@@ -331,8 +343,37 @@ templates:
       - As the user's mean rating
       - As the column mean
     answer: 0
+    optionFeedback:
+      1: "Treating blanks as zeros would train the model to predict 0 for them."
+      2: "Blanks aren't filled with means; they're simply left out of the sum."
+      3: "Blanks aren't filled at all; only observed cells count."
     hints: [What are the blanks for?]
     explanation: The lecture writes one squared term per observed rating; the blanks are what we want to predict.
+    variants:
+      - prompt: A model's prediction for a cell the user never rated is 4.6. How much does that cell add to the SSE?
+        options:
+          - Nothing; only observed cells are in the SSE
+          - (0 − 4.6)², since a blank counts as 0
+          - (3 − 4.6)², using the middle of the scale
+          - (mean − 4.6)², using the user's mean
+        answer: 0
+        optionFeedback:
+          1: Treating blanks as 0 would push predictions toward 0.
+          2: Blanks aren't filled with a guess.
+          3: Blanks are left out, not filled with means.
+        explanation: The SSE sums squared errors over observed ratings only.
+      - prompt: R has 12 cells, 7 of them observed. How many squared terms does the SSE add up?
+        options:
+          - '7'
+          - '12'
+          - '5'
+          - '19'
+        answer: 0
+        optionFeedback:
+          1: Only observed cells count.
+          2: Those are the missing cells, which are left out.
+          3: That adds both counts.
+        explanation: One squared term per observed rating, so 7.
 
   - id: als-monotone
     type: mcq
@@ -347,6 +388,10 @@ templates:
       - can increase if the learning rate is too high
       - always reaches the global minimum
     answer: 0
+    optionFeedback:
+      1: "The drop shrinks as the method converges; it isn't constant."
+      2: "ALS has no learning rate. Each update is an exact minimum."
+      3: "It can stop at a local minimum or a symmetric trap."
     hints: [Each update solves its own small problem exactly.]
     explanation: Each update solves its sub-problem exactly, so the objective can only drop or stay. But convergence to the global minimum is not guaranteed.
 
@@ -363,6 +408,10 @@ templates:
       - Because the ratings are integers
       - Because d = 2
     answer: 0
+    optionFeedback:
+      1: "U and V aren't orthogonal in general."
+      2: "Integer ratings have nothing to do with it; the parabola shape does."
+      3: "The closed form holds for any d, because one entry at a time is always a parabola."
     hints: [How does the prediction depend on u_is when everything else is frozen?]
     explanation: 'The prediction is linear in u_is, so the squared error is quadratic; set the derivative to 0 and solve.'
 
@@ -517,8 +566,37 @@ templates:
       - The SSE was computed over missing cells
       - Too few ALS iterations
     answer: 0
+    optionFeedback:
+      1: "Underfitting would leave a large training SSE, not one near 0."
+      2: "The SSE sums observed cells only; the problem is fitting them too closely."
+      3: "More iterations would fit the training data even more closely."
     hints: [Compare the number of parameters with the number of known ratings.]
     explanation: Fitting known ratings perfectly with many parameters can distort the unknown ones. Regularize or reduce d, and validate on held-out ratings.
+    variants:
+      - prompt: A model with d = 50 fits training ratings almost perfectly but its held-out RMSE is worse than with d = 5. What is happening?
+        options:
+          - Overfitting; reduce d or add regularization
+          - Underfitting; raise d further
+          - The SSE was computed over missing cells
+          - The symmetry trap
+        answer: 0
+        optionFeedback:
+          1: Underfitting shows high training error.
+          2: SSE uses observed cells only.
+          3: The symmetry trap keeps columns identical; it doesn't explain this gap.
+        explanation: Great training fit plus worse held-out error is overfitting.
+      - prompt: Which change usually helps a latent-factor model that overfits?
+        options:
+          - Increase λ
+          - Increase d
+          - Train on fewer ratings
+          - Remove the held-out set
+        answer: 0
+        optionFeedback:
+          1: More factors means more overfitting.
+          2: Less data makes overfitting worse.
+          3: Then you can't even see the problem.
+        explanation: Regularization shrinks factors and improves generalization.
 
   - id: predict-missing
     type: mcq
@@ -533,7 +611,36 @@ templates:
       - By finding the k most similar users
       - It can't be predicted without retraining
     answer: 0
+    optionFeedback:
+      1: "A row average ignores the item's factors."
+      2: "That's neighbourhood CF. Latent factors use a dot product."
+      3: "The trained U and V already give every cell."
     explanation: 'The same P = UV used during training gives values for every cell, including blanks.'
+    variants:
+      - prompt: 'With d = 2, user u2''s factors are (1.5, 0.5) and item i4''s factors are (2, 1). What is the predicted rating r̂(u2, i4)?'
+        options:
+          - '3.5'
+          - '2'
+          - '1.75'
+          - '5'
+        answer: 0
+        optionFeedback:
+          1: That adds the user's two factors. Multiply each by the matching item factor, then add.
+          2: You averaged the two products instead of adding them.
+          3: You added all four numbers.
+        explanation: 1.5 × 2 + 0.5 × 1 = 3.5.
+      - prompt: After training, how would you find the top recommendation for user u3?
+        options:
+          - Compute u3's row of U times V for every unrated item and take the highest
+          - Find u3's most similar user and copy their favourite
+          - Retrain the model with only u3's ratings
+          - Pick the item with the highest average rating
+        answer: 0
+        optionFeedback:
+          1: That's neighbourhood CF, not latent factors.
+          2: Retraining isn't needed; the factors already give every cell.
+          3: That ignores u3's own factors.
+        explanation: Score every unrated item with the dot product and rank them.
 
   - id: lambda-effect
     type: mcq
@@ -548,6 +655,10 @@ templates:
       - has no effect on predictions
       - breaks the symmetry trap from an all-ones start
     answer: 0
+    optionFeedback:
+      1: "The penalty makes the training fit slightly worse, not better."
+      2: "Shrinking the factors changes the predictions, which is the point."
+      3: "From a symmetric start the ridge step stays symmetric; only random initialization breaks it."
     hints: [What does a penalty on big factor values do to the fit on known ratings?]
     explanation: The penalty pulls factors toward zero, trading training fit for generalization. It does not break the symmetry trap.
 
@@ -564,6 +675,10 @@ templates:
       - 'u₂₁'
       - 'v₁₂'
     answer: 0
+    optionFeedback:
+      1: "The expression is in y with u₁₁ = 2.6 already fixed, so x isn't being updated again."
+      2: "u₂₁ is a user factor. This step solves for an item factor, v₁₁, over item 1's column of ratings."
+      3: "v₁₂ belongs to item 2, but this step works over item 1's column of ratings."
     explanation: 'The expression (4 − 2.6y)² + (2 − y)² + … is in y; the label is a typo.'
 
   - id: lf-vs-nb
@@ -579,6 +694,11 @@ templates:
       - Its predictions are easier to explain to users
       - It has no cold-start problem
     answer: [0, 1]
+    optionFeedback:
+      0: "Yes: factors pool information across all ratings, without needing co-rated overlaps."
+      1: "Yes: a prediction is a single d-dimensional dot product."
+      2: "Latent factors are hard to interpret, so explanations are harder."
+      3: "New users and items still have no factors until they rate or are rated."
     hints: [Think about what each method needs at prediction time.]
     explanation: Factors share information across all ratings and are cheap to serve. They are harder to explain, and new users/items are still cold.
 
@@ -595,6 +715,10 @@ templates:
       - Retrain with d = 3
       - Set their factors to all ones
     answer: 0
+    optionFeedback:
+      1: "An average user ignores the three ratings the person just gave."
+      2: "Retraining everything is what folding in avoids, and d doesn't need to change."
+      3: "All ones ignores their ratings and starts in the symmetric trap."
     hints: [Which half-step of ALS produces a user's row?]
     explanation: That is a single ALS U-step for one user ("folding in").
 
@@ -650,3 +774,275 @@ templates:
       - Every prediction is u₁v₁ + u₂v₂.
     explanation: |
       Blank: {=blank|2}. SSE over the {=observed} observed cells: {=sse|2} (counting the blank as a 0 rating would give {=wrongZero|2}).
+
+  # ------------------------------------------------------------------ new formats (case, find-error, two-tier, explain, cloze)
+  - id: sse-find-error
+    type: find-error
+    skills: [sse-observed]
+    difficulty: 2
+    tags: [math]
+    generator: sseQ
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: A classmate computes the SSE of this rank-1 factorization. **One step is wrong.** Click it and give the correct SSE.
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    steps:
+      - 'Compute every prediction P = UV'
+      - 'Treat each blank in R as a rating of 0'
+      - 'Square each (r − p) and add them up: SSE = {=wrongZero}'
+      - 'A smaller SSE means a closer fit to the known ratings'
+    wrong: 1
+    fix: { var: sse, tol: 0.01 }
+    fixPrompt: What is the correct SSE?
+    misconceptions:
+      - { var: wrongZero, feedback: "That still counts the blanks as zeros. Sum over the observed cells only." }
+    stepFeedback:
+      0: P = UV gives every prediction, which is right.
+      2: Squaring and summing is right; the problem is which cells are included.
+      3: That's a true statement about SSE.
+    hints: [Which cells does the SSE add up?]
+    explanation: Only the {=observed} observed cells count, so SSE = {=sse}. Treating blanks as 0 gives {=wrongZero} and trains the model toward predicting 0.
+
+  - id: sse-case
+    type: case
+    skills: [sse-observed, prediction, latent-model]
+    difficulty: 3
+    tags: [math]
+    generator: sseQ
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: '**Score and use a rank-1 factorization.** Blanks in R are missing ratings.'
+    show:
+      - { id: mp, widget: MatrixProduct, props: { U: '@U', V: '@V', R: '@R', format: 2 } }
+    parts:
+      - type: numeric
+        prompt: How many ratings are observed?
+        answer: { var: observed, tol: 0 }
+        explanation: '{=observed} cells of R hold a rating.'
+      - type: numeric
+        prompt: SSE over the observed cells
+        answer: { var: sse, tol: 0.01 }
+        misconceptions:
+          - { var: wrongZero, feedback: 'That counts the blanks as zeros. Only observed cells are summed.' }
+        explanation: 'SSE = {=sse}.'
+      - type: two-tier
+        prompt: How would you predict a missing rating r_ij from this model?
+        options: ['Read P = UV at row i, column j', 'Average row i of R', 'It cannot be predicted without retraining']
+        answer: 0
+        reasons:
+          - The factors give a prediction for every cell, observed or not
+          - Missing cells are excluded from the model entirely
+          - Predictions need a neighbour search
+        reasonAnswer: 0
+        reasonFeedback:
+          1: They're excluded from the SSE, but P = UV still covers them.
+          2: That's neighbourhood CF. Latent factors use the dot product.
+        explanation: The prediction is u_i · v_j, the same product used during training.
+    hints: [Count the filled cells, then sum (r − p)² over just those.]
+    explanation: '{=observed} observed cells, SSE = {=sse}; a missing cell is predicted as u_i · v_j.'
+
+  - id: symmetry-two-tier
+    type: two-tier
+    skills: [als-symmetry]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: cgd-worked }
+    prompt: ALS starts from U = all ones with d = 2. After 50 iterations both columns of U are still identical. Will adding regularization λ fix that?
+    options: ['No; only an asymmetric start (or a coordinate update) breaks the tie', 'Yes; regularization always breaks the symmetry', 'Yes, if λ is large enough']
+    answer: 0
+    reasons:
+      - From a symmetric start, the ridge step is symmetric too, so identical columns stay identical
+      - Regularization adds randomness to the updates
+      - More iterations eventually separate the columns
+    reasonAnswer: 0
+    optionFeedback:
+      1: Ridge shrinks both columns by the same amount, so they stay equal.
+      2: A larger λ shrinks more, but still equally.
+    reasonFeedback:
+      1: Ridge regularization is deterministic; it adds no randomness.
+      2: Identical columns receive identical updates forever.
+    hints: [Would the penalty treat the two identical columns differently?]
+    explanation: The symmetry trap is broken by a random start or a single coordinate update, not by regularization.
+
+  - id: rank-explain
+    type: explain
+    skills: [rank-choice]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: cgd-worked }
+    prompt: Explain how the choice of rank d trades off fit against generalization in latent-factor CF, and how you would choose it.
+    model: |
+      A larger d gives each user and item more factors, so the model can fit the known ratings more closely; training SSE keeps
+      falling. But with many free parameters it starts fitting noise, and predictions for missing cells get worse (overfitting).
+      A small d may underfit. Choose d (and λ) by holding out some known ratings and picking the value with the lowest
+      validation error.
+    checklist:
+      - Larger d means more parameters and a lower training SSE
+      - Too large a d overfits and hurts predictions for unseen cells
+      - Too small a d underfits
+      - Pick d by validation on held-out ratings
+    hints: [What happens to training error and to unseen-cell error as d grows?]
+    explanation: Training error always falls with d; validation error decides.
+
+  - id: lf-cloze
+    type: code-fill
+    lang: text
+    skills: [latent-model, als-step]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: Fill in the latent-factor terms.
+    code: |
+      The rating matrix R is approximated by the product of two factor matrices, U and __BLANK_1__. The fit is measured by the
+      sum of squared __BLANK_2__ over the observed cells only. Alternating least squares fixes one factor matrix and solves for
+      the other, then __BLANK_3__.
+    blanks:
+      '1': { accept: [V], hint: 'one letter' }
+      '2': { accept: [errors, error, residuals], hint: 'e…' }
+      '3': { accept: [alternates, swaps, switches, repeats, vice versa], hint: 'a…' }
+    hints: [The objective is SSE.]
+    explanation: R ≈ UV; SSE over observed cells; ALS alternates between solving for U and for V.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-factor-meaning
+    type: mcq
+    skills: [latent-model]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: A music app fits a latent-factor model with d = 2. One item factor turns out high for ballads and low for dance tracks. What is the right way to read a user's matching factor?
+    options:
+      - How much the user leans toward the kind of song that factor separates
+      - The user's average rating
+      - How many songs the user has rated
+      - The user's age
+    answer: 0
+    optionFeedback:
+      1: The mean isn't a factor; factors capture tastes.
+      2: Rating counts aren't factors.
+      3: The model never sees age.
+    hints: [A rating is the dot product of a user's and an item's factors.]
+    explanation: Matching user and item factors multiply, so a user factor measures taste along the same hidden direction.
+    variants:
+      - prompt: A bookstore's model has d = 3. Why can't the store simply label the three factors "romance", "thriller" and "history"?
+        options:
+          - Factors are learned from ratings and need not match any human genre
+          - Factors are always genres
+          - Factors are random numbers with no meaning
+          - Factors are the three most common genres by law
+        answer: 0
+        optionFeedback:
+          1: Nothing forces factors to line up with genres.
+          2: They reflect patterns in ratings, though not named ones.
+          3: There's no such rule.
+        explanation: Latent factors are hidden dimensions; any label is an interpretation.
+      - prompt: Two films have nearly identical item factor vectors. What does the model predict about them?
+        options:
+          - Every user gets nearly the same predicted rating for both
+          - They are the same film
+          - Users rated them on the same day
+          - They have the same number of ratings
+        answer: 0
+        optionFeedback:
+          1: Similar factors don't make films identical.
+          2: Time isn't in the model.
+          3: Rating counts aren't in the factors.
+        explanation: Predictions are dot products with the item vector, so similar vectors give similar predictions.
+
+  - id: transfer-rank
+    type: two-tier
+    skills: [rank-choice]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: math-code, id: cgd-worked }
+    prompt: A food-delivery app raises d from 10 to 200. Training SSE drops to almost 0, but predictions for held-out ratings get worse. What happened?
+    options: ['Overfitting', 'Underfitting', 'The symmetry trap']
+    answer: 0
+    reasons:
+      - Many more parameters let the model fit the known ratings, noise included
+      - Too few parameters to fit the data
+      - Identical factor columns
+    reasonAnswer: 0
+    optionFeedback:
+      1: Underfitting would leave a high training SSE.
+      2: The symmetry trap keeps columns identical; it doesn't explain good training and bad test fit.
+    reasonFeedback:
+      1: That describes underfitting.
+      2: That describes the symmetry trap.
+    hints: [Compare training error with held-out error.]
+    explanation: Low training error with worse held-out error is overfitting; reduce d or add λ.
+    variants:
+      - prompt: An app uses d = 1. Both training SSE and held-out error are high. What happened?
+        options: ['Underfitting', 'Overfitting', 'Leakage']
+        answer: 0
+        reasons:
+          - One factor can't capture enough of the taste patterns
+          - Too many parameters
+          - The test set leaked into training
+        reasonAnswer: 0
+        optionFeedback:
+          1: Overfitting shows low training error.
+          2: Leakage would make held-out error suspiciously low.
+        reasonFeedback:
+          1: That would give a low training SSE.
+          2: That would flatter the held-out score.
+        explanation: High error everywhere means the model is too simple.
+      - prompt: How should the app choose d?
+        options: ['Try several values and keep the one with the lowest held-out error', 'Pick the largest d possible', 'Pick d = 1 always']
+        answer: 0
+        reasons:
+          - Held-out error measures how well predictions generalize
+          - Training SSE always falls with d, so bigger is better
+          - Smaller models are always better
+        reasonAnswer: 0
+        optionFeedback:
+          1: Large d overfits.
+          2: Too small underfits.
+        reasonFeedback:
+          1: Training SSE always falls; it can't choose d.
+          2: Too simple a model misses patterns.
+        explanation: Validate on held-out ratings to choose d (and λ).
+
+  - id: transfer-als-coldstart
+    type: mcq
+    skills: [prediction, als-step]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: sse-observed }
+    prompt: A new show is added to a streaming app and nobody has rated it yet. What can the latent-factor model predict for it?
+    options:
+      - Nothing reliable yet; it has no ratings to learn its factors from
+      - The same as the most popular show
+      - A rating of 5 for every user
+      - Whatever its neighbours rated, by item-based CF
+    answer: 0
+    optionFeedback:
+      1: Popularity isn't in its factors.
+      2: There's no basis for 5.
+      3: Neighbours need ratings too.
+    hints: [Where do an item's factors come from?]
+    explanation: Item cold start; until it gets ratings (or content features), its factors can't be learned.
+    variants:
+      - prompt: A new user rates 5 films. How can the app get their factors without retraining the whole model?
+        options:
+          - Keep V fixed and solve one least-squares problem for the user's row
+          - Retrain everything from scratch
+          - Copy the factors of the most active user
+          - Set their factors to all ones
+        answer: 0
+        optionFeedback:
+          1: Folding in avoids full retraining.
+          2: Someone else's factors ignore their ratings.
+          3: All ones ignores their ratings and starts symmetric.
+        explanation: Fold the user in with a single ALS U-step.
+      - prompt: An item has ratings from only 2 users. What problem does that create for its factors?
+        options:
+          - They rest on very little data, so predictions for it are unreliable
+          - They can't be computed at all
+          - They become identical to other items
+          - Nothing; 2 ratings are plenty
+        answer: 0
+        optionFeedback:
+          1: ALS can compute them; they're just noisy.
+          2: Few ratings don't force identical factors.
+          3: Two ratings say little about how others will react.
+        explanation: Sparse items get noisy factors; regularization helps.

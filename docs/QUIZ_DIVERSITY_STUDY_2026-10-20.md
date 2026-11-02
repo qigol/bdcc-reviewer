@@ -224,6 +224,39 @@ Each format proposal above also needs a guide §5.10 entry and a §7.4 quota onc
 4. New quotas for §7.4: e.g. ≥ 2 `find-error`, ≥ 1 `two-tier`, ≥ 1 `case` at level 3 per module. Should they apply to new modules only, or should existing modules be backfilled?
 5. For multi-part cases, should a part answered wrong **carry forward** the learner's value or the correct value?
 
+## 7. Status (2026-10-22)
+
+**Built (engine, all client-side):** roadmap items 1, 3, 4, 5, 6, 7 and 8, so every format in §3 except the not-recommended ones.
+- Session composition (`apps/web/src/quiz/session.ts`): 40% type cap, at least one conceptual and one production item, no repeats until the pool is used up, a difficulty ramp in practice, no back-to-back type or skill, and `explain` left out of exams.
+- New fields on existing types: `multi.optionFeedback`, `order.distractors` (Parsons), `code-fill` with `lang: text` (prose cloze), `numeric.estimate`. A produce-the-term glossary question.
+- New types: `find-error`, `two-tier`, `explain`, `case` (`packages/schema/src/schemas.ts`, `quiz.ts`, `validate.ts`, `apps/web/src/quiz/Question.tsx`).
+- Confidence rating (`apps/web/src/storage/confidence.ts`, `QuizRunner.tsx`): optional; confidently-wrong answers and lucky guesses are rescheduled soon, and the results page shows calibration.
+- `variants` on mcq, multi and two-tier: a conceptual question can carry several scenarios, and each attempt picks one by seed. This gives tier-0a's "new scenario each time" without writing a generator, and per-option feedback stays attached to each scenario.
+- Guide §5.10, §7.4 and §12 updated. The validator now:
+  - rejects `{=a+b}` expressions, which used to print literally;
+  - builds and checks every variant;
+  - range-checks feedback keys;
+  - fails a find-error template when its "wrong" step equals the corrected value in any seed.
+
+**§6 decisions, as built:**
+- Confidence ratings are optional.
+- `explain` counts for practice and mastery only and is never in exams.
+- The new quotas apply to new modules; all 25 existing modules have now been brought up to them.
+- A case reveals each part's correct value once it is checked, and later parts carry that value forward.
+
+**Content, all 25 modules (minor versions bumped, with `authoring.notes` per §14):**
+- Every static conceptual mcq/multi (about 270) has `optionFeedback` on every option that can be picked wrongly or missed.
+- Every module has at least one of each:
+  - `find-error` (generator-driven where a generator fits, with the wrong value redrawn so it never equals the right one);
+  - `two-tier`;
+  - a level-3 `case`;
+  - `explain`;
+  - Parsons or prose cloze.
+- There are now 1,125 templates (up from 682). 158 of the 397 conceptual questions (40%) are generator-driven or have variants, up from 24. There are 148 application templates, and 75 of them are new transfer items set outside the lessons' own cases, each with three scenarios. There are 180 level-3 templates.
+- Every new item was checked against its module's lesson. Wording that depends on generated numbers was swept over 500 to 1,500 seeds. Three items whose wording didn't hold for every draw were reworded as hypotheticals.
+
+**Still open:** a handful of older distractors are weak (e.g. "The color of the national flag"). They now have feedback, but rewriting them as real misconceptions remains a content task.
+
 ---
 
 ## Appendix A: stats script

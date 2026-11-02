@@ -25,6 +25,31 @@ templates:
     explanation: |
       `as F` gives the whole [[module]] `pyspark.sql.functions` the short name `F`. Only then does `F.desc(...)` find
       the tool. In the real runs, the other import lines all end in `NameError: name 'F' is not defined`.
+    variants:
+      - prompt: 'A fresh notebook runs `from pyspark.sql import functions as F`, then `trips.agg(F.sum("fare_amount"))`. What happens?'
+        options:
+          - It works; F.sum is PySpark's sum, and Python's sum is untouched
+          - NameError, because sum isn't imported
+          - It uses Python's built-in sum and fails
+          - AnalysisException, because F.sum doesn't exist
+        answer: 0
+        optionFeedback:
+          1: F was imported, and F.sum lives in it.
+          2: The F. prefix picks PySpark's version.
+          3: F.sum exists in pyspark.sql.functions.
+        explanation: The F style keeps PySpark's functions apart from Python's built-ins.
+      - prompt: 'Which import style avoids the built-in clash with `max`, `min` and `round`?'
+        options:
+          - from pyspark.sql import functions as F
+          - from pyspark.sql.functions import *
+          - import pyspark.sql.functions.max
+          - from builtins import *
+        answer: 0
+        optionFeedback:
+          1: The star import overwrites the built-ins.
+          2: That's not valid import syntax for a function.
+          3: That reimports built-ins and loses PySpark's.
+        explanation: Using an F. prefix keeps both sets of names intact.
 
   - id: clash-mcq
     type: mcq
@@ -74,6 +99,10 @@ templates:
       - '`round` needs an import before it works. `as F` is that import.'
       - 'Spark cannot round numbers with three decimals. `F` uses a more precise number type.'
     answer: 0
+    optionFeedback:
+      1: "Python's built-ins aren't switched off; the star import overwrote the name `round`."
+      2: "`round` is built into Python and needs no import."
+      3: "Precision isn't the issue; PySpark's `round` expects a column, not a number."
     hints:
       - Which `round` does the name `round` point to after the star import?
       - With `as F`, where do PySpark's tools live?
@@ -300,6 +329,31 @@ templates:
       With one sort key, rows with equal counts can come out in any order, and the order can change from run to
       run. One real run printed 41, 33, 74. A [[tie-break]] such as `orderBy(F.desc("count"), "PULocationID")` makes
       it 33, 41, 74 every time.
+    variants:
+      - prompt: 'Three zones each have 5 trips. You sort with `orderBy(F.desc("count"))` only. Which zone comes first?'
+        options:
+          - Any of the three; the order of ties isn't guaranteed
+          - The smallest zone number
+          - The largest zone number
+          - The zone that appears first in the file
+        answer: 0
+        optionFeedback:
+          1: Without a tie-break, Spark doesn't promise an order.
+          2: Nothing sorts by zone number here.
+          3: File order isn't preserved through grouping.
+        explanation: Add a second sort key, such as the zone ID, to make the order fixed.
+      - prompt: 'How do you make tied counts come out in zone order every time?'
+        options:
+          - orderBy(F.desc("count"), "PULocationID")
+          - orderBy("count")
+          - orderBy(F.desc("count")).show()
+          - groupBy("PULocationID").orderBy("count")
+        answer: 0
+        optionFeedback:
+          1: That sorts ascending, and ties stay unordered.
+          2: show() doesn't add a tie-break.
+          3: GroupedData can't be sorted before a summary.
+        explanation: A second key breaks ties.
 
   - id: code-tiebreak
     type: code-fill
@@ -477,6 +531,7 @@ templates:
       - 'Write `AND` in capital letters'
     answer: 0
     optionFeedback:
+      1: "`+` adds values; Spark's and-operator is `&`."
       '2': 'Removing the parentheses keeps the `and`, so the same CANNOT_CONVERT_COLUMN_INTO_BOOL error appears. Keep them for the `&` fix too: without them Python reads `10 & F.col(...)` first and raises the same error.'
       '3': '`AND` works inside a SQL text such as `"fare_amount > 10 AND tip_amount > 0"`, but not between two Python column expressions.'
     hints:
@@ -619,6 +674,10 @@ templates:
       - '`show()` needs a number of rows, such as `show(5)`.'
       - '`select` must come after `groupBy`.'
     answer: 0
+    optionFeedback:
+      1: "A misspelled column would raise an AnalysisException, not a GroupedData error."
+      2: "`show()` works without arguments on a DataFrame; the object here isn't a DataFrame."
+      3: "`select` before `groupBy` is fine; what's missing is a summary after it."
     hints:
       - The error names the kind of object that has no `show`. What does `groupBy` hand on?
     explanation: |
@@ -657,11 +716,40 @@ templates:
       - '`groupBy` needs a list of column names.'
       - '`show()` cannot follow a function call.'
     answer: 0
+    optionFeedback:
+      1: "`trips` is passed in as `df`, and the function uses `df`."
+      2: "`groupBy` takes column names as separate arguments, so that call is fine."
+      3: "You can call `.show()` on whatever a function returns, as long as it returns a DataFrame."
     hints:
       - "`'NoneType' object` means the thing before `.show()` is `None`. Where could `None` come from?"
     explanation: |
       The chain inside the [[function]] is built and then thrown away. A function that ends without `return` hands
       back [[none|None]], and `None` has no `show` method. Put `return` in front of the chain.
+    variants:
+      - prompt: 'A function `def busiest(df): df.groupBy("DOLocationID").count()` is called as `busiest(trips).orderBy("count")`. It fails with `AttributeError: ''NoneType'' object has no attribute ''orderBy''`. Why?'
+        options:
+          - The function has no `return`, so it hands back None
+          - '`orderBy` needs `F.desc`'
+          - '`DOLocationID` is misspelled'
+          - '`count()` must come after `orderBy`'
+        answer: 0
+        optionFeedback:
+          1: orderBy works with a column name; the problem is None.
+          2: A misspelling raises an AnalysisException, not a NoneType error.
+          3: count() then orderBy("count") is the right order.
+        explanation: Without return, the function's result is None, which has no orderBy.
+      - prompt: 'Which version of `top_zones` returns a DataFrame you can call `.show()` on?'
+        options:
+          - 'def top_zones(df): return df.groupBy("PULocationID").count()'
+          - 'def top_zones(df): df.groupBy("PULocationID").count()'
+          - 'def top_zones(df): print(df.groupBy("PULocationID").count())'
+          - 'def top_zones(df): df.groupBy("PULocationID")'
+        answer: 0
+        optionFeedback:
+          1: No return, so it gives None.
+          2: print() returns None too.
+          3: No return, and GroupedData needs a summary anyway.
+        explanation: Only the version with return hands the DataFrame back.
 
   - id: code-return
     type: code-fill
@@ -758,12 +846,41 @@ templates:
       - 'The error appears on the `select` line the second time you run it.'
       - 'Column names are never checked; `pu` will be an empty table.'
     answer: 0
+    optionFeedback:
+      1: "Spark doesn't fix typos; it raises an AnalysisException with suggestions."
+      2: "Rerunning the `select` line still only adds to the plan; the error comes at an action."
+      3: "Names are checked, at the first action, and a bad one raises an error."
     hints:
       - Is `select` a transformation or an action?
     explanation: |
       `select` is a [[transformation]]: it writes a step into the [[plan]] and returns at once. This is
       [[lazy-evaluation|lazy evaluation]]. On [[spark-connect|Spark Connect]] the names are checked when an
       [[action]] such as `pu.show()` sends the plan, and that line raises the error.
+    variants:
+      - prompt: '`zones = trips.select("DOLocatoinID")` (misspelled) runs without error. Which later line shows the AnalysisException?'
+        options:
+          - The first action on it, such as `zones.count()`
+          - The select line, when run a second time
+          - None; Spark returns an empty column
+          - The import line at the top of the notebook
+        answer: 0
+        optionFeedback:
+          1: Rerunning select still only adds to the plan.
+          2: Spark does check names, at the action.
+          3: Imports have nothing to do with column names.
+        explanation: The bad name waits in the plan until an action runs it.
+      - prompt: 'Why can a typo in a `filter` line produce an error that points at a `show()` line several cells later?'
+        options:
+          - Transformations are lazy; Spark checks the plan only when the action runs
+          - show() is where all filters are written
+          - Python reorders cells before running them
+          - Errors are always reported on the last line of the notebook
+        answer: 0
+        optionFeedback:
+          1: show() just triggers the plan.
+          2: Python runs cells in the order you run them.
+          3: The error lands on the action that triggered it.
+        explanation: Lazy evaluation delays checking to the action, so the traceback points there.
 
   - id: action-multi
     type: multi
@@ -782,6 +899,15 @@ templates:
       - '`orderBy(...)`'
       - '`groupBy(...)`'
     answer: [0, 1, 2, 3]
+    optionFeedback:
+      0: "Yes: `show()` asks for rows, so it runs the plan."
+      1: "Yes: `count()` returns a number, so it runs the plan."
+      2: "Yes: `toPandas()` brings the data back, so it runs the plan."
+      3: "Yes: `first()` returns a row, so it runs the plan."
+      4: "`filter` only adds a step to the plan."
+      5: "`select` only adds a step to the plan."
+      6: "`orderBy` only adds a step to the plan."
+      7: "`groupBy` only prepares groups; a summary is still needed."
     hints:
       - An action asks for a result you can see or use in Python.
     explanation: |
@@ -868,6 +994,8 @@ templates:
       - 'The error is only raised the next time the cell runs.'
     answer: 0
     optionFeedback:
+      1: "The header keeps your spelling, `PULocationId`, so Spark didn't rewrite it."
+      3: "Running it again prints the same table; there's no delayed error."
       '2': 'Close is not enough: `PULocatonID`, one letter short, raises an error. Only capital letters are ignored.'
     hints:
       - Compare the two spellings letter by letter. Is anything missing, or only a letter's size?
@@ -893,6 +1021,12 @@ templates:
       - 'The `JVM stacktrace:` block'
       - 'The frames inside pyspark''s own files'
     answer: [0, 1]
+    optionFeedback:
+      0: "Yes: the last line names the error and says what went wrong."
+      1: "Yes: your cell's frame says where it surfaced in your code."
+      2: "The first line is the same for every traceback; it tells you nothing."
+      3: "The JVM block is Spark's own machinery."
+      4: "pyspark's frames are library internals, rarely where your bug is."
     hints:
       - Which lines talk about your code, and which line says what went wrong?
     explanation: |
@@ -1091,6 +1225,7 @@ templates:
       - '`trips.filter["total_amount > 30"]`'
     answer: 0
     optionFeedback:
+      3: "`filter` is called with parentheses; square brackets would try to index the DataFrame."
       '1': 'Only the name is in quotes, so Python compares text with 30 and raises a TypeError.'
       '2': 'Without quotes Python looks for a variable called `total_amount` and raises a NameError.'
     hints:
@@ -1153,6 +1288,13 @@ templates:
       - '"It doesn''t work, fix it" and nothing else'
       - Your Databricks password
     answer: [0, 1, 2, 3]
+    optionFeedback:
+      0: "Yes: without the code, the Assistant has to guess."
+      1: "Yes: the exact error text is the best clue."
+      2: "Yes: the schema shows the real column names and types."
+      3: "Yes: saying what you expected lets it spot the gap."
+      4: "With no code or error, the Assistant can only guess."
+      5: "Never paste passwords or keys into any assistant."
     hints:
       - What would a classmate need to see to help you without guessing?
     explanation: |
@@ -1243,3 +1385,241 @@ templates:
       {=nf} of the {=k} trips have a tip and a fare above {=x}, so the line prints {=share}: {=nf} / {=k} rounded to
       two decimal places. After a star import, line 2 fails with a bare `AssertionError`: `round` then means
       PySpark's, which expects a column. Line 1 uses no imported name, so it still runs.
+
+  # ------------------------------------------------------------------ new formats (Parsons, find-error, two-tier, explain)
+  - id: chain-parsons
+    type: order
+    code: true
+    skills: [method-chain, group-order]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: chain-steps }
+    prompt: |
+      Build a chain that shows the **average fare per pickup zone** for trips longer than 2 miles, highest average first.
+      Two lines in the bank don't belong.
+    items:
+      - 'trips'
+      - '.filter(F.col("trip_distance") > 2)'
+      - '.groupBy("PULocationID")'
+      - '.agg(F.avg("fare_amount").alias("avg_fare"))'
+      - '.orderBy(F.desc("avg_fare"))'
+      - '.show()'
+    distractors:
+      - '.filter(F.col("avg_fare") > 2)'
+      - '.collect().show()'
+    hints:
+      - Filter rows before grouping; the `avg_fare` column only exists after `agg`.
+      - '`collect()` returns a Python list, which has no `.show()`.'
+    explanation: Rows are filtered first, then grouped and aggregated into `avg_fare`, then sorted and shown. Filtering on `avg_fare` before it exists raises an AnalysisException, and `collect()` ends the DataFrame chain.
+
+  - id: and-find-error
+    type: find-error
+    code: true
+    skills: [select-filter, error-types]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: filter-conditions }
+    prompt: This script should count the tipped trips over ₱500 per zone, but it stops with an error. Click the line that causes it.
+    steps:
+      - 'from pyspark.sql import functions as F'
+      - 'big = trips.filter(F.col("fare_amount") > 500 and F.col("tip_amount") > 0)'
+      - 'per_zone = big.groupBy("PULocationID").count()'
+      - 'per_zone.orderBy(F.desc("count")).show()'
+    wrong: 1
+    stepFeedback:
+      0: This import is the recommended style (`F.` prefix), so nothing is shadowed.
+      2: '`groupBy(...).count()` is fine once `big` exists.'
+      3: Sorting by the `count` column produced by `count()` is fine.
+    hints:
+      - Python's `and` asks each side for a single True/False.
+      - Column conditions combine with `&` and parentheses.
+    explanation: '`and` makes Python call `bool()` on a Column, which raises **ValueError: Cannot convert column into bool**. Write `(F.col("fare_amount") > 500) & (F.col("tip_amount") > 0)`.'
+
+  - id: lazy-two-tier
+    type: two-tier
+    skills: [lazy-eval, tracebacks]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: shopping-list }
+    prompt: |
+      Line 3 of a notebook cell is `pu = trips.select("PULocatonID")` (misspelled). Line 7 is `pu.show()`. Which line does
+      the AnalysisException point to?
+    options: ['Line 7, the `show()`', 'Line 3, the `select`', 'Neither; Spark silently returns an empty column']
+    answer: 0
+    reasons:
+      - Transformations only add to the plan; Spark checks the plan when an action runs
+      - Spark checks each line as soon as Python runs it
+      - Misspelled columns are filled with nulls
+    reasonAnswer: 0
+    optionFeedback:
+      1: '`select` is a transformation, so it only records a step. Nothing is checked yet.'
+      2: Spark does check names, and fails loudly with a "Did you mean" list.
+    reasonFeedback:
+      1: That's how plain Python behaves, but Spark transformations are lazy.
+      2: Spark raises an AnalysisException for unknown columns; it doesn't invent nulls.
+    hints: [Which of the two lines is an action?]
+    explanation: With lazy evaluation the bad name sits in the plan until `show()` sends it, so the traceback lands on the `show()` line even though the typo is on line 3.
+
+  - id: lazy-explain
+    type: explain
+    skills: [lazy-eval]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: shopping-list }
+    prompt: A teammate says "my `filter` line is fine because it ran without an error". Explain why that doesn't prove anything in PySpark, and what to do instead.
+    model: |
+      `filter` is a **transformation**: it only adds a step to the plan, so running it checks nothing. Spark checks and runs the
+      plan when an **action** (`show`, `count`, `collect`) asks for a result, so an error from the filter will appear on that
+      later line. To test a step, put a small action right after it, such as `.show(5)` or `.count()`.
+    checklist:
+      - filter is a transformation, which only adds to the plan
+      - Nothing is checked or computed until an action runs
+      - The error then appears on the action's line, not the filter's
+      - Test a step by adding an action such as show(5) or count() right after it
+    hints: [What's the difference between a transformation and an action?]
+    explanation: Lazy evaluation delays all checking to the action, so "it ran" only means "it was added to the plan".
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-read-error
+    type: mcq
+    skills: [error-types, tracebacks]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: error-zoo }
+    prompt: 'A cell fails with `NameError: name ''col'' is not defined`. What is the most likely fix?'
+    options:
+      - Import it (from pyspark.sql.functions import col) or write F.col
+      - Restart the cluster
+      - Rename the column in the data
+      - Add .show() at the end
+    answer: 0
+    optionFeedback:
+      1: A restart forgets imports; it won't define col.
+      2: The data isn't the problem; Python doesn't know the name col.
+      3: The error happens before any action.
+    hints: [A NameError is about Python names, not data.]
+    explanation: Python doesn't know `col` because it wasn't imported in this session.
+    variants:
+      - prompt: '`AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column ... `fare` cannot be resolved. Did you mean one of: [`fare_amount`, ...]`. What is the fix?'
+        options:
+          - Use the suggested column name, fare_amount
+          - Import fare from pyspark.sql.functions
+          - Restart Python
+          - Wrap the line in a function
+        answer: 0
+        optionFeedback:
+          1: Columns aren't imported; they're in the data.
+          2: The column still won't exist after a restart.
+          3: A function doesn't change the column name.
+        explanation: The message names the bad column and suggests the real one.
+      - prompt: '`TypeError: ''Column'' object is not callable` appears on `trips.fare_amount()`. What is wrong?'
+        options:
+          - A column isn't a function; drop the parentheses
+          - fare_amount is misspelled
+          - trips isn't defined
+          - The column needs a schema
+        answer: 0
+        optionFeedback:
+          1: A misspelling gives an AttributeError or AnalysisException.
+          2: That would be a NameError.
+          3: Types don't make columns callable.
+        explanation: '`trips.fare_amount` is a Column; adding () tries to call it.'
+
+  - id: transfer-chain-order
+    type: two-tier
+    skills: [method-chain, group-order]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: chain-steps }
+    prompt: 'A chain `trips.groupBy("PULocationID").count().filter(F.col("tip_amount") > 0)` fails. Why?'
+    options: ['After the count, the table has only PULocationID and count; tip_amount is gone', 'filter must always come first in any chain', 'count() can''t follow groupBy']
+    answer: 0
+    reasons:
+      - Each step works on the table the previous step produced
+      - Spark sorts chain steps alphabetically
+      - groupBy deletes every column
+    reasonAnswer: 0
+    optionFeedback:
+      1: Order matters because of what each step produces, not a fixed rule.
+      2: count() is the usual summary after groupBy.
+    reasonFeedback:
+      1: Steps run in the order written.
+      2: groupBy keeps the grouping column; the summary adds count.
+    hints: [What columns exist after count()?]
+    explanation: Filter rows before grouping, while tip_amount still exists.
+    variants:
+      - prompt: '`trips.select("PULocationID").filter(F.col("fare_amount") > 20)` fails. Why?'
+        options: ['select kept only PULocationID, so fare_amount no longer exists', 'filter can''t follow select', 'fare_amount must be quoted twice']
+        answer: 0
+        reasons:
+          - Each step only sees the columns the previous step kept
+          - select deletes the DataFrame
+          - Spark needs filters in a separate cell
+        reasonAnswer: 0
+        optionFeedback:
+          1: filter after select is fine if the column is kept.
+          2: Quoting isn't the problem.
+        reasonFeedback:
+          1: select returns a new, narrower DataFrame.
+          2: Chains can include filters anywhere.
+        explanation: Filter first, or include fare_amount in the select.
+      - prompt: 'Which chain gives the busiest pickup zones with a tip, busiest first?'
+        options: ['filter tips → groupBy zone → count → orderBy count descending', 'groupBy zone → filter tips → count', 'orderBy count → groupBy zone → count']
+        answer: 0
+        reasons:
+          - Rows are filtered first, then grouped, summarized and sorted
+          - Any order gives the same result
+          - Sorting must come before grouping
+        reasonAnswer: 0
+        optionFeedback:
+          1: GroupedData can't be filtered on row values like that.
+          2: There's no count column to sort before counting.
+        reasonFeedback:
+          1: Order changes which columns exist at each step.
+          2: You sort by the count, which exists only after counting.
+        explanation: filter → groupBy → count → orderBy.
+
+  - id: transfer-help
+    type: mcq
+    skills: [find-help]
+    difficulty: 1
+    tags: [application]
+    lessonRef: { tab: intuition, id: ask-for-help }
+    prompt: You're not sure what arguments `orderBy` accepts. What's the quickest reliable source?
+    options:
+      - Run help(trips.orderBy) or read its docstring
+      - Guess and keep trying
+      - Ask a friend to guess
+      - Search social media for screenshots
+    answer: 0
+    optionFeedback:
+      1: Guessing wastes runs and can mislead.
+      2: A friend's guess is no better than yours.
+      3: Screenshots can be outdated or wrong.
+    hints: [Python can describe its own functions.]
+    explanation: help() shows the official signature and description.
+    variants:
+      - prompt: What should you include when asking the Databricks Assistant about a failing cell?
+        options:
+          - The code, the full error text, the schema and what you expected
+          - Only "it doesn't work"
+          - Your password so it can log in
+          - A photo of your screen
+        answer: 0
+        optionFeedback:
+          1: Without details it can only guess.
+          2: Never share passwords.
+          3: Copy the error as text so it can be read exactly.
+        explanation: Give it what it needs to reason, and never credentials.
+      - prompt: The Assistant suggests a fix. What should you do before trusting it?
+        options:
+          - Run it and check the result against what you expected
+          - Paste it into your report without testing
+          - Assume it's right because it sounds confident
+          - Ask it to repeat itself until it agrees with you
+        answer: 0
+        optionFeedback:
+          1: Untested code can be wrong.
+          2: Confidence isn't correctness.
+          3: Repetition isn't verification.
+        explanation: Test AI suggestions before relying on them.

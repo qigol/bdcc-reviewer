@@ -46,6 +46,10 @@ templates:
       - So the answer is expressed in percentages
       - So that outliers are ignored
     answer: 0
+    optionFeedback:
+      1: "Squaring says nothing about the origin; the intercept a is estimated freely."
+      2: "Squared errors are in squared cost units, not percentages."
+      3: "Squaring makes outliers count more, not less."
     hints:
       - Think about what happens if you add +5 and −5.
     explanation: Raw errors above and below the line cancel, so a poor line can still add to zero. Squaring makes every error positive and weights big misses more heavily.
@@ -245,9 +249,38 @@ templates:
       - Seventy percent of the data points lie on the line
       - The line is 70% likely to be correct
     answer: 0
+    optionFeedback:
+      1: "That describes an elasticity. R² is the share of variation explained."
+      2: "R² is about how close the points are to the line on average, not how many sit exactly on it."
+      3: "R² isn't a probability of being correct."
     hints:
       - R² is a share of the variation in cost.
     explanation: R² is the proportion of the ups and downs in cost explained by the driver. The other 30% comes from other factors or randomness.
+    variants:
+      - prompt: A regression of delivery cost on kilometers driven gives R² = 0.45. What does that mean?
+        options:
+          - Kilometers explain about 45% of the variation in delivery cost
+          - Delivery cost rises 45% for each extra kilometer
+          - 45% of the data points lie on the line
+          - The line is 45% likely to be right
+        answer: 0
+        optionFeedback:
+          1: That's a slope-like reading; R² is a share of variation explained.
+          2: R² is about closeness on average, not points exactly on the line.
+          3: R² isn't a probability.
+        explanation: R² is the share of the variation in cost explained by the driver; 55% comes from other factors.
+      - prompt: A regression of utilities on machine hours gives R² = 0.96. What is the best reading?
+        options:
+          - Machine hours explain almost all of the month-to-month variation in utilities
+          - Machine hours cause 96% of the utility bill
+          - 96% of the utility bill is variable
+          - The line predicts every month within 4%
+        answer: 0
+        optionFeedback:
+          1: R² measures association, not cause.
+          2: The variable share comes from the slope, not R².
+          3: R² isn't a promise about each month's error; the standard error speaks to that.
+        explanation: A high R² means the points sit close to the line; it doesn't prove cause.
 
   - id: r2-multi
     type: multi
@@ -262,6 +295,11 @@ templates:
       - A high R² proves the driver causes the cost
       - A higher R² means the points are closer to the line
     answer: [0, 1, 3]
+    optionFeedback:
+      0: "Yes: in simple regression R² = r²."
+      1: "Yes: it's a share of variation, so it runs from 0 to 1."
+      2: "R² measures association; it can't prove cause."
+      3: "Yes: tighter points around the line mean a higher R²."
     hints:
       - R² describes how closely the points hug the line, not why.
     explanation: R² runs from 0 to 1 and grows as the points move closer to the line. It is a measure of association, so a high value does not prove cause.
@@ -295,6 +333,10 @@ templates:
       - The standard errors are in percent, so they cannot be compared
       - Both are equally precise because R² is the same
     answer: 0
+    optionFeedback:
+      1: "A larger standard error means bigger typical misses, so less precision."
+      2: "The standard error of the estimate is in pesos, the units of the cost, so they compare directly."
+      3: "Equal R² doesn't mean equal precision; the standard error measures the size of the misses."
     hints:
       - The standard error is a typical size of the miss.
     explanation: The standard error of the estimate is in the same units as the cost. A smaller one means actual costs sit closer to the fitted line.
@@ -326,6 +368,10 @@ templates:
       - The standard error of the estimate
       - The intercept
     answer: 0
+    optionFeedback:
+      1: "R² describes the whole model, not one coefficient."
+      2: "The standard error of the estimate is the size of a typical miss for the whole model."
+      3: "The intercept is the fixed-cost estimate, not a test of a driver."
     hints:
       - Which statistic is about one coefficient, not the whole model?
     explanation: R² describes the whole model and the standard error of the estimate the size of a typical miss. The t-statistic compares one coefficient with its own uncertainty.
@@ -379,6 +425,10 @@ templates:
       - Orders explain 180% of the cost
       - The fixed cost is ₱180
     answer: 0
+    optionFeedback:
+      1: "It's an average effect with kilos held fixed, not an exact charge per order."
+      2: "A coefficient is in pesos per order, not a share of cost."
+      3: "The fixed cost is the intercept, not a driver's coefficient."
     hints:
       - Each coefficient is read with the other drivers held constant.
     explanation: A coefficient in a multiple regression is the change in cost for one more unit of that driver with the other drivers held fixed. It is an estimate, not an exact charge.
@@ -397,6 +447,10 @@ templates:
       - Labor hours really reduce overhead; keep both drivers
       - R² is too low; add more correlated drivers
     answer: 0
+    optionFeedback:
+      1: "A high R² can hide nonsense coefficients when the drivers are collinear."
+      2: "More labor hours almost never lower overhead; the negative sign is a symptom of collinearity."
+      3: "R² is already high, and adding more correlated drivers makes the problem worse."
     hints:
       - Look at the correlation between the two drivers.
     explanation: When two drivers move almost together, their separate effects cannot be isolated and a coefficient can take an implausible sign while R² still looks good. Keep the driver that is more closely tied to the cost.
@@ -414,6 +468,11 @@ templates:
       - Adding or removing one driver makes another coefficient swing wildly
       - R² is close to zero
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: strongly correlated drivers are the cause."
+      1: "Yes: an implausible sign is a classic symptom."
+      2: "Yes: unstable coefficients are a classic symptom."
+      3: "A near-zero R² means a weak model, which is a different problem."
     hints:
       - The problem is about drivers moving together, not about a poor overall fit.
     explanation: The signs are strongly correlated drivers, implausible coefficient signs and unstable coefficients. A very low R² is a different problem.
@@ -460,6 +519,10 @@ templates:
       - Neither; both are too weak
       - Both, averaged
     answer: 0
+    optionFeedback:
+      1: "Passing |t| > 2 makes it usable, but machine hours is better on every measure."
+      2: "Both pass the |t| > 2 rule, and machine hours explains 81% of the variation."
+      3: "Averaging two formulas has no statistical basis; pick the better driver."
     hints:
       - Compare the two models on every statistic you have.
     explanation: Both clear the |t| > 2 rule, but machine hours explains far more of the variation and has a much stronger t. It dominates on every available metric.
@@ -477,6 +540,10 @@ templates:
       - They are equally defensible because the numbers are similar
       - Neither, because six months is too few for any method
     answer: 0
+    optionFeedback:
+      1: "Simpler, but it uses only two points and gives no measure of fit."
+      2: "Similar numbers don't make them equally defensible; only regression shows how well it fits."
+      3: "Six months is small, but regression still uses all of them and reports its fit."
     hints:
       - Which method can say how well it fits?
     explanation: Regression uses every observation and reports R². Even though the two formulas are close here, only the regression carries a statistical measure of reliability.
@@ -494,9 +561,38 @@ templates:
       - Add the standard error to be safe
       - Reject the model entirely
     answer: 0
+    optionFeedback:
+      1: "Strong statistics only hold inside the range of the data."
+      2: "The standard error measures scatter within the range; it can't fix extrapolation."
+      3: "The model is fine inside its range; just don't stretch it to 22,000 hours."
     hints:
       - Which hours did the data come from?
     explanation: The statistics are strong, but strong statistics apply only inside the range of the data. At 22,000 hours the cost behavior may differ, so gather data closer to that volume.
+    variants:
+      - prompt: A shipping cost model was built from months with 2,000 to 5,000 parcels (R² = 0.93). A holiday month is expected to have 9,000 parcels. What should management do?
+        options:
+          - Treat the model's estimate for 9,000 with caution and gather data near that volume
+          - Use the model; a high R² holds at any volume
+          - Double the estimate for 4,500 parcels
+          - Discard the model completely
+        answer: 0
+        optionFeedback:
+          1: Strong statistics hold only inside the data's range.
+          2: Doubling assumes the behavior stays linear far outside the range.
+          3: The model is fine within its range.
+        explanation: 9,000 parcels is far outside the relevant range; extra shifts or vehicles may change the cost behavior.
+      - prompt: A cost model for a call center was estimated from 400 to 900 call hours a week. Can it be used to budget a week with 650 call hours?
+        options:
+          - Yes; 650 hours is inside the range the model came from
+          - No; models never work for budgets
+          - Only if R² is exactly 1
+          - Only after doubling the intercept
+        answer: 0
+        optionFeedback:
+          1: Budgeting within the range is exactly what the model is for.
+          2: No model fits perfectly; R² below 1 is normal.
+          3: There's no reason to change the intercept.
+        explanation: Inside the relevant range, the model is fair to use.
 
   - id: communicate-match
     type: match
@@ -525,3 +621,237 @@ templates:
       - Estimate a simple or multiple regression
       - Validate with R², the standard error and t
     explanation: Screening comes before estimating, because one unusual month can distort the result. Validation comes last, before the model is used.
+
+  # ------------------------------------------------------------------ new formats (find-error, case, two-tier)
+  - id: intercept-find-error
+    type: find-error
+    skills: [least-squares, regression-line]
+    difficulty: 3
+    tags: [math]
+    generator: regSumsQ
+    calculator: true
+    lessonRef: { tab: math-code, id: least-squares-fit }
+    prompt: |
+      An analyst fits a least-squares line to the five months below. **One step is wrong.** Click it and give the correct value.
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    steps:
+      - 'Σx = {=sx}, Σy = {=sy}, Σxy = {=sxy}, Σx² = {=sx2}, n = {=n}'
+      - 'b = (n·Σxy − Σx·Σy) ÷ (n·Σx² − (Σx)²) = {=num} ÷ {=den} = {=b|3}'
+      - 'a = ȳ = {=sy} ÷ {=n} = {=ybar|3}'
+      - 'The line is y = a + bx'
+    wrong: 2
+    fix: { var: a, tol: 0.01 }
+    fixPrompt: What is the correct intercept a (two decimals)?
+    misconceptions:
+      - { var: wrongA, feedback: "That's still ȳ alone. The intercept is ȳ − b·x̄." }
+    hints:
+      - The least-squares line passes through (x̄, ȳ).
+      - So a = ȳ − b·x̄, not ȳ.
+    explanation: a = ȳ − b·x̄ = {=ybar|3} − {=b|3} × {=xbar|3} = {=a|3}. Using ȳ alone treats the slope as zero.
+
+  - id: regression-case
+    type: case
+    skills: [least-squares, regression-line, r-squared]
+    difficulty: 3
+    tags: [math]
+    generator: regSumsQ
+    lessonRef: { tab: math-code, id: least-squares-fit }
+    prompt: |
+      **Fit, judge and use a cost line.** The table shows five months of activity x and cost y. Here Σx = {=sx}, Σy = {=sy},
+      Σxy = {=sxy}, Σx² = {=sx2} and Σy² = {=sy2}.
+    show:
+      - { id: tbl, widget: Matrix, props: { data: '@table', format: int, rowHeader: Month } }
+    parts:
+      - type: numeric
+        prompt: Slope b (two decimals)
+        answer: { var: b, tol: 0.01 }
+        explanation: 'b = {=num} ÷ {=den} = {=b|3}.'
+      - type: numeric
+        prompt: Intercept a (two decimals)
+        answer: { var: a, tol: 0.01 }
+        misconceptions:
+          - { var: wrongA, feedback: "That's ȳ alone. The intercept is ȳ − b·x̄." }
+        explanation: 'a = {=ybar|3} − {=b|3} × {=xbar|3} = {=a|3}.'
+      - type: numeric
+        prompt: R² (as a decimal, two places)
+        answer: { var: r2, tol: 0.01 }
+        explanation: 'R² = {=r2|3}: activity explains about {=r2|pct} of the month-to-month variation in cost.'
+      - type: numeric
+        prompt: Predicted cost at x = {=predictAt} (two decimals)
+        answer: { var: predicted, tol: 0.02 }
+        misconceptions:
+          - { var: wrongNoA, feedback: 'You left out the intercept. y′ = a + bx.' }
+        explanation: 'y′ = {=a|3} + {=b|3} × {=predictAt} = {=predicted|3}.'
+    hints:
+      - Slope first, then the intercept through (x̄, ȳ).
+      - R² = (n·Σxy − Σx·Σy)² ÷ [(n·Σx² − (Σx)²)(n·Σy² − (Σy)²)].
+    explanation: y = {=a|3} + {=b|3}x with R² = {=r2|3}; at x = {=predictAt} the line predicts {=predicted|3}.
+
+  - id: r2-two-tier
+    type: two-tier
+    skills: [r-squared, method-choice]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: how-good }
+    prompt: Two cost lines fit the same 12 months. Line A uses machine hours (R² = 0.91); line B uses direct labor hours (R² = 0.42). Which driver should the plant use to predict overhead?
+    options: [Machine hours, Direct labor hours, Either one; R² says nothing about prediction]
+    answer: 0
+    reasons:
+      - A higher R² means the driver explains more of the variation in cost
+      - A lower R² means the line is more conservative
+      - R² measures how large the slope is
+    reasonAnswer: 0
+    optionFeedback:
+      1: Labor hours explain under half the variation, so its predictions will miss by more.
+      2: R² is exactly a measure of how much of cost's variation the driver accounts for.
+    reasonFeedback:
+      1: A low R² isn't conservative, just noisier, with bigger prediction errors.
+      2: R² is about fit, not slope. A steep line can fit badly.
+    hints: [What share of the month-to-month swings does each driver explain?]
+    explanation: Machine hours explain about 91% of the variation in overhead and labor hours about 42%, so machine hours give tighter predictions (check the t-statistic and standard error too).
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-driver-choice
+    type: mcq
+    skills: [method-choice, r-squared, t-statistic]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: judge-output }
+    prompt: 'A hospital laundry tests two drivers for its cost: kilograms washed (R² = 0.88, t = 7.1) and number of beds occupied (R² = 0.52, t = 1.6). Which driver should its cost formula use?'
+    options:
+      - Kilograms washed
+      - Beds occupied
+      - Both, averaged
+      - Neither; both are too weak
+    answer: 0
+    optionFeedback:
+      1: Beds explain only about half the variation, and t = 1.6 is below 2.
+      2: Averaging two formulas has no statistical basis.
+      3: Kilograms washed is strong on both measures.
+    hints: [Compare R² and check |t| > 2.]
+    explanation: Kilograms washed explains far more of the variation and its coefficient is clearly significant.
+    variants:
+      - prompt: 'A bakery tests oven hours (R² = 0.61, t = 3.0) and flour used (R² = 0.84, t = 5.4) as drivers of its gas cost. Which should it use?'
+        options:
+          - Flour used
+          - Oven hours
+          - Neither
+          - Both, added together
+        answer: 0
+        optionFeedback:
+          1: Oven hours pass |t| > 2 but explain less.
+          2: Both pass |t| > 2; flour used is clearly better.
+          3: Adding two correlated drivers invites multicollinearity.
+        explanation: Flour used is better on both R² and t.
+      - prompt: 'A courier compares parcels delivered (R² = 0.71, t = 1.4, only 6 months of data) with kilometers driven (R² = 0.69, t = 4.8, 24 months). Which driver is more trustworthy?'
+        options:
+          - Kilometers driven, since its coefficient is clearly significant over more data
+          - Parcels delivered, since its R² is higher
+          - Parcels delivered, since six months is enough
+          - Neither can be judged
+        answer: 0
+        optionFeedback:
+          1: A slightly higher R² doesn't help when t = 1.4 is below 2.
+          2: Six months and a weak t make it unreliable.
+          3: The t-statistics settle it.
+        explanation: R² is similar, but only kilometers driven has a significant coefficient.
+
+  - id: transfer-collinear
+    type: two-tier
+    skills: [multicollinearity]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: math-code, id: multiple-regression }
+    prompt: A water refilling station regresses its cost on gallons sold and on number of customers (which move almost together). The gallons coefficient comes out negative. What should it do?
+    options: ['Drop one of the two drivers and re-estimate', 'Keep both; selling more gallons really lowers cost', 'Add a third driver that also moves with gallons']
+    answer: 0
+    reasons:
+      - Highly correlated drivers can't be separated, so coefficients can take impossible signs
+      - A negative coefficient proves economies of scale
+      - More correlated drivers make the estimates stable
+    reasonAnswer: 0
+    optionFeedback:
+      1: Selling more water doesn't make cost fall; the sign is a symptom.
+      2: More correlated drivers make it worse.
+    reasonFeedback:
+      1: The sign comes from the collinearity, not the business.
+      2: Correlated drivers make coefficients unstable.
+    hints: [What happens when two drivers move together?]
+    explanation: Multicollinearity; keep the driver more directly tied to the cost.
+    variants:
+      - prompt: A factory regresses overhead on machine hours and labor hours. They are 40% correlated, both coefficients are positive and both |t| > 3. Is multicollinearity a problem?
+        options: ['Probably not', 'Yes, always with two drivers', 'Yes, because R² is high']
+        answer: 0
+        reasons:
+          - Moderate correlation with sensible, significant coefficients shows the effects can be separated
+          - Any two drivers are always collinear
+          - A high R² is itself the warning sign
+        reasonAnswer: 0
+        optionFeedback:
+          1: Two drivers are fine if they don't move together.
+          2: A high R² is good; the warning signs are odd signs and unstable coefficients.
+        reasonFeedback:
+          1: Collinearity needs strongly correlated drivers.
+          2: Low R² is a different issue; high R² isn't a warning by itself.
+        explanation: With moderate correlation, sensible signs and strong t-values, the model is usable.
+      - prompt: A hotel's housekeeping cost model uses rooms occupied and guests (93% correlated). Adding "guests" made the rooms coefficient swing from 410 to 95. What does that suggest?
+        options: ['Multicollinearity', 'A better model', 'A data entry error in rooms']
+        answer: 0
+        reasons:
+          - A coefficient that swings when a correlated driver is added is a classic sign
+          - Adding drivers always improves coefficients
+          - Large swings only come from typos
+        reasonAnswer: 0
+        optionFeedback:
+          1: Unstable coefficients point to collinearity, not a better model.
+          2: The swing follows adding the correlated driver, not a typo.
+        reasonFeedback:
+          1: Adding correlated drivers can make coefficients unreliable.
+          2: The pattern matches collinearity.
+        explanation: Rooms and guests move together, so their separate effects can't be pinned down.
+
+  - id: transfer-highlow-vs-reg
+    type: mcq
+    skills: [method-choice]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: why-regression }
+    prompt: A cooperative's board will set member fees for three years based on a cost formula. Which estimation method is most defensible?
+    options:
+      - Regression on all the available months, reporting R² and t
+      - High-low, since it's quickest
+      - A scattergraph drawn by one staff member
+      - Last month's total cost
+    answer: 0
+    optionFeedback:
+      1: High-low uses only two months, which is weak for a big decision.
+      2: An eye-drawn line is subjective.
+      3: One month says nothing about how cost behaves.
+    hints: [How much is riding on the formula?]
+    explanation: High-stakes decisions call for all the data and a measure of fit.
+    variants:
+      - prompt: A store manager needs a rough utilities estimate in ten minutes for an internal check. Which method is reasonable?
+        options:
+          - High-low
+          - A full multiple regression with every possible driver
+          - Waiting a year for more data
+          - No estimate at all
+        answer: 0
+        optionFeedback:
+          1: Overkill for a quick, low-stakes check.
+          2: The check is needed now.
+          3: A quick estimate is better than none here.
+        explanation: For a quick, low-stakes estimate, high-low is fine.
+      - prompt: An analyst wants to see whether any months look abnormal before fitting a cost line. What should they do first?
+        options:
+          - Plot a scattergraph
+          - Compute high-low
+          - Report R² right away
+          - Delete the highest month
+        answer: 0
+        optionFeedback:
+          1: High-low hides outliers; it may even use one.
+          2: R² comes after fitting and doesn't show which months are odd.
+          3: Deleting a month without looking is arbitrary.
+        explanation: A scattergraph shows outliers before any fitting.

@@ -31,6 +31,10 @@ templates:
       - 'Its recall on the small group must also be about 99%'
       - 'It is overfitting, because 99% is too high for real data'
     answer: 0
+    optionFeedback:
+      1: "Always guessing the big group also scores 99%, so the accuracy says nothing about the small group."
+      2: "Accuracy and minority recall can be far apart: the lazy model has 99% accuracy and 0% recall."
+      3: "99% is exactly what the lazy model gets on 99 : 1 data. It points to imbalance, not overfitting."
     hints:
       - 'What accuracy would a model get if it always guessed the big group on a 99 : 1 dataset?'
     explanation: |
@@ -52,6 +56,13 @@ templates:
       - Uneven data always contains labelling mistakes
       - Even groups guarantee a good model
     answer: [0, 1, 2, 3]
+    optionFeedback:
+      0: "Yes: the rare group is a tiny share of the rows, so its mistakes barely move accuracy."
+      1: "Yes: guessing the big group is the lazy shortcut to a high score."
+      2: "Yes: one overall number can sit on top of 0% recall."
+      3: "Yes: plain accuracy weighs every mistake the same, however costly."
+      4: "Imbalance is about group sizes, not label quality."
+      5: "Balanced groups remove one problem but don't make a model good."
     hints:
       - Think about what happens to accuracy when you miss a few rare cases.
       - Two of the options claim things imbalance cannot promise.
@@ -341,6 +352,10 @@ templates:
       - 'It labels 94% of all learners correctly'
       - Its precision for Severely Underweight is 0.94
     answer: 0
+    optionFeedback:
+      1: "Higher overall scores hid zero recall on the group the decision is about."
+      2: "0.94 is the recall of the Normal row only, not of all learners."
+      3: "With rows adding to 1, the diagonal is recall, and the Severely Underweight diagonal is 0.00."
     hints:
       - 'In a table whose rows add up to 1, what does the diagonal box tell you?'
     explanation: |
@@ -583,6 +598,10 @@ templates:
       - SMOTE-NC copies rows instead of blending them, which is safer for mixed data
       - Plain SMOTE ignores the number columns whenever name columns are present
     answer: 0
+    optionFeedback:
+      1: "Plain SMOTE works with any number of classes; the problem is blending category codes."
+      2: "SMOTE-NC still blends the number columns; it votes on the category columns."
+      3: "Plain SMOTE blends every column, categories included, which is the problem."
     hints:
       - 'What would "halfway between Married and Divorced" be?'
     explanation: |
@@ -679,6 +698,10 @@ templates:
       - Every minority point equally
       - The minority points furthest from all other points
     answer: 0
+    optionFeedback:
+      1: "Points deep inside the minority cluster are easy, so ADASYN gives them few new neighbours."
+      2: "Equal shares is plain SMOTE. ADASYN weights by hardness."
+      3: "ADASYN looks at how many of a point's k neighbours are majority points, not at raw distance."
     hints:
       - ADASYN aims at the points that are hardest to learn. Where are those?
     explanation: |
@@ -742,6 +765,10 @@ templates:
       - The method with the highest accuracy, since it makes the fewest mistakes overall
       - Any rebalancing method, since uneven data should always be fixed first
     answer: 0
+    optionFeedback:
+      1: "Maximum recall floods a team that can only review 50 alerts with false alarms."
+      2: "Accuracy favours ignoring fraud entirely on imbalanced data."
+      3: "Rebalancing is a trade-off, not a fix that is always worth it."
     hints:
       - 'What does each wrong guess cost this team, and how many alerts can they handle?'
     explanation: |
@@ -762,6 +789,12 @@ templates:
       - Accuracy rose for every rebalancing method
       - Rebalancing taught the model a much better ranking
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: recall rose from 0.506 to 0.82–0.88."
+      1: "Yes: precision fell from 0.683 to about 0.50."
+      2: "Yes: ROC-AUC stayed at about 0.875, so the ranking barely changed."
+      3: "Accuracy fell, from 0.826 to 0.76–0.78."
+      4: "Unchanged ROC-AUC means the ranking stayed about the same; it was the cut-off that moved."
     hints:
       - Compare each column for the baseline and for the rebalancing methods.
       - ROC-AUC measures how well the model ranks people. Did it change much?
@@ -782,6 +815,10 @@ templates:
       - 'SMOTE only works with tree models, so logistic regression recall is unreliable'
       - 'Recall is the wrong score for imbalanced data, so any recall value misleads'
     answer: 0
+    optionFeedback:
+      1: "Stratification affects the counts, but the jump comes from leakage between the two sets."
+      2: "SMOTE works with any model; the problem is resampling before the split."
+      3: "Recall is a good score here. The problem is how the test set was built."
     hints:
       - Where could the new SMOTE points that were built from test rows end up?
     explanation: |
@@ -909,8 +946,37 @@ templates:
       - Both go up, because the model now sees more dropouts
       - Neither changes, because the model itself was not retrained
     answer: 0
+    optionFeedback:
+      1: "A lower threshold flags more learners, not fewer."
+      2: "Flagging more catches more dropouts but also more false alarms, so precision falls."
+      3: "The scores stay the same, but moving the cut-off changes who is flagged, so both metrics change."
     hints: [Does a lower cut-off flag more learners or fewer?]
     explanation: A lower cut-off flags more learners. More real dropouts are caught (recall rises), but more of the flagged learners are false alarms (precision falls). The model's scores did not change, only where we cut them.
+    variants:
+      - prompt: A spam filter flags emails with a spam score of 0.5 or more. What usually happens if the threshold is raised to 0.8?
+        options:
+          - Precision goes up and recall goes down, because fewer emails are flagged
+          - Recall goes up and precision goes down, because more emails are flagged
+          - Both go up, because the filter is stricter
+          - Neither changes, because the model wasn't retrained
+        answer: 0
+        optionFeedback:
+          1: A higher threshold flags fewer emails, not more.
+          2: Stricter flagging misses more spam, so recall falls.
+          3: The cut-off changes who is flagged, so both metrics change.
+        explanation: Fewer flags means more of them are right (precision up) but more spam slips through (recall down).
+      - prompt: A hospital screening model must miss as few sick patients as possible; follow-up tests are cheap. Which way should the threshold move?
+        options:
+          - Lower, to raise recall even if precision falls
+          - Higher, to raise precision
+          - Leave it at 0.5 always
+          - Remove the threshold
+        answer: 0
+        optionFeedback:
+          1: Higher catches fewer sick patients.
+          2: 0.5 is a default, not a rule.
+          3: A classifier needs a threshold to decide.
+        explanation: When misses are costly and false alarms cheap, lower the threshold.
 
   - id: class-weights-mcq
     type: mcq
@@ -925,8 +991,37 @@ templates:
       - The test set, so that it has as many dropouts as stayers
       - The decision threshold, which is moved to 1 ÷ 70
     answer: 0
+    optionFeedback:
+      1: "Copying rows is random oversampling. Weights leave the data alone."
+      2: "The test set is never touched; it keeps the real-world mix."
+      3: "The threshold stays where it was; weights act during learning."
     hints: [Did SAGIP add or remove any rows?]
     explanation: Class weights make each minority mistake count more while the model learns, which has a similar effect to rebalancing without touching the data. The test set and the threshold are left alone.
+    variants:
+      - prompt: 'A churn model uses `class_weight="balanced"`. What does that do?'
+        options:
+          - Makes mistakes on the rare class count more during training; no rows change
+          - Duplicates rare-class rows until the classes match
+          - Removes common-class rows
+          - Balances the test set
+        answer: 0
+        optionFeedback:
+          1: That's random oversampling.
+          2: That's undersampling.
+          3: The test set is never changed.
+        explanation: Class weights change the loss, not the data.
+      - prompt: Why might a team choose class weights over SMOTE?
+        options:
+          - No synthetic rows are made, so there is no risk of unrealistic points
+          - Class weights always give higher recall
+          - SMOTE can't be used with logistic regression
+          - Class weights change the test set too
+        answer: 0
+        optionFeedback:
+          1: Neither method always wins.
+          2: SMOTE works with any model.
+          3: Neither should touch the test set.
+        explanation: Weights rebalance learning without inventing data.
 
   - id: tie-numeric
     type: numeric
@@ -1090,3 +1185,256 @@ templates:
     explanation: |
       A: {=cFN} × {=fnA} + {=cFP} × {=fpA} = {=costA}. B: {=cFN} × {=fnB} + {=cFP} × {=fpB} = {=costB}. Model
       {=better} is cheaper, saving {=saving}.
+
+  # ------------------------------------------------------------------ new formats (case, find-error, two-tier, explain, cloze)
+  - id: metrics-case
+    type: case
+    skills: [confusion-matrix, prf1, accuracy-trap]
+    difficulty: 3
+    tags: [math]
+    generator: confusionQ
+    lessonRef: { tab: math-code, id: four-metrics }
+    prompt: |
+      **Audit a fraud model.** It was run on {=n} transactions, {=pos} of them actually fraudulent. Its confusion matrix:
+    show:
+      - { id: cm, widget: Matrix, props: { data: '@cm', format: int, rowHeader: actual } }
+    parts:
+      - type: numeric
+        prompt: Accuracy (as a decimal, two places)
+        answer: { var: accuracy, tol: 0.01 }
+        explanation: '(TP + TN) / n = ({=tp} + {=tn}) / {=n} = {=accuracy|2}.'
+      - type: numeric
+        prompt: Recall on the fraud class (two places)
+        answer: { var: recall, tol: 0.01 }
+        misconceptions:
+          - { var: wrongRecAsPrec, feedback: 'That is precision, TP / (TP + FP). Recall divides by the actual frauds, TP + FN.' }
+        explanation: 'TP / (TP + FN) = {=tp} / ({=tp} + {=fn}) = {=recall|2}.'
+      - type: numeric
+        prompt: F1 score (two places)
+        answer: { var: f1, tol: 0.01 }
+        misconceptions:
+          - { var: wrongF1Arith, feedback: "That's the plain average of precision and recall. F1 is their **harmonic** mean, 2PR / (P + R)." }
+        explanation: 'Precision {=precision|2}, recall {=recall|2}, so F1 = 2PR / (P + R) = {=f1|2}.'
+      - type: two-tier
+        prompt: The team lead says "accuracy is {=accuracyPct|0}%, ship it". What do you say?
+        options: ['Look at recall and F1 on the fraud class first', 'Agree: most of its predictions are right, so it is good enough', 'Ask for more negative examples to raise accuracy further']
+        answer: 0
+        reasons:
+          - With a rare class, accuracy is dominated by the majority class and can hide missed frauds
+          - Accuracy already includes recall
+          - More data always fixes imbalance
+        reasonAnswer: 0
+        reasonFeedback:
+          1: Accuracy pools both classes. The few fraud rows barely move it.
+          2: More majority-class rows make the imbalance worse, not better.
+        explanation: The minority-class metrics are the ones that tell you whether frauds are caught.
+    hints:
+      - Read TP, FN, FP, TN off the matrix first.
+      - Accuracy uses all four cells; recall and precision only use the fraud row or column.
+    explanation: Accuracy {=accuracy|2}, recall {=recall|2}, F1 {=f1|2}. A high accuracy can sit on top of a low recall when fraud is rare.
+
+  - id: f1-find-error
+    type: find-error
+    skills: [prf1]
+    difficulty: 2
+    tags: [math]
+    generator: confusionQ
+    lessonRef: { tab: math-code, id: four-metrics }
+    prompt: |
+      A classmate scores a classifier with TP = {=tp}, FN = {=fn}, FP = {=fp}, TN = {=tn}. **One step is wrong.** Click it and give
+      the correct value.
+    steps:
+      - 'Precision = TP / (TP + FP) = {=tp} / ({=tp} + {=fp}) = {=precision|3}'
+      - 'Recall = TP / (TP + FN) = {=tp} / ({=tp} + {=fn}) = {=recall|3}'
+      - 'F1 = (precision + recall) / 2 = {=f1Arith|3}'
+    wrong: 2
+    fix: { var: f1, tol: 0.01 }
+    fixPrompt: What is the correct F1 (two decimals)?
+    misconceptions:
+      - { var: f1Arith, feedback: "That's still the plain average. F1 = 2PR / (P + R)." }
+    hints:
+      - F1 punishes a big gap between precision and recall.
+      - It's the harmonic mean, 2PR / (P + R).
+    explanation: F1 = 2 × {=precision|3} × {=recall|3} / ({=precision|3} + {=recall|3}) = {=f1|3}. The plain average ({=f1Arith|3}) overstates a lopsided model.
+
+  - id: smote-explain
+    type: explain
+    skills: [smote, random-resampling]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: smote-line }
+    prompt: Explain how SMOTE differs from random oversampling, and why that difference can help a classifier.
+    model: |
+      Random oversampling copies existing minority rows, so the model sees the same few points again and can overfit to them.
+      SMOTE makes **new** synthetic minority rows: it picks a minority point, picks one of its k nearest minority neighbours, and
+      places a new point at a random spot on the line between them. That fills in the minority region instead of stacking
+      duplicates, so the decision boundary is pushed out more smoothly. Both are applied to the training data only.
+    checklist:
+      - Random oversampling duplicates existing minority rows
+      - SMOTE creates new points between a minority row and a nearby minority neighbour
+      - Duplicates invite overfitting; interpolated points spread the minority region
+      - Resampling is done on the training split only
+    hints: ["What does each method add to the training set: copies, or new points?"]
+    explanation: Copies vs interpolated neighbours, and both only on training data.
+
+  - id: metric-cloze
+    type: code-fill
+    lang: text
+    skills: [prf1, confusion-matrix]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: four-metrics }
+    prompt: Fill in the metric names.
+    code: |
+      Of the cases the model flagged as positive, the share that really are positive is __BLANK_1__. Of the cases that really
+      are positive, the share the model caught is __BLANK_2__. Their harmonic mean is the __BLANK_3__ score.
+    blanks:
+      '1': { accept: [precision], hint: 'p…' }
+      '2': { accept: [recall, sensitivity, true positive rate], hint: 'r…' }
+      '3': { accept: [F1, F1 score, F-1, F], hint: 'F…' }
+    hints: [One divides by the alarms raised, the other by the actual positives.]
+    explanation: Precision = TP / (TP + FP); recall = TP / (TP + FN); F1 = 2PR / (P + R).
+
+  - id: resample-split-two-tier
+    type: two-tier
+    skills: [random-resampling, smote, choosing]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: resample-counts }
+    prompt: A team applies SMOTE to the **whole** dataset, then splits it into training and test sets. Their test recall jumps from 0.40 to 0.85. Should they trust the jump?
+    options: ['No, the test score is inflated', 'Yes, SMOTE made the model better at finding the minority class', 'Yes, as long as they used k = 5 neighbours']
+    answer: 0
+    reasons:
+      - Synthetic test rows were built from training rows, so the test set leaks training information
+      - SMOTE always lowers recall, so a rise must be an error
+      - The test set should be balanced too, so resampling it is correct
+    reasonAnswer: 0
+    optionFeedback:
+      1: Some of the improvement may be real, but you can't tell, because the test set now holds points interpolated from training rows.
+      2: The number of neighbours doesn't fix leakage.
+    reasonFeedback:
+      1: SMOTE usually raises minority recall. That's not the problem here.
+      2: The test set must keep the real class mix, or its scores don't describe the real world.
+    hints: [Where did the synthetic test points come from?]
+    explanation: Resample only the training split, after the split. Otherwise synthetic test points are near-copies of training points and the score is optimistic.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-metric-choice
+    type: mcq
+    skills: [choosing, prf1]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: choose-by-decision }
+    prompt: A typhoon-warning model flags barangays for evacuation. Missing a real flood is far worse than an unnecessary evacuation. Which metric matters most?
+    options: ['Recall on the flood class', 'Precision on the flood class', 'Accuracy', 'Specificity']
+    answer: 0
+    optionFeedback:
+      1: Precision guards against false alarms, which are the cheaper mistake here.
+      2: Accuracy can be high while floods are missed.
+      3: Specificity is about the no-flood class.
+    hints: [Which mistake is costlier?]
+    explanation: When misses are costly, maximize recall.
+    variants:
+      - prompt: A bank can manually review only 30 flagged transactions a day, and false alarms waste the team's time. Which metric matters most for the flagged list?
+        options: ['Precision', 'Recall', 'Accuracy', 'Number of rows']
+        answer: 0
+        optionFeedback:
+          1: High recall with low precision floods the team with false alarms.
+          2: Accuracy is dominated by legitimate transactions.
+          3: Row counts aren't a quality metric.
+        explanation: With limited review capacity, precision of the flagged list matters most.
+      - prompt: A scholarship screen should both catch most qualified applicants and not waste interviews. Which single score balances the two?
+        options: ['F1', 'Accuracy', 'Recall only', 'Specificity']
+        answer: 0
+        optionFeedback:
+          1: Accuracy hides performance on the smaller group.
+          2: Recall alone ignores wasted interviews.
+          3: Specificity ignores the qualified group.
+        explanation: F1 is the harmonic mean of precision and recall.
+
+  - id: transfer-resampling
+    type: two-tier
+    skills: [random-resampling, smote]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: smote-line }
+    prompt: A credit-default dataset has 950 non-defaults and 50 defaults. The team copies each default row 19 times before training. What is the main risk?
+    options: ['Overfitting to the same 50 defaults', 'Losing most of the non-default data', 'Changing the test set']
+    answer: 0
+    reasons:
+      - Exact copies add no new information, so the model can memorize them
+      - Copying rows deletes other rows
+      - Oversampling is applied to the test set
+    reasonAnswer: 0
+    optionFeedback:
+      1: That's undersampling.
+      2: Done properly, only the training set is resampled.
+    reasonFeedback:
+      1: Oversampling adds rows; it doesn't remove any.
+      2: The test set should be left alone.
+    hints: [What do copies add?]
+    explanation: Duplicates invite overfitting; SMOTE's interpolated points are one alternative.
+    variants:
+      - prompt: Another team keeps only 50 of the 950 non-defaults to balance the classes. What is the main risk?
+        options: ['Throwing away most of the information', 'Overfitting to copied rows', 'Leakage into the test set']
+        answer: 0
+        reasons:
+          - Undersampling discards 900 real rows
+          - Undersampling creates copies
+          - Undersampling moves test rows into training
+        reasonAnswer: 0
+        optionFeedback:
+          1: No rows are copied.
+          2: Leakage comes from resampling before splitting.
+        reasonFeedback:
+          1: It only removes rows.
+          2: It doesn't move rows between sets.
+        explanation: Random undersampling loses information.
+      - prompt: A dataset has a categorical column "region" with values like NCR and Visayas. Which oversampler fits?
+        options: ['SMOTE-NC', 'Plain SMOTE', 'Neither; categories can''t be oversampled']
+        answer: 0
+        reasons:
+          - SMOTE-NC blends numbers and votes on categories
+          - Plain SMOTE blends categories into impossible in-between values
+          - Categorical data can never be resampled
+        reasonAnswer: 0
+        optionFeedback:
+          1: Blending category codes invents regions that don't exist.
+          2: SMOTE-NC handles them.
+        reasonFeedback:
+          1: Plain SMOTE does that, which is the problem.
+          2: SMOTE-NC handles mixed data.
+        explanation: Use SMOTE-NC for mixed numeric and categorical data.
+
+  - id: transfer-lazy-model
+    type: mcq
+    skills: [accuracy-trap, confusion-matrix]
+    difficulty: 1
+    tags: [application]
+    lessonRef: { tab: intuition, id: lazy-model }
+    prompt: In a factory, 2% of parts are defective. A model that always says "not defective" has what accuracy?
+    options: ['98%', '2%', '50%', '0%']
+    answer: 0
+    optionFeedback:
+      1: 2% is the share it gets wrong.
+      2: Accuracy isn't 50% just because there are two classes.
+      3: It's right on every good part.
+    hints: [How many parts does it label correctly?]
+    explanation: It's right on the 98% good parts, with 0% recall on defects.
+    variants:
+      - prompt: A model detects a rare disease present in 1 of 200 patients. It always predicts "healthy". What is its recall on the disease class?
+        options: ['0%', '99.5%', '100%', '0.5%']
+        answer: 0
+        optionFeedback:
+          1: 99.5% is its accuracy.
+          2: It never predicts the disease.
+          3: 0.5% is the disease rate.
+        explanation: It never catches a sick patient, so recall is 0.
+      - prompt: A fraud model's accuracy is 99.1% on data with 0.9% fraud. What should you check before praising it?
+        options: ['Its recall and precision on the fraud class', 'Its accuracy on a bigger dataset', 'Its training time', 'Nothing; 99.1% is excellent']
+        answer: 0
+        optionFeedback:
+          1: More data won't fix the accuracy trap.
+          2: Speed doesn't measure quality.
+          3: Always predicting "not fraud" also scores 99.1%.
+        explanation: Accuracy equal to the majority share is exactly what the lazy model gets.

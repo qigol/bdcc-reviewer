@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Tab, type Progress, type Attempt } from './db';
+import { srsGrade, type Confidence } from './confidence';
 
 export interface Settings {
   theme: 'light' | 'dark' | 'system';
@@ -84,10 +85,10 @@ export function useMastery() {
 
 // ------------------------------------------------------------ SRS (SM-2-lite on templates)
 const DAY = 86400000;
-export async function updateSrs(key: string, moduleId: string, score: number) {
+export async function updateSrs(key: string, moduleId: string, score: number, confidence?: Confidence) {
   const now = Date.now();
   const cur = (await db.srs.get(key)) ?? { templateId: key, moduleId, ease: 2.5, interval: 0, due: now, reps: 0, lapses: 0, updatedAt: now };
-  const grade = score >= 0.95 ? 5 : score >= 0.75 ? 4 : score >= 0.5 ? 3 : score >= 0.25 ? 2 : 1;
+  const grade = srsGrade(score, confidence);
   let { ease, interval, reps, lapses } = cur;
   if (grade < 3) {
     reps = 0;
@@ -108,7 +109,7 @@ export async function recordAttempt(a: Omit<Attempt, 'id' | 'at'>) {
   await db.attempts.add({ ...a, at: Date.now() });
   const isGlossary = a.templateId.startsWith('glossary-');
   if (a.skills.length) await updateMastery(a.moduleId, a.skills, a.score, a.difficulty);
-  if (!isGlossary || a.mode === 'review') await updateSrs(a.key, a.moduleId, a.score);
+  if (!isGlossary || a.mode === 'review') await updateSrs(a.key, a.moduleId, a.score, a.confidence);
 }
 
 export async function saveNote(moduleId: string, anchor: string, text: string) {

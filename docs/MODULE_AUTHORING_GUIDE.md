@@ -620,16 +620,21 @@ interface Base {
 }
 interface Mcq extends Base { type: 'mcq'; options?: Markdown[]; answer?: number; shuffle?: boolean;  // default true
                              optionFeedback?: Record<string, Markdown> }                             // key = option index
-interface Multi extends Base { type: 'multi'; options?: Markdown[]; answer?: number[]; shuffle?: boolean }
+interface Multi extends Base { type: 'multi'; options?: Markdown[]; answer?: number[]; shuffle?: boolean;
+                               optionFeedback?: Record<string, Markdown> }   // shown for each option picked wrongly or missed
 interface NumericAnswer { var?: string; value?: number; tol?: number;        // abs tol, default 0.01 (10% of the answer when it is < 0.1)
                           relTol?: number; accept?: ('decimal' | 'fraction' | 'percent')[];   // default [decimal, fraction]; without 'decimal' a plain number is rejected
                           percent?: boolean }   // answer in % units (98.59): 98.59, 98.59% and 0.9859 all accepted (§7.1b)
 interface Misconception { var?: string; value?: number; feedback: Markdown }
-interface Numeric extends Base { type: 'numeric'; answer: NumericAnswer; misconceptions?: Misconception[] }
-interface CodeFill extends Base { type: 'code-fill'; lang?: string; code: string;   // contains __BLANK_1__, __BLANK_2__, …
+interface Numeric extends Base { type: 'numeric'; answer: NumericAnswer; misconceptions?: Misconception[];
+                                 estimate?: { prompt: Markdown; options: Markdown[] | Ref; answer: number | Ref; feedback?: Markdown } }
+                                 // estimate-first: a range/sign choice made before typing the number; worth ¼ of the score
+interface CodeFill extends Base { type: 'code-fill'; lang?: string; code: string;   // contains __BLANK_1__, __BLANK_2__, …; lang: text = prose cloze
                                   blanks: Record<string, { accept?: string[]; regex?: string; hint?: string }> }
 interface Match extends Base { type: 'match'; pairs: [Markdown, Markdown][]; pick?: number }   // pick = random subset size
-interface Order extends Base { type: 'order'; items: Markdown[] }                                // listed in the CORRECT order
+interface Order extends Base { type: 'order'; items: Markdown[];                                // listed in the CORRECT order
+                               distractors?: Markdown[];   // Parsons: decoy lines; the learner builds the answer from a line bank
+                               code?: boolean }            // render items as code lines
 interface HandCalc extends Base { type: 'hand-calc';
   steps: { prompt: Markdown; answer: NumericAnswer; misconceptions?: Misconception[]; hint?: Markdown }[] }
 interface JournalEntryQ extends Base { type: 'journal-entry';
@@ -641,12 +646,42 @@ interface ScheduleFillQ extends Base { type: 'schedule-fill';
   columns?: string[];
   rows: (ScheduleRow & { blank?: boolean; given?: number[]; tol?: number })[] | Ref;   // rows with blank: true become inputs; given = columns of that row printed, not asked (e.g. [0] keeps the physical-units column of an EU row)
   tol?: number; relTol?: number }
-type Template = Mcq | Multi | Numeric | CodeFill | Match | Order | HandCalc | JournalEntryQ | ScheduleFillQ;
+interface FindErrorQ extends Base { type: 'find-error';
+  steps: Markdown[] | Ref;          // a worked solution, ≥ 3 steps; one is wrong (later steps may follow from it)
+  wrong: number | Ref;              // index of the (first) wrong step
+  fix?: NumericAnswer; fixPrompt?: Markdown; misconceptions?: Misconception[];   // optional: the corrected value of that step (½ the score)
+  stepFeedback?: Record<string, Markdown>;   // why a step the learner blamed is actually fine (key = step index)
+  code?: boolean }                  // render steps as code lines
+interface TwoTierQ extends Base { type: 'two-tier';
+  options: Markdown[] | Ref; answer: number | Ref;           // tier 1: the answer
+  reasonPrompt?: Markdown; reasons: Markdown[] | Ref; reasonAnswer: number | Ref;   // tier 2: why
+  shuffle?: boolean; optionFeedback?: Record<string, Markdown>; reasonFeedback?: Record<string, Markdown> }
+interface ExplainQ extends Base { type: 'explain'; model: Markdown; checklist: Markdown[] }   // 2–5 points; self-checked, never in exams
+interface CaseQ extends Base { type: 'case';
+  parts: Part[] }                   // 2–6 parts sharing one generator draw
+type Part = { prompt: Markdown; show?: StageWidget[]; explanation?: Markdown; hints?: Markdown[] }
+          & (Mcq | Multi | Numeric | CodeFill | Match | Order | HandCalc | JournalEntryQ | ScheduleFillQ | FindErrorQ | TwoTierQ)['type-specific fields'];
+type Template = Mcq | Multi | Numeric | CodeFill | Match | Order | HandCalc | JournalEntryQ | ScheduleFillQ
+              | FindErrorQ | TwoTierQ | ExplainQ | CaseQ;
+// Mcq, Multi and TwoTierQ also take variants?: Variant[]: alternative scenarios, one picked per attempt (the template's own fields are scenario 0)
+interface Variant { prompt?: Markdown; explanation?: Markdown; options: Markdown[]; answer: number | number[];
+                   optionFeedback?: Record<string, Markdown>;                       // keyed to THIS variant's options
+                   reasonPrompt?: Markdown; reasons?: Markdown[]; reasonAnswer?: number; reasonFeedback?: Record<string, Markdown> }
 ```
 - A question instance is `(template id, seed)`. Everything must render from the generator's `vars` plus static fields.
 - **Code-fill matching** ignores all whitespace and treats `'` and `"` as equal, so keep `accept` lists minimal but include genuine alternatives (`len(transactions)` and `len(D)` if both are valid in context).
 - **Misconceptions** are *specific wrong methods*, computed by the generator (`var`) or fixed (`value`), with feedback that names the mistake. The engine ignores any that coincide with the correct answer.
-- Glossary questions are auto-generated. **Don't** write plain "define term X" templates; write `term`-tagged templates only for richer conceptual distinctions.
+- Glossary questions are auto-generated: definition → term, term → definition, formula → term (multiple choice), and **produce the term** (the definition is shown and the learner types the term; `term`, its `aka` and the term without a parenthetical are accepted). **Don't** write plain "define term X" templates; write `term`-tagged templates only for richer conceptual distinctions.
+- **Choosing a format.** Recognition (mcq) is cheapest; prefer a format that makes the learner *produce* or *judge*:
+  - **find-error** (an erroneous worked example): build the steps in the generator from a real misconception (the same `wrong*` value the module already computes), pick the wrong step with `rng`, and work later steps consistently from it, so the learner has to find where it *first* went wrong. Use it at difficulty 2–3, after the plain calculation has been practised (it helps learners who know the procedure).
+  - **two-tier**: the reasons are the misconceptions. Give `reasonFeedback` for each wrong reason. Keep reasons true or false *independently of the drawn numbers* when the answer is a `@ref`.
+  - **Parsons** (`order` with `distractors`): 1–2 decoys, each a real mistake (a filter on a column that doesn't exist yet, a step from the other costing method). Never joke lines.
+  - **cloze** (`code-fill` with `lang: text`): blank the key *term*, not filler words; give a first-letter `hint`; list genuine synonyms in `accept`.
+  - **explain**: a model answer ≤ 80 words and a 2–5 point checklist of the ideas a good answer must contain. It is self-graded, so it counts for practice and mastery only and is left out of exams.
+  - **case**: one scenario, 2–6 parts that build on each other (rate → applied → verdict → entry). In practice each part is checked on its own and then shows its correct answer, so a slip doesn't spoil the next part. Only generator misconceptions keyed `for` a part's answer var reach it; put any others on the part itself. Generator `options`/`answer` don't reach parts: give options statically or as `@refs`.
+  - **estimate** (on numeric): a sign or range choice whose answer is a generator `@ref` (e.g. `kindIdx`, `liftAbove`). Use it where a sign or magnitude error is the common slip.
+- **variants** give a conceptual question a different scenario each attempt without a generator: same idea, new case (a different company, product, dataset or code snippet). Each variant is complete (prompt, options, answer, its own `optionFeedback`); the validator builds and checks every one. Use ≥ 2 variants (3 scenarios in all), keep the right answer's position and length varied, and never make one variant the answer key to another.
+- **Interpolation is a path, not an expression.** `{=tp+fp}` is printed literally; compute the value in the generator or write `{=tp} + {=fp}`.
 - **Hints** go from a nudge to the method to the first step, and never state the final answer. Every numeric, hand-calc, journal-entry and schedule-fill template gets 1–3 hints (hand-calc steps also keep their per-step `hint`).
 - **Calculator.** In a `workbench: journal` module the quiz offers a desk calculator on every question and opens it by itself for `numeric`, `hand-calc`, `schedule-fill` and `journal-entry` templates. Set `calculator: false` when the arithmetic is already done in the prompt (e.g. "record the transfer of ₱X"), and `calculator: true` on an `mcq`/`multi` that needs computing before choosing. In other workbenches it only appears on templates with `calculator: true`.
 - **journal-entry** grading: accounts match case-insensitively, line order doesn't matter, repeated accounts are netted. Each expected account earns its share when it is on the right side with the right amount; each account that doesn't belong costs one share. The learner gets specific feedback: wrong side, amount off, missing account, stray account, "debits and credits are reversed", and "your debits don't equal your credits". When the side depends on the numbers (over/underapplied, favorable/unfavorable), let the generator return `entries` and `accounts` (`entries: '@entries'`) built by the same fn the lesson uses, and shuffle the accounts list.
@@ -1347,6 +1382,9 @@ gates in early modules could be answered by reading the stage, so these rules ar
 ### 7.4 Quiz bank quotas (minimum per module)
 - **≥ 25 templates**, **≥ 2 per skill**.
 - ≥ 8 generator-driven `numeric` or `hand-calc` · ≥ 2 `hand-calc` that mirror the lecture's worked procedure step by step · ≥ 6 conceptual `mcq`/`multi` · ≥ 4 workbench templates (`code-fill` for code; `journal-entry` + `schedule-fill` for journal, at least one of each when the lecture has both entries and statements) · ≥ 2 `order` · ≥ 2 `match`.
+- **New modules also need** (existing modules are being brought up to this): ≥ 1 `find-error` · ≥ 1 `two-tier` · ≥ 1 `case` at difficulty 3 · ≥ 1 `explain` · ≥ 1 Parsons (`order` with `distractors`) or prose cloze.
+- **Conceptual mcq/multi/two-tier:** every distractor has `optionFeedback` naming the misconception it stands for, and at least a third of them are generator-driven **or have ≥ 2 `variants`** (a fresh scenario each time, so a second attempt tests understanding, not memory of the right option).
+- **Transfer:** ≥ 3 `application` templates set in a scenario that is *not* one of the lesson's own cases.
 - `hints` on at least half the templates, including every numeric, hand-calc, journal-entry and schedule-fill template.
 - Every numeric template has **≥ 2 misconceptions**. MCQ distractors should be *plausible wrong answers* (ideally computed from misconceptions), never joke options.
 - Difficulty spread is roughly 40% level 1, 40% level 2, 20% level 3.
@@ -1701,6 +1739,7 @@ Don't invent widgets, props or commands. Instead:
 - [ ] Every glossary term is `define`d in exactly one beat, at its first use, and that beat's narration names it; later mentions use `[[term-id]]` (§7.1a).
 - [ ] No glossary term is unlinked (its own `related` or another term's points to it; most have 2–5); a concept another module already defines reuses that module's id and `term` name; `long` links the terms it mentions with `[[term-id]]` (§5.6).
 - [ ] A complete beginner could follow it (§7.6): basic words (model, feature, training/test set, probability, correlation…) are glossary terms defined early; every symbol and acronym is explained the first time; goals and prompts use only words already taught; sentences are short and plain.
+- [ ] The new formats are used (§7.4): find-error, two-tier, a level-3 case, explain, Parsons or cloze; every conceptual distractor has `optionFeedback`; no `{=a+b}` expressions.
 - [ ] ≥ 3 `practice` gates and ≥ 2 `reflect` gates; every math section has `tryIt`; at least half the templates (and every numeric, hand-calc, journal-entry, schedule-fill) have `hints`.
 - [ ] Animations (if any): each has a brief in `ANIMATIONS.md`, its files in `assets/anim/` (converted with `pnpm kodigo animation`), an `alt`, a poster, and no clip shows the answer of a gate that is open while it plays (§9a). Chat mode: briefs only, no Animation widgets.
 - [ ] Journal workbench: every section has a `journal` pane; every lecture entry and statement appears; account titles match the lecture exactly; every entry balances; amounts are positive.

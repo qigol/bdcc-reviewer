@@ -85,6 +85,11 @@ templates:
       - How much accuracy the feature is worth
       - 'Which features'' questions removed the most mixing'
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Right, it can't: importance has no direction."
+      1: "Right, it can't: it's computed on the training data."
+      2: "Right, it can't: it's a share of mixing removed, not accuracy."
+      3: "That is exactly what built-in importance does tell you."
     hints:
       - What three things would you want to know that a list of shares cannot tell you?
     explanation: |
@@ -124,6 +129,10 @@ templates:
       - 'Report that the feature lowers the model''s accuracy'
       - Re-run the shuffles until the value comes out positive
     answer: 0
+    optionFeedback:
+      1: "A tiny negative value is luck. Deleting the feature can hurt if its twin is also removed."
+      2: "The value is noise around zero, not evidence of harm."
+      3: "Rerunning until you like the sign is cherry-picking."
     hints:
       - Could a shuffle make the score slightly better just by chance?
     explanation: |
@@ -195,6 +204,10 @@ templates:
       - 'Worst radius only matters on the training data, so it is overfit'
       - Permutation importance cannot handle features measured in numbers
     answer: 0
+    optionFeedback:
+      1: "Both measures are informative; they just answer different questions."
+      2: "Overfitting isn't shown here; the twins cover for each other."
+      3: "Permutation importance works on numeric features."
     hints:
       - What happens when you scramble one twin but the model can still read the others?
     explanation: |
@@ -215,6 +228,12 @@ templates:
       - Their SHAP values can be added up as separate evidence
       - A PDP that sets one twin can create cases that could never exist
     answer: [0, 1, 2, 4]
+    optionFeedback:
+      0: "Yes: credit is split between twins."
+      1: "Yes: the other twin covers for the shuffled one."
+      2: "Yes: shuffling them together removes what they share."
+      3: "Twins carry the same evidence, so adding them double-counts it."
+      4: "Yes: forcing one twin while the other stays put makes impossible cases."
     hints:
       - 'Think about built-in importance, shuffling, SHAP and PDPs one at a time.'
     explanation: |
@@ -274,10 +293,39 @@ templates:
       - Every patient's benign probability falls as concave points rise
       - Concave points is the most important feature in the model
     answer: 0
+    optionFeedback:
+      1: "A PDP describes the model, not causes."
+      2: "A PDP is an average; individual patients can move differently."
+      3: "A slope shows direction, not a ranking of features."
     hints:
       - 'A PDP is an average of the model''s answers. Does it say anything about causes or about each patient?'
     explanation: |
       A PDP is an average statement about the model. It is not about causes, not about each patient, and not a ranking.
+    variants:
+      - prompt: A PDP of predicted default risk against income slopes downward. What does it say?
+        options:
+          - On average, this model predicts lower risk at higher incomes
+          - Raising someone's income will lower their real risk
+          - Every applicant's risk falls as income rises
+          - Income is the model's most important feature
+        answer: 0
+        optionFeedback:
+          1: A PDP describes the model, not causes.
+          2: It's an average; individuals can differ.
+          3: A slope isn't a ranking.
+        explanation: PDPs are average statements about the model.
+      - prompt: A PDP of house price against distance to the city is flat. What can you conclude?
+        options:
+          - On average, the model's prediction doesn't change with distance
+          - Distance never affects any house's price
+          - Distance is useless and should be removed
+          - The model is broken
+        answer: 0
+        optionFeedback:
+          1: Groups moving in opposite directions can cancel out.
+          2: Its effect may be hidden by averaging or twins.
+          3: A flat line is a valid result.
+        explanation: A flat PDP is an average; check ICE curves for hidden groups.
 
 
   - id: pdp-caveats
@@ -294,6 +342,12 @@ templates:
       - It cannot show direction
       - It is not causal
     answer: [0, 1, 2, 4]
+    optionFeedback:
+      0: "Yes: opposite movements can cancel out to a flat line."
+      1: "Yes: forced values can create combinations that never happen."
+      2: "Yes: the extremes have few real cases."
+      3: "Showing direction is exactly what a PDP adds."
+      4: "Yes: it describes the model, not causes."
     hints:
       - 'One option names exactly what a PDP is good for, not a limitation.'
     explanation: |
@@ -503,11 +557,40 @@ templates:
       - 'The forest''s own internal weight for the worst texture feature'
       - 'How important worst texture is for the whole model overall'
     answer: 0
+    optionFeedback:
+      1: "LIME weights aren't changes in probability."
+      2: "It's LIME's own stand-in model, not the forest's internals."
+      3: "LIME is local, about this case only."
     hints:
       - LIME fits its own small model. Whose number is the weight?
     explanation: |
       LIME is a second model of the first one, built around one case using ranges like "≤ 21.06". Its weights are not
       changes in probability, can change between runs, and should be compared with SHAP only by order and sign.
+    variants:
+      - prompt: LIME gives "tenure ≤ 3 months" a weight of +0.12 toward churn for one customer. What is that number?
+        options:
+          - A weight in a simple stand-in model fitted around this one customer
+          - The exact change in churn probability caused by tenure
+          - The churn model's internal weight for tenure
+          - Tenure's importance across all customers
+        answer: 0
+        optionFeedback:
+          1: LIME weights aren't causal changes in probability.
+          2: It's LIME's surrogate, not the model's internals.
+          3: LIME is local to one case.
+        explanation: LIME fits a small local model around one case.
+      - prompt: Running LIME twice on the same case gives slightly different weights. Why?
+        options:
+          - LIME samples random perturbed copies of the case each run
+          - The model changed between runs
+          - LIME is broken
+          - The case's data changed
+        answer: 0
+        optionFeedback:
+          1: The model is fixed.
+          2: Variation is expected from sampling.
+          3: The case is the same.
+        explanation: LIME's random sampling makes its weights vary a little between runs.
 
 
   - id: lime-order
@@ -581,6 +664,10 @@ templates:
       - Invalid, because the forest must have made a mistake
       - It shows that a large perimeter causes malignancy
     answer: 0
+    optionFeedback:
+      1: "Halving perimeter while area stays put is geometrically impossible."
+      2: "The forest did call it benign, so it's valid; it just isn't realistic."
+      3: "Counterfactuals describe the model, not causes."
     hints:
       - Can perimeter halve while area stays the same?
     explanation: |
@@ -633,8 +720,37 @@ templates:
       - 'Nothing, as long as the PDP is for her strongest feature'
       - 'It should be built-in importance, which is about her case'
     answer: 0
+    optionFeedback:
+      1: "A PDP is a population average, not her case."
+      2: "Even her strongest feature's PDP averages over everyone."
+      3: "Built-in importance is global too."
     explanation: |
       For one decision, use a local tool (SHAP, LIME, counterfactual). The size of the question decides the tool.
+    variants:
+      - prompt: A regulator asks which features a credit model relies on most, across all applicants. A colleague shows one applicant's SHAP waterfall. What is wrong?
+        options:
+          - Wrong size of question; one applicant's explanation isn't the whole model
+          - Nothing; one waterfall describes every applicant
+          - It should be that applicant's counterfactual instead
+          - SHAP can never be used for models
+        answer: 0
+        optionFeedback:
+          1: A waterfall is local to one case.
+          2: A counterfactual is local too.
+          3: SHAP can be averaged into a global view.
+        explanation: A global question needs a global tool, such as permutation importance or mean |SHAP|.
+      - prompt: A doctor wants to know how the model's risk changes, on average, as blood pressure rises. Which tool fits?
+        options:
+          - A partial dependence plot of blood pressure
+          - One patient's LIME weights
+          - A counterfactual for one patient
+          - The training accuracy
+        answer: 0
+        optionFeedback:
+          1: LIME is local to one case.
+          2: Counterfactuals answer what would flip one case.
+          3: Accuracy says nothing about one feature's effect.
+        explanation: A PDP shows the model's average response to one feature.
 
 
   - id: causal-mcq
@@ -650,9 +766,38 @@ templates:
       - 'Their numbers change between runs, so they cannot be trusted at all'
       - 'They can, but only when the model''s accuracy is above 95%'
     answer: 0
+    optionFeedback:
+      1: "The number of trees doesn't matter; these tools describe the model whatever its size."
+      2: "Run-to-run variation is a separate issue from causation."
+      3: "Accuracy can't turn a description of the model into a cause."
     hints:
       - What do all four methods do to get their answer?
     explanation: These tools describe the trained model. That is their purpose and their limit.
+    variants:
+      - prompt: A model's SHAP values show "owns a car" pushing loan approval up. Can the bank tell customers that buying a car will get them approved?
+        options:
+          - No; SHAP describes the model's behaviour, not what causes approval
+          - Yes; SHAP proves cause
+          - Yes, if the SHAP value is large
+          - Yes, if the model is accurate
+        answer: 0
+        optionFeedback:
+          1: SHAP describes the model.
+          2: Size doesn't turn a description into a cause.
+          3: Accuracy doesn't make explanations causal.
+        explanation: Car ownership may stand in for income or stability; the model's use of it isn't a recipe.
+      - prompt: A counterfactual says "with ₱5,000 more monthly income, the model would approve". What does that tell the applicant?
+        options:
+          - What would change this model's decision, not what causes creditworthiness
+          - That income causes repayment
+          - That the bank guarantees approval at that income
+          - That income is the only feature
+        answer: 0
+        optionFeedback:
+          1: It describes the model, not causes in the world.
+          2: The model may change; it's not a promise.
+          3: Other features still matter.
+        explanation: Counterfactuals describe the model's decision boundary.
 
   - id: encoding-multi
     type: multi
@@ -668,6 +813,12 @@ templates:
       - 'The bar''s sign depends on which class was picked'
       - '"Negative" means the feature is bad for the patient'
     answer: [0, 1, 3]
+    optionFeedback:
+      0: "Yes: −0.16 toward class 0 means P(benign) down by about 0.16."
+      1: "Yes: switching class flips the sign."
+      2: "SHAP describes the model's output, not causes."
+      3: "Yes: the sign depends on the class you explain."
+      4: "Negative only means toward class 0."
     hints:
       - What does a negative bar mean when the class explained is benign?
     explanation: |
@@ -811,6 +962,12 @@ templates:
       - The negative value means salary makes the model worse
       - Built-in importance would probably split the credit between them
     answer: [0, 2, 4]
+    optionFeedback:
+      0: "Yes: the joint drop shows real shared information."
+      1: "Dropping income leans on salary alone; the pair's importance is real."
+      2: "Yes: group twins in the ranking."
+      3: "−0.001 is noise near zero."
+      4: "Yes: built-in importance splits credit between twins."
     hints:
       - When one twin is shuffled, what can the model still read?
     explanation: |
@@ -863,6 +1020,12 @@ templates:
       - Have opened her bank account ten years earlier
       - Take a second job that adds ₱8,000 a month
     answer: [0, 4]
+    optionFeedback:
+      0: "Yes: paying down debt is realistic and within her control."
+      1: "Age can't be changed, so it isn't actionable."
+      2: "Salary can't exceed total income, so it isn't plausible."
+      3: "The past can't be changed."
+      4: "Yes: earning more is realistic and within her control."
     hints:
       - Check each change twice. Could such a person exist? Could she make it happen from today?
     explanation: |
@@ -885,6 +1048,10 @@ templates:
       - Permutation importance cannot handle columns with many values
       - The ID must be a twin of another feature in the data
     answer: 0
+    optionFeedback:
+      1: "An ID carries no signal on new data; the zero permutation score is right."
+      2: "Permutation importance handles any column; it correctly found no signal."
+      3: "A unique ID per patient isn't a twin of anything; it just lets trees memorize rows."
     hints:
       - Which of the two importances is worked out on the training data?
     explanation: |
@@ -905,6 +1072,12 @@ templates:
       - Adding a bathroom to a real house will not change its price
       - 'Some forced cases may be impossible, like a studio flat with five bathrooms'
     answer: [0, 2, 4]
+    optionFeedback:
+      0: "Yes: that's what a flat PDP says."
+      1: "A flat average can hide groups that move in opposite directions."
+      2: "Yes: opposite effects can cancel out."
+      3: "A PDP describes the model, not what happens to a real house."
+      4: "Yes: forcing values can create unrealistic houses."
     hints:
       - A PDP is an average of the model's answers over cases with one feature forced.
     explanation: |
@@ -924,6 +1097,10 @@ templates:
       - It measures how badly g copies the model f near x
       - It lists the family of simple models LIME may choose from
     answer: 0
+    optionFeedback:
+      1: "The closeness weighting is π_x, inside L."
+      2: "That's L, the fidelity term."
+      3: "The family of models is G."
     hints:
       - 'Match each symbol: G is the family, π_x the closeness weights, L the copying error.'
     explanation: |
@@ -943,8 +1120,261 @@ templates:
       - More features are allowed to change at the same time
       - The model is retrained with a stronger penalty on its weights
     answer: 0
+    optionFeedback:
+      1: "That's what a small λ does."
+      2: "λ weighs distance; it doesn't count how many features change."
+      3: "The model never changes in a counterfactual search."
     hints:
       - λ multiplies the distance term. What does a bigger multiplier make the search care about?
     explanation: |
       λ weighs closeness against reaching the wanted class. A large λ keeps x' near x, at the risk of not flipping; a small
       λ flips reliably but may wander far from the real case. The model itself never changes.
+
+  # ------------------------------------------------------------------ new formats (find-error, case, two-tier, explain, Parsons)
+  - id: gini-find-error
+    type: find-error
+    skills: [impurity-importance]
+    difficulty: 2
+    tags: [math]
+    generator: giniQ
+    lessonRef: { tab: intuition, id: impurity-credit }
+    prompt: |
+      A split sends {=nL} rows left ({=bL} benign, {=mL} malignant) and {=nR} rows right ({=bR} benign, {=mR} malignant). A
+      classmate works out the impurity decrease. **One step is wrong.** Click it and give the correct weighted children's Gini.
+    steps:
+      - 'Node Gini = 1 − p_B² − p_M² = {=giniT|3}'
+      - 'Left Gini = {=giniL|3}, right Gini = {=giniR|3}'
+      - 'Children''s Gini = ({=giniL|3} + {=giniR|3}) ÷ 2 = {=wrongChildMean|3}'
+      - 'Decrease = node Gini − children''s Gini'
+    wrong: 2
+    fix: { var: child, tol: 0.005 }
+    fixPrompt: What is the correct size-weighted children's Gini (three decimals)?
+    misconceptions:
+      - { var: wrongChildMean, feedback: "That's still the plain average. Weight each child by its share of the node's rows." }
+    stepFeedback:
+      0: The node's Gini from its class shares is right.
+      1: Each child's own Gini is right.
+      3: Node minus children is the right decrease, once the children are weighted.
+    hints: [A child with more rows should count more.]
+    explanation: 'Weighted: {=nL}/{=nt} × {=giniL|3} + {=nR}/{=nt} × {=giniR|3} = {=child|3}, so the decrease is {=decrease|3}.'
+
+  - id: perm-case
+    type: case
+    skills: [permutation-importance, honest-reading]
+    difficulty: 3
+    tags: [math]
+    generator: permQ
+    lessonRef: { tab: math-code, id: permutation-importance }
+    prompt: |
+      **Score one feature by shuffling.** The model's test {=metric} is {=base}. Shuffling one feature {=reps} times gives
+      {=shuffledList}.
+    parts:
+      - type: numeric
+        prompt: Mean shuffled score (three decimals)
+        answer: { var: meanShuffled, tol: 0.0005 }
+        explanation: 'Mean of {=shuffledList} = {=meanShuffled|4}.'
+      - type: numeric
+        prompt: Permutation importance (four decimals)
+        answer: { var: imp, tol: 0.0002 }
+        misconceptions:
+          - { var: wrongSign, feedback: 'Subtract the other way round: original score − mean shuffled score.' }
+          - { var: wrongFirst, feedback: 'Average all the shuffles, not just the first one.' }
+        explanation: '{=base} − {=meanShuffled|4} = {=imp|4}.'
+      - type: two-tier
+        prompt: Suppose another feature scores about 0.000 the same way. What is the honest reading of that?
+        options: ['The model barely relies on this feature alone, or a twin covers for it', 'The feature has no relationship with the outcome', 'The feature should be deleted']
+        answer: 0
+        reasons:
+          - Permutation importance measures what the model loses when this one feature is scrambled
+          - Near-zero importance proves the feature is unrelated to the outcome in the real world
+          - Shuffling a feature retrains the model without it
+        reasonAnswer: 0
+        reasonFeedback:
+          1: It describes this model, and a correlated twin can hide a real relationship.
+          2: The model isn't retrained; the feature is scrambled in the test data.
+        explanation: Near zero means scrambling that feature costs this model little, perhaps because a look-alike carries the same signal.
+    hints: [Importance = original score − mean shuffled score.]
+    explanation: Mean shuffled {=meanShuffled|4}; importance {=imp|4}; read it as "what this model loses", not as truth about the world.
+
+  - id: scope-two-tier
+    type: two-tier
+    skills: [global-local]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: waterfall }
+    prompt: A bank must tell one rejected applicant why the model turned her down. Which tool fits?
+    options: ['A SHAP waterfall for her application', 'The permutation importance ranking', 'A PDP of income']
+    answer: 0
+    reasons:
+      - The question is about one decision, so it needs a local explanation
+      - Global tools are always more accurate than local ones
+      - PDPs show each person's own curve
+    reasonAnswer: 0
+    optionFeedback:
+      1: Importance rankings describe the model overall, not her case.
+      2: A PDP averages over everyone.
+    reasonFeedback:
+      1: Global and local tools answer different questions; neither is simply more accurate.
+      2: A PDP is an average; individual curves are ICE plots.
+    hints: [Is the question about the model in general or one decision?]
+    explanation: One decision calls for a local tool (SHAP, LIME or a counterfactual).
+
+  - id: honest-explain
+    type: explain
+    skills: [honest-reading]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: twins }
+    prompt: A colleague writes "SHAP shows that high worst-area causes malignancy." Explain what is wrong with the claim and how to rewrite it honestly.
+    model: |
+      SHAP describes how the trained model's output responds to its inputs, not how tumours behave, so it can't show a cause.
+      Correlated twins (radius, perimeter, area) also share credit, so one feature's bar may stand in for several. An honest
+      version: "In this model, high worst-area pushes the predicted probability towards malignant for these patients; worst-area
+      moves with radius and perimeter, so their effects can't be separated."
+    checklist:
+      - SHAP explains the model, not the real-world cause
+      - Correlated twin features share or hide each other's credit
+      - Rewrite in terms of the model's prediction
+      - Mention the correlation with the twin features
+    hints: ["What does SHAP perturb: the patient, or the model's inputs?"]
+    explanation: Describe the model's behaviour, and name the twins that blur credit.
+
+  - id: perm-parsons
+    type: order
+    skills: [permutation-importance]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: permutation-importance }
+    prompt: Build the permutation-importance procedure from the bank. Two lines don't belong.
+    items:
+      - Score the trained model on the test set
+      - Shuffle one feature's column in the test set
+      - Score the model again on the shuffled data
+      - Repeat the shuffle several times and average the scores
+      - Importance = original score − mean shuffled score
+    distractors:
+      - Retrain the model without the feature
+      - Shuffle the feature in the training set and refit
+    hints: [The model is never retrained.]
+    explanation: Score, shuffle one column, rescore, repeat and average, subtract. Retraining is drop-column importance, a different method.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-tool-choice
+    type: mcq
+    skills: [global-local, lime, counterfactuals]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: flip-it }
+    prompt: A scholarship model rejects a student. The student asks "What would I need to change to be accepted?" Which tool answers that directly?
+    options: ['A counterfactual', 'Permutation importance', 'A partial dependence plot', 'Built-in impurity importance']
+    answer: 0
+    optionFeedback:
+      1: Permutation importance ranks features for the whole model.
+      2: A PDP averages over everyone.
+      3: Impurity importance is global and training-based.
+    hints: [Which tool searches for a nearby case with the other outcome?]
+    explanation: Counterfactuals find a close case that the model decides the other way.
+    variants:
+      - prompt: An insurer wants a ranking of which features its claims model relies on most overall. Which tool fits?
+        options: ['Permutation importance on held-out data', 'One claim''s SHAP waterfall', 'A counterfactual for one claim', 'LIME for one claim']
+        answer: 0
+        optionFeedback:
+          1: One waterfall is one claim.
+          2: Counterfactuals are about one case.
+          3: LIME is local.
+        explanation: A global ranking needs a global tool.
+      - prompt: An auditor wants to see which features pushed one specific claim towards "fraud" and by how much. Which tool fits?
+        options: ['A SHAP waterfall for that claim', 'A PDP', 'Permutation importance', 'Built-in importance']
+        answer: 0
+        optionFeedback:
+          1: A PDP averages over all claims.
+          2: Permutation importance is global.
+          3: Built-in importance is global.
+        explanation: SHAP waterfalls split one prediction into feature contributions.
+
+  - id: transfer-twins
+    type: two-tier
+    skills: [correlation-trap, permutation-importance]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: twins }
+    prompt: In a house-price model, "floor area" and "number of rooms" are 95% correlated. Shuffling floor area alone barely changes the score. Is floor area unimportant?
+    options: ['Not necessarily; rooms can stand in for it', 'Yes; its importance is near zero', 'Yes, and it should be deleted']
+    answer: 0
+    reasons:
+      - A twin feature carries the same information, so shuffling one leaves the model a backup
+      - Near-zero permutation importance always means a useless feature
+      - Correlated features are ignored by models
+    reasonAnswer: 0
+    optionFeedback:
+      1: The twin hides its contribution.
+      2: Deleting it may be harmless only because the twin remains.
+    reasonFeedback:
+      1: Twins can each look useless alone.
+      2: Models use correlated features freely.
+    hints: [What does the model still see when floor area is shuffled?]
+    explanation: Shuffle the twins together to see what they carry jointly.
+    variants:
+      - prompt: Height in cm and height in inches are both in a model. Built-in importance gives each about half the credit. What's the honest reading?
+        options: ['Height matters; the credit is split between two copies', 'Each is only half as important as other features', 'Both should be ranked separately']
+        answer: 0
+        reasons:
+          - Built-in importance shares credit between features carrying the same information
+          - Importance always adds up correctly for twins
+          - Twins never affect importance
+        reasonAnswer: 0
+        optionFeedback:
+          1: Together they carry height's full importance.
+          2: Report them as one group.
+        reasonFeedback:
+          1: Splitting credit hides the true importance.
+          2: Twins are exactly what distorts importance.
+        explanation: Group twins when reporting importance.
+      - prompt: A PDP sets "rooms" to 8 for a 30 m² studio flat. What is the problem?
+        options: ['It creates an impossible house, because rooms and area are tied', 'Nothing; PDPs can set any value', 'The PDP will crash']
+        answer: 0
+        reasons:
+          - Changing one twin while holding the other fixed makes combinations that don't exist
+          - PDPs only use real houses
+          - Models can't predict unusual inputs
+        reasonAnswer: 0
+        optionFeedback:
+          1: The model will answer, but about a house that can't exist.
+          2: It runs fine; the cases are just unrealistic.
+        reasonFeedback:
+          1: PDPs force values onto every case.
+          2: Models will output something for any input.
+        explanation: PDPs over correlated features rest on impossible cases.
+
+  - id: transfer-perm-read
+    type: mcq
+    skills: [permutation-importance, honest-reading]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: permutation-importance }
+    prompt: 'A churn model''s ROC-AUC is 0.88. Shuffling "monthly charges" drops it to 0.80 on average. What is its permutation importance?'
+    options: ['0.08', '0.80', '−0.08', '0.88']
+    answer: 0
+    optionFeedback:
+      1: That's the shuffled score, not the drop.
+      2: Importance is original − shuffled.
+      3: That's the original score.
+    hints: [Importance = original score − mean shuffled score.]
+    explanation: 0.88 − 0.80 = 0.08.
+    variants:
+      - prompt: 'Shuffling "customer ID" changes accuracy from 0.910 to 0.911. What is the honest reading?'
+        options: ['The model doesn''t rely on customer ID; the tiny gain is noise', 'Customer ID hurts the model', 'Customer ID is the most important feature', 'The model is broken']
+        answer: 0
+        optionFeedback:
+          1: A 0.001 change is noise, not harm.
+          2: Its importance is about zero.
+          3: Nothing points to a broken model.
+        explanation: Near-zero (or slightly negative) importance is noise.
+      - prompt: 'Why should permutation importance be computed on held-out data rather than training data?'
+        options: ['It should show what the model relies on for new cases, not what it memorized', 'Training data is always shuffled already', 'Held-out data is bigger', 'It runs faster on held-out data']
+        answer: 0
+        optionFeedback:
+          1: Training data isn't shuffled.
+          2: Held-out sets are usually smaller.
+          3: Speed isn't the reason.
+        explanation: Held-out data shows generalizing importance; training data can reward memorized noise.

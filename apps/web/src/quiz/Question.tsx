@@ -3,10 +3,10 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { BookOpen, Check, Eye, Lightbulb, Plus, X } from 'lucide-react';
 import { SortCard } from '../lib/SortCard';
-import { checkBlank, checkMatch, matchSlotRight, checkMcq, checkMulti, checkNumeric, checkOrder, checkJournalEntry, parseNumber, normAccount, DEFAULT_CURRENCY, type QuizInstance, type NumericSpec } from '@kodigo/schema';
+import { variantCount, checkBlank, checkMatch, matchSlotRight, checkMcq, checkMulti, checkNumeric, checkOrder, checkParsons, checkFindError, checkTwoTier, checkExplain, checkJournalEntry, parseNumber, normAccount, DEFAULT_CURRENCY, type QuizInstance, type NumericSpec } from '@kodigo/schema';
 import { frac, moneyText } from '@kodigo/sdk';
 import { EntriesView, ScheduleView } from '../widgets/accounting';
-import { GlossaryProvider } from '../lib/md';
+import { GlossaryProvider, useInterp } from '../lib/md';
 import type { LoadedModule } from '../modules/store';
 import { StageProvider, Stage } from '../engine/Stage';
 import { Markdown } from '../lib/md';
@@ -20,13 +20,17 @@ export function emptyResponse(inst: QuizInstance): any {
   switch (inst.type) {
     case 'mcq': return null;
     case 'multi': return [];
-    case 'numeric': return '';
+    case 'numeric': return inst.estimate ? { value: '', estimate: null } : '';
     case 'code-fill': return {};
     case 'match': return inst.rightOrder!.slice();
-    case 'order': return inst.startOrder!.slice();
+    case 'order': return isParsons(inst) ? { used: [], spare: inst.startOrder!.slice() } : inst.startOrder!.slice();
     case 'hand-calc': return { inputs: inst.steps!.map(() => ''), revealed: inst.steps!.map(() => false), tries: inst.steps!.map(() => 0), done: inst.steps!.map(() => false), hints: inst.steps!.map(() => false) };
     case 'journal-entry': return { entries: inst.entries!.map(() => [emptyLine(), emptyLine()]) };
     case 'schedule-fill': return { cells: {} as Record<string, string> };
+    case 'find-error': return { pick: null, fix: '' };
+    case 'two-tier': return { choice: null, reason: null };
+    case 'explain': return { text: '', compared: false, ticks: [] };
+    case 'case': return { parts: inst.parts!.map(emptyResponse), graded: inst.parts!.map(() => null) };
   }
 }
 
@@ -60,16 +64,26 @@ export function grade(inst: QuizInstance, r: any): Graded {
     }
     case 'multi': {
       const s = checkMulti(r, inst.answer as number[]);
+      // explain each wrong pick and each missed option that has feedback
+      const ans = inst.answer as number[];
+      inst.options!.forEach((_, i) => { if (r.includes(i) !== ans.includes(i) && inst.optionFeedback?.[i]) fb.push(inst.optionFeedback[i]); });
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
     case 'numeric': {
-      const res = checkNumeric(r, inst.numeric!, inst.misconceptions);
+      const res = checkNumeric(numValue(r), inst.numeric!, inst.misconceptions);
       if (res.feedback) fb.push(res.feedback);
-      return { score: res.score, correct: res.correct, response: r, feedback: fb };
+      let score = res.score;
+      if (inst.estimate) {
+        // the estimate is worth a quarter of the question
+        const estOk = r.estimate === inst.estimate.answer;
+        if (!estOk) fb.push(inst.estimate.feedback ?? `Your estimate was off: the right range was **${inst.estimate.options[inst.estimate.answer]}**.`);
+        score = 0.75 * res.score + (estOk ? 0.25 : 0);
+      }
+      return { score, correct: score === 1, response: r, feedback: fb };
     }
     case 'code-fill': {
       const keys = Object.keys(inst.blanks!);
-      const ok = keys.filter((k) => checkBlank(r[k] ?? '', inst.blanks![k]));
+      const ok = keys.filter((k) => checkBlank(r[k] ?? '', inst.blanks![k], { ignoreCase: inst.lang === 'text' }));
       const s = ok.length / Math.max(1, keys.length);
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
@@ -78,6 +92,14 @@ export function grade(inst: QuizInstance, r: any): Graded {
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
     case 'order': {
+      if (isParsons(inst)) {
+        const s = checkParsons(r.used, inst.nCorrect!);
+        const decoys = r.used.filter((i: number) => i >= inst.nCorrect!).length;
+        const missing = inst.nCorrect! - r.used.filter((i: number) => i < inst.nCorrect!).length;
+        if (decoys) fb.push(decoys > 1 ? `${decoys} lines in your solution don't belong.` : "One line in your solution doesn't belong.");
+        if (missing) fb.push(missing > 1 ? `${missing} needed lines are still in the bank.` : 'One needed line is still in the bank.');
+        return { score: s, correct: s === 1, response: r, feedback: fb };
+      }
       const s = checkOrder(r);
       return { score: s, correct: s === 1, response: r, feedback: fb };
     }
@@ -110,6 +132,31 @@ export function grade(inst: QuizInstance, r: any): Graded {
       const s = ok / Math.max(1, blanks.length);
       if (s < 1 && ok > 0) fb.push(`${ok} of ${blanks.length} amounts are right.`);
       return { score: s, correct: s === 1, response: r, feedback: fb };
+    }
+    case 'find-error': {
+      const res = checkFindError(r.pick, r.fix, inst);
+      fb.push(...res.feedback);
+      if (!res.pickRight) fb.push(`The wrong step was **step ${inst.wrong! + 1}**.`);
+      else if (res.fixRight === false) fb.push('You found the wrong step, but the corrected value is off.');
+      return { score: res.score, correct: res.score === 1, response: r, feedback: fb };
+    }
+    case 'two-tier': {
+      const res = checkTwoTier(r.choice, r.reason, inst.answer as number, inst.reasonAnswer!);
+      if (r.choice !== null && !res.answerRight && inst.optionFeedback?.[r.choice]) fb.push(inst.optionFeedback[r.choice]);
+      if (r.reason !== null && !res.reasonRight && inst.reasonFeedback?.[r.reason]) fb.push(inst.reasonFeedback[r.reason]);
+      if (res.answerRight && !res.reasonRight) fb.push('Right answer, wrong reason. The reasoning is what carries over to the next problem, so look at why the marked reason holds.');
+      return { score: res.score, correct: res.score === 1, response: r, feedback: fb };
+    }
+    case 'explain': {
+      const s = checkExplain(r.ticks, inst.checklist!.length);
+      return { score: s, correct: s === 1, response: r, feedback: fb };
+    }
+    case 'case': {
+      const gs: Graded[] = inst.parts!.map((p, i) => r.graded?.[i] ?? grade(p, r.parts[i]));
+      const s = gs.reduce((a, g) => a + g.score, 0) / Math.max(1, gs.length);
+      const right = gs.filter((g) => g.correct).length;
+      if (s < 1) fb.push(`${right} of ${gs.length} parts fully right.`);
+      return { score: s, correct: s === 1, response: { ...r, graded: gs }, feedback: fb };
     }
   }
   return { score: 0, correct: false, response: r, feedback: fb };
@@ -187,7 +234,9 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
   const hints = inst.hints ?? [];
   const extraScope = useMemo(() => inst.scope, [inst]);
   // only templates with a generator get different figures from a new seed
-  const newNumbersPossible = !!mod.parsed.quiz.find((t) => t.id === inst.templateId)?.generator;
+  // a generator gives new figures, and a template with variants gives a different scenario
+  const tpl = mod.parsed.quiz.find((t) => t.id === inst.templateId);
+  const newNumbersPossible = !!tpl && (!!tpl.generator || variantCount(tpl) > 1);
   const lessonHref = inst.lessonRef ? `/m/${inst.moduleId}/${inst.lessonRef.tab}${inst.lessonRef.tab === 'application' ? '' : `/${inst.lessonRef.id}`}` : null;
   // Open the lesson in a popup over the quiz instead of navigating away (which used to wipe quiz progress).
   const openLesson = () => lessonHref && popup.open({ title: `Lesson · ${mod.parsed.manifest.shortTitle}`, src: lessonHref, note: 'Your quiz stays open underneath' });
@@ -198,72 +247,7 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
         <Markdown text={inst.prompt} className="text-[15px]" />
         {inst.show?.length ? <Stage widgets={inst.show} /> : null}
 
-        {inst.type === 'mcq' && (
-          <div className="grid gap-1.5" role="radiogroup">
-            {inst.options!.map((o, i) => {
-              const right = reveal && i === inst.answer;
-              const wrong = reveal && response === i && i !== inst.answer;
-              return (
-                <button key={i} role="radio" aria-checked={response === i} disabled={locked} onClick={() => setResponse(i)}
-                  className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition', right ? 'tone-good mark-bg' : wrong ? 'tone-bad mark-bg' : response === i ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:border-accent/50')}>
-                  <span className={cn('mt-0.5 h-4 w-4 shrink-0 rounded-full border-2', response === i ? 'border-accent bg-accent' : 'border-line')} />
-                  <Markdown text={o} inline />
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {inst.type === 'multi' && (
-          <div className="grid gap-1.5">
-            <div className="text-xs text-muted">Select all that apply.</div>
-            {inst.options!.map((o, i) => {
-              const on = (response as number[]).includes(i);
-              const isAns = (inst.answer as number[]).includes(i);
-              return (
-                <button key={i} role="checkbox" aria-checked={on} disabled={locked} onClick={() => setResponse(on ? response.filter((x: number) => x !== i) : [...response, i])}
-                  className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition', reveal && isAns ? 'tone-good mark-bg' : reveal && on && !isAns ? 'tone-bad mark-bg' : on ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:border-accent/50')}>
-                  <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2', on ? 'border-accent bg-accent text-white' : 'border-line')}>{on && <Check size={11} />}</span>
-                  <Markdown text={o} inline />
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {inst.type === 'numeric' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <input className="input w-48 font-mono" aria-label="answer" value={response} disabled={locked} onChange={(e) => setResponse(e.target.value)} placeholder="e.g. 0.67 or 2/3" inputMode="decimal" />
-            <span className="text-xs text-muted">accepts {inst.numeric!.accept.join(', ')} · tolerance ±{inst.numeric!.tol}</span>
-            {reveal && <span className="ml-auto rounded-lg bg-good/10 px-2 py-1 text-sm">Answer: <b className="font-mono">{numText(inst.numeric!.value)}</b></span>}
-          </div>
-        )}
-
-        {inst.type === 'code-fill' && <CodeFill inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
-
-        {inst.type === 'match' && (
-          <div>
-            <MatchRows pairs={inst.pairs!} ids={(response as number[]).map(String)} locked={locked} onMove={(a, b) => setResponse(arrayMove(response, a, b))}
-              toneOf={(id, i) => (reveal ? (matchSlotRight(Number(id), i, inst.pairs) ? 'good' : 'bad') : undefined)} />
-            <div className="mt-1 text-xs text-muted">Drag the right-hand cards so each lines up with its partner.</div>
-          </div>
-        )}
-
-        {inst.type === 'order' && (
-          <div>
-            <Sortable ids={(response as number[]).map(String)} locked={locked} onMove={(a, b) => setResponse(arrayMove(response, a, b))}
-              toneOf={(id, i) => (reveal ? (Number(id) === i ? 'good' : 'bad') : undefined)}
-              render={(id, i) => <span className="flex gap-2"><b className="text-muted">{i + 1}.</b><Markdown text={inst.items![Number(id)]} inline /></span>} />
-            <div className="mt-1 text-xs text-muted">Drag into the correct order (top = first).</div>
-            {reveal && !graded?.correct && <ol className="mt-2 list-decimal pl-5 text-sm text-good">{inst.items!.map((it, i) => <li key={i}><Markdown text={it} inline /></li>)}</ol>}
-          </div>
-        )}
-
-        {inst.type === 'hand-calc' && <HandCalc inst={inst} response={response} setResponse={setResponse} locked={locked} practice={practice} reveal={reveal} />}
-
-        {inst.type === 'journal-entry' && <JournalEntryInput inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
-
-        {inst.type === 'schedule-fill' && <ScheduleFill inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+        <AnswerArea inst={inst} mod={mod} response={response} setResponse={setResponse} graded={graded} reveal={reveal} practice={practice} />
 
         {practice && !reveal && hints.length > 0 && (
           <div className="flex flex-col gap-1.5" data-testid="hints">
@@ -300,6 +284,306 @@ export function QuestionView({ inst, mod, response, setResponse, graded, reveal,
     </GlossaryProvider>
   );
 }
+
+/** The answer controls of one question (or one part of a case), by type. */
+function AnswerArea({ inst, mod, response, setResponse, graded, reveal, practice }: {
+  inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; graded: Graded | null; reveal: boolean; practice: boolean;
+}) {
+  const locked = !!graded;
+  return (
+    <>
+      {inst.type === 'mcq' && <Choice options={inst.options!} value={response} onPick={setResponse} locked={locked} answer={reveal ? (inst.answer as number) : undefined} />}
+
+      {inst.type === 'multi' && (
+        <div className="grid gap-1.5">
+          <div className="text-xs text-muted">Select all that apply.</div>
+          {inst.options!.map((o, i) => {
+            const on = (response as number[]).includes(i);
+            const isAns = (inst.answer as number[]).includes(i);
+            return (
+              <button key={i} role="checkbox" aria-checked={on} disabled={locked} onClick={() => setResponse(on ? response.filter((x: number) => x !== i) : [...response, i])}
+                className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition', reveal && isAns ? 'tone-good mark-bg' : reveal && on && !isAns ? 'tone-bad mark-bg' : on ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:border-accent/50')}>
+                <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2', on ? 'border-accent bg-accent text-white' : 'border-line')}>{on && <Check size={11} />}</span>
+                <Markdown text={o} inline />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {inst.type === 'numeric' && <NumericInput inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+      {inst.type === 'code-fill' && (inst.lang === 'text' ? <Cloze inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} /> : <CodeFill inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />)}
+
+      {inst.type === 'match' && (
+        <div>
+          <MatchRows pairs={inst.pairs!} ids={(response as number[]).map(String)} locked={locked} onMove={(a, b) => setResponse(arrayMove(response, a, b))}
+            toneOf={(id, i) => (reveal ? (matchSlotRight(Number(id), i, inst.pairs) ? 'good' : 'bad') : undefined)} />
+          <div className="mt-1 text-xs text-muted">Drag the right-hand cards so each lines up with its partner.</div>
+        </div>
+      )}
+
+      {inst.type === 'order' && (isParsons(inst) ? <Parsons inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} graded={graded} /> : (
+        <div>
+          <Sortable ids={(response as number[]).map(String)} locked={locked} onMove={(a, b) => setResponse(arrayMove(response, a, b))}
+            toneOf={(id, i) => (reveal ? (Number(id) === i ? 'good' : 'bad') : undefined)}
+            render={(id, i) => <span className="flex gap-2"><b className="text-muted">{i + 1}.</b><Line text={inst.items![Number(id)]} code={inst.codeLines} /></span>} />
+          <div className="mt-1 text-xs text-muted">Drag into the correct order (top = first).</div>
+          {reveal && !graded?.correct && <ol className="mt-2 list-decimal pl-5 text-sm text-good">{inst.items!.map((it, i) => <li key={i}><Line text={it} code={inst.codeLines} /></li>)}</ol>}
+        </div>
+      ))}
+
+      {inst.type === 'hand-calc' && <HandCalc inst={inst} response={response} setResponse={setResponse} locked={locked} practice={practice} reveal={reveal} />}
+
+      {inst.type === 'journal-entry' && <JournalEntryInput inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+      {inst.type === 'schedule-fill' && <ScheduleFill inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+      {inst.type === 'find-error' && <FindError inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+      {inst.type === 'two-tier' && (
+        <div className="flex flex-col gap-3" data-testid="two-tier">
+          <Choice options={inst.options!} value={response.choice} onPick={(i) => setResponse({ ...response, choice: i })} locked={locked} answer={reveal ? inst.answer as number : undefined} />
+          <div className={cn('flex flex-col gap-1.5', response.choice === null && 'opacity-50')}>
+            <Markdown text={inst.reasonPrompt ?? '**Why?** Pick the reason that supports your answer.'} className="text-sm" />
+            <Choice options={inst.reasons!} value={response.reason} onPick={(i) => setResponse({ ...response, reason: i })} locked={locked || response.choice === null} answer={reveal ? inst.reasonAnswer : undefined} label="reason" />
+          </div>
+        </div>
+      )}
+
+      {inst.type === 'explain' && <Explain inst={inst} response={response} setResponse={setResponse} locked={locked} reveal={reveal} />}
+
+      {inst.type === 'case' && <Case inst={inst} mod={mod} response={response} setResponse={setResponse} locked={locked} reveal={reveal} practice={practice} />}
+    </>
+  );
+}
+
+/** A single-choice option list (mcq, two-tier). `answer` is set only when the answer is revealed. */
+function Choice({ options, value, onPick, locked, answer, label }: { options: string[]; value: number | null; onPick: (i: number) => void; locked: boolean; answer?: number; label?: string }) {
+  return (
+    <div className="grid gap-1.5" role="radiogroup" aria-label={label}>
+      {options.map((o, i) => {
+        const right = answer !== undefined && i === answer;
+        const wrong = answer !== undefined && value === i && i !== answer;
+        return (
+          <button key={i} role="radio" aria-checked={value === i} disabled={locked} onClick={() => onPick(i)}
+            className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition', right ? 'tone-good mark-bg' : wrong ? 'tone-bad mark-bg' : value === i ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:border-accent/50')}>
+            <span className={cn('mt-0.5 h-4 w-4 shrink-0 rounded-full border-2', value === i ? 'border-accent bg-accent' : 'border-line')} />
+            <Markdown text={o} inline />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One line of an order/Parsons/find-error list; code lines keep their spacing and still get {=} numbers. */
+function Line({ text, code }: { text: string; code?: boolean }) {
+  const { md } = useInterp();
+  return code ? <code className="whitespace-pre-wrap font-mono text-[13px]">{md(text)}</code> : <Markdown text={text} inline />;
+}
+
+const numValue = (r: any): string => (typeof r === 'string' ? r : r?.value ?? '');
+
+function NumericInput({ inst, response, setResponse, locked, reveal }: { inst: QuizInstance; response: any; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
+  const est = inst.estimate;
+  const value = numValue(response);
+  const waiting = !!est && response.estimate === null;
+  return (
+    <div className="flex flex-col gap-2">
+      {est && (
+        <div className="rounded-lg border border-line bg-panel2/50 p-2.5" data-testid="estimate">
+          <Markdown text={`**Estimate first.** ${est.prompt}`} className="mb-1.5 text-sm" />
+          <Choice options={est.options} value={response.estimate} onPick={(i) => setResponse({ ...response, estimate: i })} locked={locked || response.estimate !== null} answer={reveal ? est.answer : undefined} label="estimate" />
+        </div>
+      )}
+      <div className={cn('flex flex-wrap items-center gap-2', waiting && 'opacity-50')}>
+        <input className="input w-48 font-mono" aria-label="answer" value={value} disabled={locked || waiting} onChange={(e) => setResponse(est ? { ...response, value: e.target.value } : e.target.value)} placeholder={waiting ? 'estimate first' : 'e.g. 0.67 or 2/3'} inputMode="decimal" />
+        <span className="text-xs text-muted">accepts {inst.numeric!.accept.join(', ')} · tolerance ±{inst.numeric!.tol}</span>
+        {reveal && <span className="ml-auto rounded-lg bg-good/10 px-2 py-1 text-sm">Answer: <b className="font-mono">{numText(inst.numeric!.value)}</b></span>}
+      </div>
+    </div>
+  );
+}
+
+const isParsons = (inst: QuizInstance) => (inst.nCorrect ?? inst.items?.length ?? 0) < (inst.items?.length ?? 0);
+
+/** Parsons: build the solution from the line bank; decoy lines stay in the bank. */
+function Parsons({ inst, response, setResponse, locked, reveal, graded }: { inst: QuizInstance; response: { used: number[]; spare: number[] }; setResponse: (r: any) => void; locked: boolean; reveal: boolean; graded: Graded | null }) {
+  const n = inst.nCorrect!;
+  const move = (id: number, to: 'used' | 'spare') => {
+    if (locked) return;
+    const used = response.used.filter((x) => x !== id);
+    const spare = response.spare.filter((x) => x !== id);
+    setResponse(to === 'used' ? { used: [...used, id], spare } : { used, spare: [...spare, id] });
+  };
+  return (
+    <div className="grid gap-3 sm:grid-cols-2" data-testid="parsons">
+      <div>
+        <div className="label mb-1">Your solution (top = first)</div>
+        {response.used.length ? (
+          <Sortable ids={response.used.map(String)} locked={locked} onMove={(a, b) => setResponse({ ...response, used: arrayMove(response.used, a, b) })}
+            toneOf={(id) => {
+              if (!reveal) return undefined;
+              if (Number(id) >= n) return 'bad';
+              // a right line is in place when it sits at its own position among the right lines used (decoys don't shift it)
+              return response.used.filter((x) => x < n).indexOf(Number(id)) === Number(id) ? 'good' : 'warn';
+            }}
+            render={(id) => (
+              <span className="flex items-start gap-2">
+                <span className="flex-1"><Line text={inst.items![Number(id)]} code={inst.codeLines} /></span>
+                {!locked && <button className="text-muted hover:text-bad" aria-label="move back to the line bank" onClick={() => move(Number(id), 'spare')}><X size={13} /></button>}
+              </span>
+            )} />
+        ) : <div className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-xs text-muted">Click lines in the bank to add them here.</div>}
+      </div>
+      <div>
+        <div className="label mb-1">Line bank: some lines don't belong</div>
+        <div className="flex flex-col gap-1.5">
+          {response.spare.map((id) => (
+            <button key={id} disabled={locked} onClick={() => move(id, 'used')} className={cn('rounded-lg border px-3 py-2 text-left text-sm', reveal && id < n ? 'tone-warn mark-bg' : 'border-line bg-panel hover:border-accent/50')}>
+              <Line text={inst.items![id]} code={inst.codeLines} />
+            </button>
+          ))}
+          {!response.spare.length && <div className="text-xs text-muted">(empty)</div>}
+        </div>
+      </div>
+      {reveal && !graded?.correct && <ol className="col-span-full list-decimal pl-5 text-sm text-good">{inst.items!.slice(0, n).map((it, i) => <li key={i}><Line text={it} code={inst.codeLines} /></li>)}</ol>}
+    </div>
+  );
+}
+
+/** Prose cloze (`code-fill` with `lang: text`): Markdown with inline blanks, matched case-insensitively. */
+function Cloze({ inst, response, setResponse, locked, reveal }: { inst: QuizInstance; response: Record<string, string>; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
+  const parts = inst.code!.replace(/\n+$/, '').split(/(__BLANK_\d+__)/);
+  return (
+    <div data-testid="cloze">
+      <div className="rounded-xl border border-line bg-panel p-3 text-[15px] leading-8">
+        {parts.map((p, i) => {
+          const m = /^__BLANK_(\d+)__$/.exec(p);
+          if (!m) return <Markdown key={i} text={p} inline />;
+          const k = m[1];
+          const b = inst.blanks![k];
+          const v = response[k] ?? '';
+          const ok = reveal ? checkBlank(v, b, { ignoreCase: true }) : undefined;
+          return (
+            <input key={i} aria-label={`blank ${k}`} value={v} disabled={locked} onChange={(e) => setResponse({ ...response, [k]: e.target.value })} placeholder={b?.hint ?? '…'}
+              className={cn('mx-1 rounded border-b-2 bg-panel2 px-1.5 py-0 text-[15px] outline-none', ok === true ? 'border-good' : ok === false ? 'border-bad' : 'border-accent')}
+              style={{ width: `${Math.max(10, (v || b?.hint || '').length + 2)}ch` }} spellCheck={false} />
+          );
+        })}
+      </div>
+      {reveal && (
+        <div className="mt-1 text-xs text-muted">
+          {Object.entries(inst.blanks!).map(([k, b]) => <span key={k} className="mr-3">blank {k}: <b className="text-good">{b.accept?.[0] ?? b.regex}</b></span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FindError({ inst, response, setResponse, locked, reveal }: { inst: QuizInstance; response: { pick: number | null; fix: string }; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
+  return (
+    <div className="flex flex-col gap-2" data-testid="find-error">
+      <div className="text-xs text-muted">One step below is wrong. Click it.</div>
+      <ol className="flex flex-col gap-1.5" role="radiogroup" aria-label="steps">
+        {inst.lines!.map((l, i) => {
+          const picked = response.pick === i;
+          const tone = reveal ? (i === inst.wrong ? 'tone-bad mark-bg' : picked ? 'tone-warn mark-bg' : 'border-line bg-panel') : picked ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:border-accent/50';
+          return (
+            <li key={i}>
+              <button role="radio" aria-checked={picked} disabled={locked} onClick={() => setResponse({ ...response, pick: i })} className={cn('flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition', tone)}>
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-panel2 text-[10px] font-bold">{i + 1}</span>
+                <span className="min-w-0 flex-1"><Line text={l} code={inst.codeLines} /></span>
+                {reveal && i === inst.wrong && <span className="shrink-0 text-xs font-semibold text-bad">the error</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      {inst.fix && (
+        <div className={cn('flex flex-wrap items-center gap-2', response.pick === null && 'opacity-50')}>
+          <Markdown text={inst.fixPrompt ?? 'What should that step give?'} className="text-sm" />
+          <input className="input w-40 font-mono" aria-label="corrected value" value={response.fix} disabled={locked || response.pick === null} onChange={(e) => setResponse({ ...response, fix: e.target.value })} inputMode="decimal" />
+          {reveal && <span className="rounded-lg bg-good/10 px-2 py-1 text-sm">Corrected: <b className="font-mono">{numText(inst.fix.value)}</b></span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Explain({ inst, response, setResponse, locked, reveal }: { inst: QuizInstance; response: { text: string; compared: boolean; ticks: boolean[] }; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
+  return (
+    <div className="flex flex-col gap-2" data-testid="explain">
+      <textarea className="input min-h-[110px] w-full text-sm" aria-label="your explanation" value={response.text} disabled={locked || response.compared}
+        onChange={(e) => setResponse({ ...response, text: e.target.value })} placeholder="Explain in your own words, as if to a classmate." />
+      {!response.compared && !locked && (
+        <button className="btn btn-sm self-start" disabled={response.text.trim().length < 15} onClick={() => setResponse({ ...response, compared: true })} data-testid="explain-compare">
+          <Eye size={13} /> Compare with a model answer
+        </button>
+      )}
+      {(response.compared || reveal) && (
+        <div className="rounded-lg border border-line bg-panel2/50 p-3">
+          <div className="label mb-1">Model answer</div>
+          <Markdown text={inst.model!} className="text-sm" />
+          <div className="label mb-1 mt-3">Tick each point your explanation covered</div>
+          <div className="flex flex-col gap-1">
+            {inst.checklist!.map((c, i) => (
+              <label key={i} className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-1 accent-[rgb(var(--accent))]" checked={!!response.ticks[i]} disabled={locked}
+                  onChange={(e) => { const ticks = inst.checklist!.map((_, j) => (j === i ? e.target.checked : !!response.ticks[j])); setResponse({ ...response, ticks }); }} />
+                <Markdown text={c} inline />
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-muted">Be honest: this is for your own practice and isn't used in exams.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A multi-part case. In practice the parts unlock one at a time: each is checked on its own and then
+ * shows its correct answer, so a slip in one part doesn't spoil the next (the correct value carries forward).
+ * Outside practice every part is open and graded at the end.
+ */
+function Case({ inst, mod, response, setResponse, locked, reveal, practice }: { inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; locked: boolean; reveal: boolean; practice: boolean }) {
+  const parts = inst.parts!;
+  const current = practice ? Math.max(0, response.graded.findIndex((g: Graded | null) => !g)) : parts.length;
+  const upto = practice ? (response.graded.every(Boolean) ? parts.length : current + 1) : parts.length;
+  const setPart = (i: number, r: any) => { const n = structuredClone(response); n.parts[i] = r; setResponse(n); };
+  const checkPart = (i: number) => { const n = structuredClone(response); n.graded[i] = grade(parts[i], response.parts[i]); setResponse(n); };
+  return (
+    <ol className="flex flex-col gap-3" data-testid="case">
+      {parts.map((p, i) => {
+        if (i >= upto) return <li key={i} className="rounded-lg border border-dashed border-line px-3 py-2 text-sm text-muted">Part {i + 1} opens after part {i}.</li>;
+        const g: Graded | null = response.graded[i] ?? (reveal ? grade(p, response.parts[i]) : null);
+        const partReveal = reveal || (practice && !!response.graded[i]);
+        return (
+          <li key={i} className="rounded-xl border border-line bg-panel p-3" data-testid={`case-part-${i + 1}`}>
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">Part {i + 1} <span className="chip normal-case">{QTYPE_LABEL_SHORT[p.type] ?? p.type}</span></div>
+            <Markdown text={p.prompt} className="mb-2 text-sm" />
+            {p.show?.length ? <Stage widgets={p.show} /> : null}
+            <AnswerArea inst={p} mod={mod} response={response.parts[i]} setResponse={(r) => setPart(i, r)} graded={locked || response.graded[i] ? g ?? grade(p, response.parts[i]) : null} reveal={partReveal} practice={practice} />
+            {practice && !response.graded[i] && !locked && (
+              <button className="btn btn-sm mt-2" disabled={!isAnswered(p, response.parts[i])} onClick={() => checkPart(i)} data-testid="case-check-part">Check part {i + 1}</button>
+            )}
+            {partReveal && g && (
+              <div className={cn('mt-2 rounded-lg p-2 text-sm', g.correct ? 'bg-good/5' : g.score > 0 ? 'bg-warn/5' : 'bg-bad/5')}>
+                <b>{g.correct ? 'Right.' : g.score > 0 ? `Partly right (${Math.round(g.score * 100)}%).` : 'Not quite.'}</b>
+                {g.feedback.map((f, k) => <Markdown key={k} text={f} className="text-warn" />)}
+                {p.explanation && <Markdown text={p.explanation} />}
+                {!g.correct && practice && !reveal && i < parts.length - 1 && <div className="mt-1 text-xs text-muted">Carry the correct value into the next part.</div>}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+const QTYPE_LABEL_SHORT: Record<string, string> = { mcq: 'choose', multi: 'select all', numeric: 'number', 'code-fill': 'fill in', match: 'match', order: 'order', 'hand-calc': 'steps', 'journal-entry': 'entry', 'schedule-fill': 'schedule', 'find-error': 'spot the error', 'two-tier': 'answer + reason' };
 
 // ------------------------------------------------------------ journal-entry
 function JournalEntryInput({ inst, mod, response, setResponse, locked, reveal }: { inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; locked: boolean; reveal: boolean }) {
@@ -479,12 +763,17 @@ export function isAnswered(inst: QuizInstance, r: any): boolean {
   switch (inst.type) {
     case 'mcq': return r !== null && r !== undefined;
     case 'multi': return r.length > 0;
-    case 'numeric': return String(r).trim().length > 0;
+    case 'numeric': return numValue(r).trim().length > 0 && (!inst.estimate || r.estimate !== null);
     case 'code-fill': return Object.keys(inst.blanks!).every((k) => (r[k] ?? '').trim());
-    case 'match': case 'order': return true;
+    case 'match': return true;
+    case 'order': return isParsons(inst) ? r.used.length > 0 : true;
     case 'hand-calc': return r.done.every(Boolean) || r.inputs.every((x: string) => x.trim());
     case 'journal-entry': return (r.entries as any[]).every((ls: any[]) => ls.filter((l) => l.account && (l.debit.trim() || l.credit.trim())).length >= 2);
     case 'schedule-fill': return scheduleBlanks(inst).every((b) => String(r.cells[b.key] ?? '').trim());
+    case 'find-error': return r.pick !== null && (!inst.fix || r.fix.trim().length > 0);
+    case 'two-tier': return r.choice !== null && r.reason !== null;
+    case 'explain': return r.compared && r.text.trim().length > 0;
+    case 'case': return inst.parts!.every((p, i) => !!r.graded?.[i] || isAnswered(p, r.parts[i]));
   }
   return true;
 }

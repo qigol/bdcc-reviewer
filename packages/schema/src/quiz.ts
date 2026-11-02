@@ -51,9 +51,30 @@ export interface QuizInstance {
   // match
   pairs?: [string, string][];
   rightOrder?: number[];
-  // order
+  // order (with distractors: items = the right lines in order, then the decoys; nCorrect = how many are right)
   items?: string[];
   startOrder?: number[];
+  nCorrect?: number;
+  /** order / find-error: render the lines as code */
+  codeLines?: boolean;
+  // numeric: estimate-first choice
+  estimate?: { prompt: string; options: string[]; answer: number; feedback?: string };
+  // find-error
+  lines?: string[];
+  wrong?: number;
+  fix?: NumericSpec;
+  fixPrompt?: string;
+  stepFeedback?: Record<number, string>;
+  // two-tier
+  reasonPrompt?: string;
+  reasons?: string[];
+  reasonAnswer?: number;
+  reasonFeedback?: Record<number, string>;
+  // explain
+  model?: string;
+  checklist?: string[];
+  // case
+  parts?: QuizInstance[];
   // hand-calc
   steps?: { prompt: string; numeric: NumericSpec; misconceptions: ResolvedMisconception[]; hint?: string }[];
   // journal-entry
@@ -124,7 +145,29 @@ function resolveMisc(list: { var?: string; value?: number; feedback: string }[] 
   return out;
 }
 
-export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?: GeneratorOutput): QuizInstance {
+/** How many scenarios a template has (its own fields count as scenario 0). */
+export function variantCount(t: Template): number {
+  return 'variants' in t && t.variants?.length ? t.variants.length + 1 : 1;
+}
+
+/** The template with scenario `k` applied (0 = the template's own fields). */
+export function withVariant(t: Template, k: number): Template {
+  if (!('variants' in t) || !t.variants?.length || k <= 0) return t;
+  const v = t.variants[(k - 1) % t.variants.length];
+  const picked = Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined));
+  return { ...t, optionFeedback: undefined, ...(t.type === 'two-tier' && v.reasons ? { reasonFeedback: undefined } : {}), ...picked } as Template;
+}
+
+/** The scenario an attempt gets: fixed by template id and seed, so a resumed or reviewed question rebuilds the same one. */
+export function variantIndex(t: Template, seed: number): number {
+  const n = variantCount(t);
+  return n > 1 ? createRng(hashSeed(`${t.id}:${seed}:variant`)).int(0, n - 1) : 0;
+}
+
+const badKeys = (fb: Record<string, unknown> | undefined, n: number) => Object.keys(fb ?? {}).filter((k) => !(Number.isInteger(Number(k)) && Number(k) >= 0 && Number(k) < n));
+
+export function buildInstance(ctx: BuildContext, t0: Template, seed: number, gen?: GeneratorOutput, variant?: number): QuizInstance {
+  const t = withVariant(t0, variant ?? variantIndex(t0, seed));
   const problems: string[] = [];
   const scope: Scope = {};
   for (const d of t.data ?? []) scope[d] = ctx.datasets[d];
@@ -157,7 +200,7 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
       if (t.type === 'mcq' && typeof answer !== 'number') problems.push('mcq needs a numeric answer index');
       if (t.type === 'multi' && !Array.isArray(answer)) problems.push('multi needs an array of answer indexes');
       const fb: Record<number, string> = {};
-      if (t.type === 'mcq' && t.optionFeedback) for (const [k, v] of Object.entries(t.optionFeedback)) fb[Number(k)] = v;
+      if (t.optionFeedback) for (const [k, v] of Object.entries(t.optionFeedback)) fb[Number(k)] = v;
       let perm = options.map((_, i) => i);
       if (t.shuffle !== false) perm = rng.shuffle(perm);
       inst.options = perm.map((i) => options[i]);
@@ -167,17 +210,83 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
       const idx = Array.isArray(answer) ? answer : [answer];
       if (idx.some((i: any) => typeof i !== 'number' || i < 0 || i >= options.length)) problems.push('answer index out of range');
       if (new Set(options).size !== options.length) problems.push(`options are not distinct: ${JSON.stringify(options)}`);
+      for (const k of badKeys(t.optionFeedback, options.length)) problems.push(`optionFeedback key "${k}" is not an option index`);
       break;
     }
     case 'numeric':
       inst.numeric = numSpec(t.answer, scope, problems, 'answer');
       inst.misconceptions = resolveMisc([...(t.misconceptions ?? []), ...genMiscFor(gen, t.answer.var)], scope, problems, 'misconception');
+      if (t.estimate) {
+        const options = resolveRefs(t.estimate.options, scope) as unknown;
+        const answer = resolveRefs(t.estimate.answer, scope) as unknown;
+        if (!Array.isArray(options) || options.length < 2 || !options.every((o) => typeof o === 'string')) problems.push('estimate.options must resolve to ≥ 2 strings');
+        else if (typeof answer !== 'number' || answer < 0 || answer >= options.length) problems.push('estimate.answer is not an option index');
+        else inst.estimate = { prompt: t.estimate.prompt, options: options as string[], answer, feedback: t.estimate.feedback };
+      }
       break;
     case 'code-fill':
       inst.code = t.code;
       inst.lang = t.lang ?? 'python';
       inst.blanks = t.blanks;
       break;
+    case 'find-error': {
+      const lines = resolveRefs(t.steps, scope) as unknown;
+      const wrong = resolveRefs(t.wrong, scope) as unknown;
+      if (!Array.isArray(lines) || lines.length < 3 || !lines.every((l) => typeof l === 'string')) { problems.push('steps must resolve to ≥ 3 strings'); break; }
+      if (typeof wrong !== 'number' || !Number.isInteger(wrong) || wrong < 0 || wrong >= lines.length) problems.push(`wrong must be a step index (got ${JSON.stringify(wrong)})`);
+      inst.lines = lines as string[];
+      inst.wrong = wrong as number;
+      inst.codeLines = t.code;
+      inst.stepFeedback = t.stepFeedback ? Object.fromEntries(Object.entries(t.stepFeedback).map(([k, v]) => [Number(k), v])) : undefined;
+      for (const k of badKeys(t.stepFeedback, (lines as string[]).length)) problems.push(`stepFeedback key "${k}" is not a step index`);
+      if (t.fix) {
+        inst.fix = numSpec(t.fix, scope, problems, 'fix');
+        inst.fixPrompt = t.fixPrompt;
+        inst.misconceptions = resolveMisc([...(t.misconceptions ?? []), ...genMiscFor(gen, t.fix.var, true)], scope, problems, 'misconception');
+      }
+      break;
+    }
+    case 'two-tier': {
+      const options = resolveRefs(t.options, scope) as unknown;
+      const reasons = resolveRefs(t.reasons, scope) as unknown;
+      const answer = resolveRefs(t.answer, scope) as unknown;
+      const reasonAnswer = resolveRefs(t.reasonAnswer, scope) as unknown;
+      const strs = (x: unknown) => Array.isArray(x) && x.length >= 2 && x.every((o) => typeof o === 'string');
+      if (!strs(options) || !strs(reasons)) { problems.push('options and reasons must resolve to ≥ 2 strings each'); break; }
+      const o = options as string[], r = reasons as string[];
+      if (typeof answer !== 'number' || answer < 0 || answer >= o.length) problems.push('answer is not an option index');
+      if (typeof reasonAnswer !== 'number' || reasonAnswer < 0 || reasonAnswer >= r.length) problems.push('reasonAnswer is not a reason index');
+      if (new Set(o).size !== o.length || new Set(r).size !== r.length) problems.push('options/reasons are not distinct');
+      for (const k of badKeys(t.optionFeedback, o.length)) problems.push(`optionFeedback key "${k}" is not an option index`);
+      for (const k of badKeys(t.reasonFeedback, r.length)) problems.push(`reasonFeedback key "${k}" is not a reason index`);
+      const po = t.shuffle === false ? o.map((_, i) => i) : rng.shuffle(o.map((_, i) => i));
+      const pr = t.shuffle === false ? r.map((_, i) => i) : rng.shuffle(r.map((_, i) => i));
+      const fbOf = (src: Record<string, string> | undefined, perm: number[]) => Object.fromEntries(Object.entries(src ?? {}).map(([k, v]) => [perm.indexOf(Number(k)), v]));
+      inst.options = po.map((i) => o[i]);
+      inst.answer = po.indexOf(answer as number);
+      inst.optionFeedback = fbOf(t.optionFeedback, po);
+      inst.reasons = pr.map((i) => r[i]);
+      inst.reasonAnswer = pr.indexOf(reasonAnswer as number);
+      inst.reasonFeedback = fbOf(t.reasonFeedback, pr);
+      inst.reasonPrompt = t.reasonPrompt;
+      break;
+    }
+    case 'explain':
+      inst.model = t.model;
+      inst.checklist = t.checklist;
+      break;
+    case 'case': {
+      // every part sees the same generator draw; generator options/answer belong to no single part, and only
+      // misconceptions keyed `for` a part's answer var reach it (an unkeyed one would land on every numeric part)
+      const partGen = gen ? { vars: gen.vars, misconceptions: (gen.misconceptions ?? []).filter((m) => m.for !== undefined) } : undefined;
+      inst.parts = t.parts.map((part, i) => {
+        const sub = { ...part, id: `${t.id}#${i + 1}`, skills: t.skills, difficulty: t.difficulty, tags: t.tags, generator: t.generator, data: t.data, explanation: part.explanation ?? '' } as Template;
+        const pi = buildInstance(ctx, sub, seed, partGen);
+        pi.problems.forEach((p) => problems.push(`part ${i + 1}: ${p}`));
+        return pi;
+      });
+      break;
+    }
     case 'match': {
       let pairs = t.pairs.slice();
       if (t.pick && t.pick < pairs.length) pairs = rng.sample(pairs, t.pick);
@@ -186,10 +295,14 @@ export function buildInstance(ctx: BuildContext, t: Template, seed: number, gen?
       break;
     }
     case 'order': {
-      inst.items = t.items;
-      let order = rng.shuffle(t.items.map((_, i) => i));
+      const all = [...t.items, ...(t.distractors ?? [])];
+      inst.items = all;
+      inst.nCorrect = t.items.length;
+      inst.codeLines = t.code;
+      let order = rng.shuffle(all.map((_, i) => i));
       if (order.every((v, i) => v === i) && order.length > 1) order = [...order.slice(1), order[0]];
       inst.startOrder = order;
+      if (new Set(all).size !== all.length) problems.push('items and distractors must all be different');
       break;
     }
     case 'hand-calc':
@@ -257,17 +370,71 @@ export function glossaryTemplateIds(terms: Term[]): string[] {
   const ids: string[] = [];
   for (const t of terms) {
     ids.push(`glossary-def-${t.id}`, `glossary-term-${t.id}`);
+    if (canProduce(t)) ids.push(`glossary-produce-${t.id}`);
     if (t.formula) ids.push(`glossary-formula-${t.id}`);
   }
   return ids;
 }
 
+/** The glossary question kinds and their type/difficulty, for the quiz builder's filters. */
+export function glossaryKind(templateId: string): { type: 'mcq' | 'code-fill'; difficulty: 1 | 2 } {
+  return templateId.startsWith('glossary-produce-') ? { type: 'code-fill', difficulty: 2 } : { type: 'mcq', difficulty: 1 };
+}
+
+/** Spellings accepted for a term: the term, its `aka`, and each without a parenthetical ("Support (absolute)" → "Support"). */
+export function termSpellings(term: Pick<Term, 'term' | 'aka'>): string[] {
+  const out = new Set<string>();
+  for (const s of [term.term, ...(term.aka ?? [])]) {
+    out.add(s);
+    const bare = s.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    if (bare) out.add(bare);
+    // an abbreviation in parentheses, e.g. "Predetermined overhead rate (POHR)"
+    for (const m of s.matchAll(/\(([A-Z][A-Z0-9]{1,7}s?)\)/g)) out.add(m[1]);
+  }
+  return [...out];
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A produce question is only fair when the definition doesn't contain the answer. */
+export function canProduce(term: Pick<Term, 'term' | 'aka' | 'short'>): boolean {
+  const short = term.short ?? '';
+  return !termSpellings(term).some((s) => s.length > 1 && new RegExp(`(^|[^A-Za-z])${escapeRe(s)}([^A-Za-z]|$)`, 'i').test(short));
+}
+
+/** Produce-the-term: the definition is shown and the learner types the term (a prose cloze). */
+function glossaryProduce(moduleId: string, term: Term, templateId: string, seed: number): QuizInstance | null {
+  if (!canProduce(term)) return null;
+  const bare = term.term.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim() || term.term;
+  const words = bare.split(/\s+/).filter(Boolean);
+  const size = words.length > 1 ? `${words.length} words` : `${bare.replace(/[^A-Za-z0-9]/g, '').length} letters`;
+  return {
+    key: `${moduleId}/${templateId}`,
+    moduleId,
+    templateId,
+    seed,
+    type: 'code-fill',
+    difficulty: 2,
+    skills: term.skills?.length ? term.skills : [],
+    tags: ['term'],
+    lessonRef: term.lessonRef,
+    scope: {},
+    prompt: `Name the term from its definition.\n\n> ${term.short}`,
+    explanation: `**${term.term}**: ${term.short}${term.long ? `\n\n${term.long}` : ''}`,
+    code: 'The term is __BLANK_1__',
+    lang: 'text',
+    blanks: { '1': { accept: termSpellings(term), hint: `${bare.trim()[0]}… (${size})` } },
+    problems: [],
+  };
+}
+
 export function buildGlossaryInstance(moduleId: string, terms: Term[], templateId: string, seed: number): QuizInstance | null {
-  const m = /^glossary-(def|term|formula)-(.+)$/.exec(templateId);
+  const m = /^glossary-(def|term|formula|produce)-(.+)$/.exec(templateId);
   if (!m) return null;
   const [, kind, termId] = m;
   const term = terms.find((t) => t.id === termId);
-  if (!term || terms.length < 2) return null;
+  if (!term) return null;
+  if (kind === 'produce') return glossaryProduce(moduleId, term, templateId, seed);
+  if (terms.length < 2) return null;
   const rng = createRng(hashSeed(`${templateId}:${seed}`));
   const pool = terms.filter((t) => t.id !== termId && (kind !== 'formula' || t.formula));
   const others = rng.sample(pool, 3);
@@ -433,14 +600,54 @@ export function checkMulti(chosen: number[], answer: number[]): number {
 
 export const normalizeCode = (s: string) => String(s ?? '').replace(/\s+/g, '').replace(/"/g, "'");
 
-export function checkBlank(input: string, blank: { accept?: string[]; regex?: string }): boolean {
-  const n = normalizeCode(input);
+/** `ignoreCase` (prose cloze, `lang: text`): "Cost of Goods Sold" matches "cost of goods sold", and a trailing period is ignored. */
+export function checkBlank(input: string, blank: { accept?: string[]; regex?: string }, opts: { ignoreCase?: boolean } = {}): boolean {
+  const norm = (s: string) => { const c = normalizeCode(s); return opts.ignoreCase ? c.toLowerCase().replace(/[.,;:!]+$/, '') : c; };
+  const n = norm(input);
   if (!n) return false;
-  if (blank.accept?.some((a) => normalizeCode(a) === n)) return true;
+  if (blank.accept?.some((a) => norm(a) === n)) return true;
   if (blank.regex) {
-    try { return new RegExp(blank.regex).test(String(input).trim()); } catch { return false; }
+    try { return new RegExp(blank.regex, opts.ignoreCase ? 'i' : undefined).test(String(input).trim()); } catch { return false; }
   }
   return false;
+}
+
+/**
+ * Parsons (order with distractors). `used` = the original indexes the learner put in the solution, in
+ * order; indexes ≥ nCorrect are decoys. Credit: order agreement (Kendall tau) of the right lines used ×
+ * the share of right lines used, minus one share per decoy kept.
+ */
+export function checkParsons(used: number[], nCorrect: number): number {
+  const right = used.filter((i) => i < nCorrect);
+  const decoys = used.length - right.length;
+  if (decoys === 0 && right.length === nCorrect && right.every((v, i) => v === i)) return 1;
+  const ranks = right.map((v) => right.filter((x) => x < v).length);
+  const orderScore = right.length >= 2 ? (ranks.every((v, i) => v === i) ? 1 : checkOrder(ranks)) : right.length;
+  const s = orderScore * (right.length / nCorrect) - decoys / nCorrect;
+  return Math.max(0, Math.min(0.95, s));
+}
+
+/** find-error: picking the wrong step is worth everything, or half when a corrected value is also asked for. */
+export function checkFindError(pick: number | null, fixRaw: string, inst: Pick<QuizInstance, 'wrong' | 'fix' | 'misconceptions' | 'stepFeedback'>): { score: number; pickRight: boolean; fixRight: boolean | null; feedback: string[] } {
+  const feedback: string[] = [];
+  const pickRight = pick === inst.wrong;
+  if (!pickRight && pick !== null && inst.stepFeedback?.[pick]) feedback.push(inst.stepFeedback[pick]);
+  if (!inst.fix) return { score: pickRight ? 1 : 0, pickRight, fixRight: null, feedback };
+  const res = checkNumeric(fixRaw ?? '', inst.fix, inst.misconceptions);
+  if (!res.correct && res.feedback && String(fixRaw ?? '').trim()) feedback.push(res.feedback);
+  return { score: (pickRight ? 0.5 : 0) + (res.correct && pickRight ? 0.5 : 0), pickRight, fixRight: res.correct, feedback };
+}
+
+/** two-tier: half for the answer, half for the reason; the reason only counts with the right answer. */
+export function checkTwoTier(choice: number | null, reason: number | null, answer: number, reasonAnswer: number): { score: number; answerRight: boolean; reasonRight: boolean } {
+  const answerRight = choice === answer;
+  const reasonRight = reason === reasonAnswer;
+  return { score: (answerRight ? 0.5 : 0) + (answerRight && reasonRight ? 0.5 : 0), answerRight, reasonRight };
+}
+
+/** explain: the share of checklist points the learner says their explanation covered. */
+export function checkExplain(ticks: boolean[], n: number): number {
+  return n ? ticks.slice(0, n).filter(Boolean).length / n : 0;
 }
 
 /** order = the learner's sequence of original indexes (0 = first correct item). Kendall-tau partial credit. */
@@ -476,7 +683,7 @@ export function valuesEqual(actual: any, expected: Value, tol: number): boolean 
 }
 
 /** Question types that ask the learner to work out amounts, so the calculator opens for them by default. */
-const CALC_TYPES: ReadonlySet<QuizInstance['type']> = new Set(['numeric', 'hand-calc', 'schedule-fill', 'journal-entry']);
+const CALC_TYPES: ReadonlySet<QuizInstance['type']> = new Set(['numeric', 'hand-calc', 'schedule-fill', 'journal-entry', 'case']);
 
 /**
  * Whether the quiz calculator is offered for a question, and whether it opens on its own:

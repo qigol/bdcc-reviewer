@@ -84,6 +84,11 @@ templates:
       - Total overhead assigned is higher than under ABC
       - Batch-level costs are spread over units in proportion to volume, as if every unit caused them
     answer: [0, 1, 3]
+    optionFeedback:
+      0: "A single volume rate charges high-volume products for batch and product costs they barely cause, so they come out overcosted."
+      1: "Low-volume, complex products cause many setups and design changes but carry little volume, so a volume rate undercharges them."
+      2: "Both systems assign the same total overhead. They only split it differently among products."
+      3: "Exactly the problem: a volume rate treats batch-level costs as if each unit caused them."
     hints: [ABC changes the split, not the total.]
     explanation: Volume rates spread batch- and product-level costs over all units. The total overhead is the same in both systems.
 
@@ -398,8 +403,45 @@ templates:
       - Running a machine for each unit
       - Registering a new product with regulators
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "A setup happens once per run, however many units follow, so it's batch-level."
+      1: "First-article inspection happens once per batch, so it's batch-level."
+      2: "One move per batch, regardless of the batch size, makes it batch-level."
+      3: "Machine run time grows with every unit, so it's unit-level."
+      4: "Registering a product happens once for the product, whatever the batches, so it's product-level."
     hints: [Does it happen once per batch, whatever the batch size?]
     explanation: Setups, first-article inspections and material moves follow batches; machining is unit-level and registration product-level.
+    variants:
+      - prompt: Which of these are **product-level** activities? Select all that apply.
+        options:
+          - Designing a new product
+          - Maintaining the bill of materials for a product
+          - Getting regulatory approval for a product
+          - Setting up a machine for a batch
+          - Running a machine for each unit
+        answer: [0, 1, 2]
+        optionFeedback:
+          0: Design is done once per product, however many units or batches follow.
+          1: The bill of materials is kept per product.
+          2: Approval is needed once per product.
+          3: A setup happens once per batch, so it's batch-level.
+          4: Machine run time follows each unit, so it's unit-level.
+        explanation: Product-level activities support a product as a whole, regardless of units or batches.
+      - prompt: Which of these are **unit-level** activities? Select all that apply.
+        options:
+          - Machining each part
+          - Packing each unit
+          - Electricity used while machines run
+          - Setting up a production run
+          - Designing the product
+        answer: [0, 1, 2]
+        optionFeedback:
+          0: Machining happens for every unit.
+          1: Every unit is packed.
+          2: Running power rises with every unit made.
+          3: Setups happen per batch.
+          4: Design happens once per product.
+        explanation: Unit-level activities are performed for every unit produced.
 
   # ------------------------------------------------------------------ services and customers
   - id: service-numeric
@@ -502,6 +544,31 @@ templates:
       3: 'Identical batches of one product mean every unit uses every activity alike.'
     hints: [Look for diversity and non-volume overhead.]
     explanation: Diversity and significant batch- and product-level overhead (retooling, design work) are what make ABC pay. The other three make one product in the same way every time.
+    variants:
+      - prompt: Which company is LEAST likely to gain much from ABC?
+        options:
+          - A plant making one product in one size on one line
+          - A plant with hundreds of products, from huge to tiny batches
+          - A firm where overhead is most of total cost and products use activities very differently
+          - A firm whose managers distrust product costs that fail to explain losses
+        answer: 0
+        optionFeedback:
+          1: Diverse products and batch sizes are exactly where ABC helps.
+          2: Large overhead used unevenly is ABC's strongest case.
+          3: Distrusted costs are a classic sign ABC would help.
+        explanation: With one uniform product, any rate gives the same cost, so ABC adds little.
+      - prompt: A clinic offers both quick check-ups and complex surgeries, and overhead is 60% of its costs. Is ABC worth considering?
+        options:
+          - Yes; services differ a lot in the activities they use
+          - No; ABC is only for factories
+          - No; overhead is too large to trace
+          - Only if it has one service
+        answer: 0
+        optionFeedback:
+          1: Service firms use ABC too.
+          2: Large overhead is a reason to trace it better.
+          3: With one service, ABC adds little.
+        explanation: Diverse services plus large overhead make ABC valuable.
 
   - id: driver-mcq
     type: mcq
@@ -556,6 +623,11 @@ templates:
       - Its activity rates are still estimates
       - It changes total overhead cost
     answer: [0, 1, 2]
+    optionFeedback:
+      0: "Yes: more cost pools and drivers mean more work to set up and keep current."
+      1: "Yes: activity costs and driver counts have to be gathered from interviews, time studies or logs."
+      2: "Yes: activity rates still come from budgets and estimates."
+      3: "ABC reassigns the same total overhead; it doesn't change how much there is."
     hints: [ABC changes how overhead is split, not how much there is.]
     explanation: ABC costs more and still relies on estimates, but total overhead is the same under both systems.
 
@@ -806,3 +878,260 @@ templates:
       - ABC per unit = Σ (pool cost ÷ total driver) × the product's use, ÷ its units.
       - Compare the two for every product; the undercosted ones have ABC above the single rate.
     explanation: 'Single rate $= 3{,}485{,}000 \div 4{,}700 = ₱741.49$ per machine hour. Herbal Conditioner gets $450 \times 741.49 \div 150{,}000 = ₱2.22$ a unit; under ABC it uses $450 \times 250 + 30 \times 10{,}000 + 60 \times 3{,}000 + 2 \times 100{,}000 + 6 \times 20{,}000 = ₱912{,}500$, or ₱6.08 a unit. It is undercosted by ₱3.86, more than Premium Shampoo (₱1.64); Mass Shampoo and Travel Sachets are overcosted.'
+
+  # ------------------------------------------------------------------ new formats (case, find-error, two-tier, explain, Parsons)
+  - id: compare-case
+    type: case
+    skills: [trad-vs-abc, distortion]
+    difficulty: 3
+    tags: [math]
+    generator: compareQ
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: |
+      **Is the old rate distorting costs?** A plant makes {=unitsHi|comma} Standard units ({=mhHi|comma} machine hours) and
+      {=unitsLo|comma} Custom units ({=mhLo|comma} machine hours). Overhead pools and driver use:
+
+      | Pool | Cost | Driver | Standard | Custom |
+      |---|---|---|---|---|
+      {=table}
+    parts:
+      - type: numeric
+        prompt: Plantwide rate on machine hours (₱ per machine hour)
+        answer: { var: tradRate, tol: 0.005 }
+        explanation: '{=totalOH|money} ÷ {=totalMH|comma} = {=tradRate|money2} per machine hour.'
+      - type: numeric
+        prompt: Traditional overhead per **Custom** unit (₱)
+        answer: { var: tradLo, tol: 0.005 }
+        explanation: '{=mhLo|comma} × {=tradRate|money2} ÷ {=unitsLo|comma} = {=tradLo|money2}.'
+      - type: numeric
+        prompt: ABC overhead per **Custom** unit (₱)
+        answer: { var: abcLo, tol: 0.005 }
+        explanation: "Custom's share of every pool, ÷ {=unitsLo|comma} units = {=abcLo|money2}."
+      - type: two-tier
+        prompt: What has the plantwide rate been doing to the Custom product?
+        options: ['Undercosting it, so Standard subsidizes Custom', 'Overcosting it, so Custom subsidizes Standard', 'Costing it correctly, since total overhead is the same']
+        answer: 0
+        reasons:
+          - Custom uses a large share of the batch and product activities but only a small share of machine hours
+          - Custom is the lower-volume product, so it always carries less overhead
+          - Machine hours are the right driver for every pool
+        reasonAnswer: 0
+        optionFeedback:
+          1: Custom's traditional cost ({=tradLo|money2}) is below its ABC cost ({=abcLo|money2}), so it's undercosted.
+          2: The total is the same, but how it's split between the products isn't.
+        reasonFeedback:
+          1: Volume alone doesn't decide it. Custom ends up with more overhead per unit under ABC.
+          2: Setups and other batch activities don't follow machine hours, which is the source of the distortion.
+        explanation: Traditional {=tradLo|money2} vs ABC {=abcLo|money2} per Custom unit, so Custom is undercosted and Standard overcosted.
+    hints:
+      - The plantwide rate spreads every pool by machine hours.
+      - ABC spreads each pool by its own driver, then divides by units.
+    explanation: Plantwide {=tradLo|money2} vs ABC {=abcLo|money2} per Custom unit. The machine-hour rate spreads batch-level costs as if they followed machine time.
+
+  - id: rate-find-error
+    type: find-error
+    skills: [abc-steps]
+    difficulty: 2
+    tags: [math]
+    generator: rateQ
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: 'A trainee computes the activity rate for **{=name}**. **One step is wrong.** Click it and give the correct rate.'
+    steps:
+      - 'Activity cost pool: {=name}, ₱{=cost|comma}'
+      - 'Cost driver: {=driver}, {=total|comma} in total for the year'
+      - 'Activity rate = {=total|comma} ÷ ₱{=cost|comma} = {=wrongInverse|4} per peso'
+      - 'Each product is charged its {=driver} × the rate'
+    wrong: 2
+    fix: { var: rate, tol: 0.005 }
+    fixPrompt: What is the correct activity rate (₱ per driver unit)?
+    misconceptions:
+      - { var: wrongInverse, feedback: "That's still driver units per peso. Divide the pool's cost by the driver total." }
+    stepFeedback:
+      0: The pool and its cost are given correctly.
+      1: The driver and its total are given correctly.
+      3: Charging driver use × rate is the right last step.
+    hints: [A rate is pesos per driver unit.]
+    explanation: Rate = ₱{=cost|comma} ÷ {=total|comma} = {=rate|money2} per {=driver}. The trainee divided the wrong way round.
+
+  - id: total-oh-two-tier
+    type: two-tier
+    skills: [trad-vs-abc]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: A company switches from one plantwide rate to ABC. What happens to the **total** overhead assigned to all products together?
+    options: [It stays the same, It rises, It falls]
+    answer: 0
+    reasons:
+      - ABC only changes how the same overhead is split among products
+      - More cost pools mean more cost
+      - ABC removes non-value-added overhead automatically
+    reasonAnswer: 0
+    optionFeedback:
+      1: ABC adds pools, not cost. The same overhead is reassigned.
+      2: ABC measures costs; cutting them is ABM's job.
+    reasonFeedback:
+      1: Pools are ways of grouping the same cost.
+      2: Removing waste takes management action (ABM), not a costing change.
+    hints: [Does a new way of slicing a pie change its size?]
+    explanation: Total overhead is unchanged; some products' costs rise and others fall.
+
+  - id: distortion-explain
+    type: explain
+    skills: [distortion]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: Explain why a single volume-based overhead rate tends to overcost high-volume products and undercost low-volume, complex ones.
+    model: |
+      Much overhead is batch- or product-level: setups, inspections, engineering changes. These costs follow the number of
+      batches or products, not the number of units. A volume-based rate spreads them by units or hours, so high-volume products,
+      which run long batches, absorb a big share of costs they hardly cause, while low-volume, complex products, which need
+      many setups and changes, carry too little. ABC traces each pool by its own driver.
+    checklist:
+      - Some overhead is batch- or product-level, not unit-level
+      - A volume rate spreads it by units or hours anyway
+      - High-volume products absorb costs they barely cause (overcosted)
+      - Low-volume, complex products cause many setups but are undercharged
+    hints: ["Think about a setup that costs the same whether the batch is 10 units or 10,000."]
+    explanation: Volume rates assume every cost follows volume; batch- and product-level costs don't.
+
+  - id: abc-steps-parsons
+    type: order
+    skills: [abc-steps]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: Build the steps of activity-based costing from the bank. Two lines don't belong.
+    items:
+      - Identify the activities that consume overhead
+      - Assign overhead costs to activity cost pools
+      - Choose a cost driver for each pool
+      - Compute an activity rate for each pool
+      - Assign overhead to products by their use of each driver
+    distractors:
+      - Divide total overhead by total direct labor hours
+      - Charge every product the same overhead per unit
+    hints: [You need pools and drivers before you can compute any rate.]
+    explanation: Activities → pools → drivers → rates → assignment. One plantwide rate or a flat charge per unit is exactly what ABC replaces.
+
+  # ------------------------------------------------------------------ transfer (new settings, several scenarios each)
+  - id: transfer-driver
+    type: mcq
+    skills: [abc-steps, cost-hierarchy]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: abc-rates }
+    prompt: A hospital laboratory's cost of **calibrating** its analyzers depends on how many times the machines are recalibrated, not on how many tests they run. Which cost driver fits this pool?
+    options: ['Number of calibrations', 'Number of tests run', 'Lab technician hours', 'Square meters of the lab']
+    answer: 0
+    optionFeedback:
+      1: Tests are unit-level; calibrations don't follow test volume.
+      2: Technician hours cover many activities, not just calibrations.
+      3: Floor space doesn't change with calibrations.
+    hints: [What makes this cost go up?]
+    explanation: Choose the driver that actually moves the pool's cost.
+    variants:
+      - prompt: An airline's cost of **cleaning cabins** grows with the number of flights, whatever the passenger count. Which driver fits?
+        options: ['Number of flights', 'Number of passengers', 'Kilometers flown', 'Ticket revenue']
+        answer: 0
+        optionFeedback:
+          1: Cabins are cleaned per flight, full or not.
+          2: Distance doesn't change cleaning.
+          3: Revenue doesn't drive cleaning.
+        explanation: Cleaning is batch-level per flight.
+      - prompt: A bank's cost of **processing loan applications** grows with the number of applications, not with the loan amounts. Which driver fits?
+        options: ['Number of applications', 'Total loan amount', 'Number of branches', 'Interest earned']
+        answer: 0
+        optionFeedback:
+          1: A large loan doesn't take proportionally more processing.
+          2: Branch count doesn't move with applications.
+          3: Interest is revenue, not a cost driver.
+        explanation: Each application takes processing work, so applications drive the cost.
+
+  - id: transfer-distortion
+    type: two-tier
+    skills: [distortion, trad-vs-abc]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: math-code, id: cross-subsidy }
+    prompt: A bakery makes plain pandesal in huge runs and custom birthday cakes in tiny batches with many setups. It applies all overhead by direct labor hours. Which product is probably **undercosted**?
+    options: ['The custom cakes', 'The pandesal', 'Neither; labor hours are always accurate']
+    answer: 0
+    reasons:
+      - The cakes cause many batch-level costs that a labor-hour rate spreads over the high-volume bread
+      - High-volume products are always undercosted
+      - Labor hours capture every overhead cost
+    reasonAnswer: 0
+    optionFeedback:
+      1: The pandesal absorbs setup costs it barely causes, so it's overcosted.
+      2: Batch-level costs don't follow labor hours.
+    reasonFeedback:
+      1: High-volume products tend to be overcosted.
+      2: Setups and changeovers follow batches, not labor hours.
+    hints: [Which product causes most of the setups?]
+    explanation: Low-volume, complex products are undercosted by volume-based rates.
+    variants:
+      - prompt: A garment factory makes basic white shirts by the thousand and designer gowns one at a time. Overhead is applied by machine hours. Which is likely **overcosted**?
+        options: ['The basic shirts', 'The designer gowns', 'Neither']
+        answer: 0
+        reasons:
+          - The shirts carry part of the gowns' design and setup costs through the machine-hour rate
+          - Low-volume products are always overcosted
+          - Machine hours follow every activity
+        reasonAnswer: 0
+        optionFeedback:
+          1: The gowns cause many costs the rate spreads to the shirts, so they're undercosted.
+          2: A single volume rate rarely fits both.
+        reasonFeedback:
+          1: Low-volume, complex products tend to be undercosted.
+          2: Design and setups don't follow machine time.
+        explanation: High-volume, simple products absorb costs they don't cause.
+      - prompt: A software firm bills two clients by consultant hours. Client A needs constant custom reports; Client B uses the standard product. Under a single hourly overhead rate, which client's cost is understated?
+        options: ['Client A', 'Client B', 'Neither']
+        answer: 0
+        reasons:
+          - Client A's custom reports cause support costs that the hourly rate spreads across both clients
+          - Clients with fewer hours always cost more
+          - An hourly rate traces every activity exactly
+        reasonAnswer: 0
+        optionFeedback:
+          1: Client B carries part of A's support cost.
+          2: The custom work makes them differ.
+        reasonFeedback:
+          1: It's about activities caused, not hours alone.
+          2: Support activities don't follow hours.
+        explanation: The demanding client is undercosted.
+
+  - id: transfer-service-abc
+    type: mcq
+    skills: [abc-services]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: math-code, id: caselets }
+    prompt: A hotel uses ABC. Which is the best cost driver for its **reservation-handling** activity?
+    options: ['Number of reservations', 'Number of rooms', 'Guest nights', 'Restaurant sales']
+    answer: 0
+    optionFeedback:
+      1: Room count is capacity; it doesn't move with reservations made.
+      2: A one-night and a seven-night booking take similar handling.
+      3: Restaurant sales have nothing to do with reservations.
+    hints: [What creates reservation work?]
+    explanation: Each reservation takes the same handling, so reservations drive the cost.
+    variants:
+      - prompt: A hospital uses ABC. Which is the best driver for its **patient admission** activity?
+        options: ['Number of admissions', 'Number of beds', 'Days in hospital', 'Medicines dispensed']
+        answer: 0
+        optionFeedback:
+          1: Beds are capacity, not admissions.
+          2: A long stay needs one admission, like a short one.
+          3: Medicines follow treatment, not admissions.
+        explanation: Each admission takes paperwork and checks, so admissions drive the cost.
+      - prompt: A university uses ABC. Which is the best driver for its **enrollment processing** activity?
+        options: ['Number of enrollments', 'Number of classrooms', 'Units taken per student', 'Tuition collected']
+        answer: 0
+        optionFeedback:
+          1: Classrooms don't create enrollment work.
+          2: A heavy load doesn't take much more processing than a light one.
+          3: Tuition is revenue.
+        explanation: Enrollments drive enrollment-processing cost.
