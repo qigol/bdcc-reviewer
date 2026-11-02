@@ -286,8 +286,9 @@ atScale:
       source: |
         peek = pd.read_csv(path, nrows=5)                  # look first
         df = pd.read_csv(path, usecols=["user_id", "recipe_id", "rating"])
+        min_ratings = 100                                  # whatever your spec says
         counts = df.groupby("recipe_id")["rating"].count()
-        keep = counts[counts >= 250].index                 # the spec's cut, before any pivot
+        keep = counts[counts >= min_ratings].index         # cut first, so the pivot stays small
         util = df[df["recipe_id"].isin(keep)].pivot(
             index="user_id", columns="recipe_id", values="rating")
 tradeoffs:

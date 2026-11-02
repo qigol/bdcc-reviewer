@@ -4,8 +4,9 @@
 - File: midterm-exam/Problem 1.ipynb, Problem 2.ipynb (BDCC 2026 Fall) | Date: 2026-11-03
 - Used for the *kinds* of conditions only: items with at least N ratings, only recipes the user has not rated,
   neighbours with at least N common raters, up to k neighbours, frequent at a fraction of the baskets, the largest
-  baskets, support AND confidence thresholds, sort by a score then by id. No exam code, thresholds or assert values
-  are reused.
+  baskets, support AND confidence thresholds, sort by a score then by id. The spec wording and thresholds are
+  mirrored on purpose (25 common raters, 25% support, 0.8 confidence) so practice reads like the exam; on food-mini
+  they give different answers. No exam code, solutions or assert values are used.
 - Data: food-mini from pandas-read-data (`modules/pandas-read-data/assets/food-mini/`).
 
 ## Concept inventory (lecture order)
