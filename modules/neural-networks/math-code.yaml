@@ -1,0 +1,586 @@
+sections:
+  - id: neuron
+    title: One neuron
+    skills: [neuron]
+    summary: |
+      An [[neuron|artificial neuron]] multiplies each input by its [[weight]], adds the products and the [[bias]] into
+      one number $z$, then bends $z$ with an [[activation-function|activation]].
+    keyFormula: 'z = \sum_i w_i x_i + b, \qquad a = g(z)'
+    data: [neuron3]
+    derive:
+      - { fn: neuron, in: { x: '@neuron3.x', w: '@neuron3.w', b: '@neuron3.b' }, out: r }
+      - { fn: neuronGrid, in: { x: '@neuron3.x', w: '@neuron3.w' }, out: ng }
+    live:
+      - { id: inputs, widget: Matrix, props: { data: '@ng', rowHeader: input, title: 'Inputs and their weights; bias b = 0.1' } }
+    steps:
+      - tex: |
+          z = \anchor{sum}{\sum_i} \anchor{term}{w_i x_i} + \anchor{bias}{b}
+        say: Add up every input times its weight, then add the bias once.
+      - tex: |
+          a = \anchor{act}{g(z)}
+        say: The activation $g$ bends the sum. With ReLU, $g(z) = \max(0, z)$.
+      - tex: |
+          z = \anchor{term}{(0.5)(2) + (-1)(1) + (0.25)(3)} + \anchor{bias}{0.1} = \anchor{sum}{ {=r.z} }, \quad \anchor{act}{\text{ReLU}(z) = {=r.relu}}
+        say: 'The lecture''s neuron. A sigmoid would give $\sigma({=r.z}) \approx {=r.sigmoid|2}$ instead.'
+    code:
+      lang: python
+      source: |
+        def neuron(x, w, b):
+            """Weighted sum of the inputs plus a bias, then a ReLU bend.
+
+            Args:
+                x: the inputs (features), one number each.
+                w: one weight per input, in the same order.
+                b: the bias, added once.
+            Returns:
+                (z, a): the weighted sum and the neuron's output.
+            Lecture: neuron([2, 1, 3], [0.5, -1, 0.25], 0.1) == (0.85, 0.85)
+            """
+            z = 0.0                      # @a:sum
+            for i in range(len(x)):      # @a:sum
+                z = z + w[i] * x[i]      # @a:term
+            z = z + b                    # @a:bias
+            a = max(0.0, z)              # @a:act
+            return z, a
+    links:
+      - { anchor: sum, label: 'The running sum z', say: Starts at 0 and collects one term per input. }
+      - { anchor: term, label: 'One term wᵢxᵢ', say: An input times the weight on its connection. }
+      - { anchor: bias, label: 'The bias b', say: 'Added once, after the loop.' }
+      - { anchor: act, label: 'The activation g(z)', say: 'ReLU here: negative sums become 0.' }
+    trace: { fn: neuronCode, in: { x: '@neuron3.x', w: '@neuron3.w', b: '@neuron3.b' } }
+    examples: [neuron-slide, neuron-code-walk]
+    tryIt: [neuron-z, neuron-relu, code-neuron]
+    pitfalls:
+      - Forgetting the bias, or adding it once per input instead of once in total.
+      - Adding the inputs without multiplying each by its weight.
+    examTip: Write the products in brackets, $(0.5)(2) + (-1)(1) + \dots$, so negative signs cannot slip.
+
+  - id: perceptron
+    title: One straight line, and why XOR breaks it
+    skills: [linear-limits]
+    summary: |
+      A [[threshold-unit]] fires when $w_1x_1 + w_2x_2 + b > 0$. Its [[decision-boundary]] is one straight line, so it can
+      do AND and OR but never [[xor]].
+    keyFormula: '\text{fire} \iff w_1x_1 + w_2x_2 + b > 0'
+    state: { b: -1.5 }
+    derive:
+      - { fn: pointGrid, in: { gate: and }, out: pg }
+    live:
+      - { id: pts, widget: Matrix, props: { data: '@pg', rowHeader: point, format: int, title: 'The four inputs and the AND target' } }
+    steps:
+      - tex: |
+          \anchor{sum}{s = w_1x_1 + w_2x_2 + b}
+        say: One weighted sum per point.
+      - tex: |
+          \anchor{fire}{\text{output} = 1[s > 0]}
+        say: Fire (1) above zero, stay silent (0) otherwise. The line $s = 0$ is the boundary.
+      - tex: |
+          \begin{aligned} (0,0)\to 0:&\ b \le 0 & (1,0)\to 1:&\ w_1 + b > 0 \\ (1,1)\to 0:&\ w_1 + w_2 + b \le 0 & (0,1)\to 1:&\ w_2 + b > 0 \end{aligned}
+        say: For XOR the four points demand these four inequalities.
+      - tex: |
+          w_1 + w_2 + 2b > 0 \;\Rightarrow\; w_1 + w_2 + b > -b \ge 0
+        say: Adding the two "fire" lines contradicts $(1,1) \to 0$. No line can do XOR.
+    code:
+      lang: python
+      source: |
+        POINTS = [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+
+        def count_correct(w1, w2, b, target):
+            """How many of the four points one straight line gets right.
+
+            Args:
+                w1, w2: the weights on x1 and x2.
+                b: the bias (it slides the line).
+                target: the wanted output at each point, in POINTS order.
+            Returns:
+                The number of points (0 to 4) where the output equals the target.
+            Lecture: count_correct(1, 1, -1.5, [0, 0, 0, 1]) == 4   (AND)
+            """
+            correct = 0
+            for (x1, x2), t in zip(POINTS, target):
+                s = w1 * x1 + w2 * x2 + b        # @a:sum
+                out = 1 if s > 0 else 0          # @a:fire
+                if out == t:
+                    correct += 1
+            return correct
+    links:
+      - { anchor: sum, label: The weighted sum, say: Where the point sits relative to the line. }
+      - { anchor: fire, label: Fire or not, say: 'A step activation: 1 above zero, 0 otherwise.' }
+    trace: { fn: perceptronCode, in: { w1: 1, w2: 1, b: '@b', gate: and } }
+    examples: [mp-truth-table, and-line, or-line, xor-one-line]
+    tryIt: [line-fires, one-line-gates]
+    pitfalls:
+      - 'Testing $s \ge 0$ instead of $s > 0$: at $s = 0$ the lecture''s unit stays silent.'
+    examTip: For XOR, write the four inequalities and add the two that must be positive.
+
+  - id: param-count
+    title: Counting parameters
+    skills: [architecture]
+    summary: |
+      Between two layers every input connects to every neuron: $n_\text{in} \times n_\text{out}$ weights, plus one bias
+      per neuron. Add this up over the layers after the [[input-layer]].
+    keyFormula: '\#\text{params} = \sum_{\ell} \left(n_{\ell-1}\, n_\ell + n_\ell\right)'
+    steps:
+      - tex: |
+          \anchor{layer}{n_{\ell-1}\, n_\ell + n_\ell}
+        say: One layer's weights and biases.
+      - tex: |
+          \anchor{sum}{\sum_\ell} \left(n_{\ell-1}\, n_\ell + n_\ell\right)
+        say: Add over every layer after the input.
+      - tex: |
+          \anchor{layer}{(3 \times 4 + 4)} + \anchor{layer}{(4 \times 2 + 2)} = \anchor{sum}{26}
+        say: The lecture's 3–4–2 network.
+    code:
+      lang: python
+      source: |
+        def count_parameters(layers):
+            """Weights plus biases of a fully connected network.
+
+            Args:
+                layers: neurons per layer, input first, e.g. [3, 4, 2].
+            Returns:
+                The total number of trainable parameters.
+            Lecture: count_parameters([3, 4, 2]) == 26
+            """
+            total = 0                                       # @a:sum
+            for n_in, n_out in zip(layers, layers[1:]):     # @a:sum
+                total += n_in * n_out + n_out               # @a:layer
+            return total
+    links:
+      - { anchor: layer, label: One layer, say: Weights between two layers plus the biases of the second. }
+      - { anchor: sum, label: The total }
+    trace: { fn: paramCountCode, in: { layers: [3, 4, 2] } }
+    examples: [params-342, params-code, image-weights]
+    tryIt: [param-count]
+    pitfalls:
+      - Giving the input layer biases. Inputs only hold features.
+      - Counting neurons instead of connections.
+    examTip: 'A 224 × 224 × 3 image into 1,000 neurons already needs about 150 million weights: one reason for convolution.'
+
+  - id: activations
+    title: Activation functions
+    skills: [activations]
+    summary: |
+      The step, [[sigmoid]], tanh and [[relu|ReLU]] each bend the sum $z$ differently. ReLU is the default for hidden
+      layers; a linear output is used to predict a number.
+    keyFormula: '\text{ReLU}(z) = \max(0, z), \quad \sigma(z) = \frac{1}{1 + e^{-z}}'
+    state: { z: 0.85 }
+    derive:
+      - { fn: actValues, in: { z: '@z' }, out: av }
+    live:
+      - id: av-read
+        widget: Readout
+        props:
+          items:
+            - { label: 'step', value: '@av.step' }
+            - { label: 'sigmoid', value: '@av.sigmoid', format: 4 }
+            - { label: 'tanh', value: '@av.tanh', format: 4 }
+            - { label: 'ReLU', value: '@av.relu' }
+    steps:
+      - tex: |
+          \anchor{step}{1[z > 0]}, \qquad \anchor{sig}{\sigma(z) = \frac{1}{1 + e^{-z}}}
+        say: 'The historic step jumps from 0 to 1. The sigmoid is a smooth S from 0 to 1.'
+      - tex: |
+          \anchor{tanh}{\tanh z}, \qquad \anchor{relu}{\max(0, z)}
+        say: tanh is an S from −1 to 1. ReLU keeps positives and zeroes negatives.
+      - tex: |
+          z = {=z}: \quad \anchor{step}{ {=av.step} }, \ \anchor{sig}{ {=av.sigmoid|4} }, \ \anchor{tanh}{ {=av.tanh|4} }, \ \anchor{relu}{ {=av.relu} }
+        say: Change $z$ above to compare them.
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def step(z):
+            """1 if z > 0, else 0 (McCulloch–Pitts, perceptron)."""
+            return 1 if z > 0 else 0                 # @a:step
+
+
+        def sigmoid(z):
+            """Squash z into (0, 1). Lecture: sigmoid(0.85) is about 0.70."""
+            return 1 / (1 + math.exp(-z))           # @a:sig
+
+
+        def tanh(z):
+            """Squash z into (-1, 1), centred on 0."""
+            return math.tanh(z)                     # @a:tanh
+
+
+        def relu(z):
+            """Keep positive z, turn negative z into 0."""
+            return max(0.0, z)                      # @a:relu
+    links:
+      - { anchor: step, label: Step }
+      - { anchor: sig, label: Sigmoid }
+      - { anchor: tanh, label: tanh }
+      - { anchor: relu, label: ReLU }
+    examples: [neuron-slide]
+    tryIt: [activation-value, activation-match]
+    pitfalls:
+      - Treating ReLU of a negative number as its size. It is 0.
+      - Using the step in a network you want to train. It is flat, so it gives no learning signal.
+    examTip: Sigmoid outputs are always between 0 and 1, which is why they suit probabilities.
+
+  - id: collapse
+    title: Without a bend, depth collapses
+    skills: [activations]
+    summary: |
+      Two layers with no [[activation-function|activation]] between them merge into one: the weights multiply and the
+      biases combine. Only the bend lets a deeper network compute more.
+    keyFormula: 'W_2(W_1x + b_1) + b_2 = (W_2W_1)x + (W_2b_1 + b_2)'
+    state: { w1: 2, b1: 1, w2: 3, b2: -4 }
+    derive:
+      - { fn: collapse, in: { w1: '@w1', b1: '@b1', w2: '@w2', b2: '@b2' }, out: cl }
+    live:
+      - { id: lines, widget: Chart, props: { kind: line, series: '@cl.both', xLabel: x, yLabel: y, title: 'Two layers, with and without a ReLU between them' } }
+    steps:
+      - tex: |
+          \anchor{inner}{h = W_1x + b_1}, \qquad \anchor{outer}{y = W_2h + b_2}
+        say: Two affine layers, no activation.
+      - tex: |
+          y = W_2(W_1x + b_1) + b_2 = \anchor{mw}{(W_2W_1)}\,x + \anchor{mb}{(W_2b_1 + b_2)}
+        say: Substitute $h$ and regroup.
+      - tex: |
+          y = \anchor{mw}{ {=cl.W} }\,x + \anchor{mb}{ ({=cl.B}) }
+        say: 'The lecture''s example: still one straight line.'
+    code:
+      lang: python
+      source: |
+        def two_layers(x, w1, b1, w2, b2):
+            """Two layers with no activation between them."""
+            h = w1 * x + b1          # @a:inner
+            return w2 * h + b2       # @a:outer
+
+
+        def collapse(w1, b1, w2, b2):
+            """The single layer that computes exactly the same thing.
+
+            Returns:
+                (w_new, b_new) with two_layers(x, ...) == w_new * x + b_new.
+            Lecture: collapse(2, 1, 3, -4) == (6, -1)
+            """
+            w_new = w2 * w1          # @a:mw
+            b_new = w2 * b1 + b2     # @a:mb
+            return w_new, b_new
+    links:
+      - { anchor: inner, label: Layer 1 }
+      - { anchor: outer, label: Layer 2 }
+      - { anchor: mw, label: Merged weight }
+      - { anchor: mb, label: Merged bias, say: The first bias is scaled by the second weight. }
+    trace: { fn: collapseCode, in: { w1: '@w1', b1: '@b1', w2: '@w2', b2: '@b2' } }
+    examples: [collapse-slide, collapse-code]
+    tryIt: [collapse-b, why-nonlinear]
+    pitfalls:
+      - 'Adding the biases as $b_1 + b_2$. The first bias passes through layer 2, so it is multiplied by $w_2$.'
+    examTip: '"Two affine layers = one affine layer. So do 100."'
+
+  - id: forward-pass
+    title: The forward pass of the lab network
+    skills: [forward-pass]
+    summary: |
+      The [[forward-pass]]: each hidden unit computes its sum and its ReLU, the output adds them up with $v_1$, $v_2$
+      and $c$, and the [[loss]] compares the prediction with the [[target]].
+    keyFormula: 'z_j = w_{1j}x_1 + w_{2j}x_2 + b_j,\ a_j = \text{ReLU}(z_j),\ \hat y = v_1a_1 + v_2a_2 + c,\ L = \tfrac12(\hat y - y)^2'
+    data: [labnet]
+    derive:
+      - { fn: net221, in: { net: '@labnet' }, out: r }
+      - { fn: paramGrid, in: { net: '@labnet' }, out: pgr }
+      - { fn: valsGrid, in: {}, out: vg }
+    live:
+      - { id: params, widget: Matrix, props: { data: '@pgr', rowHeader: unit, title: 'Weights into each unit (from1 = from x₁ or a₁) and its bias' } }
+      - { id: vals, widget: Matrix, props: { data: '@vg', rowHeader: unit, title: 'Computed so far (output row: ŷ and L)' } }
+    steps:
+      - tex: |
+          \anchor{z}{z_j = w_{1j}x_1 + w_{2j}x_2 + b_j}, \qquad \anchor{a}{a_j = \text{ReLU}(z_j)}
+        say: Each hidden unit $j$ adds its two weighted inputs and its bias, then applies ReLU.
+      - tex: |
+          \anchor{yhat}{\hat y = v_1a_1 + v_2a_2 + c}, \qquad \anchor{loss}{L = \tfrac12(\hat y - y)^2}
+        say: The output is a plain weighted sum (linear). The loss measures the miss.
+      - tex: |
+          \anchor{z}{z_1 = {=r.z1},\ z_2 = {=r.z2}}, \quad \anchor{a}{a_1 = {=r.a1},\ a_2 = {=r.a2}}, \quad \anchor{yhat}{\hat y = {=r.yhat}}, \quad \anchor{loss}{L = {=r.L}}
+        say: The lab network. The prediction 0.5 is below the target 2.5.
+    code:
+      lang: python
+      source: |
+        def relu(z):
+            """max(0, z)."""
+            return max(0.0, z)
+
+
+        def forward(x, W, b, v, c, y):
+            """Forward pass of a 2-2-1 network with ReLU hidden units and a linear output.
+
+            Args:
+                x: the two inputs [x1, x2].
+                W: W[i][j] is the weight from input i to hidden unit j (w_ij).
+                b: the two hidden biases [b1, b2].
+                v: the two output weights [v1, v2]; c: the output bias.
+                y: the target.
+            Returns:
+                (z, a, y_hat, loss), keeping z and a for the backward pass.
+            Lecture (lab, Part A): y_hat == 0.5 and loss == 2.0
+            """
+            z, a = [], []
+            for j in range(2):
+                z_j = W[0][j] * x[0] + W[1][j] * x[1] + b[j]   # @a:z
+                z.append(z_j)
+                a.append(relu(z_j))                            # @a:a
+            y_hat = v[0] * a[0] + v[1] * a[1] + c              # @a:yhat
+            loss = 0.5 * (y_hat - y) ** 2                      # @a:loss
+            return z, a, y_hat, loss
+    links:
+      - { anchor: z, label: 'The sums z₁, z₂' }
+      - { anchor: a, label: 'The activations a₁, a₂' }
+      - { anchor: yhat, label: The prediction ŷ }
+      - { anchor: loss, label: The loss L }
+    trace: { fn: forwardCode, in: { net: '@labnet' } }
+    examples: [parta-forward, parta-forward-code]
+    tryIt: [forward-yhat, forward-loss, code-forward]
+    pitfalls:
+      - 'Mixing up the index order: $w_{21}$ is from input 2 **to** unit 1.'
+      - Using $z_j$ instead of $a_j$ in the output sum.
+      - Dropping the ½ in the loss.
+    examTip: Keep every $z$ and $a$. The backward pass needs all of them.
+
+  - id: chain-rule
+    title: The chain rule
+    skills: [chain-rule]
+    summary: |
+      For a function inside a function, the [[derivative]] is the outer slope (with the inner kept inside) times the
+      inner slope. Name the inner and outer first.
+    keyFormula: '\frac{dy}{dx} = \frac{dy}{du}\cdot\frac{du}{dx}'
+    state: { x: 1 }
+    derive:
+      - { fn: chainRule, in: { a: 2, b: 1, n: 4, x: '@x' }, out: cr }
+    steps:
+      - tex: |
+          y = (\anchor{inner}{2x + 1})^4, \qquad u = 2x + 1
+        say: 'Name the inner: $u = 2x + 1$. The outer is $u^4$.'
+      - tex: |
+          \frac{dy}{dx} = \anchor{outer}{4u^3} \cdot \anchor{innerd}{2} = \anchor{mult}{8(2x + 1)^3}
+        say: Differentiate the outer, keep the inner inside, multiply by the inner's slope.
+      - tex: |
+          x = {=x}: \quad \anchor{inner}{u = {=cr.u}}, \quad \anchor{outer}{4u^3 = {=cr.outer}}, \quad \anchor{innerd}{2}, \quad \anchor{mult}{ {=cr.d} }
+        say: Change $x$ above and step through.
+    code:
+      lang: python
+      source: |
+        def chain_derivative(a, b, n, x):
+            """Slope of y = (a*x + b)**n at x, by the chain rule.
+
+            Args:
+                a, b: the inner function u = a*x + b.
+                n: the power of the outer function u**n.
+                x: where to take the slope.
+            Returns:
+                dy/dx at x.
+            Lecture: chain_derivative(5, 0, 2, 1) == 50   (y = (5x)^2)
+            """
+            u = a * x + b                  # @a:inner
+            dy_du = n * u ** (n - 1)       # @a:outer
+            du_dx = a                      # @a:innerd
+            return dy_du * du_dx           # @a:mult
+    links:
+      - { anchor: inner, label: 'Inner u' }
+      - { anchor: outer, label: 'Outer slope dy/du' }
+      - { anchor: innerd, label: 'Inner slope du/dx' }
+      - { anchor: mult, label: Multiply }
+    trace: { fn: chainCode, in: { a: 2, b: 1, n: 4, x: '@x' } }
+    examples: [chain-check, chain-ex6, chain-code]
+    tryIt: [chain-numeric, chain-inner-outer]
+    pitfalls:
+      - Forgetting to multiply by the inner derivative.
+      - Applying the outer rule to $x$ instead of to the inner $u$.
+    examTip: 'Check on an easy case: $(5x)^2 = 25x^2$, whose slope $50x$ matches $2u \cdot 5$.'
+
+  - id: backprop
+    title: Backpropagation through the lab network
+    skills: [local-derivatives, backprop]
+    summary: |
+      [[backpropagation|Backpropagation]] starts at $\partial L/\partial \hat y = \hat y - y$ and multiplies by one
+      [[local-derivative]] per step back. The [[loss-gradient|loss gradients]] at $a_j$ and $z_j$ are stored and
+      reused for every parameter of unit $j$.
+    keyFormula: '\frac{\partial L}{\partial w_{ij}} = (\hat y - y)\, v_j\, \text{ReLU}''(z_j)\, x_i'
+    data: [labnet]
+    derive:
+      - { fn: net221, in: { net: '@labnet' }, out: r }
+      - { fn: paramGrid, in: { net: '@labnet' }, out: pgr }
+      - { fn: gradGrid, in: {}, out: gg }
+    live:
+      - { id: params, widget: Matrix, props: { data: '@pgr', rowHeader: unit, title: 'Parameters (same layout)' } }
+      - { id: grads, widget: Matrix, props: { data: '@gg', rowHeader: unit, title: 'Loss gradient of each parameter' } }
+    steps:
+      - tex: |
+          \anchor{dy}{\frac{\partial L}{\partial \hat y} = \hat y - y}, \qquad \anchor{dc}{\frac{\partial L}{\partial c} = \frac{\partial L}{\partial \hat y}\cdot 1}, \qquad \anchor{dv}{\frac{\partial L}{\partial v_j} = \frac{\partial L}{\partial \hat y}\, a_j}
+        say: The output layer needs only one step back.
+      - tex: |
+          \anchor{da}{\frac{\partial L}{\partial a_j} = \frac{\partial L}{\partial \hat y}\, v_j}, \qquad \anchor{dz}{\frac{\partial L}{\partial z_j} = \frac{\partial L}{\partial a_j}\,\text{ReLU}'(z_j)}
+        say: Carry the signal back through $v_j$ and the ReLU slope. Store both results.
+      - tex: |
+          \anchor{dw}{\frac{\partial L}{\partial w_{ij}} = \frac{\partial L}{\partial z_j}\, x_i}, \qquad \anchor{db}{\frac{\partial L}{\partial b_j} = \frac{\partial L}{\partial z_j}}
+        say: Each parameter of unit $j$ now needs one more multiplication.
+      - tex: |
+          \anchor{dy}{-2}, \ \anchor{dv}{\partial L/\partial v_1 = {=r.g.v1}}, \ \anchor{da}{\partial L/\partial a_1 = {=r.da1}}, \ \anchor{dz}{\partial L/\partial z_1 = {=r.dz1}}, \ \anchor{dw}{\partial L/\partial w_{11} = {=r.g.w11}}, \ \anchor{db}{\partial L/\partial b_1 = {=r.g.b1}}, \ \anchor{dc}{\partial L/\partial c = {=r.g.c}}
+        say: The lab's numbers for unit 1 and the output.
+    code:
+      lang: python
+      source: |
+        def backward(x, z, a, v, y_hat, y):
+            """Every loss gradient of the 2-2-1 network, from the loss back.
+
+            Args:
+                x: the inputs; z, a: the sums and activations kept by forward().
+                v: the output weights; y_hat: the prediction; y: the target.
+            Returns:
+                A dict of the nine loss gradients, e.g. grads["w11"].
+            Lecture (lab, Part A): grads["w11"] == 2 and grads["v1"] == -4
+            """
+            d_yhat = y_hat - y                              # @a:dy
+            grads = {"c": d_yhat}                           # @a:dc
+            for j in range(2):
+                grads[f"v{j+1}"] = d_yhat * a[j]            # @a:dv
+                d_a = d_yhat * v[j]                         # @a:da
+                d_z = d_a * (1.0 if z[j] > 0 else 0.0)      # @a:dz
+                grads[f"w1{j+1}"] = d_z * x[0]              # @a:dw
+                grads[f"w2{j+1}"] = d_z * x[1]              # @a:dw
+                grads[f"b{j+1}"] = d_z                      # @a:db
+            return grads
+    links:
+      - { anchor: dy, label: 'At the loss', say: 'The ½ cancels the 2: just $\hat y - y$.' }
+      - { anchor: dc, label: Output bias }
+      - { anchor: dv, label: Output weights }
+      - { anchor: da, label: 'Back into aⱼ', say: Not a parameter; stored to reuse. }
+      - { anchor: dz, label: 'Through the ReLU', say: 'Multiply by the slope (1 or 0), not by $a_j$.' }
+      - { anchor: dw, label: Hidden weights }
+      - { anchor: db, label: Hidden biases }
+    trace: { fn: backwardCode, in: { net: '@labnet' } }
+    examples: [parta-local, parta-backward, parta-backward-code]
+    tryIt: [grad-v1, grad-w11, code-backward]
+    pitfalls:
+      - 'Using $y - \hat y$: the sign of every gradient flips.'
+      - Multiplying by the activation $a_j$ where the ReLU slope belongs.
+      - Updating $v_1$ before computing the hidden gradients that use it.
+    examTip: 'Sense-check a sign: $\partial L/\partial w_{11} = 2 > 0$ says raising $w_{11}$ raises the loss, so gradient descent will lower it.'
+
+  - id: gradient-descent
+    title: The gradient-descent update
+    skills: [gradient-descent]
+    summary: |
+      [[gradient-descent|Gradient descent]] moves every parameter a small step against its loss gradient, scaled by
+      the [[learning-rate]] $\eta$. Then the forward pass runs again to check the loss fell.
+    keyFormula: '\theta_{\text{new}} = \theta - \eta\,\frac{\partial L}{\partial \theta}'
+    data: [labnet]
+    derive:
+      - { fn: net221, in: { net: '@labnet' }, out: r }
+      - { fn: paramGrid, in: { net: '@labnet' }, out: pgr }
+    live:
+      - { id: params, widget: Matrix, props: { data: '@pgr', rowHeader: unit, title: 'Parameters; the step-through writes the new values in' } }
+    steps:
+      - tex: |
+          \anchor{rule}{\theta_{\text{new}} = \theta - \eta\,\frac{\partial L}{\partial \theta}}
+        say: The gradient points uphill, so step the other way.
+      - tex: |
+          \anchor{rule}{v_1^{\text{new}} = -0.5 - (0.05)(-4) = -0.3}, \quad w_{11}^{\text{new}} = 0.5 - (0.05)(2) = 0.4
+        say: Every gradient comes from the original network.
+      - tex: |
+          \anchor{again}{\hat y: 0.5 \to {=r.newYhat}, \quad L: {=r.L} \to {=r.newL|5}}
+        say: Run forward again. The prediction moved toward 2.5.
+    code:
+      lang: python
+      source: |
+        """One gradient-descent step on the lab network, one parameter per line.
+
+        Every dL_d... value below was computed by backward() on the OLD network,
+        so no line uses a value another line has just changed.
+        Lecture (lab, Part A), eta = 0.05: v1_new == -0.3, w11_new == 0.4
+        """
+        eta = 0.05
+        w11_new = w11 - eta * dL_dw11      # @a:rule
+        w21_new = w21 - eta * dL_dw21      # @a:rule
+        b1_new = b1 - eta * dL_db1         # @a:rule
+        w12_new = w12 - eta * dL_dw12      # @a:rule
+        w22_new = w22 - eta * dL_dw22      # @a:rule
+        b2_new = b2 - eta * dL_db2         # @a:rule
+        v1_new = v1 - eta * dL_dv1         # @a:rule
+        v2_new = v2 - eta * dL_dv2         # @a:rule
+        c_new = c - eta * dL_dc            # @a:rule
+
+        # then run forward() again with the *_new values   # @a:again
+    links:
+      - { anchor: rule, label: The update rule }
+      - { anchor: again, label: Forward again }
+    trace: { fn: updateCode, in: { net: '@labnet' } }
+    examples: [parta-update, parta-new-forward, parta-update-code, lab-eta-overshoot]
+    tryIt: [update-v1, eta-too-big, same-network]
+    pitfalls:
+      - Adding the step instead of subtracting it.
+      - Forgetting to multiply by $\eta$.
+      - A learning rate so large that the loss goes up.
+    examTip: Return a new set of parameters, so no gradient is ever computed from half-updated values.
+
+  - id: deep-chain
+    title: Two hidden layers, one unit each
+    skills: [backprop, gradient-descent]
+    summary: |
+      With one unit per layer, every parameter reaches the loss along a single chain. The chain for $w_1$ holds the later
+      weights $w_2$ and $v$ and both ReLU slopes.
+    keyFormula: '\frac{\partial L}{\partial w_1} = (\hat y - y)\, v\, \text{ReLU}''(z_2)\, w_2\, \text{ReLU}''(z_1)\, x'
+    beyondSlides: true
+    data: [chainnet]
+    derive:
+      - { fn: deepChain, in: { net: '@chainnet' }, out: dc }
+    steps:
+      - tex: |
+          \anchor{f1}{z_1 = w_1x + b_1,\ a_1 = \text{ReLU}(z_1)}, \quad \anchor{f2}{z_2 = w_2a_1 + b_2,\ a_2 = \text{ReLU}(z_2)}, \quad \anchor{out}{\hat y = va_2 + c}
+        say: Forward through two ReLU layers.
+      - tex: |
+          \anchor{dz2}{\frac{\partial L}{\partial z_2} = (\hat y - y)\,v\,\text{ReLU}'(z_2)}, \qquad \anchor{dw2}{\frac{\partial L}{\partial w_2} = \frac{\partial L}{\partial z_2}\,a_1}
+        say: Layer 2 first.
+      - tex: |
+          \anchor{dz1}{\frac{\partial L}{\partial z_1} = \frac{\partial L}{\partial z_2}\,w_2\,\text{ReLU}'(z_1)}, \qquad \anchor{dw1}{\frac{\partial L}{\partial w_1} = \frac{\partial L}{\partial z_1}\,x}
+        say: Then one more step back through $w_2$ into layer 1.
+      - tex: |
+          \anchor{out}{\hat y = {=dc.yhat}}, \quad \anchor{dz2}{ {=dc.dz2} }, \quad \anchor{dw2}{ {=dc.g.w2} }, \quad \anchor{dz1}{ {=dc.dz1} }, \quad \anchor{dw1}{ {=dc.g.w1} }
+        say: 'Our example: $x = 1$, target 2.'
+    code:
+      lang: python
+      source: |
+        def chain_gradients(x, y, w1, b1, w2, b2, v, c):
+            """All six loss gradients of a one-unit-per-layer network.
+
+            Args:
+                x, y: one input and its target.
+                w1, b1, w2, b2, v, c: the six parameters.
+            Returns:
+                A dict of the six loss gradients.
+            Example: chain_gradients(1, 2, 1, 1, 1, 0.5, 1, 0.5)["w1"] == 1
+            """
+            z1 = w1 * x + b1                                 # @a:f1
+            a1 = max(0.0, z1)                                # @a:f1
+            z2 = w2 * a1 + b2                                # @a:f2
+            a2 = max(0.0, z2)                                # @a:f2
+            y_hat = v * a2 + c                               # @a:out
+            d_yhat = y_hat - y                               # @a:out
+            d_z2 = d_yhat * v * (1.0 if z2 > 0 else 0.0)     # @a:dz2
+            d_w2 = d_z2 * a1                                 # @a:dw2
+            d_z1 = d_z2 * w2 * (1.0 if z1 > 0 else 0.0)      # @a:dz1
+            d_w1 = d_z1 * x                                  # @a:dw1
+            return {"w1": d_w1, "b1": d_z1, "w2": d_w2, "b2": d_z2,
+                    "v": d_yhat * a2, "c": d_yhat}
+    links:
+      - { anchor: f1, label: Hidden layer 1 }
+      - { anchor: f2, label: Hidden layer 2 }
+      - { anchor: out, label: Output and loss slope }
+      - { anchor: dz2, label: 'Signal at z₂' }
+      - { anchor: dw2, label: 'Gradient of w₂' }
+      - { anchor: dz1, label: 'Signal at z₁', say: 'Crosses $w_2$ and the first ReLU.' }
+      - { anchor: dw1, label: 'Gradient of w₁' }
+    trace: { fn: deepCode, in: { net: '@chainnet' } }
+    examples: [chainnet-step, chainnet-code]
+    tryIt: [deep-hand, code-update]
+    pitfalls:
+      - Leaving $w_2$ out of the chain for $w_1$.
+      - Using $a_2$ where ReLU′($z_2$) belongs.
+    examTip: Name the chain before substituting. Write one factor for each operation between the parameter and the loss.

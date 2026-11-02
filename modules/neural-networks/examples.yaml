@@ -1,0 +1,287 @@
+examples:
+  - id: neuron-slide
+    source: 'Session 17, slide 22'
+    page: 22
+    fn: neuron
+    in: { x: [2, 1, 3], w: [0.5, -1, 0.25], b: 0.1 }
+    expect: { z: 0.85, relu: 0.85, sigmoid: 0.70 }
+    tol: 0.01
+    note: The slide prints sigmoid(0.85) ≈ 0.70; the exact value is 0.7006.
+
+  - id: neuron-code-walk
+    source: 'Session 17, slide 22 (step-through)'
+    fn: neuronCode
+    in: { x: [2, 1, 3], w: [0.5, -1, 0.25], b: 0.1 }
+    expect: { z: 0.85, a: 0.85, trace.8.vars.a: 0.85 }
+
+  - id: mp-truth-table
+    source: 'Session 17, slide 5'
+    page: 5
+    fn: mpTable
+    in: { upTo: 4, showAnd: true, showOr: true }
+    expect:
+      values.0.2: 0
+      values.1.2: 1
+      values.2.2: 1
+      values.3.2: 2
+      values.0.3: 0
+      values.3.3: 1
+      values.0.4: 0
+      values.1.4: 1
+      values.3.4: 1
+
+  - id: and-line
+    source: 'Session 17, slide 7'
+    page: 7
+    fn: lineFit
+    in: { w1: 1, w2: 1, b: -1.5, gate: and }
+    expect: { correct: 4, fires: [0, 0, 0, 1] }
+    note: 'At (1, 1): 1 + 1 − 1.5 = 0.5 > 0, so it fires.'
+
+  - id: or-line
+    source: 'Session 17, slide 7'
+    page: 7
+    fn: lineFit
+    in: { w1: 1, w2: 1, b: -0.5, gate: or }
+    expect: { correct: 4, fires: [0, 1, 1, 1] }
+
+  - id: xor-one-line
+    source: 'Session 17, slides 8–9'
+    page: 9
+    fn: lineFit
+    in: { w1: 1, w2: 1, b: -0.5, gate: xor }
+    expect: { correct: 3 }
+    note: The OR line gets three of the four XOR points right; no line gets all four.
+
+  - id: xor-net
+    source: 'Session 17, slide 10'
+    page: 10
+    fn: xorNet
+    in: {}
+    expect: { outputs: [0, 1, 1, 0], rows.3.h1: 1, rows.3.h2: 1, rows.1.h1: 1, rows.1.h2: 0 }
+
+  - id: xor-walk
+    source: 'Session 17, slide 10 (count-along)'
+    fn: xorWalk
+    in: { stopAt: 12 }
+    expect: { trace.11.patch.xorWalk: 12, trace.11.vars.y: 0 }
+
+  - id: params-342
+    source: 'Session 17, slide 23'
+    page: 23
+    fn: paramCount
+    in: { layers: [3, 4, 2] }
+    expect: { total: 26, perLayer: [16, 10] }
+
+  - id: params-code
+    source: 'Session 17, slide 23 (step-through)'
+    fn: paramCountCode
+    in: { layers: [3, 4, 2] }
+    expect: { total: 26 }
+
+  - id: image-weights
+    source: 'Session 17, slide 13'
+    page: 13
+    fn: imageWeights
+    in: { h: 224, w: 224, ch: 3, hidden: 1000 }
+    expect: { inputs: 150528, millions: 150.528 }
+    note: The slide rounds 150.5 million to "≈ 150 million".
+
+  - id: collapse-slide
+    source: 'Session 17, slide 25'
+    page: 25
+    fn: collapse
+    in: { w1: 2, b1: 1, w2: 3, b2: -4 }
+    expect: { W: 6, B: -1 }
+    note: 'y = 3(2x + 1) − 4 = 6x − 1.'
+
+  - id: collapse-code
+    source: 'Session 17, slide 25 (step-through)'
+    fn: collapseCode
+    in: { w1: 2, b1: 1, w2: 3, b2: -4 }
+    expect: { W: 6, B: -1 }
+
+  - id: chain-check
+    source: 'Session 17, slide 27'
+    page: 27
+    fn: chainRule
+    in: { a: 5, b: 0, n: 2, x: 1 }
+    expect: { d: 50, u: 5 }
+    note: 'y = (5x)²: 2u · 5 = 50x, so 50 at x = 1.'
+
+  - id: chain-ex6
+    source: 'Session 17, slides 29 and 31, exercise 6 at x = 1'
+    page: 31
+    fn: chainRule
+    in: { a: 2, b: 1, n: 4, x: 1 }
+    expect: { d: 216, u: 3, outer: 108 }
+    note: '8(2x + 1)³ at x = 1 is 8 · 27 = 216.'
+
+  - id: chain-code
+    source: 'Session 17, slide 31 (step-through)'
+    fn: chainCode
+    in: { a: 2, b: 1, n: 4, x: 1 }
+    expect: { d: 216 }
+
+  - id: parta-forward
+    source: 'Lab 1, Part A, A1'
+    fn: net221
+    in: { net: '@labnet' }
+    expect: { z1: 2, z2: 1, a1: 2, a2: 1, yhat: 0.5, L: 2 }
+
+  - id: parta-local
+    source: 'Lab 1, Part A, A2'
+    fn: net221
+    in: { net: '@labnet' }
+    expect: { dyhat: -2, s1: 1, s2: 1 }
+
+  - id: parta-backward
+    source: 'Lab 1, Part A, A3–A4'
+    fn: net221
+    in: { net: '@labnet' }
+    expect:
+      g.w11: 2
+      g.w21: -1
+      g.b1: 1
+      g.w12: -4
+      g.w22: 2
+      g.b2: -2
+      g.v1: -4
+      g.v2: -2
+      g.c: -2
+      da1: 1
+      dz1: 1
+      da2: -2
+      dz2: -2
+
+  - id: parta-update
+    source: 'Lab 1, Part A, A5'
+    fn: net221
+    in: { net: '@labnet' }
+    expect:
+      next.w11: 0.4
+      next.w21: -0.45
+      next.b1: 0.45
+      next.w12: -0.3
+      next.w22: -1.1
+      next.b2: 1.1
+      next.v1: -0.3
+      next.v2: 1.1
+      next.c: 0.6
+
+  - id: parta-new-forward
+    source: 'Lab 1, Part A, A5 (new forward pass)'
+    fn: net221
+    in: { net: '@labnet' }
+    expect: { newZ1: 1.7, newZ2: 1.6, newYhat: 1.85, newL: 0.21125, lossDown: true }
+    tol: 0.0001
+
+  - id: parta-forward-code
+    source: 'Lab 1, Part A, A1 (step-through)'
+    fn: forwardCode
+    in: { net: '@labnet' }
+    expect: { yhat: 0.5, L: 2, trace.6.vars.L: 2 }
+
+  - id: parta-backward-code
+    source: 'Lab 1, Part A, A3–A4 (step-through)'
+    fn: backwardCode
+    in: { net: '@labnet' }
+    expect: { g.w11: 2, g.w12: -4, g.c: -2, trace.13.vars.d_b: -2 }
+
+  - id: parta-update-code
+    source: 'Lab 1, Part A, A5 (step-through)'
+    fn: updateCode
+    in: { net: '@labnet' }
+    expect: { next.v1: -0.3, next.w11: 0.4, next.b1: 0.45, trace.10.vars.L: 0.21125 }
+    tol: 0.0001
+
+  - id: parta-fwd-walk
+    source: 'Lab 1, Part A, A1 (count-along)'
+    fn: fwdWalk
+    in: { net: '@labnet', from: 1, to: 4 }
+    expect: { trace.0.patch.fwdWalk: 2, trace.2.patch.fwdWalk: 4, trace.2.vars.a2: 1 }
+
+  - id: parta-bwd-walk
+    source: 'Lab 1, Part A, A4 (count-along)'
+    fn: bwdWalk
+    in: { net: '@labnet', from: 6, to: 14 }
+    expect: { trace.0.vars.dL_dw21: -1, trace.7.patch.bwdWalk: 14, trace.7.vars.dL_db2: -2 }
+
+  - id: parta-upd-walk
+    source: 'Lab 1, Part A, A5 (count-along)'
+    fn: updWalk
+    in: { net: '@labnet', from: 1, to: 9 }
+    expect: { trace.0.vars.w21: -0.45, trace.7.vars.c: 0.6, trace.7.patch.updWalk: 9 }
+
+  - id: lab-eta-overshoot
+    source: 'Beyond the slides: the lab network at other learning rates'
+    fn: stepAt
+    in: { net: '@labnet', eta: 0.15 }
+    expect: { newL: 2.10125, lossDown: false }
+    tol: 0.0001
+
+  - id: lab-eta-0-1
+    source: 'Beyond the slides: the lab network at η = 0.1'
+    fn: stepAt
+    in: { net: '@labnet', eta: 0.1 }
+    expect: { newL: 0.245, crossed: true }
+    tol: 0.0001
+
+  - id: yournet-forward
+    source: 'Beyond the slides: your network (figure your-net-forward.svg)'
+    fn: net221
+    in: { net: '@yournet' }
+    expect: { z1: 0.5, z2: -1, a1: 0.5, a2: 0, yhat: 1, L: 3.125 }
+
+  - id: yournet-backward
+    source: 'Beyond the slides: your network (figure your-net-backward.svg)'
+    fn: net221
+    in: { net: '@yournet' }
+    expect:
+      dyhat: -2.5
+      da1: -2.5
+      dz1: -2.5
+      da2: -2.5
+      dz2: 0
+      g.w11: -2.5
+      g.w21: -5
+      g.b1: -2.5
+      g.w12: 0
+      g.w22: 0
+      g.b2: 0
+      g.v1: -1.25
+      g.v2: 0
+      g.c: -2.5
+
+  - id: yournet-update
+    source: 'Beyond the slides: your network, one step at η = 0.1'
+    fn: net221
+    in: { net: '@yournet' }
+    expect: { next.w11: -0.75, next.w21: 1, next.b1: 0.75, next.v1: 1.125, next.c: 0.75, next.w12: 0.5, newZ1: 2, newYhat: 3, newL: 0.125 }
+    tol: 0.0001
+
+  - id: chainnet-step
+    source: 'Beyond the slides: one unit per layer (the lab''s two-hidden-layer shape, our numbers)'
+    fn: deepChain
+    in: { net: '@chainnet' }
+    expect: { z1: 2, z2: 2.5, yhat: 3, L: 0.5, g.w1: 1, g.w2: 2, g.v: 2.5, next.w1: 0.95, next.w2: 0.9, next.v: 0.875, newYhat: 2.34, newL: 0.0578 }
+    tol: 0.0001
+
+  - id: chainnet-code
+    source: 'Beyond the slides (step-through)'
+    fn: deepCode
+    in: { net: '@chainnet' }
+    expect: { g.w1: 1, g.w2: 2, trace.6.vars.d_w1: 1 }
+
+  - id: cafe-start
+    source: 'Beyond the slides: the café case'
+    fn: cafeTable
+    in: { days: '@cafe', net: '@cafenet' }
+    expect: { values.0.3: 1.5, values.4.3: 3, values.3.4: 0.5 }
+
+  - id: cafe-train
+    source: 'Beyond the slides: the café case, 30 steps of gradient descent'
+    fn: cafeTrain
+    in: { days: '@cafe', net: '@cafenet', eta: 0.4 }
+    expect: { start: 0.2917, end: 0.4896 }
+    tol: 0.001
