@@ -58,3 +58,12 @@ Subagents do not see this conversation. Every brief must stand alone: the goal, 
 
 Only use these two subagents. Do not use the built-in Explore or general-purpose agents.
 <!-- multi-model-kit:end -->
+
+# The app
+
+The architecture map below is loaded into every session. Read it before you explore the code, and explore only what it doesn't answer.
+
+- When a change moves, adds or renames anything the map lists (a folder, entry file, route, flow, command or "how to add" recipe), update `docs/ARCHITECTURE.md` in the same change.
+- Subagents may not load this file, and the Codex explorer reads `AGENTS.md` instead. Point every brief at `docs/ARCHITECTURE.md` and name the relevant paths from it.
+
+@docs/ARCHITECTURE.md

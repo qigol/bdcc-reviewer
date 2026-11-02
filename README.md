@@ -15,13 +15,16 @@ its modules, and every quiz stays inside one course.
 | **Application** | A notebook-style case study (Philippine context) with decisions to make, plus the at-scale version (PySpark). |
 | **Quiz** (per course) | Thirteen question types generated fresh every time: multiple choice, select-all, answer + reason, numeric (optionally estimate-first), fill-in code or prose, matching, ordering and Parsons line-banks, spot-the-error, hand calculations, multi-part cases, explain-and-compare, and, for accounting, journal entries and fill-in schedules. Hints and feedback on common mistakes throughout. Each quiz mixes types, avoids repeats and ramps up in difficulty in practice. An optional "how sure are you?" rating feeds spaced repetition and a calibration summary. A mistake journal and per-skill mastery are included. Accounting courses (`workbench: journal`) get a desk calculator that opens by itself on calculation questions. |
 
-Three built-in BDCC modules reproduce every number in the lecture decks:
+The original three BDCC modules reproduce every number in the lecture decks:
 
 | Module | Lecture | Lecture checks |
 |---|---|---|
 | `fim`: Frequent Itemset Mining & Association Rules | Sessions 3–4 | 22 |
 | `nb-cf`: Neighborhood-based Collaborative Filtering | Sessions 5–7 | 55 |
 | `lf-cf`: Latent-factor Collaborative Filtering | Sessions 8–10 | 8 |
+
+More built-in modules cover the rest of BDCC (Spark DataFrames, pandas) and other courses: MANACC (managerial
+accounting, `workbench: journal`), INTB and ML2. Run `ls modules` for the current list.
 
 Errors found in the slides are shown in the lessons as **errata** callouts and are also collected on the cheat sheet (`/cheatsheet`).
 
@@ -49,6 +52,10 @@ Imported modules and module settings (enabled flags, order, course overrides) go
 | `DATA_DIR` | `/data` | imported modules (`modules/<id>@<version>/`, last 3 versions kept) + `state.json` |
 | `MAX_UPLOAD_MB` | `30` | zip/paste upload limit |
 | `DEFAULT_COURSE` | `BDCC` | course for modules whose manifest has no `course:` (and no course set in Admin) |
+| `MODULES_BUILTIN` / `WEB_DIR` | `./modules` / `./web` | built-in modules folder · built SPA folder (resolved from the working directory) |
+| `CHRISTMAS_QUIZ` | `auto` | Christmas countdown quiz: `auto` (one day opens at a time from Dec 13) · `on` (all open now) · `off` |
+| `CHRISTMAS_TZ` / `CHRISTMAS_NOW` | `Asia/Manila` / (unset) | time zone for the countdown · fake today's date (`YYYY-MM-DD`) to preview a day |
+| `LOG_LEVEL` | `info` | Fastify log level |
 
 ## Development
 
@@ -78,7 +85,7 @@ After rebuilding the web app, restart the server so it picks up the new asset li
 ```
 apps/web          React SPA (Vite, Tailwind, framer-motion, KaTeX, Shiki, Dexie)
   src/engine        scene scope/derive, beats & gates, trace player, stage
-  src/widgets       the 23 catalog widgets (lazy-loaded)
+  src/widgets       the catalog widgets (lazy-loaded)
   src/tabs          Path / Intuition / Math & Code (or Journal) / Application
   src/quiz          session builder, runner, question renderer, review (SRS)
   src/admin         module list, import (zip / folder / paste), validation reports
@@ -87,8 +94,8 @@ apps/server       Fastify API + static hosting; module registry on disk
 packages/schema   zod schemas, widget catalog, validator (7 steps), quiz builders & graders, bundle/zip I/O
 packages/sdk      the `sdk` passed to logic.js (seeded RNG, formatting, vectors, matrices, least squares, sets)
 packages/cli      `kodigo` CLI
-modules/          built-in modules (fim, nb-cf, lf-cf)
-docs/             MVP_PLAN.md, MODULE_AUTHORING_GUIDE.md, WIDGETS.md (generated)
+modules/          built-in modules, one folder per module
+docs/             ARCHITECTURE.md (code map), MVP_PLAN.md, MODULE_AUTHORING_GUIDE.md, WIDGETS.md (generated)
 docker/           Dockerfile, compose.yml
 ```
 
@@ -102,7 +109,9 @@ docker/           Dockerfile, compose.yml
 | GET | `/api/modules/:id/report` | | server-side validation report |
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |
-| POST | `/api/modules` | admin | multipart zip, or JSON `{files: {path: text \| {base64}}}`; `?dryRun=1`, `?allowDowngrade=1` (a downgrade otherwise returns 409) |
+| GET | `/api/christmas` | | Christmas countdown status; only unlocked days carry their content |
+| GET | `/api/admin/check` | admin | checks the admin token |
+| POST | `/api/modules` | admin | multipart zip, or JSON `{files: {path: text \| {base64}}}`; `?dryRun=1`, `?allowDowngrade=1` (a downgrade otherwise returns 409), `?keepAssets=1` (keep the installed version's `assets/` and `sources/` when re-importing pasted bundle text) |
 | PATCH | `/api/modules/:id` | admin | `{enabled?, order?, current?, course?}` (`current` rolls back to a stored version; `course` overrides the manifest's course, `""` clears the override) |
 | DELETE | `/api/modules/:id` | admin | imported modules only; built-ins can only be disabled |
 
