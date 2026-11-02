@@ -1,0 +1,201 @@
+intro: |
+  Everything you did by hand is what a deep-learning library does millions of times a second: a forward pass, a loss,
+  backpropagation, an update. Here a small café uses the same 2–2–1 network to guess how many iced drinks it will sell.
+  You will run it, read its gradients, spot a unit that cannot learn and choose a learning rate.
+
+case:
+  id: kapihan
+  title: Kapihan sa Kanto plans its ice order
+  story: |
+    Kapihan sa Kanto, a small café in Quezon City, orders ice every morning. Too little and iced drinks run out by
+    lunch; too much and it melts. The owner, Aling Bea, logged six days: how hot it was and whether it was a weekend,
+    against iced drinks sold (in hundreds). Her nephew built a tiny neural network with two features, two ReLU hidden
+    units and one linear output, and set its starting numbers by hand. Your job is to check it before it trains.
+  data: [cafe, cafenet]
+  derive:
+    - { fn: tableGrid, in: { table: '@cafe' }, out: days }
+    - { fn: paramGrid, in: { net: '@cafenet' }, out: pg }
+    - { fn: cafeTable, in: { days: '@cafe', net: '@cafenet' }, out: ct }
+    - { fn: cafeTrain, in: { days: '@cafe', net: '@cafenet', eta: 0.05 }, out: t05 }
+    - { fn: cafeTrain, in: { days: '@cafe', net: '@cafenet', eta: 0.2 }, out: t20 }
+    - { fn: cafeTrain, in: { days: '@cafe', net: '@cafenet', eta: 0.4 }, out: t40 }
+  cells:
+    - id: data
+      title: The six days
+      say: |
+        Two features per day. `temp` is degrees above 30 °C, so 2 means 32 °C. `weekend` is 1 on Saturday and Sunday.
+        The target is `sold`, in hundreds of drinks. Every day is one training example $(x_1, x_2, y)$ = (temp, weekend,
+        sold).
+      stage:
+        - { id: daytab, widget: Matrix, props: { data: '@days', rowHeader: day, title: 'Logged days' } }
+
+    - id: saturday
+      title: Run the network on Saturday
+      say: |
+        The table holds the starting parameters, laid out like the lab network: row `unit1` has $w_{11}$ (from temp),
+        $w_{21}$ (from weekend) and $b_1$; row `output` has $v_1$, $v_2$ and $c$. Saturday was 32 °C (temp 2), a weekend
+        (1), and 400 drinks sold.
+      stage:
+        - { id: pgtab, widget: Matrix, props: { data: '@pg', rowHeader: unit, title: 'Starting parameters' } }
+      decision:
+        prompt: What does the network predict for Saturday, in hundreds?
+        type: mcq
+        options:
+          - '3.0: unit 1 gives 2.5, unit 2 is off, plus $c = 0.5$'
+          - '2.0: unit 1 gives 2.5, unit 2 adds its sum −1, plus $c = 0.5$'
+          - '2.5: unit 1 gives 2.5 and unit 2 is off'
+          - '4.0: unit 1 gives 2.5, unit 2 adds 1, plus $c = 0.5$'
+        answer: 0
+        optionFeedback:
+          '1': Unit 2's sum is negative, so ReLU outputs 0, not −1.
+          '2': The output bias $c = 0.5$ is still added.
+          '3': ReLU turns a negative sum into 0. It does not flip the sign.
+        model: |
+          $z_1 = (0.5)(2) + (1)(1) + 0.5 = 2.5$, $z_2 = (-0.5)(2) + (0.5)(1) - 0.5 = -1$, so $a_2 = 0$.
+          $\hat y = (1)(2.5) + (1)(0) + 0.5 = 3.0$: 300 drinks, against 400 sold.
+
+    - id: misses
+      title: Every day's miss
+      say: |
+        The same forward pass runs on every day; the table of predictions and losses appears once you answer. Thursday
+        was the hottest weekday (33 °C): 350 drinks sold, 250 predicted.
+      stage:
+        - { id: ctab, widget: Matrix, hidden: true, props: { data: '@ct', rowHeader: day, title: 'Predictions and half squared errors' } }
+      decision:
+        prompt: 'For Thursday alone, what is $\partial L/\partial \hat y$, the first number the backward pass computes?'
+        type: mcq
+        options: ['−1', '1', '−0.5', '0.5']
+        answer: 0
+        optionFeedback:
+          '1': It is prediction minus target, $\hat y - y$, not $y - \hat y$.
+          '2': That halves the miss again. The ½ in the loss already cancelled the 2.
+          '3': Sign and size are both off. Start from $2.5 - 3.5$.
+        model: '$\hat y - y = 2.5 - 3.5 = -1$. Negative: a bigger prediction would lower the loss.'
+
+    - id: dead
+      title: A unit that never wakes up
+      say: |
+        Unit 2 computes $z_2 = -0.5\,\text{temp} + 0.5\,\text{weekend} - 0.5$. Temperatures here are 0 to 3 above
+        30 °C and the weekend flag is 0 or 1.
+      decision:
+        prompt: What will gradient descent do to unit 2's weights $w_{12}$, $w_{22}$ and bias $b_2$ during training?
+        type: mcq
+        options:
+          - Nothing. Its sum is 0 or negative on every day, so its ReLU slope is 0 and every gradient through it is 0
+          - Push them up, because the network predicts too low on most days and needs more output
+          - Push them down, because unit 2 makes the predictions worse on weekends
+          - Change them only on weekends, because that is when the weekend input is 1
+        answer: 0
+        optionFeedback:
+          '1': It would help, but the signal cannot reach unit 2. Its slope is 0, so the gradients are 0.
+          '2': Unit 2 outputs 0 every day, so it changes no prediction at all.
+          '3': 'On weekends $z_2 = -0.5\,\text{temp}$, still 0 or negative, so the slope is still 0.'
+        model: |
+          The largest $z_2$ is on Sunday: $-0.5 + 0.5 - 0.5 = -0.5$. The unit is off every day, a dead ReLU, so it never
+          learns. The fix is to restart it with different (usually small random) starting numbers, or a small positive
+          bias.
+
+    - id: rate
+      title: Pick the learning rate
+      say: |
+        The nephew trains on all six days at once: each step averages the six gradients, then updates. The chart shows the
+        average loss over 30 steps for three learning rates.
+      stage:
+        - id: curves
+          widget: Chart
+          props:
+            kind: line
+            series: ['@t05.series.0', '@t20.series.0', '@t40.series.0']
+            xLabel: step
+            yLabel: average loss
+            title: 'Average loss over the six days while training'
+      decision:
+        prompt: Which learning rate should he keep?
+        type: mcq
+        options:
+          - 'η = 0.05: it ends lowest and falls smoothly'
+          - 'η = 0.4: the biggest steps learn fastest'
+          - 'η = 0.2: it ends lowest because it is in the middle'
+          - 'All three end the same, so any one will do'
+        answer: 0
+        optionFeedback:
+          '1': Look at the end of its curve. The loss is higher than where it started; the steps overshoot.
+          '2': A middle value is not automatically best. Read where each curve ends.
+          '3': They end at clearly different heights.
+        model: |
+          With η = 0.4 the loss ends higher than it started (about 0.29 to 0.49): the steps overshoot. η = 0.2 ends
+          around 0.06. η = 0.05 ends lowest, about 0.008.
+
+    - id: tell-bea
+      title: Explain it to Aling Bea
+      say: |
+        Aling Bea asks why the network needs "all that calculus" when she could just add 100 drinks for every degree.
+      decision:
+        prompt: In two or three sentences, what does training this network do that her rule of thumb does not?
+        type: open
+        model: |
+          Her rule is one straight line with one feature. The network bends its sums with ReLU, so it can treat hot
+          weekdays and hot weekends differently, and it learns every number from her logged days. Backpropagation
+          tells each number which way to move to shrink the miss, and gradient descent moves it a small step.
+
+atScale:
+  title: The same network in a deep-learning library
+  body: |
+    Libraries such as PyTorch do every step of this module for you. A **layer** object stores $W$ and $b$; a forward pass
+    records each operation; `loss.backward()` runs backpropagation automatically ("autograd") with the same chain rule
+    you used; an **optimizer** applies $\theta - \eta\,\partial L/\partial \theta$.
+
+    - **Many examples at once.** Rows are examples and columns are units, so one matrix product computes a whole layer
+      for a batch. The loss is averaged over the rows, so every gradient carries a $\tfrac1n$.
+    - **Mini-batches.** Real datasets are too big for one step; each step uses a random batch of, say, 64 rows.
+    - **GPUs.** Matrix products run in parallel. That is why GPUs made deep networks practical (2012).
+    - **Starting numbers.** Weights start small and random, so no unit is dead and no two units are copies.
+  code:
+    - lang: python
+      title: The café network in PyTorch
+      source: |
+        import torch
+        from torch import nn
+
+        X = torch.tensor([[1., 0], [2, 0], [0, 0], [3, 0], [2, 1], [1, 1]])  # temp, weekend
+        y = torch.tensor([[2.], [3], [1], [3.5], [4], [3]])                  # hundreds sold
+
+        model = nn.Sequential(nn.Linear(2, 2), nn.ReLU(), nn.Linear(2, 1))  # 2-2-1
+        opt = torch.optim.SGD(model.parameters(), lr=0.05)                  # gradient descent
+
+        for step in range(500):
+            y_hat = model(X)                              # forward pass, all six days
+            loss = 0.5 * ((y_hat - y) ** 2).mean()        # half squared error, averaged
+            opt.zero_grad()
+            loss.backward()                               # backpropagation
+            opt.step()                                    # theta - eta * gradient
+
+tradeoffs:
+  title: Choices you make when building a network
+  columns: [Choice, Option A, Option B, What decides it]
+  rows:
+    - ['Hidden activation', 'ReLU: cheap, does not flatten for z > 0', 'Sigmoid / tanh: smooth S, but flatten at the ends', 'ReLU is the default; watch for units that are always off']
+    - ['Output activation', 'Linear: predicts any number', 'Sigmoid: a probability between 0 and 1', 'Predicting an amount or a yes/no chance']
+    - ['Learning rate', 'Small: steady but slow', 'Large: fast, but can overshoot and diverge', 'Try a few and watch the loss curve']
+    - ['Width and depth', 'Small network: few parameters, may underfit', 'Big network: learns more, needs more data and compute', 'How much data you have and how complex the pattern is']
+    - ['Gradients', 'By hand: you see every number', 'Autograd: the library does the chain rule', 'Learning (by hand) vs. real work (autograd)']
+
+connections:
+  - module: interpretability
+    note: Neural networks are hard to read from their weights, so tools like SHAP and partial dependence explain their predictions from outside.
+  - module: time-series
+    note: Recurrent networks and Transformers are the neural answers to forecasting from a series' own past.
+  - module: class-imbalance
+    note: A network with a sigmoid output is still a classifier, so imbalanced classes and the right metrics matter just as much.
+
+explainBack:
+  prompt: |
+    Explain to a classmate who missed class how a neural network learns from one example, using the lab network's
+    numbers where you can.
+  rubric:
+    - Describes a neuron as a weighted sum plus a bias, bent by an activation such as ReLU
+    - Runs the forward pass to a prediction and a loss (0.5 vs the target 2.5, loss 2)
+    - Explains that the chain rule multiplies local derivatives from the loss back to each weight
+    - Says the ReLU slope (1 or 0) is used, not the activation value, and a switched-off unit gets zero gradients
+    - States the update θ − η · gradient, with all gradients from the original network, and that the loss then fell (2 to 0.211)
+    - Mentions why the activation is needed at all (without it, layers collapse into one)
