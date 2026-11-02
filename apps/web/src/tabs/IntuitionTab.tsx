@@ -186,13 +186,16 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
             <AnimatePresence mode="wait">
               {!finished ? (
                 <motion.div key={`beat-${beat}`} ref={cardRef} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reducedMotion ? 0.1 : 0.25 }}
-                  className="card sticky bottom-3 z-10 flex flex-col gap-3 p-4 shadow-lg">
-                  <Markdown text={cur.say} className="text-[15px]" />
-                  {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
-                  {cur.gate && cur.gate.type !== 'continue' && (
-                    <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`} seedKey={`${mod.id}:${scene.id}:${beat}`}
-                      onAnswer={(correct, response) => { if (!mod.preview) db.attempts.add({ key: `${mod.id}/predict:${scene.id}:${beat}`, templateId: `predict:${scene.id}:${beat}`, moduleId: mod.id, seed: 0, type: 'predict', skills: scene.skills ?? [], score: correct ? 1 : 0, response, timeMs: 0, mode: 'predict', at: Date.now() }); }} />
-                  )}
+                  className="card sticky bottom-3 z-10 flex max-h-[40vh] flex-col gap-3 p-3 shadow-lg sm:max-h-none sm:p-4">
+                  {/* on phones the card is capped so the stage stays visible; its text scrolls, the Back/Next row stays put */}
+                  <div className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto sm:overflow-visible">
+                    <Markdown text={cur.say} className="text-[15px]" />
+                    {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
+                    {cur.gate && cur.gate.type !== 'continue' && (
+                      <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`} seedKey={`${mod.id}:${scene.id}:${beat}`}
+                        onAnswer={(correct, response) => { if (!mod.preview) db.attempts.add({ key: `${mod.id}/predict:${scene.id}:${beat}`, templateId: `predict:${scene.id}:${beat}`, moduleId: mod.id, seed: 0, type: 'predict', skills: scene.skills ?? [], score: correct ? 1 : 0, response, timeMs: 0, mode: 'predict', at: Date.now() }); }} />
+                    )}
+                  </div>
                   <div className="flex items-center gap-3">
                     <button className="btn" onClick={() => goto(beat - 1)} disabled={beat === 0}><ArrowLeft size={15} /> Back</button>
                     <div className="flex flex-1 items-center justify-center gap-1.5" aria-label="beats">

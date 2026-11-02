@@ -71,7 +71,8 @@ export function TermLink({ id, children }: { id: string; children: ReactNode }) 
       <span role="button" tabIndex={0} className="term-link" aria-expanded={pinned} data-term={id}
         onClick={(e) => { e.preventDefault(); setPinned(!pinned); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPinned(!pinned); } if (e.key === 'Escape') setPinned(false); }}
         onBlur={() => setPinned(false)}>{children}</span>
-      <span role="tooltip" className={cn('pointer-events-none absolute bottom-full left-0 z-40 mb-1.5 w-72 rounded-lg border border-line bg-panel p-2.5 text-left text-xs font-normal leading-snug text-ink opacity-0 shadow-lg transition-opacity group-hover:opacity-100', pinned && 'opacity-100')}>
+      {/* display:none while closed: an invisible card near the right edge would still widen the page on phones */}
+      <span role="tooltip" className={cn('pointer-events-none absolute bottom-full left-0 z-40 mb-1.5 w-72 rounded-lg border border-line bg-panel p-2.5 text-left text-xs font-normal leading-snug text-ink shadow-lg', pinned ? 'block' : 'hidden group-hover:block')}>
         <span className="block font-semibold">{t.term}{t.aka?.length ? <span className="font-normal text-muted"> ({t.aka.join(', ')})</span> : null}</span>
         <span className="mt-0.5 block">{t.short}</span>
         {t.formula && <span className="mt-1 block" dangerouslySetInnerHTML={{ __html: renderTex(t.formula, false) }} />}
