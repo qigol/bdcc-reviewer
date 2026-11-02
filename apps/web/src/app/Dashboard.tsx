@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, CalendarClock, Dumbbell, GraduationCap, PlayCircle, Repeat, Sparkles, Target, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, CalendarDays, Dumbbell, GraduationCap, PlayCircle, Repeat, Sparkles, Target, X } from 'lucide-react';
 import { HIGHLIGHTS, type Highlight } from './highlights';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
@@ -8,6 +8,8 @@ import { useAllModules } from '../modules/useAll';
 import { levelOf, LEVEL_COLOR, useAllProgress, useDueReviews, useMastery, useSetting } from '../storage/progress';
 import { workbenchShortLabel } from '@kodigo/schema';
 import { Ring } from './Ring';
+import { ExamCountdowns, PlanItems, fmtMinutes } from './PlanPage';
+import { usePlan } from '../plan/usePlan';
 import { ModuleIcon } from './icons';
 import { Markdown } from '../lib/md';
 import { cn, timeAgo } from '../lib/util';
@@ -20,9 +22,8 @@ export function Dashboard() {
   const mastery = useMastery();
   const due = useDueReviews();
   const [last] = useSetting('lastLocation');
-  const [examDate] = useSetting('examDate');
+  const { plan, loading: planLoading } = usePlan();
   const nav = useNavigate();
-  const days = examDate ? Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000) : null;
   const weak = mastery
     .filter((m) => m.n >= 1)
     .map((m) => {
@@ -81,13 +82,23 @@ export function Dashboard() {
           {last && <button className="btn-primary" onClick={() => nav(last.path)}>Continue <ArrowRight size={15} /></button>}
         </div>
         <div className="card flex flex-col justify-center gap-2 p-4">
-          <div className="flex items-center gap-2">
-            <CalendarClock size={18} className="text-accent" />
-            {days !== null ? <span className="font-semibold">{days > 0 ? `${days} day${days === 1 ? '' : 's'} to the exam` : days === 0 ? "Exam day. Q's got your Qs!" : 'Exam date passed'}</span> : <Link to="/settings" className="text-sm text-muted underline">Set your exam date</Link>}
-          </div>
+          {plan.exams.length ? <ExamCountdowns exams={plan.exams} compact /> : (
+            <div className="flex items-center gap-2"><CalendarClock size={18} className="text-accent" /><Link to="/settings" className="text-sm text-muted underline">Add your exams</Link></div>
+          )}
           <button className="btn justify-between" onClick={() => nav('/review')}><span className="flex items-center gap-2"><Repeat size={15} /> Reviews due</span><b>{due.length}</b></button>
         </div>
       </div>
+
+      {plan.exams.some((e) => e.daysLeft >= 0) && (
+        <div className="card mb-6 p-4" data-testid="today-plan">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="mr-auto flex items-center gap-2 font-semibold"><CalendarDays size={18} className="text-accent" /> Today's plan {plan.days[0] && <span className="text-xs font-normal text-muted">{fmtMinutes(plan.days[0].minutes)}</span>}</h2>
+            <Link to="/plan" className="btn btn-sm">Full plan <ArrowRight size={14} /></Link>
+          </div>
+          {planLoading ? <div className="h-16 animate-pulse rounded-lg bg-panel2" /> : <PlanItems items={plan.days[0]?.items ?? []} exams={plan.exams} />}
+          {plan.exams.some((e) => e.unscheduledMinutes > 0) && <div className="mt-2 flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} /> Not everything fits before your exams. <Link to="/plan" className="underline">See the plan</Link></div>}
+        </div>
+      )}
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">{multiCourse ? 'Courses' : 'Modules'}</h2>

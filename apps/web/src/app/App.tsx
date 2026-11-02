@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { BookMarked, Dumbbell, FileText, Moon, Repeat, Search, Settings as SettingsIcon, Shield, Sun } from 'lucide-react';
+import { BookMarked, CalendarDays, Dumbbell, FileText, Moon, Repeat, Search, Settings as SettingsIcon, Shield, Sun } from 'lucide-react';
 import { useCourses } from '../modules/courses';
 import { CourseMenu } from './CourseMenu';
 import { getSession } from '../quiz/session';
@@ -13,12 +13,13 @@ import { Dashboard } from './Dashboard';
 import { GlossaryPage } from './GlossaryPage';
 import { CheatsheetPage } from './CheatsheetPage';
 import { SettingsPage } from './SettingsPage';
+import { PlanPage } from './PlanPage';
 import { CommandPalette } from './CommandPalette';
 import { QuizBuilder } from '../quiz/QuizBuilder';
 import { QuizRunner } from '../quiz/QuizRunner';
 import { ReviewPage } from '../quiz/ReviewPage';
 import { AdminPage } from '../admin/AdminPage';
-import { useDueReviews, useSetting } from '../storage/progress';
+import { migrateExamDate, useDueReviews, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
 import { useReducedMotion } from '../lib/reducedMotion';
 import { PopupProvider, isEmbedded, useEmbeddedEscape, usePopup } from '../lib/popup';
@@ -39,6 +40,8 @@ function useTheme() {
 function TopBar({ onSearch }: { onSearch: () => void }) {
   const { courses } = useCourses();
   const [openCourse, setOpenCourse] = useState<string | null>(null);
+  const courseKey = courses.map((g) => g.course).join('\n');
+  useEffect(() => { if (courseKey) migrateExamDate(courseKey.split('\n')); }, [courseKey]);
   const due = useDueReviews();
   const { toggle, isDark } = useTheme();
   const loc = useLocation();
@@ -58,6 +61,7 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
           ))}
           {courses.length > 0 && <span className="mx-1 h-5 w-px shrink-0 bg-line" />}
           {item('/quiz', <><Dumbbell size={15} />Quiz</>, loc.pathname.startsWith('/quiz'))}
+          {item('/plan', <><CalendarDays size={15} />Plan</>)}
           {item('/review', <><Repeat size={15} />Review{due.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{due.length}</span>}</>)}
           {inQuiz
             // mid-quiz: open the glossary over the quiz instead of leaving it
@@ -111,6 +115,7 @@ function Shell() {
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/glossary/*" element={<GlossaryPage />} />
           <Route path="/cheatsheet" element={<CheatsheetPage />} />
+          <Route path="/plan" element={<PlanPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<div className="p-10 text-center text-muted">Page not found. <Link className="text-accent underline" to="/">Home</Link></div>} />
