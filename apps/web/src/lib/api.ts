@@ -10,6 +10,13 @@ export interface ModuleListEntry {
   health: { status: 'pending' | 'valid' | 'warnings' | 'errors'; errors: number; warnings: number };
 }
 
+export interface ChristmasQuestion { id: string; prompt: string; options: string[]; answer: number; explain: string }
+/** a locked day carries only n, date and unlocked */
+export interface ChristmasDay { n: number; date: string; unlocked: boolean; title?: string; emoji?: string; lesson?: string; questions?: ChristmasQuestion[] }
+export type ChristmasStatus =
+  | { active: false }
+  | { active: true; year: number; today: string; mode: 'auto' | 'on' | 'off'; current: number | null; days: ChristmasDay[] };
+
 async function j<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error((body as any)?.error ?? (body as any)?.message ?? res.statusText), { status: res.status, body });
@@ -18,6 +25,7 @@ async function j<T>(res: Response): Promise<T> {
 
 export const api = {
   list: () => fetch('/api/modules').then((r) => j<ModuleListEntry[]>(r)),
+  christmas: () => fetch('/api/christmas').then((r) => j<ChristmasStatus>(r)),
   files: (id: string) => fetch(`/api/modules/${id}/files`).then((r) => j<{ files: Record<string, string>; binary: string[] }>(r)),
   report: (id: string) => fetch(`/api/modules/${id}/report`).then((r) => j<ValidationReport>(r)),
   fileUrl: (id: string, path: string) => `/api/modules/${id}/files/${path}`,

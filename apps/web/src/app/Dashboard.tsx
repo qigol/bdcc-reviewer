@@ -13,6 +13,8 @@ import { usePlan } from '../plan/usePlan';
 import { ModuleIcon } from './icons';
 import { Markdown } from '../lib/md';
 import { cn, timeAgo } from '../lib/util';
+import { useChristmas } from '../christmas/useChristmas';
+import { christmasHighlight } from '../christmas/banner';
 
 export function Dashboard() {
   const store = useModuleStore();
@@ -24,6 +26,7 @@ export function Dashboard() {
   const [last] = useSetting('lastLocation');
   const { plan, loading: planLoading } = usePlan();
   const nav = useNavigate();
+  const xmas = christmasHighlight(useChristmas());
   const weak = mastery
     .filter((m) => m.n >= 1)
     .map((m) => {
@@ -70,7 +73,7 @@ export function Dashboard() {
         <h1 className="text-2xl font-bold">Qdigo</h1>
         <p className="text-muted">Q's got your Qs.</p>
       </div>
-      <Highlights items={HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))} />
+      <Highlights items={[...(xmas ? [xmas] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
       <div className="mb-6 grid gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
           <PlayCircle className="shrink-0 text-accent" size={32} />
@@ -196,21 +199,21 @@ function Highlights({ items }: { items: Highlight[] }) {
       {shown.map((h) => {
         const body = (
           <>
-            <Sparkles className="shrink-0 text-accent" size={28} />
+            {h.festive ? <span className="shrink-0 text-[28px] leading-none" aria-hidden>🎄</span> : <Sparkles className="shrink-0 text-accent" size={28} />}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="label">{h.course ? `${h.course} · ` : ''}What's new</span>
+                <span className="label">{h.course ? `${h.course} · ` : ''}{h.festive ? 'Christmas countdown' : "What's new"}</span>
                 <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', h.to ? 'tone-good mark-bg' : 'tone-accent mark-bg')}>{h.badge}</span>
               </div>
               <div className="font-semibold">{h.title}</div>
               <div className="text-sm text-muted">{h.blurb}</div>
             </div>
-            {h.to && <span className="btn-primary hidden sm:inline-flex">Try it <ArrowRight size={15} /></span>}
+            {h.to && <span className="btn-primary hidden sm:inline-flex">{h.festive ? 'Open' : 'Try it'} <ArrowRight size={15} /></span>}
           </>
         );
         return (
-          <div key={h.id} className="card relative overflow-hidden border-accent/40" data-highlight={h.id}>
-            <div className="absolute inset-y-0 left-0 w-1 bg-accent" />
+          <div key={h.id} className={cn('card relative overflow-hidden', h.festive ? 'border-[rgb(var(--xmas-red)/0.4)]' : 'border-accent/40')} data-highlight={h.id}>
+            <div className={cn('absolute inset-y-0 left-0', h.festive ? 'xmas-stripe w-1.5' : 'w-1 bg-accent')} />
             {h.to
               ? <Link to={h.to} className="flex items-center gap-3 p-4 pr-10 transition hover:bg-panel2">{body}</Link>
               : <div className="flex items-center gap-3 p-4 pr-10">{body}</div>}

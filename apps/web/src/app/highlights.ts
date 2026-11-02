@@ -7,7 +7,9 @@ export interface Highlight {
   /** shown only when this course is installed */
   course?: string;
   to?: string;
-  badge: 'New' | 'Coming soon';
+  badge: 'New' | 'Coming soon' | 'Today';
+  /** Christmas styling (see christmas/banner.ts) */
+  festive?: boolean;
 }
 
 export const HIGHLIGHTS: Highlight[] = [

@@ -19,6 +19,8 @@ import { QuizBuilder } from '../quiz/QuizBuilder';
 import { QuizRunner } from '../quiz/QuizRunner';
 import { ReviewPage } from '../quiz/ReviewPage';
 import { AdminPage } from '../admin/AdminPage';
+import { ChristmasPage } from '../christmas/ChristmasPage';
+import { Decorations } from '../christmas/Decorations';
 import { migrateExamDate, useDueReviews, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
 import { useReducedMotion } from '../lib/reducedMotion';
@@ -105,6 +107,7 @@ function Shell() {
   return (
     <div className="flex min-h-full flex-col">
       {!isEmbedded && <TopBar onSearch={() => setPalette(true)} />}
+      {!isEmbedded && <Decorations />}
       <main className="flex flex-1 flex-col">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -116,6 +119,7 @@ function Shell() {
           <Route path="/glossary/*" element={<GlossaryPage />} />
           <Route path="/cheatsheet" element={<CheatsheetPage />} />
           <Route path="/plan" element={<PlanPage />} />
+          <Route path="/christmas" element={<ChristmasPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<div className="p-10 text-center text-muted">Page not found. <Link className="text-accent underline" to="/">Home</Link></div>} />
