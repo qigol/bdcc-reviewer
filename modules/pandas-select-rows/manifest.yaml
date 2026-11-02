@@ -1,0 +1,67 @@
+schemaVersion: 1
+id: pandas-select-rows
+version: 1.0.0
+title: 'pandas II: Selecting Rows by Conditions'
+shortTitle: pd Filtering
+summary: |
+  Exam specs are full of conditions: only unrated recipes, neighbours with 25 common raters, support of at least
+  25% and confidence of 0.8, sorted by score then id. Turn each into a boolean mask, combine masks correctly, and
+  read a failed assert to find the wrong one.
+course: BDCC
+order: 16
+color: '#db2777'
+icon: filter
+sources:
+  - title: 'Midterm exam, Problems 1b, 1c, 2a and 2b: the selection conditions their specs state'
+    file: 'midterm-exam/Problem 1.ipynb, midterm-exam/Problem 2.ipynb'
+    date: '2026-11-03'
+  - title: 'food-mini (the pandas-read-data dataset): every output recorded from real pandas runs'
+    file: 'modules/pandas-read-data/assets/food-mini/'
+    date: '2026-11-03'
+prerequisites: [pandas-read-data]
+skills:
+  - id: bool-mask
+    label: Boolean masks
+    description: 'A condition gives True or False per row; df[mask] keeps the True rows and mask.sum() counts them.'
+  - id: combine-masks
+    label: Combining conditions
+    description: '& (and), | (or) and ~ (not), each condition in its own parentheses; why Python''s and raises ValueError.'
+  - id: missing-mask
+    label: Missing values as a condition
+    description: 'isna and notna on a user''s row: candidates are the unrated (NaN) cells; == NaN never matches.'
+  - id: pair-mask
+    label: Conditions across two columns
+    description: 'Co-rated counts as (a.notna() & b.notna()).sum(), and keeping neighbours with at least k common raters.'
+  - id: relative-threshold
+    label: Thresholds as a fraction
+    description: 'Support of at least 25% means count >= 0.25 × number of baskets; >= vs > at the exact boundary.'
+  - id: max-filter
+    label: Keeping every row at the maximum
+    description: 'size == size.max() keeps all tied rows; nlargest(1) and head(1) keep only one.'
+  - id: sort-tiebreak
+    label: Sorting with a tie-break
+    description: 'sort_values on two keys with ascending=[False, True], then head(k); ties decide who makes the cut.'
+  - id: read-asserts
+    label: Reading a failed assert
+    description: 'assert_equal''s ACTUAL and DESIRED lines point at the condition that is off.'
+requires:
+  widgets: [Text, Matrix, DropBins, Readout, Slider]
+guide: 2
+workbench: code
+objectives:
+  - id: write-masks
+    text: 'Turn a spec''s condition into a boolean mask, combine several with &, | and ~ in parentheses, and count or keep the rows that pass.'
+    skills: [bool-mask, combine-masks]
+  - id: recommender-cuts
+    text: 'Select a user''s unrated items with isna, and the neighbours of an item that share at least k raters with it.'
+    skills: [missing-mask, pair-mask]
+  - id: itemset-cuts
+    text: 'Apply relative support and confidence thresholds exactly as worded, and keep every largest basket, ties included.'
+    skills: [relative-threshold, max-filter, combine-masks]
+  - id: rank-and-check
+    text: 'Rank results by a score with an id tie-break, take the top k, and use a failed assert''s ACTUAL and DESIRED to find a wrong condition.'
+    skills: [sort-tiebreak, read-asserts]
+authoring:
+  generatedBy: Claude
+  generatedAt: '2026-11-03'
+  notes: '2026-11-03: v1.0.0. Built for the midterm gap: students could load the data but not isolate the rows each spec describes (unrated items, co-rated neighbours, relative support, confidence AND support, largest baskets, score-then-id ranking). Every output and assert failure is a real run (assets/record2.py: Python 3.12.12, pandas 2.2.3, numpy 2) on food-mini. No midterm code, thresholds or assert values are reused. Application decisions branch: a wrong option shows its real output or its real failed assert.'

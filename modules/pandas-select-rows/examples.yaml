@@ -1,0 +1,107 @@
+examples:
+  # ---- JS equivalents == the real pandas runs -------------------------------------------------------
+  - id: masks
+    source: 'Real runs pd.mask.one_filter, and_ok, or_ok, not_ok'
+    fn: checkMasks
+    in: {}
+    expect: { sameAnd: true, sameOr: true, ge4: 25, realGe4: '(25, 5)', notTwo: 19, realNot: '(19, 5)' }
+    note: '25 of 30 reviews have rating >= 4; user 1101 gave 4+ to 1207, 2318 and 4415.'
+  - id: unrated-1245
+    source: 'Real runs pd.unrated.unrated and pd.unrated.dropna'
+    fn: checkUnrated
+    in: {}
+    expect: { same: true, sameRated: true }
+  - id: common-raters
+    source: 'Real runs pd.corated.both, either, one_col, common_all, neighbors_ge, neighbors_gt, user_rated_nb'
+    fn: checkCommon
+    in: {}
+    expect: { same: true, sameGe: true, sameGt: true, sameRatedNb: true, both12: 3, either12: 8, one12: 6 }
+    note: '1207 and 2318 share 3 raters; 8 users rated either; 6 rated 1207.'
+  - id: ranking
+    source: 'Real runs pd.topk.sorted_ok, sorted_desc_id, exclude_rated'
+    fn: checkRank
+    in: {}
+    expect: { sameOk: true, sameSlip: true, sameExclude: true, kth: 5021, kthSlip: 7064 }
+    note: '5021 and 7064 tie at 4.0 for fifth place; id ascending picks 5021.'
+  - id: frequent-tags
+    source: 'Real runs pd.relative.minsup, freq_ge, freq_gt, largest_ok'
+    fn: checkFreq
+    in: {}
+    expect: { sameGe: true, sameGt: true, sameLargest: true, minsup: 2, nGe: 11, nGt: 8 }
+    note: 'Compared as sets: value_counts orders tied counts arbitrarily.'
+  - id: rules
+    source: 'Real runs pd.rules.build, strong_ok, strong_or, strong_gt, top_pairs'
+    fn: checkRules
+    in: {}
+    expect: { total: 182, realTotal: 182, nStrong: 24, realStrong: 24, nOr: 106, realOr: 106, nGt: 15, realGt: 15, sameTop: true }
+
+  # ---- lesson numbers --------------------------------------------------------------------------------
+  - id: neighbours-of-1207
+    source: 'Real run pd.corated.neighbors_ge'
+    fn: commonView
+    in: { target: 1207, k: 3 }
+    expect: { ge: [2318, 3542, 5021, 7064], gt: [3542, 7064], ratedNb: [3542, 5021, 7064] }
+  - id: candidates-of-1245
+    source: 'Real run pd.unrated.unrated'
+    fn: userView
+    in: { user: 1245 }
+    expect: { unrated: [2318, 4415, 6110, 8233], rated: [1207, 3542, 5021, 7064], nUnrated: 4 }
+  - id: top-for-1245
+    source: 'Real run pd.topk.exclude_rated'
+    fn: rankView
+    in: { k: 4, user: 1245 }
+    expect: { ok: [8233, 6110, 2318, 4415] }
+  - id: largest-baskets
+    source: 'Real runs pd.relative.largest_ok and largest_nl'
+    fn: freqView
+    in: { frac: 0.25 }
+    expect: { largest: [chicken adobo, garlic fried rice, tortang talong], max: 7 }
+
+  # ---- real errors and failed asserts -------------------------------------------------------------------
+  - id: and-word
+    source: 'Real run pd.mask.and_word'
+    fn: realCell
+    in: { key: pd.mask.and_word }
+    expect: { ename: ValueError }
+  - id: missing-parens
+    source: 'Real run pd.mask.no_parens'
+    fn: realCell
+    in: { key: pd.mask.no_parens }
+    expect: { final: 'ValueError: The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().' }
+  - id: eq-nan
+    source: 'Real run pd.unrated.eq_nan'
+    fn: realCell
+    in: { key: pd.unrated.eq_nan }
+    expect: { ok: true, printed: '[]' }
+  - id: assert-rated
+    source: 'Real run pd.unrated.assert_bad'
+    fn: realCell
+    in: { key: pd.unrated.assert_bad }
+    expect: { ename: AssertionError, actual: '1207', desired: '2318' }
+  - id: assert-tie
+    source: 'Real run pd.topk.assert_tie'
+    fn: realCell
+    in: { key: pd.topk.assert_tie }
+    expect: { actual: '7064', desired: '5021' }
+  - id: assert-or
+    source: 'Real run pd.rules.assert_or'
+    fn: realCell
+    in: { key: pd.rules.assert_or }
+    expect: { actual: '106', desired: '24' }
+  - id: nlargest-one
+    source: 'Real run pd.relative.largest_nl'
+    fn: realCell
+    in: { key: pd.relative.largest_nl }
+    expect: { printed: "['chicken adobo']" }
+
+  # ---- traces ------------------------------------------------------------------------------------------
+  - id: mask-trace
+    source: 'Section unrated trace; real run pd.unrated.unrated'
+    fn: maskTrace
+    in: { user: 1245 }
+    expect: { steps: 10, unrated: [2318, 4415, 6110, 8233] }
+  - id: common-trace
+    source: 'Section neighbours trace; real run pd.corated.neighbors_ge'
+    fn: commonTrace
+    in: { target: 1207, k: 3 }
+    expect: { steps: 9, ge: [2318, 3542, 5021, 7064] }

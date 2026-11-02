@@ -1,0 +1,297 @@
+sections:
+  # =====================================================================================
+  - id: masks
+    title: 'Masks and how to combine them'
+    skills: [bool-mask, combine-masks]
+    summary: |
+      Every "keep the rows where…" is a [[boolean-mask]]: one True or False per row. Index the table with it to keep
+      the True rows, `.sum()` it to count them, and join several with [[mask-operators|&, | and ~]], each condition in
+      its own parentheses.
+    keyFormula: '\texttt{df[(cond\_1) \;\&\; (cond\_2)]}, \quad \texttt{|}\ \text{or}, \quad \texttt{\textasciitilde}\ \text{not}'
+    derive:
+      - { fn: maskView, in: {}, out: mv }
+      - { fn: realCell, in: { key: pd.mask.one_mask }, out: om }
+      - { fn: realCell, in: { key: pd.mask.and_word }, out: aw }
+    live:
+      - id: rows10
+        widget: Text
+        props:
+          body: |
+            **The first 10 reviews**
+
+            {=mv.md}
+    steps:
+      - tex: |
+          \anchor{mask}{\texttt{df["rating"] >= 4}} \;\to\; \text{True/False per row}
+        say: |
+          A condition on a column gives a mask: True for the rows that pass. The first five reviews all have 4 or 5.
+      - tex: |
+          \anchor{keep}{\texttt{df[mask]}} \;\to\; {=mv.ge4} \text{ rows}, \qquad \anchor{count}{\texttt{mask.sum()}} = {=mv.ge4}
+        say: |
+          Indexing with the mask keeps the True rows. Summing it counts them, because True counts as 1.
+      - tex: |
+          \anchor{and}{\texttt{(df["rating"] >= 4) \& (df["user\_id"] == 1101)}} \;\to\; {=mv.and1101}
+        say: |
+          `&` keeps rows where **both** hold. Without the parentheses, Python evaluates `4 & df["user_id"]` first, and
+          the word `and` asks the whole column for one True or False: both raise `{=aw.final}`.
+      - tex: |
+          \anchor{or}{\texttt{|}} \;\text{either}, \qquad \anchor{not}{\texttt{\textasciitilde df["recipe\_id"].isin([1207, 2318])}} \to {=mv.notTwo} \text{ rows}
+        say: |
+          `|` keeps rows where either holds; `~` flips a mask, so `~isin(...)` keeps every recipe *except* those listed.
+    code:
+      lang: python
+      source: |
+        """Keep and count the rows a spec describes."""
+        mask = interactions["rating"] >= 4                    # @a:mask
+        interactions[mask].shape                              # @a:keep
+        mask.sum()                                            # @a:count
+
+        # @a and
+        mine = interactions[(interactions["rating"] >= 4)
+                            & (interactions["user_id"] == 1101)]
+        # @end
+        zero_or_halo = interactions[(interactions["rating"] == 0)
+                                    | (interactions["recipe_id"] == 8233)]   # @a:or
+        others = interactions[~interactions["recipe_id"].isin([1207, 2318])] # @a:not
+    links:
+      - { anchor: mask, label: 'A mask', say: 'One True/False per row.' }
+      - { anchor: keep, label: 'Keep', say: 'df[mask] keeps the True rows.' }
+      - { anchor: count, label: 'Count', say: 'True counts as 1.' }
+      - { anchor: and, label: '& (both)', say: 'Each condition in its own parentheses.' }
+      - { anchor: or, label: '| (either)', say: 'Rows passing at least one condition.' }
+      - { anchor: not, label: '~ (not)', say: 'Flips the mask.' }
+    examples: [masks, and-word, missing-parens]
+    pitfalls:
+      - '`(a) and (b)` raises `ValueError: The truth value of a Series is ambiguous`: use `&`.'
+      - '`df["rating"] >= 4 & df["user_id"] == 1101` without parentheses raises the same error.'
+      - 'Using `|` where the spec says "and": far more rows pass, and nothing raises an error.'
+    examTip: 'Write each condition on its own line first, check its `.sum()`, then combine them.'
+    tryIt: [mask-and-count, mask-code-fill, mask-match]
+
+  # =====================================================================================
+  - id: unrated
+    title: Candidates are the NaN cells
+    skills: [missing-mask]
+    summary: |
+      "Recommend only items the user has not rated" means the user's row, then the cells that are [[nan]]. Use
+      [[isna|isna()]]; `== NaN` never matches, and `dropna()` gives the opposite set. Step through user 1245.
+    keyFormula: '\texttt{row = util.loc[user]}; \quad \texttt{row[row.isna()].index}'
+    derive:
+      - { fn: utilView, in: {}, out: uv }
+      - { fn: userView, in: { user: 1245 }, out: u }
+      - { fn: realCell, in: { key: pd.unrated.eq_nan }, out: eq }
+    live:
+      - id: util
+        widget: Matrix
+        props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 0, rowHeader: user_id, title: 'util: all 8 recipes' }
+    steps:
+      - tex: |
+          \anchor{row}{\texttt{row = util.loc[1245]}} \;\to\; 8 \text{ cells}
+        say: |
+          Take the user's row by label. It has one cell per recipe: a rating or NaN.
+      - tex: |
+          \anchor{isna}{\texttt{row.isna()}} \;\to\; \text{True where unrated}
+        say: |
+          `isna()` is a mask: True for the NaN cells. `row == float("nan")` gives {=eq.printed}: NaN is never equal to
+          anything, not even itself.
+      - tex: |
+          \anchor{keep}{\texttt{row[row.isna()].index.tolist()}} = [{=u.unrated}]
+        say: |
+          The [[candidate-items|candidates]] are {=u.unrated}. `dropna()` or `notna()` would give the rated ones,
+          {=u.rated}, which a recommender must never suggest.
+    code:
+      lang: python
+      source: |
+        """The recipes a user has not rated yet (the candidates)."""
+        row = util.loc[1245]                         # @a:row
+        unrated = row.isna()                         # @a:isna
+        candidates = row[unrated].index.tolist()     # @a:keep
+    links:
+      - { anchor: row, label: 'The user''s row', say: 'By label, with loc.' }
+      - { anchor: isna, label: 'isna', say: 'True where the cell is NaN.' }
+      - { anchor: keep, label: 'Candidates', say: 'The ids of the NaN cells.' }
+    trace: { fn: maskTrace, in: { user: 1245 } }
+    examples: [unrated-1245, candidates-of-1245, eq-nan, assert-rated, mask-trace]
+    pitfalls:
+      - '`row.dropna()` keeps the **rated** cells: the opposite of the candidates.'
+      - '`row[row == float("nan")]` is always empty.'
+    examTip: 'Recommend from `row[row.isna()]`, then rank only those.'
+    tryIt: [unrated-count, unrated-code-fill, eq-nan-mcq]
+
+  # =====================================================================================
+  - id: neighbours
+    title: 'Neighbours with at least k common raters'
+    skills: [pair-mask]
+    summary: |
+      "Only neighbours with at least k commonly rating users" compares two columns: users who rated **both** items,
+      `(util[a].notna() & util[b].notna()).sum()`. Count it for every other item, keep those at or above k, and leave
+      the target itself out. Change k and step through.
+    keyFormula: '\texttt{(util[a].notna() \& util[b].notna()).sum() >= k}'
+    state: { k: 3 }
+    derive:
+      - { fn: commonView, in: { target: 1207, k: '@k' }, out: cv }
+    live:
+      - id: common
+        widget: Matrix
+        props: { rows: '@cv.rows', cols: '@cv.cols', values: '@cv.values', format: int, rowHeader: recipe_id, title: 'Common raters with 1207' }
+      - id: kslider
+        widget: Slider
+        props: { label: 'k (common raters needed)', min: 1, max: 5, step: 1 }
+        bind: { value: k }
+    steps:
+      - tex: |
+          \anchor{common}{\texttt{(util[1207].notna() \& util[2318].notna()).sum()}} = {=cv.both12}
+        say: |
+          Users who rated both recipes: {=cv.both12}. With `|` you would count {=cv.either12} (either recipe); with one
+          column, {=cv.one12} (1207 alone). Only `&` is [[co-rated]].
+      - tex: |
+          \anchor{cut}{\texttt{[j for j, c in common.items() if c >= k]}} \;\to\; [{=cv.ge}]
+        say: |
+          With k = {=k}, {=cv.nGe} recipes are neighbours; `> k` would keep {=cv.nGt}. The loop skips 1207 itself,
+          which always shares every rater with itself.
+      - tex: |
+          \anchor{rated}{\texttt{if rated[j]}} \;\to\; [{=cv.ratedNb}]
+        say: |
+          For predicting user 1245's rating of 1207, only neighbours the user rated help: {=cv.ratedNb}. Take up to
+          the spec's number of them, by similarity.
+    code:
+      lang: python
+      source: |
+        """Neighbours of a target recipe: at least k common raters."""
+        target, k = 1207, 3
+        # @a common
+        common = {j: (util[target].notna() & util[j].notna()).sum()
+                  for j in util.columns if j != target}
+        # @end
+        neighbours = [j for j, c in common.items() if c >= k]     # @a:cut
+        rated = util.loc[1245].notna()
+        usable = [j for j in neighbours if rated[j]]               # @a:rated
+    links:
+      - { anchor: common, label: 'Common raters', say: 'Both columns present: &.' }
+      - { anchor: cut, label: 'At least k', say: '>= k; the target is left out.' }
+      - { anchor: rated, label: 'Rated by the user', say: 'A neighbour helps only if the user rated it.' }
+    trace: { fn: commonTrace, in: { target: 1207, k: '@k' } }
+    examples: [common-raters, neighbours-of-1207, common-trace]
+    pitfalls:
+      - 'Counting with `|` (rated either) instead of `&` (rated both).'
+      - 'Keeping the target as its own neighbour: it shares every rater with itself.'
+      - '`> k` for "at least k".'
+    examTip: 'Print `common` once and check it against the spec''s k before computing similarities.'
+    tryIt: [neighbours-count, corated-code-fill, neighbours-parsons]
+
+  # =====================================================================================
+  - id: thresholds
+    title: 'Thresholds as fractions, and every largest row'
+    skills: [relative-threshold, max-filter]
+    summary: |
+      "Found in at least 25% of the recipes" is a [[relative-support]] cut: compare counts with 0.25 × the number of
+      recipes. "The largest baskets" means every basket whose size equals the maximum, ties included; [[nlargest|
+      nlargest(1)]] keeps only one.
+    keyFormula: '\texttt{counts >= len(df) * 0.25}, \qquad \texttt{df[df["size"] == df["size"].max()]}'
+    derive:
+      - { fn: freqView, in: { frac: 0.25 }, out: fv }
+      - { fn: realCell, in: { key: pd.relative.largest_nl }, out: nl }
+      - { fn: realCell, in: { key: pd.relative.freq_frac }, out: ff }
+    live:
+      - id: counts
+        widget: Text
+        props:
+          body: |
+            **Recipes per tag** ({=fv.n} recipes)
+
+            {=fv.md}
+    steps:
+      - tex: |
+          \anchor{minsup}{\texttt{minsup = len(recipes) * 0.25}} = {=fv.minsup}
+        say: |
+          25% of {=fv.n} recipes is {=fv.minsup}. Comparing the counts with 0.25 instead keeps every tag (the real
+          check prints {=ff.printed} for "all tags kept").
+      - tex: |
+          \anchor{freq}{\texttt{tag\_counts[tag\_counts >= minsup]}} \;\to\; {=fv.nGe} \text{ tags}
+        say: |
+          "At least" is `>=`: {=fv.nGe} tags. With `>`, the three tags in exactly 2 recipes drop out: {=fv.nGt}.
+      - tex: |
+          \anchor{largest}{\texttt{df[df["n\_tags"] == df["n\_tags"].max()]}} \;\to\; {=fv.largest}
+        say: |
+          Three recipes share the maximum of {=fv.max} tags, and all three are "the largest". `nlargest(1)` gives
+          only {=nl.printed}.
+    code:
+      lang: python
+      source: |
+        """Relative thresholds and the largest rows, ties included."""
+        tag_counts = recipes["tags"].explode().value_counts()
+        minsup = len(recipes) * 0.25                               # @a:minsup
+        frequent = tag_counts[tag_counts >= minsup].index.tolist() # @a:freq
+
+        recipes["n_tags"] = recipes["tags"].str.len()
+        # @a largest
+        largest = recipes[recipes["n_tags"] == recipes["n_tags"].max()]
+        # @end
+    links:
+      - { anchor: minsup, label: 'The cut as a count', say: 'Fraction × number of baskets.' }
+      - { anchor: freq, label: 'At least', say: '>= keeps the boundary.' }
+      - { anchor: largest, label: 'Every maximum', say: '== max keeps ties.' }
+    examples: [frequent-tags, largest-baskets, nlargest-one]
+    pitfalls:
+      - 'Comparing counts with the fraction (`counts >= 0.25`): every tag passes.'
+      - '`>` for "at least": items exactly on the boundary vanish, and with small data the boundary is common.'
+      - '`nlargest(1)` or `head(1)` for "the largest": tied rows are lost.'
+    examTip: 'Write the threshold as a count once (`minsup = n * frac`) and print it.'
+    tryIt: [relsup-count, largest-count, relsup-two-tier]
+
+  # =====================================================================================
+  - id: ranking
+    title: 'Sort by score, then by id'
+    skills: [sort-tiebreak, read-asserts, combine-masks]
+    summary: |
+      "Sort by decreasing rating, then by increasing recipe id" is a two-key sort: `ascending=[False, True]`. A
+      [[tie-break|tie]] at the top-k cut-off decides who makes the list, and the grader's [[assert-equal]] shows the
+      first id that differs.
+    keyFormula: '\texttt{sort\_values(["score", "id"], ascending=[False, True]).head(k)}'
+    derive:
+      - { fn: rankView, in: { k: 5 }, out: rv }
+      - { fn: realCell, in: { key: pd.topk.assert_tie }, out: at }
+      - { fn: rulesView, in: {}, out: ru }
+    live:
+      - id: means
+        widget: Matrix
+        props: { rows: '@rv.rows', cols: '@rv.cols', values: '@rv.values', format: 3, rowHeader: recipe_id, title: 'Mean rating per recipe' }
+    steps:
+      - tex: |
+          \anchor{sort}{\texttt{sort\_values(["rating", "recipe\_id"], ascending=[False, True])}}
+        say: |
+          Highest mean first; equal means, smaller id first. 5021 and 7064 both average 4.0.
+      - tex: |
+          \anchor{head}{\texttt{.head(5)}} \;\to\; [{=rv.ok}]
+        say: |
+          The fifth place is a tie, and the id tie-break gives it to {=rv.kth}. Sorting ids descending gives
+          {=rv.kthSlip}, and the test fails with ACTUAL {=at.actual}, DESIRED {=at.desired}.
+      - tex: |
+          \anchor{rules}{\texttt{rules[(support >= 0.25) \& (confidence >= 0.8)]}} \to {=ru.nStrong}, \quad \texttt{|} \to {=ru.nOr}
+        say: |
+          The same moves rank association rules: filter with `&` ({=ru.nStrong} of {=ru.total} pair rules; `|` keeps
+          {=ru.nOr}), then sort by [[lift]] descending and antecedent ascending.
+    code:
+      lang: python
+      source: |
+        """Rank by score with an id tie-break; filter rules on two thresholds."""
+        means = interactions.groupby("recipe_id")["rating"].mean()
+        top = means.reset_index().sort_values(
+            ["rating", "recipe_id"], ascending=[False, True])     # @a:sort
+        top["recipe_id"].head(5).tolist()                        # @a:head
+
+        # @a rules
+        strong = rules[(rules["support"] >= 0.25) & (rules["confidence"] >= 0.8)]
+        # @end
+        ranked = strong.sort_values(["lift", "antecedent"], ascending=[False, True])
+    links:
+      - { anchor: sort, label: 'Two keys', say: 'Score descending, id ascending.' }
+      - { anchor: head, label: 'Top k', say: 'Ties at the cut-off are decided by the second key.' }
+      - { anchor: rules, label: 'Two thresholds', say: 'Both must hold: &.' }
+    examples: [ranking, top-for-1245, assert-tie, rules, assert-or]
+    pitfalls:
+      - 'One-key sorts leave ties in whatever order pandas produces; the spec''s tie-break may not hold.'
+      - '`ascending=False` for both keys sorts ids descending too.'
+      - 'Reading ACTUAL as the expected value: ACTUAL is yours, DESIRED is the test''s.'
+    examTip: 'When an assert fails on one item near the end of a top-k list, look for a tie at the cut-off.'
+    tryIt: [topk-kth, sort-code-fill, assert-read]

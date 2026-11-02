@@ -20,6 +20,8 @@ case:
     - { fn: realCell, in: { key: m2x.app.and_fix }, out: c3 }
     - { fn: realCell, in: { key: m2x.app2.or_count }, out: orc }
     - { fn: realCell, in: { key: m2x.app2.two_filters }, out: two }
+    - { fn: realCell, in: { key: m2x.app2.and_parens }, out: andp }
+    - { fn: realCell, in: { key: m2x.app2.amp_no_parens }, out: ampn }
     - { fn: realCell, in: { key: m2x.app.typo_line }, out: c4 }
     - { fn: realCell, in: { key: m2x.app.typo_show }, out: c5 }
     - { fn: tracebackParts, in: { key: m2x.app.typo_show }, out: tp }
@@ -70,6 +72,15 @@ case:
           - '`tipped = trips.filter((trips.tip_amount > 0) & (trips.fare_amount > 5))`, keeping {=bz5.tipped} trips'
           - '`tipped = trips.filter(trips.tip_amount > 0 & trips.fare_amount > 5)`, keeping {=bz5.tipped} trips'
         answer: 2
+        outcomes:
+          0:
+            say: The parentheses do not help. Python still asks each Column for True or False, and the real run stops the same way.
+            stage:
+              - { id: out-2-andp, widget: Text, props: { body: '@andp.out' } }
+          3:
+            say: 'Without parentheses Python works out `0 & trips.fare_amount` first, so the real run fails before Spark sees a condition.'
+            stage:
+              - { id: out-2-ampn, widget: Text, props: { body: '@ampn.out' } }
         model: |
           Only `&`, with each condition in its own parentheses, does what Bea meant. In cell 1's table, trips
           {=bz5.trips} have a tip and a fare above 5, so your cell 3 keeps {=c3.printed} trips. Counting the tipped

@@ -1,0 +1,315 @@
+intro: |
+  In an exam or a lab, the recommender code is the part you practised. What trips people up is everything before
+  it: which file, which path, what the columns really hold, and whether the function still works when the grader
+  runs it alone. This case walks one notebook from an unfamiliar folder to a graded function. Every output is a real
+  run, and a wrong choice shows you the real error before you try again.
+case:
+  id: matrix-for-migs
+  title: A utility matrix by tonight
+  story: |
+    Your groupmate Migs is writing the recommender. He needs two functions from you by tonight: `create_utility_matrix()`,
+    which returns users × recipes with only the recipes that have **at least 4 ratings**, and `rated_by(user)`,
+    which returns the recipe ids a user rated. The only instruction: *"Data is in `/mnt/data/public/food-mini`."*
+    The grader will run your functions in a fresh kernel.
+  derive:
+    - { fn: folderTree, in: {}, out: ft }
+    - { fn: realCell, in: { key: pd.explore.train_cols }, out: trc }
+    - { fn: realCell, in: { key: pd.explore.train_shape }, out: trs }
+    - { fn: realCell, in: { key: pd.explore.read_noprefix }, out: rnp }
+    - { fn: realCell, in: { key: pd.explore.read_wrong }, out: rwr }
+    - { fn: realCell, in: { key: pd.explore.read }, out: rd }
+    - { fn: realCell, in: { key: pd.explore.ratings_vc }, out: vc }
+    - { fn: realCell, in: { key: pd.tags.first_tags }, out: ft0 }
+    - { fn: realCell, in: { key: pd.tags.naive_split }, out: nsp }
+    - { fn: realCell, in: { key: pd.tags.len_str }, out: lst }
+    - { fn: realCell, in: { key: pd.tags.converters }, out: cnv }
+    - { fn: realCell, in: { key: pd.matrix.setup }, out: cnt }
+    - { fn: realCell, in: { key: pd.matrix.keep_gt }, out: kgt }
+    - { fn: realCell, in: { key: pd.matrix.keep_ge }, out: kge }
+    - { fn: utilView, in: { threshold: 4 }, out: uv }
+    - { fn: realCell, in: { key: pd.matrix.loc_user }, out: lu }
+    - { fn: realCell, in: { key: pd.matrix.iloc_user }, out: iu }
+    - { fn: realCell, in: { key: pd.matrix.loc_zero }, out: lz }
+    - { fn: realCell, in: { key: pd.funcs.uses_global }, out: glob }
+    - { fn: realCell, in: { key: pd.fresh.uses_global }, out: fresh }
+    - { fn: realCell, in: { key: pd.funcs.no_return }, out: noret }
+    - { fn: realCell, in: { key: pd.fresh_fixed.self_contained }, out: good }
+  cells:
+    - id: which-file
+      title: The folder
+      say: |
+        You list the folder. Four files. The README says `RAW_interactions.csv` holds one row per review and
+        `interactions_train.csv` is "a pre-split training set with integer codes u and i".
+      stage:
+        - id: tree
+          widget: Tree
+          props: { root: '@ft.root' }
+      decision:
+        prompt: Migs needs every recipe's ratings. Which file do you read?
+        type: mcq
+        options: ['`RAW_recipes.csv`', '`interactions_train.csv`', '`README.txt`', '`RAW_interactions.csv`']
+        answer: 3
+        outcomes:
+          1:
+            say: 'You read it and checked. It has extra columns and fewer rows than there are reviews:'
+            stage:
+              - id: train-out
+                widget: Text
+                props:
+                  body: |
+                    {=trc.codeMd}
+                    {=trc.out}
+                    {=trs.codeMd}
+                    {=trs.out}
+        optionFeedback:
+          '0': 'Recipes hold names, minutes and tags, not ratings. Ratings link a user to a recipe.'
+          '2': 'The README describes the files; it has no data rows.'
+        model: |
+          `RAW_interactions.csv` holds all 30 reviews. The `_train` file is a subset made for a model (19 rows,
+          extra `u` and `i` codes), so counts from it are wrong for this spec. Recipes have no ratings, and the
+          README has no data.
+
+    - id: read-it
+      title: Read it
+      say: |
+        Your notebook runs in your home folder, not in the data folder. `DATA` holds the folder path.
+      stage:
+        - id: data-var
+          widget: Code
+          props: { source: 'DATA = "/mnt/data/public/food-mini"', title: An earlier cell }
+      decision:
+        prompt: Which line loads the reviews?
+        type: mcq
+        options:
+          - '`pd.read_csv("RAW_interactions.csv")`'
+          - '`interactions = pd.read_csv(DATA + "/RAW_interactions.csv")`'
+          - '`pd.read_csv(DATA + "/interactions.csv")`'
+        answer: 1
+        outcomes:
+          0:
+            say: Python looked for the file in the notebook's own folder.
+            stage:
+              - { id: out-np, widget: Text, props: { body: '{=rnp.out}' } }
+          1:
+            say: 'It loads. The size, `interactions.shape`:'
+            stage:
+              - { id: out-rd, widget: Text, props: { body: '{=rd.out}' } }
+          2:
+            say: The folder is right, the file name is not.
+            stage:
+              - { id: out-rw, widget: Text, props: { body: '{=rwr.out}' } }
+        model: |
+          Only the full path, folder plus exact file name, finds the file: `(30, 5)`. A bare name is searched in the
+          notebook's folder, and a name from memory (`interactions.csv`) does not exist. Both raise
+          `FileNotFoundError`; the message shows the path Python tried.
+
+    - id: check-ratings
+      title: What is a 0?
+      say: |
+        Before counting, you run `value_counts` on `rating`. Migs's spec adds: *"averages use star ratings only;
+        ignore reviews without stars"*. Recipe 4415 (leche flan) has ratings 5, 5, 4 and 0.
+      stage:
+        - id: vc-out
+          widget: Text
+          props:
+            body: |
+              {=vc.codeMd}
+              {=vc.out}
+      decision:
+        prompt: What is leche flan's average star rating under Migs's spec?
+        type: mcq
+        options: ['3.5', '4.67', '4', '14']
+        answer: 1
+        optionFeedback:
+          '0': 'That average includes the 0, which marks a review without stars. The spec says to ignore those.'
+          '2': 'That is the middle value, not the mean.'
+          '3': 'That is the sum of the star ratings; divide by how many there are (3).'
+        model: |
+          (5 + 5 + 4) / 3 = 4.67. `value_counts` showed two 0s in the file: reviews written without stars. Leaving
+          them in would give (5 + 5 + 4 + 0) / 4 = 3.5. The count cut below uses `count()`, which counts
+          every review row, 0s included; if a spec says to leave them out, filter `rating > 0` first.
+
+    - id: tags-detour
+      title: A side request
+      say: |
+        Migs also wants the number of tags per recipe from `RAW_recipes.csv`. You print chicken adobo's tags; it
+        looks like a list.
+      stage:
+        - id: tags0
+          widget: Text
+          props:
+            body: |
+              {=ft0.codeMd}
+              {=ft0.out}
+      decision:
+        prompt: Which cell gives real lists, so that counting tags works?
+        type: mcq
+        options:
+          - '`recipes = pd.read_csv("/mnt/data/public/food-mini/RAW_recipes.csv", converters={"tags": ast.literal_eval})`'
+          - '`recipes["tags"].str.len().head(3)`'
+          - '`recipes.loc[0, "tags"][1:-1].split(", ")`'
+        answer: 0
+        outcomes:
+          0:
+            say: '`type` and `len` of chicken adobo''s tags after this read:'
+            stage:
+              - { id: out-cnv, widget: Text, props: { body: '{=cnv.out}' } }
+          1:
+            say: Those are characters, not tags. Chicken adobo has 7 tags.
+            stage:
+              - { id: out-len, widget: Text, props: { body: '{=lst.out}' } }
+          2:
+            say: Every tag kept its quote marks.
+            stage:
+              - { id: out-nsp, widget: Text, props: { body: '{=nsp.out}' } }
+        model: |
+          The tags were saved as text. `converters={"tags": ast.literal_eval}` turns every cell into a real list while
+          reading, so `.str.len()` then counts tags: 7, 7, 6… On the text it counts characters (99, 92, 86), and a
+          hand-made split keeps the quotes, so `"easy" in tags` would be False.
+
+    - id: the-cut
+      title: At least 4 ratings
+      say: |
+        You count the ratings per recipe. Now keep the recipes the spec wants and pivot.
+      stage:
+        - id: counts-out
+          widget: Text
+          props:
+            body: |
+              {=cnt.codeMd}
+              {=cnt.out}
+        - id: util
+          widget: Matrix
+          hidden: true
+          props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 1, rowHeader: user_id, title: 'util after the pivot (real run)' }
+      decision:
+        prompt: 'Which line keeps the recipes Migs asked for, and how many columns will `util` have?'
+        type: mcq
+        options:
+          - '`counts[counts > 4].index.tolist()`, 3 columns'
+          - '`counts[counts >= 4].index.tolist()`, 8 columns'
+          - '`counts[counts >= 4].index.tolist()`, 5 columns'
+          - '`counts[counts >= 4].index.tolist()`, 24 columns'
+        answer: 2
+        outcomes:
+          0:
+            say: 'The real output: recipes 3542 and 4415, with exactly 4 ratings, are gone.'
+            stage:
+              - { id: out-kgt, widget: Text, props: { body: '{=kgt.out}' } }
+          2:
+            say: 'The real output:'
+            stage:
+              - { id: out-kge, widget: Text, props: { body: '{=kge.out}' } }
+        optionFeedback:
+          '1': 'Eight is the number of users: the rows of the matrix. The columns are the kept recipes.'
+          '3': '24 is the number of review rows that survive the filter, not columns.'
+        model: |
+          "At least 4" is `>= 4`: five recipes, so `util` is {=uv.shape}. `> 4` drops the two recipes with exactly 4.
+          After `isin` keeps 24 reviews, `pivot` spreads them over 8 users (rows) and 5 recipes (columns), sorted by id.
+
+    - id: look-up
+      title: One user's ratings
+      say: |
+        `rated_by(user)` gets a user *id*, such as 1101. In `util` the rows are labelled by user id, in order:
+        1101 is the first row.
+      decision:
+        prompt: Which line gives user 1101's ratings?
+        type: mcq
+        options: ['`util.iloc[1101]`', '`util.loc[0]`', '`util.loc[1101].dropna()`']
+        answer: 2
+        outcomes:
+          0:
+            say: '`iloc` read 1101 as a position, and `util` has 8 rows.'
+            stage:
+              - { id: out-iu, widget: Text, props: { body: '{=iu.out}' } }
+          1:
+            say: '`loc` looked for a row labelled 0. There is none.'
+            stage:
+              - { id: out-lz, widget: Text, props: { body: '{=lz.out}' } }
+          2:
+            say: 'The real output:'
+            stage:
+              - { id: out-lu, widget: Text, props: { body: '{=lu.out}' } }
+        model: |
+          A user id is a row label, so `loc[1101]`; `dropna()` drops the NaN cells, leaving recipes 1207, 2318, 4415
+          and 7064. `iloc` wants a position (1101 is past the end: IndexError). `loc[0]` wants a label 0 (KeyError).
+          Here `iloc[0]` would also work, but only because 1101 happens to be first.
+
+    - id: hand-in
+      title: Hand it in
+      say: |
+        Three drafts of `rated_by`. Each passed when you ran it after building `df_utility` in an earlier cell. The
+        grader restarts the kernel and runs only the function cell and `rated_by(1502)`.
+      stage:
+        - id: draft-a
+          widget: Code
+          props: { source: '@glob.code', title: 'Draft A' }
+        - id: draft-b
+          widget: Code
+          props: { source: '@noret.code', title: 'Draft B (its loader)' }
+        - id: draft-c
+          widget: Code
+          props: { source: '@good.code', title: 'Draft C' }
+      decision:
+        prompt: Which draft passes the grader?
+        type: mcq
+        options: ['Draft A', 'Draft B', 'Draft C']
+        answer: 2
+        outcomes:
+          0:
+            say: 'In a fresh kernel, the real run:'
+            stage:
+              - { id: out-fresh, widget: Text, props: { body: '{=fresh.out}' } }
+          1:
+            say: 'Its loader has no `return`, so it hands back `None`. The real run:'
+            stage:
+              - { id: out-noret, widget: Text, props: { body: '{=noret.out}' } }
+          2:
+            say: 'In a fresh kernel, the real run:'
+            stage:
+              - { id: out-good, widget: Text, props: { body: '{=good.out}' } }
+        model: |
+          Draft C builds the matrix inside the function and returns the list, so it works with nothing else run:
+          {=good.printed}. Draft A uses `df_utility` from another cell (NameError in a fresh kernel). Draft B's loader
+          builds the matrix but never returns it, so every caller gets `None` (AttributeError).
+atScale:
+  title: The full Food.com files
+  body: |
+    The real Food.com interactions file holds roughly 1.1 million reviews of about 230,000 recipes by about 230,000
+    users. pandas reads it in seconds, but a dense users × recipes matrix of that size would need hundreds of
+    gigabytes, which is why specs cut to recipes with many ratings first. For the full matrix, keep it sparse
+    (`scipy.sparse`) or move the work to Spark. Two habits help on big files: read only the columns you need, and
+    peek with `nrows` before a full read.
+  code:
+    - lang: python
+      title: Reading a big file carefully
+      source: |
+        peek = pd.read_csv(path, nrows=5)                  # look first
+        df = pd.read_csv(path, usecols=["user_id", "recipe_id", "rating"])
+        counts = df.groupby("recipe_id")["rating"].count()
+        keep = counts[counts >= 250].index                 # the spec's cut, before any pivot
+        util = df[df["recipe_id"].isin(keep)].pivot(
+            index="user_id", columns="recipe_id", values="rating")
+tradeoffs:
+  title: Turning list-like text into lists
+  columns: [Method, Gives, Watch out]
+  rows:
+    - ['`converters={"tags": ast.literal_eval}`', 'Real lists while reading', 'Fails on a cell that is not a valid Python literal (check one row first)']
+    - ['`df["tags"].apply(ast.literal_eval)`', 'Real lists after reading', 'Same parser; one more step to remember']
+    - ['`s[1:-1].split(", ")`', 'Strings with quote marks still on', 'Breaks on quotes, commas inside a tag, and empty lists']
+    - ['`json.loads`', 'Lists, for JSON text only', 'Python lists printed with single quotes are not valid JSON']
+connections:
+  - { module: nb-cf, note: 'The utility matrix built here is the input of item-based and user-based collaborative filtering.' }
+  - { module: lf-cf, note: 'Latent-factor methods start from the same matrix; NaN marks the cells they predict.' }
+  - { module: fim, note: 'Tags turned into real lists are baskets: `explode` and `value_counts` give item supports.' }
+  - { module: spark-df-basics, note: 'The same habits in Spark: list the folder, read with the full path, check the schema before computing.' }
+explainBack:
+  prompt: |
+    A classmate's `item_recommend(user)` passes in their notebook but fails for the grader. Explain, in order, what
+    you would check from the data folder to the return value.
+  rubric:
+    - 'The right file was read (the complete one, not a subset), with its full path'
+    - 'The columns and odd values were checked (dtypes, value_counts) before counting'
+    - 'The count cut matches the spec''s words (at least = >=, more than = >)'
+    - 'Users are looked up by label with loc, not by position'
+    - 'The function builds its own data and returns its answer, so it works in a fresh kernel'

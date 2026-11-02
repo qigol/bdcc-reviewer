@@ -1,0 +1,673 @@
+templates:
+  # =============================================================== bool-mask / combine-masks
+  - id: mask-match
+    type: match
+    skills: [bool-mask, combine-masks]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: one-mask }
+    prompt: 'Match each line with what it gives.'
+    pairs:
+      - ['`df["rating"] >= 4`', 'True or False for every row']
+      - ['`df[df["rating"] >= 4]`', 'Only the rows that pass']
+      - ['`(df["rating"] >= 4).sum()`', 'How many rows pass']
+      - ['`df[~df["recipe_id"].isin(ids)]`', 'Every row except those recipes']
+      - ['`df[(a) | (b)]`', 'Rows passing at least one condition']
+    hints:
+      - 'A condition alone gives a mask; inside `df[...]` it selects; `.sum()` counts.'
+    explanation: 'Mask → select → count. `~` flips a mask, `|` keeps rows passing either condition.'
+
+  - id: mask-and-count
+    type: numeric
+    skills: [combine-masks, bool-mask]
+    difficulty: 1
+    tags: [code]
+    generator: maskCountQ
+    lessonRef: { tab: math-code, id: masks }
+    prompt: |
+      {=table}
+
+      How many rows does `df[(df["rating"] >= {=t}) & (df["user_id"] == {=u})]` keep?
+    answer: { var: and, tol: 0 }
+    hints:
+      - 'Check each row against both conditions.'
+      - '`&` needs both to be true.'
+    explanation: 'Rating ≥ {=t}: {=onlyRating} rows. User {=u}: {=onlyUser} rows. Both: {=and}. Either (`|`) would be {=or}.'
+
+  - id: mask-or-count
+    type: numeric
+    skills: [combine-masks]
+    difficulty: 2
+    tags: [code]
+    generator: maskCountQ
+    lessonRef: { tab: intuition, id: combine }
+    prompt: |
+      {=table}
+
+      How many rows does `df[(df["rating"] >= {=t}) | (df["user_id"] == {=u})]` keep?
+    answer: { var: or, tol: 0 }
+    hints:
+      - 'A row passes if it meets at least one condition.'
+      - 'Count each passing row once, even if it meets both.'
+    explanation: 'Rating ≥ {=t}: {=onlyRating}; user {=u}: {=onlyUser}; both: {=and}. Either: {=onlyRating} + {=onlyUser} − {=and} = {=or}.'
+
+  - id: mask-hand-calc
+    type: hand-calc
+    skills: [bool-mask, combine-masks]
+    difficulty: 2
+    tags: [code]
+    generator: maskCountQ
+    lessonRef: { tab: math-code, id: masks }
+    prompt: |
+      {=table}
+
+      Build the masks one at a time, as you would when debugging.
+    steps:
+      - prompt: '`(df["rating"] >= {=t}).sum()`'
+        answer: { var: onlyRating, tol: 0 }
+        hint: Count ratings of {=t} or more.
+      - prompt: '`(df["user_id"] == {=u}).sum()`'
+        answer: { var: onlyUser, tol: 0 }
+        hint: Count user {=u}'s rows.
+      - prompt: '`((df["rating"] >= {=t}) & (df["user_id"] == {=u})).sum()`'
+        answer: { var: and, tol: 0 }
+        misconceptions:
+          - { var: or, feedback: 'That is `|`. `&` keeps rows passing both.' }
+        hint: Rows of user {=u} with rating {=t}+.
+    hints:
+      - 'Check each condition''s count before combining: it shows which one is off.'
+    explanation: '{=onlyRating} and {=onlyUser} rows pass alone; {=and} pass both.'
+
+  - id: mask-code-fill
+    type: code-fill
+    skills: [combine-masks]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: masks }
+    prompt: 'Keep the reviews by user 1101 rated 4 or more, then every review **except** recipes 1207 and 2318.'
+    code: |
+      mine = df[(df["rating"] >= 4) __BLANK_1__ (df["user_id"] == 1101)]
+      others = df[__BLANK_2__df["recipe_id"].__BLANK_3__([1207, 2318])]
+    blanks:
+      '1': { accept: ['&'], hint: 'Both conditions.' }
+      '2': { accept: ['~'], hint: 'Flip the mask.' }
+      '3': { accept: [isin], hint: 'Is the id in the list?' }
+    hints:
+      - 'pandas uses symbols, not the words and/or/not.'
+    explanation: '`&` for both, `~` to flip, `isin` for membership. The real runs keep [1207, 2318, 4415] and 19 rows.'
+
+  - id: and-two-tier
+    type: two-tier
+    skills: [combine-masks]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: combine }
+    prompt: 'What does `df[df["rating"] >= 4 & df["user_id"] == 1101]` (no inner parentheses) do?'
+    options: ['Raises ValueError', 'Keeps user 1101''s 4+ reviews', 'Keeps every 4+ review']
+    answer: 0
+    optionFeedback:
+      '1': 'Only with each condition in parentheses.'
+      '2': 'Python never gets to filter; it stops with an error.'
+    reasons:
+      - '`&` binds tighter than `>=`, so `4 & df["user_id"]` is computed first and the comparisons chain'
+      - 'pandas does not allow two conditions in one filter'
+      - 'The column names are misspelled'
+    reasonAnswer: 0
+    reasonFeedback:
+      '1': 'It does, with `&` and parentheses.'
+      '2': 'The names are right; the order of operations is the problem.'
+    hints:
+      - 'Which runs first in Python: `&` or `>=`?'
+    explanation: 'The real run raises `ValueError: The truth value of a Series is ambiguous`. Write `(df["rating"] >= 4) & (df["user_id"] == 1101)`.'
+
+  - id: not-mcq
+    type: mcq
+    skills: [combine-masks]
+    difficulty: 2
+    tags: [code]
+    prompt: 'Keep the reviews of every recipe **except** those in `seen`. Which line?'
+    options: ['`df[~df["recipe_id"].isin(seen)]`', '`df[df["recipe_id"] != seen]`', '`df[not df["recipe_id"].isin(seen)]`', '`df[df["recipe_id"].isin(seen)]`']
+    answer: 0
+    optionFeedback:
+      '1': '`!=` compares element by element with a list of another length; it does not test membership.'
+      '2': '`not` asks the whole column for one True/False: ValueError.'
+      '3': 'That keeps only the seen recipes.'
+    variants:
+      - prompt: 'Keep the users who did **not** give any 0 rating. You have `zero_users = df[df["rating"] == 0]["user_id"]`. Which line?'
+        options: ['`df[df["user_id"].isin(zero_users)]`', '`df[~df["user_id"].isin(zero_users)]`', '`df[df["rating"] != 0]`', '`df[-df["user_id"] == zero_users]`']
+        answer: 1
+        optionFeedback:
+          '0': 'That keeps exactly the users who did give a 0.'
+          '2': 'That drops the 0 rows but keeps those users'' other reviews.'
+          '3': 'That negates the ids and compares unequal-length data.'
+      - prompt: 'Keep recipes that are **neither** desserts **nor** breakfast (a `course` column). Which line?'
+        options: ['`df[(df["course"] != "dessert") | (df["course"] != "breakfast")]`', '`df[~df["course"].isin(["dessert", "breakfast"])]`', '`df[df["course"] != "dessert" & "breakfast"]`', '`df[df["course"].isin(["dessert", "breakfast"])]`']
+        answer: 1
+        optionFeedback:
+          '0': 'With `|` every row passes: a dessert is not breakfast. "Neither … nor" needs `&` here, or `~isin`.'
+          '2': 'That is not valid pandas: `"dessert" & "breakfast"` is an error.'
+          '3': 'That keeps only those two courses.'
+    hints:
+      - '"Except" and "not" mean flip a mask with `~`.'
+    explanation: '`~mask.isin(list)` is the clean way to say "not one of these".'
+
+  # =============================================================== missing-mask
+  - id: unrated-count
+    type: numeric
+    skills: [missing-mask]
+    difficulty: 1
+    tags: [code]
+    generator: unratedQ
+    lessonRef: { tab: math-code, id: unrated }
+    prompt: |
+      {=matrix}
+
+      How many recipes does `row = util.loc[{=user}]; row[row.isna()]` hold?
+    answer: { var: unrated, tol: 0 }
+    hints:
+      - 'Look along user {=user}''s row.'
+      - '`isna` is True on the NaN cells.'
+    explanation: 'User {=user}''s NaN cells are recipes {=ids}: {=unrated} candidates.'
+
+  - id: unrated-code-fill
+    type: code-fill
+    skills: [missing-mask, sort-tiebreak]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: application, id: top-list }
+    prompt: 'Rank only the recipes the user has not rated, best mean first, ties by increasing id.'
+    code: |
+      row = util.loc[user]
+      cand = means[row[row.__BLANK_1__()].index]
+      ranked = cand.reset_index().sort_values(["rating", "recipe_id"], ascending=[__BLANK_2__, __BLANK_3__])
+    blanks:
+      '1': { accept: [isna, isnull], hint: 'True where the cell is NaN.' }
+      '2': { accept: ['False'], hint: 'Best first.' }
+      '3': { accept: ['True'], hint: 'Increasing id.' }
+    hints:
+      - 'Candidates first, then sort.'
+    explanation: '`isna()` picks the candidates; `ascending=[False, True]` sorts the mean down and the id up. For user 1245: [8233, 6110, 2318, 4415].'
+
+  - id: eq-nan-mcq
+    type: mcq
+    skills: [missing-mask]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: candidates }
+    prompt: 'User 1245 has 4 unrated recipes. What does `row[row == float("nan")].index.tolist()` return?'
+    options: ['`[]`', 'The 4 unrated ids', 'The 4 rated ids', 'A ValueError']
+    answer: 0
+    optionFeedback:
+      '1': 'Only `isna()` finds them. NaN never equals anything, itself included.'
+      '2': 'Nothing equals NaN, so nothing is kept.'
+      '3': 'The comparison runs fine; it is simply False everywhere.'
+    hints:
+      - 'Is NaN equal to NaN?'
+    explanation: 'The real run prints `[]`. Missing values are found with `isna()`, never with `==`.'
+
+  # =============================================================== pair-mask
+  - id: corated-count
+    type: numeric
+    skills: [pair-mask]
+    difficulty: 1
+    tags: [code]
+    generator: coratedQ
+    lessonRef: { tab: intuition, id: neighbours }
+    prompt: |
+      {=matrix}
+
+      What does `(util[{=target}].notna() & util[{=j}].notna()).sum()` give?
+    answer: { var: both, tol: 0 }
+    hints:
+      - 'Go down the two columns together.'
+      - 'Count the rows where both cells hold a rating.'
+    explanation: '{=both} users rated both. `|` would count {=either}; {=target} alone has {=one} raters.'
+
+  - id: neighbours-count
+    type: numeric
+    skills: [pair-mask]
+    difficulty: 2
+    tags: [code]
+    generator: coratedQ
+    lessonRef: { tab: math-code, id: neighbours }
+    prompt: |
+      Common raters with recipe {=target}:
+
+      {=commonMd}
+
+      The spec keeps neighbours with **at least {=k}** commonly rating users. How many neighbours does {=target} have?
+    answer: { var: ge, tol: 0 }
+    hints:
+      - '"At least {=k}" includes exactly {=k}.'
+    explanation: '{=ge} recipes have {=k} or more common raters; `> {=k}` would keep {=gt}.'
+
+  - id: neighbours-hand-calc
+    type: hand-calc
+    skills: [pair-mask]
+    difficulty: 3
+    tags: [code]
+    generator: coratedQ
+    lessonRef: { tab: math-code, id: neighbours }
+    prompt: |
+      {=matrix}
+
+      Target recipe {=target}; neighbours need at least {=k} common raters.
+    steps:
+      - prompt: 'Common raters of {=target} and {=j}'
+        answer: { var: both, tol: 0 }
+        hint: Rows with a rating in both columns.
+      - prompt: 'How many recipes (other than {=target}) are neighbours?'
+        answer: { var: ge, tol: 0 }
+        hint: Do the count for every other column, then apply `>= {=k}`.
+    hints:
+      - 'Work column by column against {=target}.'
+    explanation: |
+      Common raters with {=target}:
+
+      {=commonMd}
+
+      {=ge} pass `>= {=k}`.
+
+  - id: corated-code-fill
+    type: code-fill
+    skills: [pair-mask]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: neighbours }
+    prompt: 'Count common raters of the target with every other recipe, then keep neighbours with at least k.'
+    code: |
+      common = {j: (util[target].__BLANK_1__() __BLANK_2__ util[j].notna()).sum()
+                for j in util.columns if j __BLANK_3__ target}
+      neighbours = [j for j, c in common.items() if c >= k]
+    blanks:
+      '1': { accept: [notna, notnull], hint: 'True where a rating exists.' }
+      '2': { accept: ['&'], hint: 'Both.' }
+      '3': { accept: ['!='], hint: 'Skip the target itself.' }
+    hints:
+      - 'Co-rated means rated in both columns.'
+    explanation: '`notna() & notna()` marks users who rated both; `j != target` leaves the target out.'
+
+  - id: neighbours-parsons
+    type: order
+    skills: [pair-mask, missing-mask]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: neighbours }
+    prompt: 'Build the neighbours of `target` that `user` has rated. One line does not belong.'
+    code: true
+    items:
+      - 'common = {j: (util[target].notna() & util[j].notna()).sum() for j in util.columns if j != target}'
+      - 'neighbours = [j for j, c in common.items() if c >= k]'
+      - 'rated = util.loc[user].notna()'
+      - 'usable = [j for j in neighbours if rated[j]]'
+    distractors:
+      - 'common = {j: (util[target].notna() | util[j].notna()).sum() for j in util.columns}'
+    explanation: 'Count with `&`, skip the target, cut at `>= k`, then keep the neighbours the user rated. The decoy uses `|` and keeps the target.'
+
+  # =============================================================== relative-threshold / max-filter
+  - id: relsup-count
+    type: numeric
+    skills: [relative-threshold]
+    difficulty: 1
+    tags: [code]
+    generator: relSupportQ
+    lessonRef: { tab: math-code, id: thresholds }
+    prompt: |
+      There are {=n} baskets.
+
+      {=table}
+
+      How many tags are found in **at least {=pct}%** of the baskets?
+    answer: { var: ge, tol: 0 }
+    hints:
+      - 'Turn the percentage into a count first: {=frac} × {=n}.'
+      - '"At least" keeps the boundary.'
+    explanation: 'minsup = {=frac} × {=n} = {=minsup}. {=ge} tags reach it; `>` would keep {=gt}.'
+
+  - id: relsup-two-tier
+    type: two-tier
+    skills: [relative-threshold]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: thresholds }
+    prompt: '`tag_counts` holds how many of 8 recipes have each tag. What does `tag_counts[tag_counts >= 0.25]` keep?'
+    options: ['Every tag', 'Tags in at least 25% of recipes', 'No tag']
+    answer: 0
+    optionFeedback:
+      '1': 'Only if the counts were shares. These are counts: 1, 2, 3…'
+      '2': 'Every count is at least 1, which is more than 0.25.'
+    reasons:
+      - 'A count of at least 1 is always >= 0.25, so the fraction must become a count (0.25 × 8) or the counts shares'
+      - 'pandas converts percentages automatically'
+      - '0.25 is rounded to 0'
+    reasonAnswer: 0
+    reasonFeedback:
+      '1': 'pandas compares the numbers you give it, nothing more.'
+      '2': 'Nothing is rounded.'
+    hints:
+      - 'What kind of numbers does `tag_counts` hold?'
+    explanation: 'Compare like with like: `tag_counts >= len(recipes) * 0.25`, or `tag_counts / len(recipes) >= 0.25`.'
+
+  - id: largest-count
+    type: numeric
+    skills: [max-filter]
+    difficulty: 1
+    tags: [code]
+    generator: largestQ
+    lessonRef: { tab: math-code, id: thresholds }
+    prompt: |
+      {=table}
+
+      How many rows does `df[df["size"] == df["size"].max()]` keep?
+    answer: { var: nMax, tol: 0 }
+    misconceptions:
+      - { var: max, feedback: 'That is the largest size. The question asks how many baskets have it.' }
+    hints:
+      - 'Find the largest size, then count every basket of that size.'
+    explanation: 'The maximum size is {=max}, and {=nMax} baskets have it. `nlargest(1)` would keep only one.'
+
+  - id: largest-mcq
+    type: mcq
+    skills: [max-filter]
+    difficulty: 2
+    tags: [code]
+    prompt: 'A spec asks for "all the largest frequent itemsets". `freq` has a `size` column. Which line?'
+    options: ['`freq.nlargest(1, "size")`', '`freq[freq["size"] == freq["size"].max()]`', '`freq.sort_values("size").tail(1)`', '`freq[freq["size"] > freq["size"].mean()]`']
+    answer: 1
+    optionFeedback:
+      '0': 'Keeps one itemset even when several tie at the maximum size.'
+      '2': 'Also keeps a single row.'
+      '3': 'Above-average sizes include more than the largest.'
+    hints:
+      - '"All the largest" includes ties.'
+    explanation: '`== max()` keeps every row tied at the maximum.'
+
+  - id: rules-count
+    type: numeric
+    skills: [combine-masks, relative-threshold]
+    difficulty: 2
+    tags: [code]
+    generator: rulesQ
+    lessonRef: { tab: math-code, id: ranking }
+    prompt: |
+      {=table}
+
+      Keep rules with support **at least 0.25** and confidence **at least 0.8**. How many rules are kept?
+    answer: { var: and, tol: 0 }
+    hints:
+      - 'Both thresholds must hold.'
+      - 'A support of exactly 0.25 passes.'
+    explanation: '{=and} rules pass both. With `|`: {=or}; with support `> 0.25`: {=gt}.'
+
+  # =============================================================== sort-tiebreak / read-asserts
+  - id: topk-kth
+    type: numeric
+    skills: [sort-tiebreak]
+    difficulty: 2
+    tags: [code]
+    generator: topkQ
+    lessonRef: { tab: intuition, id: ranking }
+    prompt: |
+      {=table}
+
+      Sort by score, highest first, ties by **increasing** recipe id. Which recipe id is in place {=k}?
+    answer: { var: kth, tol: 0 }
+    hints:
+      - 'Order by score first; look for equal scores near place {=k}.'
+      - 'Among equal scores, the smaller id comes first.'
+    explanation: 'The top {=k}: {=ranked}. Place {=k} is {=kth}; breaking the tie by the larger id would give {=kthSlip}.'
+
+  - id: sort-code-fill
+    type: code-fill
+    skills: [sort-tiebreak]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: ranking }
+    prompt: 'Rank rules by decreasing lift, then by antecedent in alphabetical order, and keep the top 10.'
+    code: |
+      ranked = strong.sort_values(["__BLANK_1__", "antecedent"], ascending=[__BLANK_2__, __BLANK_3__])
+      top10 = ranked.head(10)
+    blanks:
+      '1': { accept: [lift], hint: 'The first key.' }
+      '2': { accept: ['False'], hint: 'Decreasing.' }
+      '3': { accept: ['True'], hint: 'Alphabetical.' }
+    hints:
+      - 'One ascending flag per key, in the same order.'
+    explanation: '`ascending=[False, True]`: lift down, antecedent up. On food-mini, `breakfast` comes before `main-dish` at lift 2.667.'
+
+  - id: sort-parsons
+    type: order
+    skills: [sort-tiebreak, missing-mask]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: application, id: top-list }
+    prompt: 'Build `top_for(user)`: the 10 best unrated recipes by mean rating, ties by increasing id. One line does not belong.'
+    code: true
+    items:
+      - 'def top_for(user):'
+      - '    util = create_utility_matrix()'
+      - '    row = util.loc[user]'
+      - '    cand = means[row[row.isna()].index]'
+      - '    ranked = cand.reset_index().sort_values(["rating", "recipe_id"], ascending=[False, True])'
+      - '    return ranked["recipe_id"].head(10).tolist()'
+    distractors:
+      - '    cand = means[row.dropna().index]'
+    explanation: 'Load, take the row, keep the NaN cells, sort on two keys, return the top 10. The decoy ranks rated recipes.'
+
+  - id: assert-read
+    type: mcq
+    skills: [read-asserts]
+    difficulty: 2
+    tags: [code]
+    generator: assertQ
+    lessonRef: { tab: intuition, id: candidates }
+    prompt: |
+      {=code}
+
+      {=out}
+
+      What is wrong?
+    hints:
+      - 'ACTUAL is your value, DESIRED is the test''s. What kind of item is ACTUAL?'
+    explanation: 'ACTUAL {=actual}, DESIRED {=desired}: the first difference points straight at the condition.'
+
+  - id: assert-mcq
+    type: mcq
+    skills: [read-asserts, combine-masks]
+    difficulty: 2
+    tags: [code]
+    prompt: |
+      A filter on two thresholds fails its test:
+
+      ```text
+      AssertionError:
+      Items are not equal:
+       ACTUAL: 41
+       DESIRED: 12
+      ```
+      `ACTUAL` is `len(result)`. What is the most likely cause?
+    options: ['The conditions are joined with `|` or a threshold is too loose', 'A threshold is too strict', 'The sort order is wrong', 'The test is wrong']
+    answer: 0
+    optionFeedback:
+      '1': 'A stricter filter keeps fewer rows, not more.'
+      '2': 'Sorting does not change how many rows there are.'
+      '3': 'Suspect your filter first: you kept far more rows than expected.'
+    variants:
+      - prompt: |
+          `top10` fails:
+          ```text
+          Items are not equal:
+          item=9
+           ACTUAL: 5170
+           DESIRED: 4957
+          ```
+          Items 0 to 8 match. What is the most likely cause?
+        options: ['A tie at place 10 broken the wrong way', 'The wrong file was read', 'The filter used `|`', 'Rated items were not removed']
+        answer: 0
+        optionFeedback:
+          '1': 'Nine items match; the data is right.'
+          '2': 'A wrong filter would usually change earlier items too.'
+          '3': 'That would usually change earlier items too.'
+      - prompt: |
+          `candidates(user)` fails:
+          ```text
+          Items are not equal:
+          item=0
+           ACTUAL: 1207
+           DESIRED: 2318
+          ```
+          The user rated 1207. What is the most likely cause?
+        options: ['The tie-break', '`notna` or `dropna` was used instead of `isna`', 'The ids are not sorted', 'The wrong user row']
+        answer: 1
+        optionFeedback:
+          '0': 'Candidates are not sorted by score here.'
+          '2': 'Sorting would not put a rated recipe in the list.'
+          '3': 'Possible, but ACTUAL is a recipe this user rated, which points at the mask.'
+    hints:
+      - 'More rows than expected, or a single late item, or a wrong first item: each points somewhere different.'
+    explanation: 'Too many rows → a loose or `|` filter. One late item → a tie at the cut-off. A rated item among candidates → the wrong missing-value mask.'
+
+  - id: tie-find-error
+    type: find-error
+    skills: [read-asserts, sort-tiebreak]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: ranking }
+    prompt: 'The test fails with item=4, ACTUAL 7064, DESIRED 5021. Which line is first wrong?'
+    code: true
+    steps:
+      - 'means = interactions.groupby("recipe_id")["rating"].mean()'
+      - 'top = means.reset_index().sort_values(["rating", "recipe_id"], ascending=[False, False])'
+      - 'result = top["recipe_id"].head(5).tolist()'
+      - 'assert_equal(result, [8233, 1207, 6110, 2318, 5021])'
+    wrong: 1
+    stepFeedback:
+      '0': 'The means are right: 5021 and 7064 both average 4.0.'
+      '2': 'Taking five is right; the order before it is not.'
+      '3': 'The test states the spec; trust it.'
+    hints:
+      - '5021 and 7064 have the same mean.'
+    explanation: 'The second key sorts ids descending, so 7064 beats 5021 at the tie. Use `ascending=[False, True]`.'
+
+  - id: spec-match
+    type: match
+    skills: [combine-masks, relative-threshold, missing-mask, pair-mask, max-filter]
+    difficulty: 2
+    tags: [code]
+    prompt: 'Match each spec phrase with its pandas condition.'
+    pairs:
+      - ['"items the user has not rated"', '`row[row.isna()]`']
+      - ['"at least 25 commonly rating users"', '`(util[a].notna() & util[b].notna()).sum() >= 25`']
+      - ['"found in at least 25% of baskets"', '`counts >= len(baskets) * 0.25`']
+      - ['"support at least 0.25 and confidence at least 0.8"', '`(sup >= 0.25) & (conf >= 0.8)`']
+      - ['"all the largest baskets"', '`df[df["size"] == df["size"].max()]`']
+    hints:
+      - 'Look for the words "not", "and", "at least" and "all".'
+    explanation: 'Each phrase is one mask; "at least" is `>=`, "and" is `&`, "not rated" is `isna`, "all the largest" keeps ties.'
+
+  # =============================================================== transfer (application)
+  - id: hotel-mask-mcq
+    type: mcq
+    skills: [combine-masks, relative-threshold]
+    difficulty: 2
+    tags: [application]
+    prompt: |
+      A hotel dataset `stats` has one row per hotel with `n_reviews` and `avg`. The spec: *"hotels with more than 30
+      reviews and an average of at least 4.5"*. Which line?
+    options:
+      - '`stats[(stats["n_reviews"] > 30) & (stats["avg"] >= 4.5)]`'
+      - '`stats[(stats["n_reviews"] >= 30) & (stats["avg"] >= 4.5)]`'
+      - '`stats[(stats["n_reviews"] > 30) | (stats["avg"] >= 4.5)]`'
+      - '`stats[stats["n_reviews"] > 30 and stats["avg"] >= 4.5]`'
+    answer: 0
+    optionFeedback:
+      '1': '"More than 30" excludes exactly 30: `>`.'
+      '2': '`|` keeps hotels passing either condition.'
+      '3': '`and` raises ValueError on columns.'
+    hints:
+      - '"More than" vs "at least", and "and" as `&`.'
+    explanation: 'Copy each phrase exactly: `> 30`, `>= 4.5`, joined with `&`, each in parentheses.'
+
+  - id: grocery-rules-mcq
+    type: mcq
+    skills: [combine-masks, sort-tiebreak]
+    difficulty: 2
+    tags: [application]
+    prompt: |
+      A grocery `rules` table has `antecedent`, `consequent` (a tuple), `confidence` and `lift`. The spec: *"rules with
+      confidence of at least 0.6 and a single-item consequent, sorted by decreasing lift"*. Which line filters?
+    options:
+      - '`rules[(rules["confidence"] >= 0.6) & (rules["consequent"].str.len() == 1)]`'
+      - '`rules[(rules["confidence"] >= 0.6) & (rules["consequent"] == 1)]`'
+      - '`rules[(rules["confidence"] > 0.6) & (rules["consequent"].str.len() == 1)]`'
+      - '`rules[rules["confidence"] >= 0.6].head(1)`'
+    answer: 0
+    optionFeedback:
+      '1': 'That compares each tuple with the number 1, which is never equal. Measure its length.'
+      '2': '"At least 0.6" includes 0.6: `>=`.'
+      '3': '`head(1)` keeps one rule, not one-item consequents.'
+    hints:
+      - 'How do you test a tuple''s size in a column?'
+    explanation: '`.str.len()` works on tuples and lists in a column; then sort by lift.'
+
+  - id: book-case
+    type: case
+    skills: [missing-mask, pair-mask, sort-tiebreak, read-asserts]
+    difficulty: 3
+    tags: [application]
+    prompt: |
+      **A book recommender.** `util` is users × books (NaN = unread). The spec: *"`recommend(user)` returns the 5 best
+      **unread** books by predicted score, ties by increasing book id, using only neighbour books with **at least 20**
+      common readers."*
+    parts:
+      - type: code-fill
+        prompt: Complete the candidates and the common-reader count.
+        code: |
+          row = util.loc[user]
+          candidates = row[row.__BLANK_1__()].index
+          common = (util[b].notna() __BLANK_2__ util[j].notna()).sum()
+          keep = common __BLANK_3__ 20
+        blanks:
+          '1': { accept: [isna, isnull] }
+          '2': { accept: ['&'] }
+          '3': { accept: ['>='] }
+        explanation: 'Unread = `isna`; common readers need both columns (`&`); "at least" is `>=`.'
+      - type: mcq
+        prompt: Which sort gives the spec's order?
+        options: ['`sort_values(["score", "book_id"], ascending=[False, True])`', '`sort_values("score", ascending=False)`', '`sort_values(["score", "book_id"], ascending=False)`', '`nlargest(5, "score")`']
+        answer: 0
+        shuffle: false
+        optionFeedback:
+          '1': 'No tie-break: tied books come in whatever order pandas left them.'
+          '2': 'That sorts the ids descending too.'
+          '3': 'nlargest keeps the current order for ties, not the spec''s.'
+        explanation: 'Two keys, two directions: score down, id up.'
+      - type: mcq
+        prompt: 'The test fails: item=0, ACTUAL a book the user already read. What do you fix?'
+        options: ['The candidate mask', 'The tie-break', 'The neighbour threshold', 'Nothing: the test is wrong']
+        answer: 0
+        shuffle: false
+        optionFeedback:
+          '1': 'A tie-break reorders candidates; it cannot add a read book.'
+          '2': 'Neighbours affect scores, not which books are candidates.'
+          '3': 'A read book must never be recommended.'
+        explanation: 'A read book in the output means the candidate mask kept rated cells: `isna`, not `notna`.'
+    hints:
+      - 'Candidates, neighbours, ranking: three separate conditions.'
+    explanation: 'Unread books by `isna`, neighbours by `(a.notna() & b.notna()).sum() >= 20`, ranking by two keys, and ACTUAL/DESIRED to locate the slip.'
+
+  - id: explain-conditions
+    type: explain
+    skills: [combine-masks, read-asserts]
+    difficulty: 2
+    tags: [code]
+    prompt: 'A spec has three conditions and your result fails the test. Explain how you would find which condition is wrong without rewriting everything.'
+    model: |
+      Build each condition as its own mask and print its `.sum()` against what the spec implies. Then combine them
+      with `&` (or `|` where the spec says "or"), each in parentheses. Compare ACTUAL with DESIRED: too many rows means
+      a loose condition or `|`, a wrong first item points at the mask, and one late item at a tie.
+    checklist:
+      - 'Checks each mask separately with `.sum()`'
+      - 'Combines with `&`/`|` and parentheses as the spec words it'
+      - 'Uses ACTUAL and DESIRED to narrow down the cause'
+    explanation: 'Debug selections one condition at a time.'

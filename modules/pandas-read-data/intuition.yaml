@@ -1,0 +1,582 @@
+scenes:
+  # ================================================================== 1. a folder you have never seen
+  - id: new-folder
+    title: A folder you have never seen
+    goal: 'The spec says "the data is in this folder". Which file do you actually read?'
+    skills: [find-files]
+    derive:
+      - { fn: folderTree, in: {}, out: ft }
+      - { fn: realCell, in: { key: pd.explore.train_shape }, out: trs }
+      - { fn: realCell, in: { key: pd.explore.train_cols }, out: trc }
+    stage:
+      - id: folder
+        widget: Tree
+        props: { root: '@ft.root', collapsed: true }
+      - id: listing
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **Real output**
+
+            ```python
+            sorted(os.listdir(DATA))
+            ```
+            {=ft.listed}
+      - id: train-note
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **`interactions_train.csv`** (real output)
+
+            `.shape` → {=trs.printed}
+
+            `.columns` → {=trc.printed}
+      - id: sort-files
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: raw-i, label: '`RAW_interactions.csv`' }
+            - { id: raw-r, label: '`RAW_recipes.csv`' }
+            - { id: readme, label: '`README.txt`' }
+            - { id: train, label: '`interactions_train.csv`' }
+          bins:
+            - { id: use, label: 'Read it for "every rating"' }
+            - { id: other, label: 'Holds something else' }
+            - { id: trap, label: 'Looks right, but is a subset' }
+          solution: { raw-i: use, raw-r: other, readme: other, train: trap }
+    beats:
+      - say: |
+          This module's data is real: download [RAW_interactions.csv](/api/modules/pandas-read-data/files/assets/food-mini/RAW_interactions.csv),
+          [RAW_recipes.csv](/api/modules/pandas-read-data/files/assets/food-mini/RAW_recipes.csv),
+          [interactions_train.csv](/api/modules/pandas-read-data/files/assets/food-mini/interactions_train.csv) and
+          [README.txt](/api/modules/pandas-read-data/files/assets/food-mini/README.txt) to follow along in a notebook. The spec you get reads: *"The data is in
+          `/mnt/data/public/food-mini`. Build a utility matrix of recipe ratings."*
+      - say: |
+          `/mnt/data/public/food-mini` is a **file path**: the address of a folder, written folder by folder. A file
+          inside it adds `/` and the file's name. Open the folder.
+        define: [file-path]
+        do:
+          - { target: folder, cmd: expand, args: { id: folder } }
+        gate:
+          type: predict
+          question: 'Which file most likely holds every rating?'
+          options: ['`RAW_recipes.csv`', '`interactions_train.csv`', '`RAW_interactions.csv`', '`README.txt`']
+          answer: 2
+          optionFeedback:
+            '0': 'Recipes hold names, minutes and tags. Ratings are about a user *and* a recipe, so they live in the interactions.'
+            '1': 'Close, and a common trap. "train" means a pre-split part of the data, not all of it.'
+            '3': 'The README describes the files; it holds no data rows. Read it first, though.'
+          explain: |
+            Ratings link a user to a recipe, so they are in the interactions file. Of the two interactions files,
+            `RAW_` is the complete one; `_train` is a subset made for a model.
+      - say: |
+          In a notebook you list a folder with `os.listdir`. Sorting the names makes the list easy to read. This is
+          the real output for this folder.
+        show: [listing]
+      - say: |
+          Why not the `_train` file? Read it and look: {=trs.printed} rows and columns, with two extra code columns
+          `u` and `i`. The full file has 30 reviews. Counting ratings in the wrong file changes every answer after it.
+        show: [train-note]
+        do:
+          - { target: folder, cmd: highlight, args: { sel: 'node:f3', tone: warn } }
+      - say: Sort the four files by what they are for.
+        show: [sort-files]
+        gate:
+          type: event
+          prompt: Put each file in the right bin.
+          target: sort-files
+          event: solved
+      - say: A new dataset, a new folder. Same move.
+        gate:
+          type: practice
+          template: which-file-mcq
+    takeaway: 'List the folder, read the README, and pick the file that holds the whole of what the spec asks about.'
+
+  # ================================================================== 2. peek, then read
+  - id: peek-then-read
+    title: Peek, then read
+    goal: 'What does a CSV file look like before pandas touches it, and what happens when the path is wrong?'
+    skills: [peek-file, read-csv]
+    derive:
+      - { fn: realCell, in: { key: pd.explore.peek }, out: pk }
+      - { fn: realCell, in: { key: pd.explore.read }, out: rd }
+      - { fn: realCell, in: { key: pd.explore.read_noprefix }, out: np }
+      - { fn: interactionsView, in: { n: 3 }, out: iv }
+    stage:
+      - id: peek
+        widget: Text
+        props:
+          body: |
+            **Peek at the first 3 lines** (real output)
+
+            {=pk.codeMd}
+            {=pk.out}
+      - id: quoted
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Line 4 of the same file:
+
+            ```text
+            {=iv.lines.3}
+            ```
+      - id: read
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **Read it** (real output)
+
+            {=rd.codeMd}
+            {=rd.out}
+      - id: bare
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            **Without the folder** (real output)
+
+            {=np.codeMd}
+            {=np.out}
+    beats:
+      - say: |
+          A **CSV file** is plain text: one record per line, values separated by commas. Before you read it with
+          pandas, print its first few lines. This loop prints three.
+        define: [csv]
+      - say: |
+          The first line holds the column names, not data. That is the **header row**. Count its names: these are
+          the columns you will get.
+        define: [header-row]
+      - say: Now look at line 4. Its review contains a comma.
+        show: [quoted]
+        gate:
+          type: predict
+          question: How many values does line 4 hold?
+          answer: { value: 5, tol: 0 }
+          explain: |
+            Five. The review is wrapped in double quotes, so the comma inside it is part of the text, not a
+            separator. Splitting at every comma would give 6.
+      - say: |
+          **pandas** is the Python library for tables that fit in memory. Its `read_csv` function reads the file
+          at a path into a **DataFrame**: a table with labelled rows and named columns.
+        define: [pandas, read-csv-fn, dataframe]
+        show: [read]
+      - say: |
+          `shape` gives the size as (rows, columns): {=rd.printed}. Thirty reviews, five columns, as the header
+          promised. Check it after every read.
+        define: [shape]
+      - say: |
+          Now drop the folder from the path. Python looks for the file in the notebook's own folder and raises a
+          **FileNotFoundError**. The last line of the error report, the **traceback**, is the part to read first.
+        show: [bare]
+        define: [file-not-found-error, traceback]
+      - say: 'Your turn: one more peeked line.'
+        gate:
+          type: practice
+          template: peek-values
+    takeaway: 'Peek to learn the columns and quoting; read with the full path; check shape straight away.'
+
+  # ================================================================== 3. look before computing
+  - id: look-first
+    title: Look before you compute
+    goal: 'The table loaded without an error. Is it ready for counting and averaging?'
+    skills: [inspect-frame, threshold-filter]
+    data: [foodmini]
+    derive:
+      - { fn: realCell, in: { key: pd.explore.dtypes }, out: dt }
+      - { fn: realCell, in: { key: pd.explore.ratings_vc }, out: vc }
+      - { fn: realCell, in: { key: pd.explore.col_typo }, out: ty }
+      - { fn: checkValueCounts, in: {}, out: cvc }
+    stage:
+      - id: dtypes
+        widget: Text
+        props:
+          body: |
+            {=dt.codeMd}
+            {=dt.out}
+      - id: vc
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            {=vc.codeMd}
+            {=vc.out}
+      - id: typo
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            {=ty.codeMd}
+            {=ty.out}
+      - id: checks
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: zeros, label: 'Two ratings are 0' }
+            - { id: dates, label: 'Dates are text, not dates' }
+            - { id: rows, label: 'The file has 19 rows, not 30' }
+            - { id: lists, label: 'The tags column holds text' }
+            - { id: users, label: 'There are only 8 users' }
+          bins:
+            - { id: shape, label: '`.shape`' }
+            - { id: dtypes, label: '`.dtypes`' }
+            - { id: vc, label: '`.value_counts()`' }
+            - { id: nunique, label: '`.nunique()`' }
+          solution: { zeros: vc, dates: dtypes, rows: shape, lists: dtypes, users: nunique }
+    beats:
+      - say: |
+          `dtypes` lists the **dtype** of each column: `int64` for whole numbers, `object` for text. Ratings are whole
+          numbers. Dates came in as text.
+        define: [dtype]
+      - say: |
+          Recipe 3542 (pancit canton) has four reviews with ratings 5, 0, 4 and 5. You count its ratings with a
+          **groupby count**: `groupby("recipe_id")["rating"].count()`.
+        define: [group-count]
+        gate:
+          type: predict
+          question: What count does pandas give recipe 3542?
+          options: ['3', '4', '14', '5']
+          answer: 1
+          optionFeedback:
+            '0': 'That leaves out the 0. `count()` counts every value that is not missing, and 0 is a value.'
+            '2': 'That is the sum of the ratings, not how many there are.'
+            '3': 'There are only four rows for 3542.'
+          explain: '`count()` counts non-missing values. The 0 is a value, so the count is 4.'
+      - say: |
+          So what is a 0? **value_counts** shows every distinct rating and how often it appears. Only
+          {=cvc.zeros} rows have 0: in Food.com, a review written without giving stars.
+        define: [value-counts]
+        show: [vc]
+      - say: |
+          Whether a 0 counts as a rating is the spec's call, and the course conventions'. What matters is that you
+          *saw* it before averaging: a mean over 5, 0, 4, 5 is 3.5, over 5, 4, 5 it is 4.67.
+        gate:
+          type: reflect
+          prompt: Why run value_counts on a column before you average or count it?
+          model: |
+            Because a column can hold values that mean something special, such as 0 for "no stars" or -1 for
+            "unknown". They are valid numbers, so nothing raises an error, but they change every count and mean.
+            Seeing the distinct values first lets you decide, with the spec, what to keep.
+      - say: |
+          One more check: column names. Ask for a column that isn't there and pandas raises a **KeyError** naming
+          what you typed. Copy names from `interactions.columns`.
+        define: [key-error]
+        show: [typo]
+      - say: Which check would have caught each surprise?
+        show: [checks]
+        gate:
+          type: event
+          prompt: Put each surprise under the check that reveals it.
+          target: checks
+          event: solved
+      - say: Count the star ratings yourself.
+        gate:
+          type: practice
+          template: star-ratings
+    takeaway: 'shape, dtypes and value_counts take seconds and catch the values that silently change counts and means.'
+
+  # ================================================================== 4. lists in disguise
+  - id: lists-in-disguise
+    title: Lists in disguise
+    goal: 'The tags column looks like a list. Why does every list operation on it give a strange answer?'
+    skills: [list-columns]
+    derive:
+      - { fn: tagsView, in: { row: 2 }, out: tv }
+      - { fn: realCell, in: { key: pd.tags.type_str }, out: ts }
+      - { fn: realCell, in: { key: pd.tags.in_str }, out: is }
+      - { fn: realCell, in: { key: pd.tags.in_list }, out: il }
+      - { fn: realCell, in: { key: pd.tags.converters }, out: cv }
+    stage:
+      - id: cell
+        widget: Text
+        props:
+          body: |
+            `recipes.loc[2, "tags"]` (pancit canton), as read:
+
+            ```text
+            {=tv.s}
+            ```
+      - id: counts
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'characters in the text', value: '{=tv.chars}', tone: bad }
+            - { label: 'tags in the list', value: '{=tv.n}', tone: good }
+      - id: typeout
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            `type(recipes.loc[0, "tags"])` → {=ts.printed}
+      - id: fixed
+        widget: Code
+        region: bottom
+        hidden: true
+        props:
+          title: Read it as lists
+          source: |
+            import ast
+
+            recipes = pd.read_csv(DATA + "/RAW_recipes.csv",
+                                  converters={"tags": ast.literal_eval})
+      - id: sort-ops
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: len-chars, label: '`len(...)` gives {=tv.chars}' }
+            - { id: len-items, label: '`len(...)` gives {=tv.n}' }
+            - { id: in-true, label: '`"dinner" in ...` gives `True`' }
+            - { id: in-false, label: '`"dinner" in ...` gives `False`' }
+            - { id: explode, label: '`explode()` gives one row per tag' }
+          bins:
+            - { id: text, label: 'The text, as read' }
+            - { id: list, label: 'The list, after `literal_eval`' }
+          solution: { len-chars: text, len-items: list, in-true: text, in-false: list, explode: list }
+    beats:
+      - say: |
+          A CSV holds only text. When Food.com saved each recipe's list of tags, it wrote the list's printed form.
+          pandas reads it back as one string: a **list saved as text**.
+        define: [stringified-list]
+        show: [typeout]
+      - say: Pancit canton has the tag `dinner-party` but no tag `dinner`.
+        gate:
+          type: predict
+          question: 'What does `"dinner" in recipes.loc[2, "tags"]` give on the text as read?'
+          options: ['`False`', '`True`', '`TypeError`', '`NaN`']
+          answer: 1
+          optionFeedback:
+            '0': 'It would be False on a real list. On a string, `in` looks for a substring, and `dinner` is inside `dinner-party`.'
+            '2': '`in` works on strings; it tests for a substring.'
+            '3': 'The cell is not missing; it holds a long string.'
+          explain: 'The real run prints {=is.printed}: on a string, `in` finds `dinner` inside `dinner-party`.'
+      - say: |
+          **ast.literal_eval** reads a string holding a Python value, such as a list, and returns the real value.
+          Pass it to `read_csv` as one of its **converters**, and every tag cell is a list as soon as the file is read.
+        define: [literal-eval, converters]
+        show: [fixed]
+      - say: |
+          After the converter, `type` and `len` give {=cv.printed}: a list of 7 tags for chicken adobo. And the same
+          test on pancit canton is now {=il.printed}.
+      - say: Sort the results by what the cell held.
+        show: [sort-ops]
+        gate:
+          type: event
+          prompt: For pancit canton, put each result under the version of the tags cell that gives it.
+          target: sort-ops
+          event: solved
+      - say: Count tags, not characters.
+        gate:
+          type: practice
+          template: tags-items
+    takeaway: 'A list read from a CSV is text until you convert it. Use converters={"col": ast.literal_eval} when you read.'
+
+  # ================================================================== 5. count, cut, pivot
+  - id: count-cut-pivot
+    title: Count, cut, pivot
+    goal: '"Only recipes with at least 4 ratings": how does that sentence become a matrix?'
+    skills: [threshold-filter, pivot-matrix, loc-iloc]
+    state: { threshold: 4 }
+    derive:
+      - { fn: countsView, in: { threshold: '@threshold' }, out: cv }
+      - { fn: utilView, in: { threshold: '@threshold' }, out: uv }
+      - { fn: realCell, in: { key: pd.matrix.iloc_user }, out: iu }
+      - { fn: realCell, in: { key: pd.matrix.loc_user }, out: lu }
+    stage:
+      - id: counts
+        widget: Matrix
+        props: { rows: '@cv.rows', cols: '@cv.cols', values: '@cv.values', format: int, rowHeader: recipe_id, title: Ratings per recipe }
+      - id: util
+        widget: Matrix
+        hidden: true
+        props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 1, rowHeader: user_id, title: 'util: the utility matrix' }
+      - id: shape
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'recipes kept', value: '{=cv.nKeep}', tone: accent }
+            - { label: 'util.shape', value: '{=uv.shape}', tone: good }
+      - id: cut
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'keep recipes with at least t ratings', min: 1, max: 6, step: 1 }
+        bind: { value: threshold }
+      - id: iloc-out
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            {=iu.codeMd}
+            {=iu.out}
+    beats:
+      - say: |
+          Here are the real counts per recipe from `groupby count`. The spec keeps recipes with **at least 4**
+          ratings.
+        gate:
+          type: predict
+          question: How many recipes have at least 4 ratings?
+          answer: { value: 5, tol: 0 }
+          explain: '1207, 2318, 3542, 4415 and 7064 have 4 or more. "At least 4" includes exactly 4, so the code is `counts >= 4`.'
+      - say: |
+          "More than 4" would be `counts > 4` and keep only {=cv.nGt}. The two specs look alike and give different
+          matrices, so the tests fail on one of them.
+        do:
+          - { target: counts, cmd: highlight, args: { sel: ['row:3542', 'row:4415'], tone: warn } }
+      - say: |
+          **isin** marks each review whose recipe was kept; filtering keeps {=cv.rated} reviews. Then **pivot**
+          reshapes them: users become row labels, recipes become columns, ratings fill the cells.
+        define: [isin, pivot]
+      - say: |
+          That grid is the **ratings matrix**, or utility matrix. Empty cells hold **NaN**, pandas' "missing", and the
+          labels come out sorted. Move the threshold and watch it change.
+        define: [ratings-matrix, nan]
+        show: [util, shape, cut]
+        gate:
+          type: when
+          prompt: Move the threshold until the matrix keeps exactly 3 recipe columns.
+          when: 'cv.nKeep == 3'
+          hint: 'Watch "recipes kept" as you slide. Which recipes have 5 or more ratings?'
+      - say: |
+          Rows have two addresses. A **row label** is the name in the index, here a user id: `loc` uses it. A
+          **row position** counts from 0: `iloc` uses it. User 1101 has label 1101 and position 0.
+        set: { threshold: 4 }
+        define: [row-label, row-position]
+        do:
+          - { target: util, cmd: highlight, args: { sel: 'row:1101', tone: accent } }
+        gate:
+          type: predict
+          question: 'What does `util.iloc[1101]` do?'
+          options: ['Returns user 1101''s row', 'Raises an IndexError', 'Raises a KeyError', 'Returns an empty row']
+          answer: 1
+          optionFeedback:
+            '0': 'That is `util.loc[1101]`. `iloc` reads 1101 as a position: row number 1101.'
+            '2': 'A KeyError is what `loc` raises for a label that is missing. `iloc` deals in positions.'
+            '3': 'pandas does not give an empty row for a position past the end; it raises an error.'
+          explain: 'The matrix has 8 rows, positions 0 to 7. Position 1101 is past the end, so `iloc` raises an IndexError.'
+      - say: |
+          The real run agrees. An **IndexError** means a position past the end. Graded functions get a user *id*,
+          so they look it up with `loc`.
+        define: [index-error]
+        show: [iloc-out]
+      - say: 'Your turn: apply a cut to a fresh table.'
+        gate:
+          type: practice
+          template: keep-at-least
+      - say: And one lookup.
+        gate:
+          type: practice
+          template: loc-iloc-mcq
+    takeaway: 'Count, cut exactly as the spec says, isin, pivot. Then look users up by label with loc.'
+
+  # ================================================================== 6. the grader's fresh kernel
+  - id: fresh-kernel
+    title: "The grader's fresh kernel"
+    goal: 'Your function passed in your notebook. Why does it fail when the grader runs it?'
+    skills: [self-contained]
+    derive:
+      - { fn: realCell, in: { key: pd.funcs.uses_global }, out: g }
+      - { fn: realCell, in: { key: pd.fresh.uses_global }, out: fr }
+      - { fn: realCell, in: { key: pd.fresh_fixed.self_contained }, out: ok }
+      - { fn: realCell, in: { key: pd.funcs.no_return }, out: nr }
+    stage:
+      - id: yours
+        widget: Text
+        props:
+          body: |
+            **In your notebook** (cell 1 built `df_utility`), real output:
+
+            {=g.codeMd}
+            {=g.out}
+      - id: grader
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            **In a fresh kernel** (real output)
+
+            {=fr.out}
+      - id: fixed
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            **Self-contained, in a fresh kernel** (real output)
+
+            {=ok.codeMd}
+            {=ok.out}
+      - id: noret
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            **No return** (real output)
+
+            {=nr.codeMd}
+            {=nr.out}
+    beats:
+      - say: |
+          Behind every notebook runs a **kernel**: the Python that remembers your variables. A **restart** gives a
+          fresh one with nothing in it. Graders start fresh and run only the function and the test.
+        define: [kernel, restart]
+      - say: |
+          This `rated_by` works in your notebook: an earlier cell created `df_utility`. The midterm's 1b and 1c were
+          shaped like this: the function gets only a user.
+        gate:
+          type: predict
+          question: In a fresh kernel, what happens when the grader calls `rated_by(1502)`?
+          options: ['It returns `[1207, 2318, 4415, 7064]`', 'It returns an empty list', 'It raises a NameError', 'It reads the file automatically']
+          answer: 2
+          optionFeedback:
+            '0': 'Only if `df_utility` exists. In a fresh kernel no cell has created it.'
+            '1': 'Python does not invent an empty table; using an unknown name is an error.'
+            '3': 'Nothing reads the file unless your code says so.'
+          explain: 'No cell has created `df_utility` in the fresh kernel, so Python raises a NameError when the function uses it.'
+      - say: |
+          The real run: a **NameError**, raised inside `rated_by` on the line that uses `df_utility`.
+        define: [name-error]
+        show: [grader]
+      - say: |
+          The fix: build the matrix inside the function by calling your own `create_utility_matrix()`. In a fresh
+          kernel it now returns {=ok.printed}.
+        show: [fixed]
+      - say: |
+          One more way to fail: a function with no `return` hands back `None`, and the test's next step raises an
+          **AttributeError**.
+        define: [attribute-error]
+        show: [noret]
+      - say: Before the exam, put this in your own words.
+        gate:
+          type: reflect
+          prompt: Why should `item_recommend(user)` build the utility matrix itself instead of using one from an earlier cell?
+          model: |
+            The grader may run each function in a fresh kernel, where variables from other cells don't exist, so a
+            global gives a NameError. Calling the loader inside the function makes it work on its own, every time,
+            in any order.
+      - say: Build the self-contained version line by line.
+        gate:
+          type: practice
+          template: function-parsons
+    takeaway: 'A graded function gets only its arguments. It loads or builds its own data and returns its answer.'

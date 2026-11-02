@@ -1,0 +1,785 @@
+templates:
+  # =============================================================== find-files
+  - id: which-file-mcq
+    type: mcq
+    skills: [find-files]
+    difficulty: 1
+    tags: [application]
+    lessonRef: { tab: intuition, id: new-folder }
+    prompt: |
+      A spec says: *"Ratings are in `/mnt/data/public/hotel-mini`. Average each hotel's rating."* Listing the folder
+      gives `['README.txt', 'hotels.csv', 'reviews.csv', 'reviews_sample.csv']`. Which file do you read?
+    options: ['`hotels.csv`', '`reviews_sample.csv`', '`reviews.csv`', '`README.txt`']
+    answer: 2
+    optionFeedback:
+      '0': 'Hotels hold names and places. A rating links a reviewer to a hotel, so it is in the reviews.'
+      '1': 'A sample is a part of the data. Averages from it differ from the full file''s.'
+      '3': 'The README describes the files; read it, but it holds no data rows.'
+    variants:
+      - prompt: |
+          *"Use the song plays in `/mnt/data/public/music-mini` to find each user's top artist."* The folder holds
+          `['artists.csv', 'plays.csv', 'plays_test.csv', 'users.csv']`. Which file do you read?
+        options: ['`plays_test.csv`', '`plays.csv`', '`artists.csv`', '`users.csv`']
+        answer: 1
+        optionFeedback:
+          '0': '`_test` marks a held-out part, made for checking a model. The spec wants every play.'
+          '2': 'Artists hold names; plays link users to what they played.'
+          '3': 'Users hold who people are, not what they played.'
+      - prompt: |
+          *"Count how often each pair of products is bought together"*, data in `/mnt/data/public/shop-mini`:
+          `['baskets_2024.csv', 'baskets_2024_dedup_first100.csv', 'products.csv', 'README.md']`. Which file?
+        options: ['`products.csv`', '`README.md`', '`baskets_2024_dedup_first100.csv`', '`baskets_2024.csv`']
+        answer: 3
+        optionFeedback:
+          '0': 'Products hold names and prices; baskets hold what was bought together.'
+          '1': 'Read it to understand the files, but it has no data rows.'
+          '2': 'The name says it: first 100 baskets, with duplicates removed. Pair counts from it are wrong.'
+    hints:
+      - 'What does each file hold? Ratings link a person to a thing.'
+      - 'Watch for names that mark a part of the data: train, test, sample.'
+    explanation: |
+      Pick the file that holds **all** of what the spec asks about. Names with `train`, `test`, `sample` or
+      `first100` are subsets made for another purpose; counts and averages from them differ.
+
+  - id: file-match
+    type: match
+    skills: [find-files, read-csv]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: find-and-read }
+    prompt: 'Match each line with what it does in the food-mini notebook (`DATA = "/mnt/data/public/food-mini"`).'
+    pairs:
+      - ['`sorted(os.listdir(DATA))`', 'Lists the file names in the folder']
+      - ['`open(DATA + "/RAW_interactions.csv").readline()`', 'Returns the header line as text']
+      - ['`pd.read_csv(DATA + "/RAW_interactions.csv")`', 'Loads the whole file as a DataFrame']
+      - ['`pd.read_csv("RAW_interactions.csv")`', 'Raises FileNotFoundError from the notebook''s folder']
+      - ['`interactions.shape`', 'Gives (rows, columns)']
+    explanation: |
+      List, peek, read, check. A bare file name is looked for in the notebook's own folder, so it fails when the
+      data sits in `DATA`.
+
+  - id: books-which-file
+    type: mcq
+    skills: [find-files, read-csv]
+    difficulty: 2
+    tags: [application]
+    prompt: |
+      A Goodreads-style folder `/mnt/data/public/books-mini` holds `books.csv` (book id, title, author),
+      `ratings.csv` (user id, book id, rating) and `to_read.csv` (user id, book id). The spec: *"Keep books with
+      at least 50 ratings and build the users × books matrix."* Which first cell is right?
+    options:
+      - '`df = pd.read_csv("/mnt/data/public/books-mini/ratings.csv")`'
+      - '`df = pd.read_csv("ratings.csv")`'
+      - '`df = pd.read_csv("/mnt/data/public/books-mini/to_read.csv")`'
+      - '`df = pd.read_csv("/mnt/data/public/books-mini/books.csv")`'
+    answer: 0
+    optionFeedback:
+      '1': 'Without the folder, Python looks in the notebook''s own folder: FileNotFoundError.'
+      '2': '`to_read` lists books people *want* to read. It has no ratings.'
+      '3': '`books.csv` describes books; it has no users or ratings.'
+    hints:
+      - 'Which file links users to books with a rating?'
+      - 'Then check the path: is the folder in it?'
+    explanation: |
+      Ratings link a user to a book, so `ratings.csv`, read with its full path. `books.csv` is useful later, to put
+      titles on the recommended ids.
+
+  # =============================================================== peek-file
+  - id: peek-values
+    type: numeric
+    skills: [peek-file]
+    difficulty: 1
+    tags: [code]
+    generator: peekValuesQ
+    lessonRef: { tab: intuition, id: peek-then-read }
+    prompt: |
+      You peek at a CSV file. Its header is `{=header}`. One line reads:
+
+      ```text
+      {=line}
+      ```
+
+      How many values does that line hold?
+    answer: { value: 5, tol: 0 }
+    misconceptions:
+      - { value: 4, feedback: 'Count the review too: it is the fifth value, even with commas inside.' }
+    hints:
+      - 'The header names the columns. Each line has one value per column.'
+      - 'A comma inside double quotes is part of the text.'
+    explanation: |
+      Five, one per header name. The review is wrapped in double quotes, so its comma is not a separator; splitting
+      at every comma would give {=naive}.
+
+  - id: load-parsons
+    type: order
+    skills: [find-files, peek-file, read-csv]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: find-and-read }
+    prompt: 'Put the first cells of a notebook on an unfamiliar folder in a working order. One line does not belong.'
+    code: true
+    items:
+      - 'DATA = "/mnt/data/public/food-mini"'
+      - 'sorted(os.listdir(DATA))'
+      - 'print(open(DATA + "/RAW_interactions.csv").readline())'
+      - 'interactions = pd.read_csv(DATA + "/RAW_interactions.csv")'
+      - 'interactions.shape'
+    distractors:
+      - 'counts = interactions.groupby("recipe_id")["rating"].count()  # before the read'
+    explanation: |
+      Name the folder, list it, peek at the chosen file, read it, check its shape. Counting comes after the read
+      and the checks; a line that uses `interactions` before it exists raises a NameError.
+
+  # =============================================================== read-csv
+  - id: read-code-fill
+    type: code-fill
+    skills: [read-csv]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: find-and-read }
+    prompt: 'Complete the cell that reads the food-mini reviews and checks their size.'
+    code: |
+      import pandas as pd
+
+      DATA = "/mnt/data/public/food-mini"
+      interactions = pd.__BLANK_1__(DATA + "/__BLANK_2__")
+      interactions.__BLANK_3__
+    blanks:
+      '1': { accept: [read_csv], hint: 'r…' }
+      '2': { accept: [RAW_interactions.csv], hint: 'The README calls it the file with one row per review.' }
+      '3': { accept: [shape], hint: '(rows, columns)' }
+    hints:
+      - 'The pandas function is named after the file format.'
+      - 'Use the file the README describes as one row per review.'
+    explanation: '`pd.read_csv(DATA + "/RAW_interactions.csv")` then `.shape`, which prints `(30, 5)`.'
+
+  - id: path-two-tier
+    type: two-tier
+    skills: [read-csv]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: application, id: read-it }
+    prompt: |
+      The file `/mnt/data/public/food-mini/RAW_interactions.csv` exists. Your notebook is in your home folder. What
+      does `pd.read_csv("RAW_interactions.csv")` do?
+    options: ['Raises FileNotFoundError', 'Reads the file', 'Returns an empty DataFrame']
+    answer: 0
+    optionFeedback:
+      '1': 'Only if a copy of the file sits in the notebook''s own folder.'
+      '2': 'pandas does not invent an empty table for a missing file; it raises an error.'
+    reasons:
+      - 'A bare file name is looked for in the notebook''s own folder, not in the data folder'
+      - 'read_csv searches every folder on the server for the name'
+      - 'File names are case-sensitive, so `RAW_` does not match'
+    reasonAnswer: 0
+    reasonFeedback:
+      '1': 'Nothing searches for you. The path is the only place Python looks.'
+      '2': 'The case matches here. The problem is the missing folder.'
+    hints:
+      - 'Where does Python look for a bare file name?'
+    explanation: |
+      The real run raises `FileNotFoundError: [Errno 2] No such file or directory: 'RAW_interactions.csv'`. The
+      message shows the exact path Python tried: no folder. Use `DATA + "/RAW_interactions.csv"`.
+
+  # =============================================================== inspect-frame
+  - id: inspect-match
+    type: match
+    skills: [inspect-frame]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: check-the-load }
+    prompt: 'Match each check with what it tells you.'
+    pairs:
+      - ['`df.shape`', 'How many rows and columns there are']
+      - ['`df.dtypes`', 'Whether each column holds numbers or text']
+      - ['`df["rating"].value_counts()`', 'How often each rating appears, odd ones included']
+      - ['`df["user_id"].nunique()`', 'How many different users there are']
+      - ['`df.head()`', 'What the first few records look like']
+    explanation: 'Each takes one line and seconds; together they catch most loading surprises before you compute.'
+
+  - id: star-ratings
+    type: numeric
+    skills: [inspect-frame]
+    difficulty: 1
+    tags: [code]
+    generator: ratingStatsQ
+    lessonRef: { tab: intuition, id: look-first }
+    prompt: |
+      Recipe {=recipe}'s reviews (a rating of 0 is a review left without stars):
+
+      {=table}
+
+      How many **star ratings** does it have?
+    answer: { var: stars, tol: 0 }
+    misconceptions:
+      - { var: zeros, feedback: 'Those are the reviews *without* stars. Count the others.' }
+    hints:
+      - 'A star rating is 1 to 5.'
+      - 'Count every row except the 0s.'
+    explanation: '{=count} reviews, {=zeros} of them without stars: {=stars} star ratings.'
+
+  - id: count-with-zero
+    type: numeric
+    skills: [inspect-frame, threshold-filter]
+    difficulty: 2
+    tags: [code]
+    generator: ratingStatsQ
+    lessonRef: { tab: intuition, id: look-first }
+    prompt: |
+      Recipe {=recipe}'s reviews:
+
+      {=table}
+
+      What does `df.groupby("recipe_id")["rating"].count()` give for recipe {=recipe}?
+    answer: { var: count, tol: 0 }
+    misconceptions:
+      - { var: total, feedback: 'That is the sum of the ratings. `count()` counts values.' }
+    hints:
+      - '`count()` counts values that are not missing.'
+      - 'Is 0 a missing value?'
+    explanation: |
+      `count()` counts every non-missing value, and 0 is a value: {=count}. If a spec counts only star ratings,
+      filter `df[df["rating"] > 0]` first ({=stars}).
+
+  - id: mean-with-zero
+    type: numeric
+    skills: [inspect-frame]
+    difficulty: 2
+    tags: [code]
+    generator: ratingStatsQ
+    lessonRef: { tab: math-code, id: check-the-load }
+    prompt: |
+      Recipe {=recipe}'s reviews:
+
+      {=table}
+
+      What does `df["rating"].mean()` print for these rows? Give two decimals.
+    answer: { var: mean, tol: 0.006 }
+    misconceptions:
+      - { var: total, feedback: 'That is the sum. Divide by the number of values.' }
+    hints:
+      - '`mean()` adds every value and divides by how many there are.'
+      - 'The 0s are values too.'
+    explanation: |
+      {=total} ÷ {=count} = {=mean|2}. The 0s pull it down; star ratings alone average {=meanStars|2}. That is why
+      you run `value_counts` first.
+
+  - id: dtype-mcq
+    type: mcq
+    skills: [inspect-frame, list-columns]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: check-the-load }
+    prompt: '`recipes.dtypes` shows `tags  object`. What does that most likely mean for a column that should hold lists?'
+    options:
+      - 'Each cell is a string that looks like a list'
+      - 'Each cell is already a Python list'
+      - 'The column is missing'
+      - 'The tags are numbers'
+    answer: 0
+    optionFeedback:
+      '1': 'A CSV holds only text. Lists come back as their printed form until you convert them.'
+      '2': 'A missing column would not appear in `dtypes` at all.'
+      '3': 'Numbers show as int64 or float64.'
+    variants:
+      - prompt: '`interactions.dtypes` shows `date  object`. What will `interactions["date"].max()` compare?'
+        options: ['Text, character by character', 'Calendar dates', 'Numbers of days', 'It raises a TypeError']
+        answer: 0
+        optionFeedback:
+          '1': '`object` here means text. Parse it with `pd.to_datetime` (or `parse_dates=`) to get dates.'
+          '2': 'Nothing converted the dates to numbers.'
+          '3': 'Strings can be compared, so it runs; for `YYYY-MM-DD` text the order even happens to match.'
+      - prompt: '`interactions.dtypes` shows `rating  int64`. What does that rule out?'
+        options: ['Ratings stored as text', 'Ratings of 0', 'Missing users', 'Duplicate rows']
+        answer: 0
+        optionFeedback:
+          '1': '0 is a whole number; int64 allows it. Use `value_counts` to find 0s.'
+          '2': '`rating`''s type says nothing about the `user_id` column.'
+          '3': 'Types say nothing about repeated rows.'
+    hints:
+      - '`object` usually means text in pandas.'
+    explanation: |
+      `object` usually means text. A list or a date read from a CSV is text until you convert it
+      (`converters=`, `pd.to_datetime`).
+
+  # =============================================================== list-columns
+  - id: tags-chars
+    type: numeric
+    skills: [list-columns]
+    difficulty: 1
+    tags: [code]
+    generator: tagsQ
+    lessonRef: { tab: math-code, id: lists-as-text }
+    prompt: |
+      A recipe's `tags` cell, read with a plain `pd.read_csv`, is:
+
+      ```text
+      {=s}
+      ```
+
+      What does `.str.len()` give for this cell?
+    answer: { var: chars, tol: 0 }
+    misconceptions:
+      - { var: letters, feedback: 'That counts only the letters of the tags. `.str.len()` counts every character: brackets, quotes, commas and spaces too.' }
+    hints:
+      - 'Without a converter, the cell is one string.'
+      - 'Count every character: brackets, quotes, commas and spaces too.'
+    explanation: 'The cell is one string of {=chars} characters. It holds {=n} tags, but only after `ast.literal_eval` does `.str.len()` count them.'
+
+  - id: tags-items
+    type: numeric
+    skills: [list-columns]
+    difficulty: 1
+    tags: [code]
+    generator: tagsQ
+    lessonRef: { tab: intuition, id: lists-in-disguise }
+    prompt: |
+      The file stores a recipe's tags as `{=s}`. You read it with `converters={"tags": ast.literal_eval}`. What
+      does `.str.len()` give for this recipe?
+    answer: { var: n, tol: 0 }
+    misconceptions:
+      - { value: 1, feedback: 'With the converter, the cell is a list, not one string: count its items.' }
+    hints:
+      - 'After the converter, each cell is a Python list.'
+      - '`.str.len()` on a list gives the number of items.'
+    explanation: 'The converter turns the text into a list of {=n} tags ({=tagsMd}), so `.str.len()` gives {=n}.'
+
+  - id: tags-in-two-tier
+    type: two-tier
+    skills: [list-columns]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: lists-in-disguise }
+    prompt: |
+      Read without converters, a recipe's tags cell is `"['quick', 'pork-belly', 'dinner-party']"`. What does
+      `"pork" in recipes.loc[0, "tags"]` give?
+    options: ['`True`', '`False`', '`KeyError`']
+    answer: 0
+    optionFeedback:
+      '1': 'On a real list it would be False. On a string, `in` looks for a substring.'
+      '2': '`in` on a string does not look anything up by key.'
+    reasons:
+      - 'The cell is a string, so `in` finds `pork` inside `pork-belly`'
+      - 'pandas turns list-like text into lists automatically'
+      - '`in` on a string checks whole words only'
+    reasonAnswer: 0
+    reasonFeedback:
+      '1': 'Nothing converts the text unless you ask (converters, apply).'
+      '2': '`in` on a string finds any substring, inside words too.'
+    hints:
+      - 'Is the cell a list or a string here?'
+      - 'On a string, `in` looks for a substring.'
+    explanation: 'The cell is text, so `in` is a substring test and finds `pork` inside `pork-belly`. With real lists the answer would be False.'
+
+  - id: converters-code-fill
+    type: code-fill
+    skills: [list-columns]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: lists-as-text }
+    prompt: 'Read the recipes so that every `tags` cell is a real list, then count tags.'
+    code: |
+      import ast
+
+      recipes = pd.read_csv(DATA + "/RAW_recipes.csv",
+                            __BLANK_1__={"tags": ast.__BLANK_2__})
+      recipes["tags"].__BLANK_3__().value_counts()
+    blanks:
+      '1': { accept: [converters], hint: 'c…' }
+      '2': { accept: [literal_eval], hint: 'Reads a Python literal from text.' }
+      '3': { accept: [explode], hint: 'One row per list item.' }
+    explanation: '`converters={"tags": ast.literal_eval}` parses each cell while reading; `explode()` gives one row per tag for `value_counts`.'
+
+  - id: naive-split-find-error
+    type: find-error
+    skills: [list-columns]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: lists-as-text }
+    prompt: 'This cell should list the easy recipes. It returns an empty list. Which line is first wrong?'
+    code: true
+    steps:
+      - 'recipes = pd.read_csv(DATA + "/RAW_recipes.csv")'
+      - 'recipes["tag_list"] = recipes["tags"].apply(lambda s: s[1:-1].split(", "))'
+      - 'easy = recipes[recipes["tag_list"].apply(lambda t: "easy" in t)]'
+      - 'easy["name"].tolist()'
+    wrong: 1
+    stepFeedback:
+      '0': 'Reading without converters is fine, as long as you parse the text later.'
+      '2': 'This test is right for real lists. The lists it gets are wrong.'
+      '3': 'Listing the names is fine; there are none because of an earlier line.'
+    hints:
+      - 'Print what the split gives for one recipe.'
+      - 'Look at the quote marks.'
+    explanation: |
+      Splitting the text keeps the quote marks: `["'easy'", ...]`, so `"easy" in t` is never True. Use
+      `ast.literal_eval` (or `converters=`). With it, food-mini's easy recipes are chicken adobo, garlic fried rice,
+      turon and tortang talong.
+
+  - id: anime-tags-mcq
+    type: mcq
+    skills: [list-columns, inspect-frame]
+    difficulty: 2
+    tags: [application]
+    prompt: |
+      An anime dataset's `genre` column holds text like `Action, Comedy, Drama`: no brackets, no quotes. You want one
+      row per genre. Which line works?
+    options:
+      - '`df["genre"].str.split(", ").explode()`'
+      - '`df["genre"].apply(ast.literal_eval).explode()`'
+      - '`df["genre"].explode()`'
+      - '`df["genre"].str.len()`'
+    answer: 0
+    optionFeedback:
+      '1': '`literal_eval` needs a Python literal such as `[''Action'', ''Comedy'']`. Plain comma text is not one (it raises an error).'
+      '2': '`explode` needs lists. On text each cell stays one row.'
+      '3': 'That counts characters.'
+    explanation: |
+      Peek first: the format decides the parser. Printed Python lists → `ast.literal_eval`. Plain comma-separated
+      text → `.str.split(", ")`. Then `explode` gives one row per genre.
+
+  # =============================================================== threshold-filter
+  - id: keep-at-least
+    type: numeric
+    skills: [threshold-filter]
+    difficulty: 1
+    tags: [code]
+    generator: keepCountQ
+    lessonRef: { tab: math-code, id: utility-matrix }
+    prompt: |
+      {=table}
+
+      The spec keeps recipes with **at least {=t}** ratings. How many recipes are kept?
+    answer: { var: ge, tol: 0 }
+    hints:
+      - 'Count the rows of each recipe first.'
+      - '"At least {=t}" includes recipes with exactly {=t}.'
+    explanation: |
+      Per recipe:
+
+      {=countsMd}
+
+      `counts >= {=t}` keeps {=ge} recipes; `counts > {=t}` would keep {=gt}.
+
+  - id: keep-more-than
+    type: numeric
+    skills: [threshold-filter]
+    difficulty: 2
+    tags: [code]
+    generator: keepCountQ
+    lessonRef: { tab: intuition, id: count-cut-pivot }
+    prompt: |
+      {=table}
+
+      The spec keeps recipes with **more than {=t}** ratings. How many recipes are kept?
+    answer: { var: gt, tol: 0 }
+    hints:
+      - 'Count the rows of each recipe first.'
+      - '"More than {=t}" leaves out recipes with exactly {=t}.'
+    explanation: |
+      Per recipe:
+
+      {=countsMd}
+
+      `counts > {=t}` keeps {=gt}; "at least" (`>=`) would keep {=ge}.
+
+  - id: keep-code-fill
+    type: code-fill
+    skills: [threshold-filter]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: utility-matrix }
+    prompt: 'Keep only the reviews of recipes with **at least 4** ratings.'
+    code: |
+      counts = df.groupby("recipe_id")["rating"].__BLANK_1__()
+      keep = counts[counts __BLANK_2__ 4].index
+      rated = df[df["recipe_id"].__BLANK_3__(keep)]
+    blanks:
+      '1': { accept: [count, size], hint: 'How many per recipe?' }
+      '2': { accept: ['>='], hint: 'At least.' }
+      '3': { accept: [isin], hint: 'Is the value in the list?' }
+    explanation: '`count()` per recipe, `>= 4` for "at least 4", and `isin(keep)` to keep those recipes'' rows.'
+
+  - id: filter-hand-calc
+    type: hand-calc
+    skills: [threshold-filter, pivot-matrix]
+    difficulty: 2
+    tags: [code]
+    generator: pivotQ
+    lessonRef: { tab: math-code, id: utility-matrix }
+    prompt: |
+      {=table}
+
+      Keep recipes with at least {=t} ratings, then filter the rows with `isin`.
+    steps:
+      - prompt: How many recipes are kept?
+        answer: { var: nKeep, tol: 0 }
+        hint: Count each recipe's rows, then apply `>= {=t}`.
+      - prompt: How many review rows does `rated = df[df["recipe_id"].isin(keep)]` hold?
+        answer: { var: rated, tol: 0 }
+        misconceptions:
+          - { var: n, feedback: 'That is every row. `isin` keeps only the rows of kept recipes.' }
+        hint: Add up the counts of the kept recipes.
+      - prompt: How many users appear in `rated`?
+        answer: { var: nUsers, tol: 0 }
+        hint: Only users with a review of a kept recipe.
+    hints:
+      - 'Work recipe by recipe, then row by row.'
+    explanation: 'Kept recipes {=keep}: {=rated} rows by {=nUsers} users ({=allUsers} users in the whole table).'
+
+  # =============================================================== pivot-matrix
+  - id: pivot-hand-calc
+    type: hand-calc
+    skills: [pivot-matrix, threshold-filter]
+    difficulty: 3
+    tags: [code]
+    generator: pivotQ
+    lessonRef: { tab: math-code, id: utility-matrix }
+    prompt: |
+      {=table}
+
+      Keep recipes with at least {=t} ratings and pivot: users as rows, recipes as columns.
+    steps:
+      - prompt: How many columns does the matrix have?
+        answer: { var: nKeep, tol: 0 }
+        hint: One column per kept recipe.
+      - prompt: How many rows?
+        answer: { var: nUsers, tol: 0 }
+        hint: One row per user in the kept rows.
+      - prompt: How many cells are NaN?
+        answer: { var: nan, tol: 0 }
+        hint: Rows × columns, minus the cells that hold a rating.
+    hints:
+      - 'Cut first, then count users and cells in what is left.'
+    explanation: |
+      Columns = kept recipes ({=keep}): {=nKeep}. Rows = users with a kept review ({=users}): {=nUsers}. Cells
+      {=cells}, filled {=rated}, NaN {=nan}.
+
+  - id: pivot-dup-mcq
+    type: mcq
+    skills: [pivot-matrix]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: utility-matrix }
+    prompt: |
+      `rated.pivot(index="user_id", columns="recipe_id", values="rating")` raises
+      `ValueError: Index contains duplicate entries, cannot reshape`. What is the cause?
+    options:
+      - 'Some user reviewed the same recipe twice'
+      - 'Some users rated no recipe'
+      - 'Some ratings are 0'
+      - 'The ids are not sorted'
+    answer: 0
+    optionFeedback:
+      '1': 'A user with no rating simply has no row. That is not an error.'
+      '2': '0 is just a value for a cell.'
+      '3': '`pivot` sorts the labels itself.'
+    hints:
+      - 'A pivot puts one value in each (row, column) cell. When can''t it?'
+    explanation: |
+      Two rows with the same (user, recipe) would need the same cell. `pivot` refuses; `pivot_table` averages them,
+      or `drop_duplicates` keeps one. Ask which the spec wants.
+
+  # =============================================================== loc-iloc
+  - id: loc-iloc-mcq
+    type: mcq
+    skills: [loc-iloc]
+    difficulty: 2
+    tags: [code]
+    generator: locIlocQ
+    lessonRef: { tab: intuition, id: count-cut-pivot }
+    prompt: |
+      `util` has four rows, labelled by user id:
+
+      {=rowsMd}
+
+      What does `{=code}` give?
+    hints:
+      - '`loc` wants a label (a user id); `iloc` wants a position (0 to 3).'
+    explanation: |
+      `loc` takes a label (a user id), `iloc` a position (0 to 3). A position used as a label raises a KeyError; a
+      user id used as a position is past the end: IndexError.
+
+  - id: loc-iloc-match
+    type: match
+    skills: [loc-iloc]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: application, id: look-up }
+    prompt: '`util` has 8 rows labelled 1101, 1245, …, 1923 (1101 first). Match each line with its real result.'
+    pairs:
+      - ['`util.loc[1101]`', 'User 1101''s row, by label']
+      - ['`util.iloc[0]`', 'User 1101''s row, by position']
+      - ['`util.iloc[1101]`', '`IndexError: single positional indexer is out-of-bounds`']
+      - ['`util.loc[0]`', '`KeyError: 0`']
+    explanation: 'Label → `loc`, position → `iloc`. Mixing them up fails with different errors, as the real runs show.'
+
+  - id: error-which
+    type: mcq
+    skills: [read-csv, inspect-frame, loc-iloc, self-contained]
+    difficulty: 2
+    tags: [code]
+    generator: errorWhichQ
+    prompt: |
+      {=context}
+
+      {=code}
+
+      Which error does this cell raise?
+    hints:
+      - 'Read the context: what does the cell ask for that is not there?'
+    explanation: 'The real run ends with `{=final}`.'
+
+  # =============================================================== self-contained
+  - id: fresh-kernel-two-tier
+    type: two-tier
+    skills: [self-contained]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: fresh-kernel }
+    prompt: |
+      ```python
+      def item_count(user):
+          return util.loc[user].notna().sum()
+      ```
+      It works in your notebook. The grader restarts the kernel and runs only this cell and `item_count(1502)`.
+      What happens?
+    options: ['NameError', 'It returns the count', 'KeyError']
+    answer: 0
+    optionFeedback:
+      '1': 'Only if `util` exists, and in a fresh kernel no cell has made it.'
+      '2': 'The lookup never runs: Python stops at the unknown name `util` first.'
+    reasons:
+      - 'A fresh kernel has no variables from other cells, so `util` is not defined'
+      - 'Functions cannot use variables from outside'
+      - 'The grader uses a different user id'
+    reasonAnswer: 0
+    reasonFeedback:
+      '1': 'They can, if those variables exist. In a fresh kernel they don''t.'
+      '2': 'The id is fine; the name `util` is the problem.'
+    hints:
+      - 'After a restart, which variables exist?'
+    explanation: 'Build `util` inside the function (call your loader), so it works with nothing else run.'
+
+  - id: self-contained-code-fill
+    type: code-fill
+    skills: [self-contained, loc-iloc]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: graded-functions }
+    prompt: 'Complete `rated_by` so it works in a fresh kernel.'
+    code: |
+      def rated_by(user):
+          df_utility = __BLANK_1__()
+          row = df_utility.__BLANK_2__[user]
+          __BLANK_3__ row.dropna().index.tolist()
+    blanks:
+      '1': { accept: [create_utility_matrix], hint: 'Your loader function.' }
+      '2': { accept: [loc], hint: 'By label.' }
+      '3': { accept: [return], hint: 'Hand it back.' }
+    explanation: 'Build the matrix inside, look the user up by label with `loc`, and `return` the list.'
+
+  - id: function-parsons
+    type: order
+    skills: [self-contained, pivot-matrix]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: graded-functions }
+    prompt: 'Build `create_utility_matrix()` for "recipes with at least 4 ratings". Leave out the line that does not belong.'
+    code: true
+    items:
+      - 'def create_utility_matrix():'
+      - '    df = pd.read_csv(DATA + "/RAW_interactions.csv")'
+      - '    counts = df.groupby("recipe_id")["rating"].count()'
+      - '    keep = counts[counts >= 4].index'
+      - '    rated = df[df["recipe_id"].isin(keep)]'
+      - '    return rated.pivot(index="user_id", columns="recipe_id", values="rating")'
+    distractors:
+      - '    return df_utility'
+    explanation: 'Read, count, cut, filter, pivot, return. `return df_utility` hands back a variable from another cell: NameError in a fresh kernel.'
+
+  - id: no-return-find-error
+    type: find-error
+    skills: [self-contained]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: fresh-kernel }
+    prompt: '`create_utility_matrix().shape` raises `AttributeError: ''NoneType'' object has no attribute ''shape''`. Which line is first wrong?'
+    code: true
+    steps:
+      - 'def create_utility_matrix():'
+      - '    df = pd.read_csv(DATA + "/RAW_interactions.csv")'
+      - '    util = df.pivot_table(index="user_id", columns="recipe_id", values="rating")'
+      - 'create_utility_matrix().shape'
+    wrong: 2
+    stepFeedback:
+      '0': 'The header is fine.'
+      '1': 'The read works: the file and path are right.'
+      '3': 'Asking for `.shape` is fine on a DataFrame. The function hands back something else.'
+    hints:
+      - '`NoneType` means the value is `None`. Where would a function hand back `None`?'
+    explanation: '`util` is built and then dropped: the function has no `return`, so it gives `None`. Add `return util` after line 3.'
+
+  - id: explain-load-inside
+    type: explain
+    skills: [self-contained, find-files]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: fresh-kernel }
+    prompt: |
+      A spec says: *"Create a function `item_recommend(user)` that returns the 10 best recipe ids."* It names no file.
+      Explain how your function gets its data, and why.
+    model: |
+      It calls `create_utility_matrix()`, the earlier function that reads the file the spec named with its full path
+      and builds the matrix. The grader runs each function in a fresh kernel, so a matrix from another cell would not
+      exist; building it inside makes the function work alone, and reusing the loader keeps both answers consistent.
+    checklist:
+      - 'Gets the data by calling the earlier loader (or reading the named file with its full path)'
+      - 'Mentions the fresh kernel: variables from other cells do not exist'
+      - 'Reusing the same loader keeps the matrix identical across problems'
+    explanation: 'Self-contained functions pass in any order and in a fresh kernel.'
+
+  # =============================================================== transfer case (midterm-shaped)
+  - id: movie-case
+    type: case
+    skills: [find-files, threshold-filter, pivot-matrix, loc-iloc]
+    difficulty: 3
+    tags: [application]
+    generator: movieCaseQ
+    prompt: |
+      **A new folder.** `/mnt/data/public/movies-mini` holds `links.csv`, `movies.csv`, `ratings.csv` and `tags.csv`.
+      The spec: *"`create_utility_matrix()` returns users × movies, only movies with **at least {=t}** ratings, ids
+      sorted. `rated(user)` returns how many of those movies the user rated."* The ratings file holds:
+
+      {=table}
+    parts:
+      - type: mcq
+        prompt: Which file does `create_utility_matrix()` read?
+        options: ['`movies.csv`', '`ratings.csv`', '`tags.csv`', '`links.csv`']
+        answer: 1
+        shuffle: false
+        optionFeedback:
+          '0': 'Movies hold titles and genres; ratings link users to movies.'
+          '2': 'Tags are words users attached, not ratings.'
+          '3': 'Links map ids to other websites.'
+        explanation: 'Ratings link a user to a movie: `ratings.csv`.'
+      - type: numeric
+        prompt: How many columns does the matrix have?
+        answer: { var: nKeep, tol: 0 }
+        hints: ['Count each movie''s ratings, then keep those with at least {=t}.']
+        explanation: 'Movies {=keep} have at least {=t} ratings.'
+      - type: numeric
+        prompt: How many rows?
+        answer: { var: nUsers, tol: 0 }
+        hints: ['Only users who rated a kept movie get a row.']
+        explanation: 'Shape {=shape}.'
+      - type: numeric
+        prompt: 'What does `rated({=user})` return?'
+        answer: { var: nRated, tol: 0 }
+        hints: ['Look the user up by id (`loc`), then count the non-NaN cells.']
+        explanation: 'User {=user} rated {=nAll} movies in all, {=nRated} of them kept.'
+    hints:
+      - 'File, cut, pivot, look up: the same four moves as food-mini.'
+    explanation: |
+      Read `ratings.csv` with its full path, keep movies with `counts >= {=t}`, pivot to {=shape}, then
+      `util.loc[{=user}].notna().sum()` = {=nRated}.

@@ -112,7 +112,16 @@ function CellView({ cell, index, seedKey, answered, onAnswered }: { cell: Cell; 
   const [choice, setChoice] = useState<number | null>(null);
   const [open, setOpen] = useState('');
   const [revealed, setRevealed] = useState(false);
+  // wrong options with an outcome are detours: the learner sees what that cell would do and picks again
+  const [tried, setTried] = useState<number[]>([]);
   const d = cell.decision;
+  const outcome = choice !== null ? d?.outcomes?.[String(choice)] : undefined;
+  const finish = () => { setRevealed(true); onAnswered(); };
+  const pick = (i: number) => {
+    setChoice(i);
+    if (d?.answer !== undefined && i !== d.answer && d.outcomes?.[String(i)]) setTried((t) => (t.includes(i) ? t : [...t, i]));
+    else finish();
+  };
   return (
     <section className="card p-4" data-cell={cell.id}>
       <div className="mb-2 flex items-center gap-2">
@@ -133,9 +142,10 @@ function CellView({ cell, index, seedKey, answered, onAnswered }: { cell: Cell; 
                 const o = d.options![i];
                 const picked = choice === i;
                 const right = revealed && d.answer === i;
+                const wrongTry = tried.includes(i);
                 return (
-                  <button key={i} disabled={revealed} onClick={() => { setChoice(i); setRevealed(true); onAnswered(); }}
-                    className={cn('rounded-lg border px-3 py-2 text-left text-sm transition', right ? 'tone-good mark-bg' : picked && revealed ? (d.answer === undefined ? 'tone-accent mark-bg' : 'tone-bad mark-bg') : 'border-line bg-panel hover:border-accent/50')}>
+                  <button key={i} disabled={revealed || wrongTry} onClick={() => pick(i)}
+                    className={cn('rounded-lg border px-3 py-2 text-left text-sm transition', right ? 'tone-good mark-bg' : (picked && revealed) || wrongTry ? (d.answer === undefined ? 'tone-accent mark-bg' : 'tone-bad mark-bg') : 'border-line bg-panel hover:border-accent/50', wrongTry && !picked && 'opacity-60')}>
                     <Markdown text={o} inline />
                   </button>
                 );
@@ -144,7 +154,15 @@ function CellView({ cell, index, seedKey, answered, onAnswered }: { cell: Cell; 
           ) : (
             <div className="mt-2">
               <textarea className="input min-h-[60px] w-full" value={open} onChange={(e) => setOpen(e.target.value)} placeholder="Think it through, then compare with the model answer." />
-              {!revealed && <button className="btn mt-1" onClick={() => { setRevealed(true); onAnswered(); }}>Show model answer</button>}
+              {!revealed && <button className="btn mt-1" onClick={finish}>Show model answer</button>}
+            </div>
+          )}
+          {outcome && (
+            <div className="mt-2 rounded-lg border border-line bg-panel p-3 text-sm" data-outcome={choice}>
+              <div className="label mb-1">{revealed ? 'What it does' : 'You ran it. Here is what happened'}</div>
+              {outcome.say && <Markdown text={outcome.say} className="mb-2" />}
+              {outcome.stage && <Stage widgets={outcome.stage} />}
+              {!revealed && <div className="mt-2 flex items-center justify-between gap-2"><span className="text-muted">Pick another option.</span><button className="btn" onClick={finish}>Show answer</button></div>}
             </div>
           )}
           {revealed && (

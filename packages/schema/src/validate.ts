@@ -628,7 +628,7 @@ function checkApplication(ctx: Ctx) {
   const file = 'application.yaml';
   const app = ctx.mod.application;
   const c = app.case;
-  const outs = c.cells.flatMap((cell) => stepPlayerOuts(cell.stage ?? []));
+  const outs = c.cells.flatMap((cell) => [cell.stage ?? [], ...Object.values(cell.decision?.outcomes ?? {}).map((o) => o.stage ?? [])].flatMap(stepPlayerOuts));
   const scope = buildScope(ctx, file, 'case', { data: c.data, state: c.state, derive: c.derive, extra: outs });
   const stateKeys = new Set(Object.keys(c.state ?? {}));
   checkText(c.story, scope, file, 'case.story', ctx);
@@ -646,6 +646,13 @@ function checkApplication(ctx: Ctx) {
         if (n < 2) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision`, message: 'mcq decision needs ≥ 2 options' });
         if (cell.decision.answer !== undefined && (cell.decision.answer < 0 || cell.decision.answer >= n)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision.answer`, message: 'answer index out of range' });
         for (const k of Object.keys(cell.decision.optionFeedback ?? {})) if (!(Number(k) >= 0 && Number(k) < n)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision.optionFeedback`, message: `optionFeedback key "${k}" is not an option index` });
+      }
+      for (const [k, o] of Object.entries(cell.decision.outcomes ?? {})) {
+        const op = `${p}.decision.outcomes.${k}`;
+        if (cell.decision.type !== 'mcq' || !(Number(k) >= 0 && Number(k) < (cell.decision.options?.length ?? 0))) ctx.issues.push({ level: 'error', step: 'refs', file, path: op, message: `outcomes key "${k}" is not an option index of an mcq decision` });
+        if (!o.say && !o.stage?.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: op, message: 'an outcome needs say or stage' });
+        if (o.say) checkText(o.say, scope, file, `${op}.say`, ctx);
+        if (o.stage) checkStage(o.stage, scope, stateKeys, file, `${op}.stage`, ctx, ids);
       }
     }
   });
@@ -1093,6 +1100,7 @@ export async function runLogicChecks(
         const scope = await runDerive(host, c.derive, { ...datasetScope(mod, c.data), ...structuredClone(c.state ?? {}) });
         for (const [i, cell] of c.cells.entries()) {
           if (cell.stage) await smokeStage(cell.stage, scope, 'application.yaml', `case.cells[${i}].stage`);
+          for (const [k, o] of Object.entries(cell.decision?.outcomes ?? {})) if (o.stage) await smokeStage(o.stage, scope, 'application.yaml', `case.cells[${i}].decision.outcomes.${k}.stage`);
           checkResolved([cell.say, cell.decision ?? null], scope, 'application.yaml', `case.cells[${i}]`);
         }
       } catch (e: any) { E('logic', 'application.yaml', 'case', `derive failed: ${e?.message ?? e}`); }

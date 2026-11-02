@@ -1,0 +1,191 @@
+terms:
+  - id: pandas
+    term: pandas
+    aka: [pd, pandas DataFrame]
+    short: 'A Python library for tables that fit in one computer''s memory, imported as `pd` by convention.'
+    related: [dataframe, read-csv-fn]
+    skills: [read-csv]
+  - id: dataframe
+    term: DataFrame
+    aka: [DataFrames, data frame]
+    short: 'A table with labelled rows and named columns. In pandas it lives in your notebook''s memory.'
+    long: |
+      Its rows carry an index (labels such as 0, 1, 2… or user ids) and its columns carry names. [[shape]] gives
+      its size and [[dtype|dtypes]] the kind of value in each column.
+    related: [shape, dtype, row-label]
+    skills: [read-csv, inspect-frame]
+  - id: file-path
+    term: File path
+    aka: [path, paths, full path, folder path]
+    short: 'The address of a file, folder by folder, such as `/mnt/data/public/food-mini/RAW_recipes.csv`.'
+    long: |
+      A path that starts with `/` is complete. A bare file name is looked for in the notebook's own folder, which
+      is why `pd.read_csv("RAW_interactions.csv")` raises a [[file-not-found-error]] when the data sits elsewhere.
+    related: [file-not-found-error, read-csv-fn]
+    skills: [find-files, read-csv]
+  - id: csv
+    term: CSV file
+    aka: [CSV, comma-separated values]
+    short: A plain text file where each line is one record and commas separate the values.
+    long: |
+      The first line is usually the [[header-row]]. A value that itself holds a comma is wrapped in double quotes,
+      so that comma is not read as a separator.
+    related: [header-row, read-csv-fn]
+    skills: [peek-file]
+  - id: header-row
+    term: Header row
+    aka: [header, column names line]
+    short: 'The first line of a CSV file when it holds the column names instead of data.'
+    related: [csv]
+    skills: [peek-file]
+  - id: read-csv-fn
+    term: read_csv
+    aka: [pd.read_csv]
+    short: 'The pandas function that reads a CSV file at a path and returns a DataFrame.'
+    long: |
+      It needs the full [[file-path]]. Options change how text is read: `converters` runs a function on each
+      value of a column, as in `converters={"tags": ast.literal_eval}`.
+    related: [converters, file-path, dataframe]
+    skills: [read-csv]
+  - id: shape
+    term: shape
+    aka: [.shape]
+    short: 'A DataFrame''s size as (number of rows, number of columns), such as `(30, 5)`.'
+    related: [dataframe]
+    skills: [inspect-frame]
+  - id: dtype
+    term: dtype
+    aka: [dtypes, .dtypes]
+    short: 'The kind of value a pandas column holds: int64 for whole numbers, float64 for decimals, object usually for text.'
+    long: |
+      A column of lists read from a CSV shows `object` because each value is a string: see [[stringified-list]].
+    related: [stringified-list, dataframe]
+    skills: [inspect-frame]
+  - id: value-counts
+    term: value_counts
+    aka: [.value_counts()]
+    short: 'Counts how often each distinct value appears in a column, so odd values such as a 0 rating stand out.'
+    related: [dtype, group-count]
+    skills: [inspect-frame]
+  - id: stringified-list
+    term: List saved as text
+    aka: [stringified list, list-like string]
+    short: 'A list written into a CSV cell. It reads back as one string that only looks like a list.'
+    long: |
+      `"['easy', 'pork']"` has 17 characters, not 2 items. [[literal-eval]] turns it back into a real list.
+    related: [literal-eval, converters, dtype]
+    skills: [list-columns]
+  - id: literal-eval
+    term: ast.literal_eval
+    aka: [literal_eval]
+    short: 'Reads a string holding a Python value, such as a list, and returns the real value. It runs no other code.'
+    related: [stringified-list, converters]
+    skills: [list-columns]
+  - id: converters
+    term: converters
+    aka: [converters option]
+    short: 'A read_csv option: a dictionary from column name to a function applied to every value of that column while reading.'
+    related: [read-csv-fn, literal-eval]
+    skills: [list-columns]
+  - id: group-count
+    term: groupby count
+    aka: [groupby().count(), count per group]
+    short: 'Splits the rows into one group per value of a column and counts the non-missing values in each group.'
+    long: |
+      A rating of 0 is not missing, so it is counted. Keeping groups by their count is the first step of a
+      [[ratings-matrix]].
+    related: [value-counts, isin]
+    skills: [threshold-filter]
+  - id: isin
+    term: isin
+    aka: [.isin()]
+    short: 'Tests each value of a column for membership in a list, giving True or False per row, for use as a filter.'
+    related: [group-count]
+    skills: [threshold-filter]
+  - id: ratings-matrix
+    term: Ratings matrix
+    aka: [utility matrix, rating matrix]
+    short: Users as rows, items as columns, known ratings in cells; most cells are empty.
+    long: |
+      In pandas, [[pivot]] builds it from one row per rating. Empty cells hold [[nan]].
+    related: [pivot, nan]
+    skills: [pivot-matrix]
+  - id: pivot
+    term: pivot
+    aka: [.pivot(), pivot_table]
+    short: 'Reshapes rows into a grid: one column''s values become row labels, another''s become column labels, a third fills the cells.'
+    long: |
+      Its labels come out sorted. If two rows share the same row and column label it raises
+      `ValueError: Index contains duplicate entries`; `pivot_table` averages such pairs instead.
+    related: [ratings-matrix, nan]
+    skills: [pivot-matrix]
+  - id: nan
+    term: NaN
+    aka: [not a number, missing value]
+    short: 'pandas'' marker for a missing number. In a utility matrix it means "this user did not rate this item".'
+    related: [ratings-matrix]
+    skills: [pivot-matrix]
+  - id: row-label
+    term: Row label
+    aka: [index label, label, loc]
+    short: 'The name a row carries in a DataFrame''s index, such as a user id. `loc` looks rows up by label.'
+    related: [row-position, dataframe]
+    skills: [loc-iloc]
+  - id: row-position
+    term: Row position
+    aka: [position, iloc]
+    short: 'A row''s place counted from 0, whatever its label. `iloc` looks rows up by position.'
+    related: [row-label, index-error]
+    skills: [loc-iloc]
+  - id: file-not-found-error
+    term: FileNotFoundError
+    short: 'Python''s error when a path names a file or folder that does not exist there.'
+    related: [file-path, traceback]
+    skills: [read-csv]
+  - id: key-error
+    term: KeyError
+    short: 'The error when you ask for a column name or row label the table does not have.'
+    related: [row-label, traceback]
+    skills: [inspect-frame, loc-iloc]
+  - id: index-error
+    term: IndexError
+    short: 'The error when a position is past the end, such as `iloc[1101]` on an 8-row table.'
+    related: [row-position, traceback]
+    skills: [loc-iloc]
+  - id: traceback
+    term: Traceback
+    aka: [tracebacks, error report]
+    short: 'The error report Python prints. It names your cell and line, then ends with the kind of error and its message.'
+    long: |
+      Read the last line first: it names the error, such as [[key-error]] or [[name-error]]. Then find the line in
+      your own cell above it.
+    related: [name-error, file-not-found-error]
+    skills: [read-csv]
+  - id: kernel
+    term: Kernel
+    aka: [fresh kernel, Python kernel]
+    short: 'The running Python behind a notebook. It remembers every variable your cells created until it restarts.'
+    long: |
+      A grader, or "Restart & Run All", starts a fresh kernel, so a function that relies on a variable from another
+      cell fails with a [[name-error]].
+    related: [name-error, restart]
+    skills: [self-contained]
+  - id: restart
+    term: Restart
+    aka: [restart the kernel, restarts, restarted]
+    short: 'Starting Python afresh: every variable and import from earlier cells is forgotten.'
+    related: [kernel]
+    skills: [self-contained]
+  - id: name-error
+    term: NameError
+    aka: [name error]
+    short: Python's error when code uses a name it has never been given, often because the cell that creates it has not run.
+    related: [kernel, traceback]
+    skills: [self-contained]
+  - id: attribute-error
+    term: AttributeError
+    short: 'Python''s error when you ask a value for something it does not have, such as `.shape` on `None`.'
+    long: |
+      A function without `return` hands back `None`, so the next `.shape` raises it.
+    related: [name-error]
+    skills: [self-contained]

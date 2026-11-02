@@ -1,0 +1,131 @@
+examples:
+  # ---- the JS equivalents print what the real pandas runs printed --------------------------------
+  - id: csv-lines
+    source: 'Real run pd.explore.peek (first three lines of RAW_interactions.csv)'
+    fn: checkCsv
+    in: {}
+    expect: { same: true }
+    note: 'The header and first two rows, written exactly as the CSV file holds them.'
+  - id: rating-value-counts
+    source: 'Real run pd.explore.ratings_vc: interactions["rating"].value_counts().sort_index()'
+    fn: checkValueCounts
+    in: {}
+    expect: { same: true, zeros: 2, stars: 28 }
+    note: 'Two of the 30 reviews have rating 0: reviews left without stars.'
+  - id: counts-per-recipe
+    source: 'Real run pd.matrix.setup: interactions.groupby("recipe_id")["rating"].count()'
+    fn: checkCounts
+    in: {}
+    expect: { same: true, n: 8 }
+  - id: utility-matrix
+    source: 'Real runs pd.matrix.pivot and pd.matrix.util_show (recipes with at least 4 ratings)'
+    fn: checkUtil
+    in: {}
+    expect: { same: true, shape: '(8, 5)', realShape: '(8, 5)' }
+    note: 'Every cell, NaN or rating, matches the printed matrix.'
+  - id: tags-as-text
+    source: 'Real runs pd.tags.first_tags, pd.tags.len_str and pd.tags.n_tags'
+    fn: checkTags
+    in: {}
+    expect: { sameLens: true, sameRepr: true, lens: [99, 92, 86], nTags: [7, 7, 6, 6, 6, 6, 7, 6] }
+    note: '`.str.len()` on the text gives 99, 92, 86 characters; after `converters` it gives 7, 7, 6 tags.'
+
+  # ---- lesson numbers -----------------------------------------------------------------------------
+  - id: keep-at-least-4
+    source: 'Real runs pd.matrix.keep_ge and pd.matrix.keep_gt'
+    fn: countsView
+    in: { threshold: 4, op: '>=' }
+    expect: { ge: [1207, 2318, 3542, 4415, 7064], gt: [1207, 2318, 7064], nKeep: 5, rated: 24 }
+    note: '`>= 4` keeps 5 recipes and 24 rows (real run pd.matrix.filtered prints `(24, 5)`); `> 4` keeps 3.'
+  - id: user-1101-row
+    source: 'Real runs pd.matrix.loc_user and pd.matrix.iloc_zero'
+    fn: userRow
+    in: { user: 1101 }
+    expect: { found: true, position: 0, items: [1207, 2318, 4415, 7064], ratings: [5, 4, 5, 3] }
+    note: 'User 1101 has label 1101 and position 0, so `loc[1101]` and `iloc[0]` give the same row.'
+  - id: user-1502-row
+    source: 'Real runs pd.funcs.uses_global and pd.fresh_fixed.self_contained: rated_by(1502)'
+    fn: userRow
+    in: { user: 1502 }
+    expect: { items: [1207, 2318, 4415, 7064] }
+  - id: tags-row-0
+    source: 'Real runs pd.tags.naive_split, pd.tags.in_str and pd.tags.in_list'
+    fn: tagsView
+    in: { row: 2 }
+    expect: { name: pancit canton, hasDinnerStr: true, hasDinnerList: false, n: 6 }
+    note: '`"dinner" in` the text finds `dinner-party`; in the real list there is no tag `dinner`.'
+  - id: naive-split-quotes
+    source: 'Real run pd.tags.naive_split'
+    fn: tagsView
+    in: { row: 0 }
+    expect: { naiveFirst: "'60-minutes-or-less'", chars: 99, n: 7 }
+    note: 'Slicing off the brackets and splitting at `, ` keeps the quote marks around every tag.'
+  - id: folder-listing
+    source: 'Real run pd.explore.ls'
+    fn: folderTree
+    in: {}
+    expect: { listed: "['RAW_interactions.csv', 'RAW_recipes.csv', 'README.txt', 'interactions_train.csv']" }
+
+  # ---- real errors the lessons show ------------------------------------------------------------------
+  - id: wrong-file-name
+    source: 'Real run pd.explore.read_wrong'
+    fn: realCell
+    in: { key: pd.explore.read_wrong }
+    expect: { ok: false, ename: FileNotFoundError }
+  - id: bare-file-name
+    source: 'Real run pd.explore.read_noprefix'
+    fn: realCell
+    in: { key: pd.explore.read_noprefix }
+    expect: { ok: false, final: "FileNotFoundError: [Errno 2] No such file or directory: 'RAW_interactions.csv'" }
+  - id: column-typo
+    source: 'Real run pd.explore.col_typo'
+    fn: realCell
+    in: { key: pd.explore.col_typo }
+    expect: { final: "KeyError: 'ratings'" }
+  - id: iloc-with-label
+    source: 'Real run pd.matrix.iloc_user'
+    fn: realCell
+    in: { key: pd.matrix.iloc_user }
+    expect: { final: 'IndexError: single positional indexer is out-of-bounds' }
+  - id: loc-with-position
+    source: 'Real run pd.matrix.loc_zero'
+    fn: realCell
+    in: { key: pd.matrix.loc_zero }
+    expect: { final: 'KeyError: 0' }
+  - id: pivot-duplicates
+    source: 'Real run pd.matrix.dup_pivot'
+    fn: realCell
+    in: { key: pd.matrix.dup_pivot }
+    expect: { final: 'ValueError: Index contains duplicate entries, cannot reshape' }
+  - id: fresh-kernel-global
+    source: 'Real run pd.fresh.uses_global (a fresh kernel)'
+    fn: realCell
+    in: { key: pd.fresh.uses_global }
+    expect: { final: "NameError: name 'df_utility' is not defined" }
+  - id: fresh-kernel-fixed
+    source: 'Real run pd.fresh_fixed.self_contained (a fresh kernel)'
+    fn: realCell
+    in: { key: pd.fresh_fixed.self_contained }
+    expect: { ok: true, printed: '[1207, 2318, 4415, 7064]' }
+  - id: missing-return
+    source: 'Real run pd.funcs.no_return'
+    fn: realCell
+    in: { key: pd.funcs.no_return }
+    expect: { final: "AttributeError: 'NoneType' object has no attribute 'shape'" }
+
+  # ---- traces --------------------------------------------------------------------------------------------
+  - id: read-trace
+    source: 'Section find-and-read trace; real runs pd.explore.ls, peek, read'
+    fn: readTrace
+    in: {}
+    expect: { steps: 5, shape: '(30, 5)' }
+  - id: matrix-trace
+    source: 'Section utility-matrix trace; real runs pd.matrix.setup, filtered, pivot'
+    fn: matrixTrace
+    in: { threshold: 4 }
+    expect: { steps: 11, shape: '(8, 5)', nKeep: 5 }
+  - id: function-trace
+    source: 'Section graded-functions trace; real runs pd.fresh.uses_global and pd.fresh_fixed.self_contained'
+    fn: functionTrace
+    in: {}
+    expect: { steps: 4, good: '[1207, 2318, 4415, 7064]' }

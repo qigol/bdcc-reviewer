@@ -284,6 +284,9 @@ export const Cell = z
         shuffle: z.boolean().optional(),
         /** feedback shown when the learner picks that option (key = option index) */
         optionFeedback: z.record(z.string(), Markdown).optional(),
+        /** what running that option would do (key = option index): a real output or error, shown when it is picked.
+         *  A wrong option with an outcome is a detour: the learner sees the result and may pick again. */
+        outcomes: z.record(z.string(), z.object({ say: Markdown.optional(), stage: z.array(StageWidget).optional() }).strict()).optional(),
         answer: z.number().int().optional(),
         model: Markdown,
       })

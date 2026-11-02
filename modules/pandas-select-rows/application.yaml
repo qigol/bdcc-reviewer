@@ -1,0 +1,272 @@
+intro: |
+  Loading the data is half the job. The other half is selecting exactly the rows a spec describes, and here mistakes
+  rarely raise an error: you get a plausible list that is wrong, and only the grader's assert tells you. This case
+  follows one recommender and one itemset task through every kind of condition. A wrong choice shows you what that
+  line really printed, or the assert it really failed, before you try again.
+case:
+  id: recommend-and-mine
+  title: Seven conditions, one notebook
+  story: |
+    Migs's recommender needs your selections. For user **1245**: the candidate recipes (unrated), the neighbours of
+    recipe 1207 (at least **3** common raters), and a top list sorted by mean rating, then by increasing id. His
+    groupmate wants the tags in **at least 25%** of recipes, the largest baskets, and the pair rules with support of at
+    least 0.25 **and** confidence of at least 0.8. `util` holds all 8 recipes.
+  derive:
+    - { fn: utilView, in: {}, out: uv }
+    - { fn: realCell, in: { key: pd.unrated.unrated }, out: un }
+    - { fn: realCell, in: { key: pd.unrated.dropna }, out: dn }
+    - { fn: realCell, in: { key: pd.unrated.assert_bad }, out: ab }
+    - { fn: realCell, in: { key: pd.unrated.eq_nan }, out: eq }
+    - { fn: realCell, in: { key: pd.corated.both }, out: both }
+    - { fn: realCell, in: { key: pd.corated.either }, out: either }
+    - { fn: realCell, in: { key: pd.corated.one_col }, out: one }
+    - { fn: realCell, in: { key: pd.corated.common_all }, out: common }
+    - { fn: realCell, in: { key: pd.corated.neighbors_ge }, out: nge }
+    - { fn: realCell, in: { key: pd.corated.neighbors_gt }, out: ngt }
+    - { fn: realCell, in: { key: pd.corated.with_self }, out: nself }
+    - { fn: rankView, in: { k: 4, user: 1245 }, out: rk }
+    - { fn: realCell, in: { key: pd.topk.means }, out: means }
+    - { fn: realCell, in: { key: pd.relative.freq_ge }, out: fge }
+    - { fn: realCell, in: { key: pd.relative.freq_gt }, out: fgt }
+    - { fn: realCell, in: { key: pd.relative.freq_frac }, out: ffr }
+    - { fn: realCell, in: { key: pd.relative.counts }, out: tc }
+    - { fn: realCell, in: { key: pd.relative.largest_ok }, out: lok }
+    - { fn: realCell, in: { key: pd.relative.largest_nl }, out: lnl }
+    - { fn: realCell, in: { key: pd.relative.largest_head }, out: lhd }
+    - { fn: realCell, in: { key: pd.rules.strong_ok }, out: sok }
+    - { fn: realCell, in: { key: pd.rules.assert_or }, out: sor }
+    - { fn: realCell, in: { key: pd.rules.strong_gt }, out: sgt }
+    - { fn: realCell, in: { key: pd.rules.ranked }, out: rr }
+  cells:
+    - id: candidates
+      title: User 1245's candidates
+      say: |
+        `row = util.loc[1245]` holds the user's 8 cells: a rating or NaN. Migs's test expects the unrated recipe ids.
+      stage:
+        - id: util
+          widget: Matrix
+          props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 0, rowHeader: user_id, title: util }
+      decision:
+        prompt: Which line gives the candidates?
+        type: mcq
+        options: ['`row.dropna().index.tolist()`', '`row[row == float("nan")].index.tolist()`', '`row[row.isna()].index.tolist()`']
+        answer: 2
+        outcomes:
+          0:
+            say: 'It runs, and the test fails on the first item:'
+            stage:
+              - { id: o-dn, widget: Text, props: { body: "{=dn.codeMd}\n{=dn.out}\n{=ab.out}" } }
+          1:
+            say: 'It runs, and returns nothing: NaN is never equal to anything.'
+            stage:
+              - { id: o-eq, widget: Text, props: { body: "{=eq.codeMd}\n{=eq.out}" } }
+          2:
+            say: 'The real run:'
+            stage:
+              - { id: o-un, widget: Text, props: { body: "{=un.codeMd}\n{=un.out}" } }
+        model: |
+          `isna()` marks the NaN cells: {=un.printed}. `dropna()` keeps the rated cells (ACTUAL {=ab.actual} is a
+          rated recipe), and `== NaN` is never True, so it returns an empty list.
+
+    - id: corated
+      title: Common raters
+      say: |
+        Item-based similarity between 1207 and 2318 uses only the users who rated **both**. You need that count.
+      decision:
+        prompt: Which line counts the co-rated users?
+        type: mcq
+        options:
+          - '`(util[1207].notna() | util[2318].notna()).sum()`'
+          - '`(util[1207].notna() & util[2318].notna()).sum()`'
+          - '`util[1207].notna().sum()`'
+        answer: 1
+        outcomes:
+          0:
+            say: 'The real run counts users who rated either recipe:'
+            stage:
+              - { id: o-either, widget: Text, props: { body: "{=either.codeMd}\n{=either.out}" } }
+          1:
+            say: 'The real run:'
+            stage:
+              - { id: o-both, widget: Text, props: { body: "{=both.codeMd}\n{=both.out}" } }
+          2:
+            say: 'The real run counts the raters of 1207 alone:'
+            stage:
+              - { id: o-one, widget: Text, props: { body: "{=one.codeMd}\n{=one.out}" } }
+        model: '`&` keeps users with a rating in both columns: 3. `|` counts 8 (either), one column counts 6.'
+
+    - id: neighbours
+      title: Neighbours of 1207
+      say: |
+        You build `common`, the number of common raters between 1207 and every other recipe. The spec keeps
+        neighbours with **at least 3** common raters.
+      stage:
+        - { id: common-out, widget: Text, props: { body: "{=common.codeMd}\n{=common.out}" } }
+      decision:
+        prompt: Which line lists the neighbours?
+        type: mcq
+        options:
+          - '`[j for j, c in common.items() if c > 3]`'
+          - '`[j for j in util.columns if (util[1207].notna() & util[j].notna()).sum() >= 3]`'
+          - '`[j for j, c in common.items() if c >= 3]`'
+        answer: 2
+        outcomes:
+          0:
+            say: '2318 and 5021, with exactly 3 common raters, are gone:'
+            stage:
+              - { id: o-ngt, widget: Text, props: { body: '{=ngt.out}' } }
+          1:
+            say: '1207 made its own list: it shares every rater with itself.'
+            stage:
+              - { id: o-self, widget: Text, props: { body: '{=nself.out}' } }
+          2:
+            say: 'The real run:'
+            stage:
+              - { id: o-nge, widget: Text, props: { body: '{=nge.out}' } }
+        model: |
+          "At least 3" is `>= 3`, and `common` already leaves the target out: {=nge.printed}. `> 3` keeps only 3542 and
+          7064; looping over every column puts 1207 in its own neighbour list.
+
+    - id: top-list
+      title: The top list for 1245
+      say: |
+        Migs ranks by mean rating, **only among user 1245's candidates** (2318, 4415, 6110, 8233), then by increasing
+        recipe id.
+      stage:
+        - { id: means-out, widget: Text, props: { body: "{=means.codeMd}\n{=means.out}" } }
+      decision:
+        prompt: What is user 1245's top-4 list?
+        type: mcq
+        options: ['`[8233, 1207, 6110, 2318]`', '`[8233, 6110, 2318, 4415]`', '`[4415, 2318, 6110, 8233]`', '`[8233, 1207, 6110, 2318, 5021]`']
+        answer: 1
+        optionFeedback:
+          '0': 'That includes 1207, which user 1245 already rated. Rank only the candidates.'
+          '2': 'That is ascending. The spec says decreasing rating.'
+          '3': 'That is the overall top 5, rated recipes included.'
+        model: |
+          Candidates only: 8233 (5.0), 6110 (4.5), 2318 (4.2), 4415 (3.5), giving {=rk.ok}. The real run of
+          `cand = means[row[row.isna()].index]` sorted by rating, then id, prints the same list.
+
+    - id: frequent
+      title: Tags in at least 25% of recipes
+      say: |
+        The groupmate's spec: frequent tags are in **at least 25%** of the 8 recipes. `minsup = len(recipes) * 0.25`
+        is 2.0.
+      stage:
+        - { id: tc-out, widget: Text, props: { body: "{=tc.codeMd}\n{=tc.out}" } }
+      decision:
+        prompt: Which line keeps the frequent tags?
+        type: mcq
+        options:
+          - '`tag_counts[tag_counts >= minsup].index.tolist()`'
+          - '`tag_counts[tag_counts > minsup].index.tolist()`'
+          - '`tag_counts[tag_counts >= 0.25].index.tolist()`'
+        answer: 0
+        outcomes:
+          0:
+            say: 'The real run, 11 tags:'
+            stage:
+              - { id: o-fge, widget: Text, props: { body: '{=fge.out}' } }
+          1:
+            say: '`main-dish`, `4-hours-or-less` and `breakfast`, each in exactly 2 recipes, are gone:'
+            stage:
+              - { id: o-fgt, widget: Text, props: { body: '{=fgt.out}' } }
+          2:
+            say: 'Every count is at least 0.25, so every tag passes. The real check "kept == all tags":'
+            stage:
+              - { id: o-ffr, widget: Text, props: { body: "{=ffr.codeMd}\n{=ffr.out}" } }
+        model: '"At least 25%" means a count `>= 0.25 × 8 = 2`. `>` drops the boundary; comparing counts with 0.25 keeps all 21 tags.'
+
+    - id: largest
+      title: The largest baskets
+      say: |
+        Each recipe's tags are a basket. The spec asks for **all** the largest baskets.
+      decision:
+        prompt: Which line keeps them?
+        type: mcq
+        options:
+          - '`recipes.nlargest(1, "n_tags")["name"].tolist()`'
+          - '`recipes[recipes["n_tags"] == recipes["n_tags"].max()]["name"].tolist()`'
+          - '`recipes.sort_values("n_tags", ascending=False).head(1)["name"].tolist()`'
+        answer: 1
+        outcomes:
+          0:
+            say: 'One recipe, though three tie:'
+            stage:
+              - { id: o-lnl, widget: Text, props: { body: '{=lnl.out}' } }
+          1:
+            say: 'The real run:'
+            stage:
+              - { id: o-lok, widget: Text, props: { body: '{=lok.out}' } }
+          2:
+            say: 'Also one recipe:'
+            stage:
+              - { id: o-lhd, widget: Text, props: { body: '{=lhd.out}' } }
+        model: 'Three recipes have the maximum of 7 tags. `== max()` keeps them all; `nlargest(1)` and `head(1)` keep one.'
+
+    - id: strong-rules
+      title: Strong rules
+      say: |
+        `rules` holds every pair rule between tags with its support, confidence and lift. Keep the rules with support
+        of at least 0.25 **and** confidence of at least 0.8. The test expects 24.
+      decision:
+        prompt: Which line keeps the strong rules?
+        type: mcq
+        options:
+          - '`rules[(rules["support"] >= 0.25) | (rules["confidence"] >= 0.8)]`'
+          - '`rules[(rules["support"] > 0.25) & (rules["confidence"] >= 0.8)]`'
+          - '`rules[(rules["support"] >= 0.25) & (rules["confidence"] >= 0.8)]`'
+        answer: 2
+        outcomes:
+          0:
+            say: 'The test fails:'
+            stage:
+              - { id: o-sor, widget: Text, props: { body: "{=sor.codeMd}\n{=sor.out}" } }
+          1:
+            say: 'Rules with support exactly 0.25 (2 of 8 recipes) are gone:'
+            stage:
+              - { id: o-sgt, widget: Text, props: { body: "{=sgt.codeMd}\n{=sgt.out}" } }
+          2:
+            say: 'The real run, then ranked by lift and antecedent:'
+            stage:
+              - { id: o-sok, widget: Text, props: { body: "{=sok.codeMd}\n{=sok.out}\n{=rr.codeMd}\n{=rr.out}" } }
+        model: |
+          Both thresholds must hold: `&` keeps 24 rules. `|` keeps 106 (ACTUAL {=sor.actual}, DESIRED {=sor.desired}).
+          `>` drops every rule whose support is exactly 0.25, leaving 15. Two rules tie at lift 2.667; the antecedent
+          tie-break puts `breakfast` before `main-dish`.
+atScale:
+  title: Conditions on big tables
+  body: |
+    Masks scale: pandas evaluates a condition over millions of rows in one vectorised pass, far faster than a Python
+    loop over `iterrows()`. Two habits matter at scale. Build co-rated counts for all item pairs at once with a matrix
+    product of the not-null mask, instead of a double loop. And filter before you pivot, so the matrix stays small.
+  code:
+    - lang: python
+      title: All co-rated counts at once
+      source: |
+        rated = util.notna().astype(int)        # users x items, 1 = rated
+        common = rated.T @ rated                 # items x items: common raters
+        k = 25
+        neighbours_of = {i: [j for j in common.columns if j != i and common.loc[i, j] >= k]
+                         for i in common.index}
+tradeoffs:
+  title: Ways to pick the top k
+  columns: [Code, Ties at the cut-off, Use when]
+  rows:
+    - ['`sort_values([score, id], ascending=[False, True]).head(k)`', 'Decided by id, as specs say', 'Always, when the spec names a tie-break']
+    - ['`nlargest(k, score)`', 'Keeps the first rows in the current order', 'No tie-break in the spec']
+    - ['`sort_values(score, ascending=False).head(k)`', 'Whatever order pandas produced', 'Quick looks only']
+    - ['`df[df[score] == df[score].max()]`', 'All tied rows kept', '"The largest", "the best", plural']
+connections:
+  - { module: pandas-read-data, note: 'Loads the files and builds `util`; this module selects from it.' }
+  - { module: nb-cf, note: 'Candidates, co-rated users and k neighbours are the selections item-based CF runs on.' }
+  - { module: fim, note: 'Relative support, largest frequent itemsets and support-and-confidence rules are fim''s cuts in pandas.' }
+explainBack:
+  prompt: |
+    Your `highest_lifts()` fails its assert on the first rule: ACTUAL has a rule with confidence 0.75. Explain how
+    you would find and fix the condition that let it through.
+  rubric:
+    - 'A confidence of 0.75 should have been dropped, so the confidence condition is missing, loose (`>` vs `>=`, wrong number) or joined with `|`'
+    - 'Check each condition''s `.sum()` on its own, then the combined mask'
+    - 'Combine with `&` and parentheses around each condition'
+    - 'Re-check the sort keys and tie-break after the filter is right'

@@ -597,9 +597,29 @@ interface Cell {
   decision?: { prompt: Markdown; type: 'mcq' | 'open'; options?: Markdown[]; answer?: number;
                shuffle?: boolean;                    // default true, as for predict gates
                optionFeedback?: Record<string, Markdown>;   // key = option index: shown when that wrong option is picked
+               outcomes?: Record<string, { say?: Markdown; stage?: StageWidget[] }>;   // key = option index: what running it does
                model: Markdown };
 }
 ```
+
+**Branching cells (`outcomes`).** When a decision's options are code the learner could run, give a wrong option an `outcome`: the real output or traceback that line produces (a `realCell` run, never a hand-typed error). Picking it shows the outcome and leaves the other options open, so the learner reads the error, then tries again; the cell counts as done on the right pick or on "Show answer". Rules:
+- Only real runs. If a wrong option was never run, give it `optionFeedback` instead of an outcome.
+- An outcome's stage widget ids are unique across the case, like any cell widget.
+- Keep each branch a one-step detour back to the same cell. Do not chain outcomes into new cells: the case stays one path.
+- The `model` still explains every option, because a learner who picks right first never sees the detours.
+- An outcome on the correct option is allowed (its real output); it shows after the pick.
+
+**Recording real runs** (for `realCell`-style outputs; `modules/pandas-read-data/assets/record.py` is a working recorder):
+- Record on the course's runtime (same Python minor version, same library major version): pandas 2 prints text
+  columns as `object`, pandas 3 as `str`.
+- Run each "kernel" in a fresh namespace and number cells like Jupyter; print stdout plus the repr of a final bare
+  expression.
+- Set `pd.set_option("display.max_columns", 20)` and `pd.set_option("display.width", 200)`: a script runs in
+  "terminal" mode and `head()` hides columns behind `...`, which a notebook never does.
+- Never ship OS-specific error text. A Windows run of `os.listdir` on a missing folder says `[WinError 3]`, not the
+  Linux `[Errno 2]` learners see; drop such cells or record them on Linux.
+- Trim library frames from tracebacks to one `  ...` line and say so in SOURCE_NOTES.
+
 The case study should **use every major idea from the lecture in one pipeline**: raw data, then computation with live parameters, then interpretation, then a decision. `atScale` shows the production or big-data version (for BDCC, typically PySpark MLlib, or pandas/mlxtend, SQL, or MapReduce as appropriate) with notes on complexity, parallelism and data size. In a journal module, `atScale` is **in practice**: how a real company runs the procedure (the ERP or spreadsheet set-up, who prepares and approves the entries, month-end close, internal controls), with `code` blocks only if a spreadsheet formula or a short script genuinely helps (`lang: text` is fine). Mark anything not in the lecture with a `Callout` of kind `beyond`.
 
 ### 5.10 `quiz.yaml`
