@@ -141,7 +141,7 @@ export function Stage({ widgets, hidden, className, compact }: { widgets: StageW
   return (
     <div className={cn('flex flex-col gap-4', className)}>
       {by('top').length > 0 && <div className="flex flex-col gap-3">{render(by('top'))}</div>}
-      <div className={cn('grid gap-4', side.some(visible) && !compact ? 'lg:grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1')}>
+      <div className={cn('grid gap-4', side.some(visible) && !compact ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1')}>
         <div className="flex min-w-0 flex-col gap-4">{render(by('main'))}</div>
         {side.some(visible) && <div className="flex min-w-0 flex-col gap-3">{render(side)}</div>}
       </div>

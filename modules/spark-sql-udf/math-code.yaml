@@ -1,0 +1,660 @@
+sections:
+  # =================================================================== User-defined functions
+  - id: udf-per-row
+    title: 'A UDF runs once per row'
+    skills: [udf-wrap]
+    summary: |
+      `@udf` wraps a Python [[function]] as a [[udf]]. In a `select`, Spark calls it once for every row and hands
+      it that row's plain values, here two zone numbers. Each call returns a string, which becomes the row's value
+      in a new [[column]].
+    keyFormula: '\text{out}_i = f(\text{pu}_i, \text{do}_i), \quad i = 1, \dots, n'
+    data: [taxi12]
+    derive:
+      - { fn: pairSheet, in: { upTo: 0 }, out: ps }
+      - { fn: pairSheet, in: { upTo: 12 }, out: full }
+      - { fn: realCell, in: { key: udf.show }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@ps.rows', cols: '@ps.cols', values: '@ps.values', rowHeader: trip, title: 'The 12 lesson trips and the code of each' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output of the cell:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{rows}{\text{out}_i} = f(\text{pu}_i, \text{do}_i), \quad i = 1, \dots, n
+        say: |
+          $i$ counts the rows, 1 to $n$. For every row Spark calls $f$ once, and the answer becomes that row's
+          $\text{out}_i$ ("out of row i").
+      - tex: |
+          f(\anchor{args}{\text{pu}, \text{do}}) = \anchor{out}{\texttt{"pu-do"}}
+        say: Inside the call, `pu` and `do` are plain numbers, so the f-string joins them with a hyphen.
+      - tex: |
+          f(\anchor{args}{41, 238}) = \anchor{out}{\texttt{"{=full.codes.0}"}}
+        say: 'Trip 1. Step through: two lines run for each of the 12 trips.'
+    code:
+      lang: python
+      title: The notebook's UDF, on the 12 lesson trips
+      source: |
+        """Build a pickup-dropoff code for every trip with a row-at-a-time UDF."""
+        from pyspark.sql.functions import udf
+
+        @udf
+        def pair_code(pu, do):  # @a:args
+            """Concatenate PULocationID and DOLocationID with a hyphen.
+
+            Args:
+                pu: one row's pickup zone, a plain Python int.
+                do: the same row's drop-off zone.
+            Returns:
+                The text 'pu-do'.
+            Lecture: on trip 1 it returns '41-238'.
+            """
+            return f'{pu}-{do}'  # @a:out
+
+        (trips
+             .select(pair_code('PULocationID', 'DOLocationID'))  # @a:rows
+             .show())
+    links:
+      - { anchor: rows, label: 'one value per row', say: '`select` asks for a new column, so Spark calls the UDF for each row.' }
+      - { anchor: args, label: 'the row''s values', say: 'Inside the function, `pu` and `do` are one row''s numbers, not Columns.' }
+      - { anchor: out, label: 'the returned string', say: 'Spark stores it as text, its default type.' }
+    trace: { fn: pairCodeTrace, in: {} }
+    examples: [pair-code-show, pair-walk, pair-distinct]
+    pitfalls:
+      - 'Leaving out `@udf`: the plain function runs once on Column objects and `select` fails with UNRESOLVED_COLUMN.'
+      - 'Calling the UDF on plain numbers, `pair_code(41, 238)`: a UDF only accepts columns or column names.'
+    examTip: 'Test the Python logic on plain values first, then add `@udf` and call it on column names.'
+    tryIt: [pair-distinct-numeric, pair-code-fill]
+
+  - id: struct-return
+    title: 'A struct return type: a tuple becomes nested fields'
+    skills: [udf-return-type]
+    summary: |
+      The [[return-type]] tells Spark what the UDF hands back. For a nested [[struct]], declare the fields with
+      `StructType` or a [[ddl-schema-string]], and return a tuple in the same order: Spark files each item under its
+      field.
+    keyFormula: 'f(\text{id}, \text{name}, \text{desc}) = (\text{id}, (\text{name}, \text{desc}))'
+    data: [tweets8]
+    derive:
+      - { fn: structSheet, in: { upTo: 0 }, out: ss }
+      - { fn: realCell, in: { key: udf.ddl_show }, out: rc }
+      - { fn: realCell, in: { key: udf.struct_schema }, out: sc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@ss.rows', cols: '@ss.cols', values: '@ss.values', rowHeader: tweet, title: 'Three user fields of each tweet, and the struct' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output, and the schema of the new column (named `info` with `.alias('info')`):
+            {=rc.out}
+            {=sc.out}
+    steps:
+      - tex: |
+          \anchor{type}{\text{id LONG, user STRUCT<name: STRING, description: STRING>}}
+        say: The declared type. `user` is a struct inside the struct.
+      - tex: |
+          f(\anchor{args}{\text{id}, \text{name}, \text{desc}}) = \anchor{pack}{(\text{id}, (\text{name}, \text{desc}))}
+        say: The function returns a tuple whose second item is itself a tuple, matching the two levels.
+      - tex: |
+          f(\anchor{args}{101, \text{Ana Santos}, \dots}) = \anchor{pack}{\{101, \{\text{Ana Santos}, \dots\}\}}
+        say: '`show()` prints a struct in curly brackets. Step through all 8 tweets.'
+    code:
+      lang: python
+      title: The DDL version (notebook cell), on the 8 sample tweets
+      source: |
+        """Pack three user fields into one nested column with a struct return type."""
+        UserInfoType2 = """
+        id LONG,
+        user STRUCT <
+          name: STRING,
+          description: STRING
+        >
+        """
+
+        @udf(UserInfoType2)  # @a:type
+        def collect_user_info2(user_id, user_name, user_description):  # @a:args
+            """Create column with user ID, user name and description.
+
+            Args:
+                user_id, user_name, user_description: one tweet's user fields.
+            Returns:
+                (id, (name, description)), in the declared field order.
+            """
+            return (user_id, (user_name, user_description))  # @a:pack
+
+        (tweets
+            .select(collect_user_info2('user.id', 'user.name', 'user.description'))
+            .show(truncate=False))
+    extraCode:
+      - lang: python
+        title: The same type as a StructType (notebook cell)
+        source: |
+          from pyspark.sql.types import StructType, StructField, StringType, LongType
+
+          UserInfoType = StructType([
+              StructField('id', LongType()),
+              StructField('user', StructType([
+                  StructField('name', StringType()),
+                  StructField('description', StringType())
+              ]))
+          ])
+
+          @udf(UserInfoType)
+          def collect_user_info(user_id, user_name, user_description):
+              """Create column with user ID, user name and description"""
+              return (user_id, (user_name, user_description))
+    links:
+      - { anchor: type, label: 'the declared struct', say: 'A DDL string or a StructType; both give the same nested column.' }
+      - { anchor: args, label: 'the three inputs', say: 'Dot paths such as `user.name` reach into the tweet''s own struct.' }
+      - { anchor: pack, label: 'the nested tuple', say: 'Position decides the field: first item is `id`, second is `user`.' }
+    trace: { fn: structTrace, in: {} }
+    examples: [struct-show, ddl-show, struct-sheet, int-pickle-nulls, int-arrow-no-nulls]
+    pitfalls:
+      - 'Returning a flat tuple `(id, name, description)` for a two-level type: the shapes do not match.'
+      - 'Forgetting the type: the default return type is string, so you get text instead of fields.'
+    examTip: 'Write the DDL string from the outside in: `id LONG, user STRUCT<name: STRING, description: STRING>`.'
+    tryIt: [ddl-fill, return-type-mcq, type-output-match]
+
+  # =================================================================== Arrow and batches
+  - id: arrow-batches
+    title: 'Arrow batches: how many calls?'
+    skills: [arrow-transfer, pandas-series-udf]
+    summary: |
+      [[apache-arrow|Arrow]] cuts a partition's rows into [[batch|batches]] of at most `maxRecordsPerBatch` rows. A
+      pandas UDF is called once per batch, and `len(s)` is that batch's size. Change $B$ to see the calls.
+    keyFormula: '\text{calls} = \left\lceil \frac{n}{B} \right\rceil'
+    data: [taxi12]
+    state: { size: 5 }
+    derive:
+      - { fn: batchSheet, in: { size: '@size', upTo: 0 }, out: bs }
+      - { fn: batchPlan, in: { n: 12, size: '@size' }, out: bp }
+      - { fn: realCell, in: { key: pd.batch_small }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@bs.rows', cols: '@bs.cols', values: '@bs.values', rowHeader: trip, title: 'Which batch each trip travels in' }
+      - id: size-slider
+        widget: Slider
+        props: { label: 'B (maxRecordsPerBatch)', min: 2, max: 12, step: 1 }
+        bind: { value: size }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output with $B = 5$:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{size}{B} = \text{the most rows in one batch}, \qquad n = 12 \text{ rows}
+        say: $B$ is the setting `maxRecordsPerBatch` (10,000 unless you change it); $n$ is the number of rows.
+      - tex: |
+          \anchor{count}{\texttt{len(s)}} = \min(B, \text{rows still left})
+        say: Each call receives full batches of $B$ rows, and the last one gets whatever is left.
+      - tex: |
+          \anchor{ceil}{\text{calls}} = \left\lceil \frac{12}{ {=size} } \right\rceil = {=bp.count}
+        say: '$\lceil\ \rceil$ means "round up". Batch sizes: {=bp.sizesText}.'
+    code:
+      lang: python
+      title: Seeing the batches (a cell beyond the notebook)
+      source: |
+        """Show how many rows reach a pandas UDF in each call."""
+        import pandas as pd
+        from pyspark.sql.functions import pandas_udf
+
+        @pandas_udf('long')
+        def batch_size(s: pd.Series) -> pd.Series:  # @a:ceil
+            """How many rows arrived together in this call.
+
+            Args:
+                s: one batch of the column, a pandas Series.
+            Returns:
+                A Series repeating len(s), one value per row of the batch.
+            """
+            return pd.Series([len(s)] * len(s))  # @a:count
+
+        spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", "5")  # @a:size
+        trips.select('PULocationID', batch_size('PULocationID')).show()
+        spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", "10000")
+    links:
+      - { anchor: size, label: 'B, the batch limit', say: 'A setting; the default 10,000 puts all 12 trips in one batch.' }
+      - { anchor: count, label: 'len(s)', say: 'The batch the function received in this call.' }
+      - { anchor: ceil, label: 'number of calls', say: 'One call of the function per batch.' }
+    trace: { fn: batchTrace, in: { size: '@size' } }
+    examples: [batches-default, batches-of-5, batch-trace]
+    beyondSlides: true
+    pitfalls:
+      - 'Rounding down: 12 rows in batches of 5 need 3 calls, not 2.'
+      - 'Expecting one call per row: that is a plain `@udf`, not a pandas UDF.'
+    examTip: 'Calls = rows ÷ batch size, rounded up; the last batch holds the remainder.'
+    tryIt: [batch-count-numeric, last-batch-numeric, arrow-mcq]
+
+  # =================================================================== Series to Series
+  - id: clip-series
+    title: 'Series to Series: np.clip on a whole batch'
+    skills: [pandas-series-udf]
+    summary: |
+      A Series-to-Series [[pandas-udf]] receives a [[batch]] as a [[pandas-series]] `s` and must return a Series of
+      the same length. `np.clip(s, 0, 5)` raises values below 0 to 0 and lowers values above 5 to 5, all at once.
+    keyFormula: '\text{clip}(x) = \min(\max(x, \text{lo}), \text{hi})'
+    data: [taxi12]
+    state: { lo: 0, hi: 5 }
+    derive:
+      - { fn: clipView, in: { lo: '@lo', hi: '@hi' }, out: cv }
+      - { fn: realCell, in: { key: pd.clip5_show }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@cv.blank.rows', cols: '@cv.blank.cols', values: '@cv.blank.values', rowHeader: trip, title: 'One batch: the 12 distances' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output with lo = 0 and hi = 5:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{series}{s = (x_1, x_2, \dots, x_{12})}
+        say: The whole batch arrives as one Series. Here all 12 trips are one batch.
+      - tex: |
+          \anchor{clip}{\text{clip}(x) = \min(\max(x, \text{lo}), \text{hi})}
+        say: '`max(x, lo)` lifts small values to lo; `min(..., hi)` lowers big ones to hi. Values in between stay.'
+      - tex: |
+          \anchor{clip}{\text{clip}(9.8) = \min(\max(9.8, {=lo}), {=hi}) = {=hi}}
+        say: 'Trip 3. With lo = {=lo} and hi = {=hi}, {=cv.nChanged} of the 12 values change.'
+    code:
+      lang: python
+      title: 'Series to Series (the notebook''s clip, with hi = 5)'
+      source: |
+        """Clip every trip distance into [0, 5], one whole batch per call."""
+        import numpy as np
+        import pandas as pd
+        from pyspark.sql.functions import pandas_udf
+        from pyspark.sql.types import FloatType
+
+        @pandas_udf(returnType=FloatType())
+        def clip_0_to_5(s: pd.Series) -> pd.Series:  # @a:series
+            """Limit values to between 0 and 5.
+
+            Args:
+                s: one batch of trip_distance, a pandas Series.
+            Returns:
+                A Series of the same length with every value inside [0, 5].
+            Lecture: np.clip(s, 0, 100) leaves all 12 lesson distances unchanged.
+            """
+            return np.clip(s, 0, 5)  # @a:clip
+
+        (trips
+            .select('trip_distance', clip_0_to_5(trips.trip_distance).alias('clipped'))
+            .show())
+    links:
+      - { anchor: series, label: 'the batch as a Series', say: 'The [[type-hint]] `pd.Series -> pd.Series` makes this the Series-to-Series kind.' }
+      - { anchor: clip, label: 'np.clip', say: 'One call works on every value of the Series.' }
+    trace: { fn: clipTrace, in: { lo: '@lo', hi: '@hi' } }
+    examples: [clip-100-show, clip-5-show, clip-counts, clip-100-none, clip-trace]
+    pitfalls:
+      - 'Returning one number instead of a Series: a Series-to-Series UDF must give one value per row.'
+      - 'Counting a value equal to the bound as changed: `np.clip` leaves it as it is.'
+    examTip: 'A bound only changes values strictly outside it; count both ends.'
+    tryIt: [clip-count-numeric, clip-hand, udf-kind-match]
+
+  # =================================================================== Iterators
+  - id: iterator-hash
+    title: 'Iterator of Series: set up once, yield per batch'
+    skills: [iterator-udf]
+    summary: |
+      With `Iterator[pd.Series]`, Spark calls the function once and hands it the [[batch|batches]] through an
+      [[iterator]]. Setup before the loop (reading the seeds) runs once; each batch gets its own [[yield]]. The hash
+      is $(a \cdot x + b) \bmod c$.
+    keyFormula: 'h(x) = (a \cdot x + b) \bmod c'
+    data: [tweets8]
+    state: { c: 1000 }
+    derive:
+      - { fn: hashSheet, in: { c: '@c', upTo: 0 }, out: hs }
+      - { fn: hashSheet, in: { c: '@c', upTo: 8 }, out: hf }
+      - { fn: realCell, in: { key: pd.mask_demo }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@hs.rows', cols: '@hs.cols', values: '@hs.values', rowHeader: tweet, title: 'The hash of each user id' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output with c = 1000:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{setup}{a = 193602,\ b = 15914,\ c = {=c}} \quad \text{(once)}
+        say: The setup line runs once per call, not once per batch. The notebook reads these numbers from `seeds.json`.
+      - tex: |
+          \text{for each batch } \anchor{loop}{x}: \quad h(x) = (\anchor{ax}{a \cdot x} \anchor{plusb}{+\, b}) \anchor{modc}{\bmod c}
+        say: '"mod c" is the remainder after dividing by c, Python''s `%`. It works on every id of the batch at once.'
+      - tex: |
+          h(101) = (\anchor{ax}{193602 \cdot 101} \anchor{plusb}{+\, 15914}) \anchor{modc}{\bmod {=c}} = {=hf.first}
+        say: 'User 101. Step through all 8 ids; try c = 1, the value in the notebook''s `seeds.json`.'
+    code:
+      lang: python
+      title: 'Iterator of Series (the notebook''s mask_id, with c = 1000)'
+      source: |
+        """Hash every user id with seeds set up once per call."""
+        from typing import Iterator
+        import pandas as pd
+        from pyspark.sql.functions import pandas_udf
+
+        @pandas_udf('long')
+        def mask_demo(ids: Iterator[pd.Series]) -> Iterator[pd.Series]:
+            """The notebook's hash with c = 1000.
+
+            Args:
+                ids: an iterator over batches of ids, each a pandas Series.
+            Returns:
+                An iterator yielding one Series of hashes per batch.
+            Lecture: user 101 gives (193602 * 101 + 15914) % 1000 = 716.
+            """
+            a, b, c = 193602, 15914, 1000  # @a:setup
+            for x in ids:  # @a:loop
+                # @a modc
+                # @a plusb
+                # @a ax
+                yield (a * x + b) % c
+                # @end
+                # @end
+                # @end
+
+        (tweets
+             .select('user.id', mask_demo('user.id'))
+             .show())
+    extraCode:
+      - lang: python
+        title: 'Iterator of multiple Series (notebook cell): two columns per batch'
+        source: |
+          from typing import Iterator, Tuple
+
+          @pandas_udf('float')
+          def fare_rate(iterator: Iterator[Tuple[pd.Series, pd.Series]]) \
+                  -> Iterator[pd.Series]:
+              """Compute fare rate"""
+              for trip_distance, fare_amount in iterator:
+                  yield fare_amount / trip_distance
+
+          (trips
+              .select(fare_rate('trip_distance', 'fare_amount'))
+              .show())
+    links:
+      - { anchor: setup, label: 'setup, once', say: 'Expensive work (reading a file, loading a model) belongs here.' }
+      - { anchor: loop, label: 'one batch at a time', say: 'Each pass of the loop is one batch; here all 8 ids are one batch.' }
+      - { anchor: ax, label: 'a · x' }
+      - { anchor: plusb, label: '+ b' }
+      - { anchor: modc, label: 'mod c', say: 'The remainder; with c = 1 every remainder is 0.' }
+    trace: { fn: hashTrace, in: { c: '@c' } }
+    examples: [mask-id-seeds, mask-demo-show, mask-demo-first, hash-walk, fare-rate-show, fare-rate-top]
+    pitfalls:
+      - '`return` instead of `yield` in the loop: the real run fails with UDF_RETURN_TYPE.'
+      - 'Calling an iterator-of-tuples UDF with one column: the loop cannot unpack two Series.'
+    examTip: 'Iterator UDFs need `Iterator[...]` hints on both sides and `yield` inside the loop.'
+    tryIt: [hash-hand, hash-numeric, yield-find-error, fare-rate-numeric]
+
+  # =================================================================== Series to scalar
+  - id: group-mean
+    title: 'Series to scalar: one number per group'
+    skills: [grouped-pandas]
+    summary: |
+      A UDF typed `pd.Series -> float` is an [[aggregation]]: inside `agg` it receives one [[group-by|group]] as a
+      Series and returns one number. `mean_udf` returns `v.mean()`. [[apply-in-pandas]] instead hands a whole group
+      as a pandas DataFrame.
+    keyFormula: '\bar{x}_g = \frac{1}{n_g} \sum_{i \in g} x_i'
+    data: [tweets8]
+    derive:
+      - { fn: tweetsView, in: { fields: [name, statuses_count, country_code] }, out: tv }
+      - { fn: groupMeanSheet, in: { upTo: 4 }, out: gm }
+      - { fn: realCell, in: { key: pd.mean_udf }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', emptyLabel: 'NULL', rowHeader: tweet, title: 'The 8 tweets' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{group}{g} = \text{one country code}, \qquad \anchor{series}{v = (x_i : i \in g)}
+        say: '$g$ is a group; $v$ holds the `statuses_count` of the tweets in it ("$i \in g$" reads "tweet i of group g").'
+      - tex: |
+          \anchor{mean}{\bar{x}_g = \frac{1}{n_g} \sum_{i \in g} x_i}
+        say: Add the group's values (Σ means "add up") and divide by how many there are, $n_g$.
+      - tex: |
+          \anchor{mean}{\bar{x}_{\text{PH}} = \frac{1200 + 450 + 3000}{3} = {=gm.ph}}
+        say: The PH group. Step through all four groups, including the NULL group of tweets without a place.
+    code:
+      lang: python
+      title: 'Series to scalar (notebook cell), per country'
+      source: |
+        """One mean of statuses_count per country with a Series-to-scalar pandas UDF."""
+        @pandas_udf('double')
+        def mean_udf(v: pd.Series) -> float:  # @a:series
+            """Compute mean of v.
+
+            Args:
+                v: the statuses_count values of one group, a pandas Series.
+            Returns:
+                One float, the group's mean.
+            Lecture: the PH group (1200, 450, 3000) gives 1550.0.
+            """
+            return v.mean()  # @a:mean
+
+        (tweets
+             .groupby('place.country_code')  # @a:group
+             .agg(mean_udf(tweets.user.statuses_count))
+             .show())
+    extraCode:
+      - lang: python
+        title: 'applyInPandas (notebook cell, grouped by VendorID): a whole group as a DataFrame'
+        source: |
+          def standardize_fares(s):
+              return pd.DataFrame({'normed_fare': s['fare_amount'].astype(float) /
+                                   s['fare_amount'].astype(float).max()})
+
+          (trips
+             .groupby('VendorID')
+             .applyInPandas(standardize_fares, schema="normed_fare FLOAT")
+             .show()
+          )
+    links:
+      - { anchor: group, label: 'groupby', say: 'One group per country code; tweets without a place form the NULL group.' }
+      - { anchor: series, label: 'one group as a Series', say: 'The hint `-> float` makes this the Series-to-scalar kind.' }
+      - { anchor: mean, label: 'one number back', say: 'Many values in, one value out: an aggregation.' }
+    trace: { fn: groupMeanTrace, in: {} }
+    examples: [mean-udf-show, mean-udf-values, mean-walk, normed-show]
+    pitfalls:
+      - 'Putting a Series-to-Series UDF in `agg`: it returns a value per row and fails with MISSING_AGGREGATION.'
+      - 'Dividing by the size of the whole table instead of the group.'
+    examTip: 'In `agg`, use a UDF that ends in `-> float` (or another scalar), never `-> pd.Series`.'
+    tryIt: [group-mean-numeric, norm-fare-numeric, agg-two-tier]
+
+  # =================================================================== SQL
+  - id: sql-where
+    title: 'spark.sql on a temporary view: WHERE row by row'
+    skills: [temp-view-sql]
+    summary: |
+      `createOrReplaceTempView('trips')` gives the DataFrame a name [[sql]] can find: a [[temp-view]].
+      `spark.sql(...)` then returns a new DataFrame. `WHERE` tests each row on its own and keeps those where the test
+      is true; `SELECT` picks the columns.
+    keyFormula: '\text{result} = \{\, (\text{PULocationID}_i, \text{fare}_i) : \text{fare}_i > x \,\}'
+    data: [taxi12]
+    state: { x: 20 }
+    derive:
+      - { fn: whereView, in: { x: '@x', upTo: 0 }, out: wv }
+      - { fn: whereView, in: { x: '@x', upTo: 12 }, out: wf }
+      - { fn: realCell, in: { key: sql.where }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@wv.rows', cols: '@wv.cols', values: '@wv.values', rowHeader: trip, title: 'The view trips: does each row pass?' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output with x = 20:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{from}{i = 1, \dots, 12} \quad \text{(the rows of the view trips)}
+        say: '`FROM trips` finds the view by name and reads its rows.'
+      - tex: |
+          \anchor{where}{\text{keep row } i \iff \text{fare}_i > x}
+        say: '"⟺" reads "exactly when". Each row is tested on its own; `>` is strict.'
+      - tex: |
+          \anchor{select}{(\text{PULocationID}_i, \text{fare}_i)} \text{ for the } {=wf.n} \text{ kept rows}
+        say: 'With x = {=x}. `SELECT` keeps two columns of the rows that passed.'
+    code:
+      lang: python
+      title: A SQL statement on the trips view
+      source: |
+        """Ask SQL for the trips with a fare above 20 dollars."""
+        trips.createOrReplaceTempView('trips')
+
+        spark.sql("""
+        SELECT PULocationID, fare_amount   # @a:select
+        FROM trips                         # @a:from
+        WHERE fare_amount > 20             # @a:where
+        """).show()
+    links:
+      - { anchor: from, label: 'FROM a view', say: 'Without the view, the real run fails with TABLE_OR_VIEW_NOT_FOUND.' }
+      - { anchor: where, label: 'WHERE', say: 'A test per row; rows where it is false are dropped.' }
+      - { anchor: select, label: 'SELECT', say: 'The columns to keep, in this order.' }
+    trace: { fn: whereTrace, in: { x: '@x' } }
+    examples: [where-show, where-count, where-walk]
+    pitfalls:
+      - 'Querying before `createOrReplaceTempView`: Python variables are invisible to SQL.'
+      - 'Counting a fare equal to the cut-off: `>` is strict.'
+    examTip: '`spark.sql` returns a DataFrame; nothing prints until an action such as `show()`.'
+    tryIt: [where-count-numeric, view-order, view-mcq]
+
+  - id: sql-case-udf
+    title: 'A registered lambda inside CASE WHEN'
+    skills: [sql-udf-register]
+    summary: |
+      [[udf-registration]] gives a function a SQL name. `spark.udf.register('double_distance', lambda x: x*2,
+      'FLOAT')` registers a [[lambda]] that returns floats. [[case-when]] then labels each row `'long'` or `'short'`
+      by testing the doubled distance.
+    keyFormula: '\text{type}_i = \begin{cases} \text{long} & 2 d_i > t \\ \text{short} & \text{otherwise} \end{cases}'
+    data: [taxi12]
+    state: { t: 10 }
+    derive:
+      - { fn: caseView, in: { t: '@t', limit: 10 }, out: cv }
+      - { fn: realCell, in: { key: sql.case_when }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@cv.blank.rows', cols: '@cv.blank.cols', values: '@cv.blank.values', rowHeader: trip, title: 'The first 10 trips' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output with t = 10:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{limit}{i = 1, \dots, 10}, \qquad \anchor{dd}{dd_i = 2 \cdot d_i}
+        say: '`LIMIT 10` keeps the first 10 rows. The registered lambda doubles each distance $d_i$.'
+      - tex: |
+          \anchor{case}{\text{type}_i = \begin{cases} \text{long} & dd_i > t \\ \text{short} & \text{otherwise} \end{cases}}
+        say: A curly bracket like this lists the cases. One label per row.
+      - tex: |
+          \anchor{case}{ {=cv.nLong} \text{ long}, \ {=cv.nShort} \text{ short}} \quad (t = {=t})
+        say: Step through the 10 rows.
+    code:
+      lang: python
+      title: Register a lambda, then use it in CASE WHEN (notebook cells)
+      source: |
+        """Label trips long or short with a registered lambda inside CASE WHEN."""
+        spark.udf.register('double_distance', lambda x: x*2, 'FLOAT');
+
+        spark.sql("""
+        SELECT
+            double_distance(CAST(trip_distance AS FLOAT)) AS dd,   # @a:dd
+            (CASE
+                WHEN double_distance(CAST(trip_distance AS FLOAT)) > 10   # @a:case
+                THEN 'long'
+                ELSE 'short'
+            END) AS trip_type
+        FROM trips
+        LIMIT 10                                                   # @a:limit
+        """).show()
+    links:
+      - { anchor: dd, label: 'the registered lambda', say: 'Its third argument, FLOAT, keeps the result a number.' }
+      - { anchor: case, label: 'CASE WHEN', say: 'Tested row by row; the first true branch wins.' }
+      - { anchor: limit, label: 'LIMIT 10', say: 'The first 10 rows only.' }
+    trace: { fn: caseTrace, in: { t: '@t', limit: 10 } }
+    examples: [case-show, case-all-show, case-count, case-trace, typed-order, text-order, text-order-ends]
+    pitfalls:
+      - 'Calling the function in SQL before registering it: the real run fails with UNRESOLVED_ROUTINE.'
+      - 'Registering the lambda without a type: results are text, and ORDER BY sorts them as text.'
+    examTip: 'Give a registered lambda its type as the third argument whenever it does not return text.'
+    tryIt: [case-count-numeric, register-fill, text-order-two-tier]
+
+  - id: sql-group-alias
+    title: 'GROUP BY, AVG and a name in backticks'
+    skills: [sql-clauses]
+    summary: |
+      `GROUP BY VendorID` makes one [[group-by|group]] per vendor; `AVG(tip_amount)` gives one mean per group. `AS`
+      names the result (an [[alias]]); a name with a space needs [[backticks]]. `ORDER BY` fixes the row order.
+    keyFormula: '\bar{t}_g = \frac{1}{n_g} \sum_{i \in g} t_i'
+    data: [taxi12]
+    derive:
+      - { fn: tripsView, in: { cols: [VendorID, tip_amount] }, out: tv }
+      - { fn: groupAvg, in: {}, out: ga }
+      - { fn: realCell, in: { key: sql.alias_space_ok }, out: rc }
+    live:
+      - id: table
+        widget: Matrix
+        props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', rowHeader: trip, title: 'Vendor and tip of each trip' }
+      - id: out
+        widget: Text
+        props:
+          body: |
+            Real output:
+            {=rc.out}
+    steps:
+      - tex: |
+          \anchor{group}{g \in \{1, 2\}} \quad \text{(one group per VendorID)}
+        say: '"$g \in \{1, 2\}$" reads "g is 1 or 2". The two vendors make two groups.'
+      - tex: |
+          \anchor{avg}{\bar{t}_g = \frac{1}{n_g} \sum_{i \in g} t_i} \quad \to \quad \anchor{alias}{\text{mean tip}}
+        say: Each group's tips $t_i$ are averaged, and the column is named `mean tip`.
+      - tex: |
+          \anchor{avg}{\bar{t}_1 = \frac{6 + 0 + 6.35}{3} = 4.1167}
+        say: 'Vendor 1 has trips 3, 10 and 12. Step through both vendors.'
+    code:
+      lang: python
+      title: An average per vendor, named with backticks
+      source: |
+        """Average tip per vendor, in a column called `mean tip`."""
+        spark.sql("""
+        SELECT VendorID,
+               AVG(tip_amount)      # @a:avg
+                 AS `mean tip`      # @a:alias
+        FROM trips
+        GROUP BY VendorID           # @a:group
+        ORDER BY VendorID
+        """).show()
+    links:
+      - { anchor: group, label: 'GROUP BY', say: 'Every column in SELECT must be grouped or summarized.' }
+      - { anchor: avg, label: 'AVG', say: 'One mean per group.' }
+      - { anchor: alias, label: 'the name in backticks', say: 'Quotes would make text; the real run fails with PARSE_SYNTAX_ERROR.' }
+    trace: { fn: groupAvgTrace, in: {} }
+    examples: [group-avg-show, group-avg-values]
+    pitfalls:
+      - 'Writing `AS mean tip` or `AS ''mean tip''`: both fail with PARSE_SYNTAX_ERROR.'
+      - 'Selecting a column that is neither grouped nor summarized: MISSING_AGGREGATION.'
+    examTip: 'Backticks for names, quotes for text values.'
+    tryIt: [group-avg-hand, backtick-fill, sql-parsons]

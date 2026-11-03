@@ -63,7 +63,7 @@ export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
 }
 
-const ORDER = ['manifest.yaml', 'SOURCE_NOTES.md', 'datasets/', 'logic.js', 'examples.yaml', 'glossary.yaml', 'math-code.yaml', 'intuition.yaml', 'application.yaml', 'quiz.yaml'];
+const ORDER = ['manifest.yaml', 'SOURCE_NOTES.md', 'datasets/', 'logic.js', 'examples.yaml', 'glossary.yaml', 'math-code.yaml', 'intuition.yaml', 'application.yaml', 'quiz.yaml', 'exam.yaml'];
 export function sortModuleFiles(paths: string[]): string[] {
   const rank = (p: string) => {
     const i = ORDER.findIndex((o) => (o.endsWith('/') ? p.startsWith(o) : p === o));

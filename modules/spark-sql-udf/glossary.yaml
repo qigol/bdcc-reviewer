@@ -1,0 +1,295 @@
+terms:
+  # ---- basics ------------------------------------------------------------------------------
+  - id: dataframe
+    term: DataFrame
+    aka: [DataFrames, data frame]
+    short: A table of rows with named columns. Spark spreads its rows across many computers so they can work on it together.
+    long: |
+      In this module `trips` and `tweets` are DataFrames. Each holds [[column|columns]]; a [[udf]] adds a new column
+      computed from old ones, and [[sql|spark.sql]] returns a new DataFrame too.
+    related: [column, temp-view]
+    skills: [udf-wrap]
+  - id: column
+    term: Column
+    aka: [columns, Column object]
+    short: One named field of a table, such as fare_amount, holding one value for every row.
+    long: |
+      In PySpark code, `trips.fare_amount` is a **Column object**: a description of a column, not its values. That
+      is why a plain Python [[function]] cannot work on it directly, and why a [[udf]] is needed.
+    related: [dataframe, function, udf]
+    skills: [udf-wrap]
+  - id: function
+    term: Function
+    aka: [functions, Python function]
+    short: A named, reusable piece of code. You call it with parentheses, give it inputs, and it hands back a result.
+    long: |
+      `def pair_code(pu, do): return f'{pu}-{do}'` defines one. Called on two numbers it returns a string. Called on
+      two [[column|Column objects]] it only joins their descriptions, so Spark needs it wrapped as a [[udf]].
+    related: [udf, decorator, lambda]
+    skills: [udf-wrap]
+
+  # ---- user-defined functions ------------------------------------------------------------------
+  - id: udf
+    term: User-defined function (UDF)
+    aka: [UDF, UDFs, user-defined functions, user defined function, udf]
+    short: 'Your own Python function, wrapped so Spark can run it on every row of a column and put the results in a new column.'
+    long: |
+      Made with the [[decorator]] `@udf`. Spark sends each row's values to Python, calls the [[function]], and
+      brings the result back as the column's [[return-type]]. To use it inside SQL it must also be registered
+      ([[udf-registration]]). A [[pandas-udf]] is the faster, batch-at-a-time kind.
+    related: [function, decorator, return-type, pandas-udf, udf-registration]
+    skills: [udf-wrap]
+  - id: decorator
+    term: Decorator
+    aka: [decorators, '@udf', '@pandas_udf']
+    short: 'A line starting with @ just above a def. It hands the new function to another function, which returns a changed version.'
+    long: |
+      `@udf` above `def pair_code(...)` means `pair_code = udf(pair_code)`: the name now points to a [[udf]], not
+      to the plain [[function]]. `@udf('int')` and `@pandas_udf('long')` pass settings too.
+    related: [udf, pandas-udf]
+    skills: [udf-wrap]
+  - id: analysis-exception
+    term: AnalysisException
+    aka: [AnalysisExceptions]
+    short: "Spark's error when it cannot make sense of a query or plan, for example a column, view or function name it cannot find."
+    long: |
+      Its first line names an error class in capitals: `UNRESOLVED_COLUMN` (no such [[column]]),
+      `TABLE_OR_VIEW_NOT_FOUND` (no such [[temp-view]]), `UNRESOLVED_ROUTINE` (the function was never registered,
+      see [[udf-registration]]), `MISSING_AGGREGATION` (a non-summary value in a [[group-by]] query).
+    related: [temp-view, udf-registration, plan]
+    skills: [udf-wrap, temp-view-sql]
+
+  # ---- return types ---------------------------------------------------------------------------
+  - id: return-type
+    term: Return type
+    aka: [returnType, return types, declared type]
+    short: 'The data type you tell Spark a UDF hands back, such as string, int, double or a struct. Without one, Spark assumes string.'
+    long: |
+      Spark trusts the declaration. If the [[function]] returns something else, the result may be cast, turned
+      into [[null-value|NULL]], or raise an error, depending on whether the rows travel by [[pickle]] or
+      [[apache-arrow|Arrow]]. Nested types are written as a [[struct]] or as a [[ddl-schema-string]].
+    related: [udf, struct, ddl-schema-string, null-value]
+    skills: [udf-return-type]
+  - id: null-value
+    term: 'Null'
+    aka: ['NULL', nulls, missing value]
+    short: 'A missing value, where nothing is stored. show() prints it as NULL.'
+    long: |
+      A [[return-type]] that does not fit what the function returns can fill a whole column with NULL without any
+      error: a silent NULL. Tweets without a place also have a NULL `country_code`.
+    related: [return-type, pickle]
+    skills: [udf-return-type]
+  - id: struct
+    term: Struct
+    aka: [structs, StructType, struct column, nested column]
+    short: 'A column whose values hold named fields, like a folder holding files and more folders. show() prints one as {101, {Ana Santos, …}}.'
+    long: |
+      Built with `StructType([StructField(...), ...])` or with a [[ddl-schema-string]]. A [[udf]] with a struct
+      [[return-type]] returns a Python tuple, and Spark files each item under the field in the same position.
+    related: [return-type, ddl-schema-string]
+    skills: [udf-return-type]
+  - id: ddl-schema-string
+    term: DDL schema string
+    aka: [DDL schema, DDL string, DDL]
+    short: 'A text that lists names and types, such as "id LONG, user STRUCT<name: STRING, description: STRING>", used instead of StructType objects.'
+    long: |
+      DDL is SQL's way of writing types. It gives the same [[struct]] as the `StructType` version in fewer
+      characters, and works as a [[return-type]] for `@udf`.
+    related: [struct, return-type]
+    skills: [udf-return-type]
+
+  # ---- transfer -----------------------------------------------------------------------------
+  - id: pickle
+    term: Pickle
+    aka: [pickling, pickled]
+    short: "Python's own way of turning a value into bytes and back. A row-at-a-time UDF can send each row's values this way."
+    long: |
+      With pickle, each value is converted on its own and the UDF is called once per row, and a value that does not fit the
+      [[return-type]] quietly becomes [[null-value|NULL]]. [[apache-arrow|Arrow]] sends whole [[batch|batches]]
+      instead.
+    related: [apache-arrow, return-type, null-value]
+    skills: [arrow-transfer]
+  - id: apache-arrow
+    term: Apache Arrow
+    aka: [Arrow, useArrow, arrow]
+    short: 'A shared column format both Spark and Python understand, so many rows can cross between them in one go.'
+    long: |
+      `@udf(useArrow=True)` or the setting `spark.sql.execution.pythonUDF.arrow.enabled` makes a [[udf]] use it.
+      Every [[pandas-udf]] uses it: rows travel in [[batch|batches]]. It converts types more strictly than
+      [[pickle]]: a mismatch is cast or raises an error.
+    related: [pickle, batch, pandas-udf]
+    skills: [arrow-transfer]
+  - id: batch
+    term: Batch
+    aka: [batches, record batch, Arrow batch]
+    short: 'A group of rows sent to Python together. A pandas UDF is called once per group, not once per row.'
+    long: |
+      [[apache-arrow|Arrow]] cuts a partition's rows into batches of at most
+      `spark.sql.execution.arrow.maxRecordsPerBatch` rows (10,000 by default). A [[pandas-udf]] sees each batch as a
+      [[pandas-series]], so `len(s)` is the batch size.
+    related: [apache-arrow, pandas-series, pandas-udf]
+    skills: [arrow-transfer, pandas-series-udf]
+
+  # ---- pandas UDFs --------------------------------------------------------------------------
+  - id: pandas
+    term: pandas
+    aka: [pd, pandas library]
+    short: "A Python library for tables and columns that fit in one computer's memory. It is imported as pd."
+    long: |
+      A [[pandas-udf]] gets its input as pandas objects: a [[pandas-series]] per column, or a pandas DataFrame for
+      a whole group in [[apply-in-pandas]].
+    related: [pandas-series, pandas-udf]
+    skills: [pandas-series-udf]
+  - id: pandas-series
+    term: pandas Series
+    aka: [Series, pd.Series, series]
+    short: 'One column of values in pandas, with whole-column maths: s * 2 doubles every value at once.'
+    long: |
+      In a [[pandas-udf]], the [[type-hint]] `pd.Series` says the function takes or returns one. Each call gets
+      one [[batch]] of a column as a Series.
+    related: [pandas, pandas-udf, batch, type-hint]
+    skills: [pandas-series-udf]
+  - id: pandas-udf
+    term: Pandas UDF
+    aka: [pandas UDFs, pandas_udf, vectorized UDF]
+    short: 'A UDF that receives a whole batch of rows as pandas objects and returns pandas objects, instead of one row at a time.'
+    long: |
+      Made with `@pandas_udf(returnType)`. Its [[type-hint|type hints]] pick the kind: Series to Series,
+      [[iterator]] of Series, iterator of tuples of Series, or Series to scalar (one number per group, used in an
+      [[aggregation]]). It always uses [[apache-arrow|Arrow]].
+    related: [udf, pandas-series, type-hint, iterator, batch]
+    skills: [pandas-series-udf]
+  - id: type-hint
+    term: Type hint
+    aka: [type hints, annotation, annotations]
+    short: 'A note after a parameter or after -> that says what kind of value is expected, such as s: pd.Series -> pd.Series.'
+    long: |
+      Plain Python ignores them, but `@pandas_udf` reads them to decide which kind of [[pandas-udf]] you wrote:
+      `pd.Series -> pd.Series`, `Iterator[pd.Series] -> Iterator[pd.Series]`, `Iterator[Tuple[...]]` or
+      `pd.Series -> float`.
+    related: [pandas-udf, iterator, pandas-series]
+    skills: [pandas-series-udf, iterator-udf]
+  - id: iterator
+    term: Iterator
+    aka: [iterators, 'Iterator[pd.Series]', generator]
+    short: 'Something a for loop can take items from one at a time. An iterator UDF receives its batches through one.'
+    long: |
+      With `Iterator[pd.Series]`, Spark calls the function **once** and hands it an iterator of [[batch|batches]].
+      Code before the loop (opening `seeds.json`) runs once; the loop body runs once per batch and must
+      [[yield]] a Series.
+    related: [yield, pandas-udf, batch, type-hint]
+    skills: [iterator-udf]
+  - id: yield
+    term: yield
+    aka: [yields, yielding]
+    short: 'Like return, but the function hands back one result and keeps going, ready to hand back the next one.'
+    long: |
+      An [[iterator]] UDF must `yield` one Series per [[batch]]. A `return` inside the loop ends the function
+      after the first batch and hands back a plain Series, which Spark rejects with `UDF_RETURN_TYPE`.
+    related: [iterator]
+    skills: [iterator-udf]
+
+  # ---- groups --------------------------------------------------------------------------------
+  - id: group-by
+    term: groupBy
+    aka: [group by, groupby, GROUP BY, grouped]
+    short: Puts rows with equal values in the chosen columns into one group, so that each group can be counted or summarized.
+    long: |
+      `tweets.groupby('place.country_code')` in Python and `GROUP BY VendorID` in [[sql]] do the same job. Each
+      group then needs an [[aggregation]]; any other column in the result raises `MISSING_AGGREGATION`.
+    related: [aggregation, apply-in-pandas]
+    skills: [grouped-pandas, sql-clauses]
+  - id: aggregation
+    term: Aggregation
+    aka: [agg, aggregate, summary per group, Series to scalar]
+    short: 'One summary value per group, such as a count or an average.'
+    long: |
+      `AVG(...)` and `COUNT(*)` in SQL, `agg(...)` in Python, and a Series-to-scalar [[pandas-udf]] such as
+      `mean_udf` all aggregate: many values in, one value out per [[group-by|group]].
+    related: [group-by, pandas-udf]
+    skills: [grouped-pandas]
+  - id: apply-in-pandas
+    term: applyInPandas
+    aka: [grouped map, applyInPandas()]
+    short: 'Runs a plain Python function on each group as a whole pandas DataFrame, and stacks the DataFrames it returns.'
+    long: |
+      Written `df.groupby(key).applyInPandas(fn, schema=...)`. Unlike an [[aggregation]], the function may return
+      any number of rows per [[group-by|group]]; the schema string says which columns they have.
+    related: [group-by, pandas, aggregation]
+    skills: [grouped-pandas]
+
+  # ---- SQL --------------------------------------------------------------------------------------
+  - id: sql
+    term: SQL
+    aka: [spark.sql, SQL statement, SQL query, Spark SQL]
+    short: 'A language for asking questions of tables: SELECT these columns FROM this table WHERE this is true.'
+    long: |
+      `spark.sql("SELECT ...")` runs one statement and returns a [[dataframe]]. It can only name tables Spark
+      knows, such as a [[temp-view]], and functions it knows: built-in ones, or a [[udf]] after
+      [[udf-registration]]. Spark builds the same [[plan]] as for the matching DataFrame code.
+    related: [temp-view, plan, case-when, backticks]
+    skills: [temp-view-sql]
+  - id: temp-view
+    term: Temporary view
+    aka: [temp view, view, createOrReplaceTempView, temporary views]
+    short: 'A name that lets SQL find a DataFrame, made with createOrReplaceTempView. It lasts until the Spark session ends.'
+    long: |
+      It stores no copy: `FROM trips` reads the [[dataframe]] the name points to. Without it, [[sql]] raises an
+      [[analysis-exception]] `TABLE_OR_VIEW_NOT_FOUND`.
+    related: [sql, dataframe, analysis-exception]
+    skills: [temp-view-sql]
+  - id: plan
+    term: Plan
+    aka: [plans, query plan, execution plan, explain]
+    short: "Spark's list of steps for building a result, written before anything runs. explain() prints it."
+    long: |
+      [[sql]] and DataFrame code are turned into the same kind of plan. `explain()` shows, for example, that a
+      `WHERE` became a `Filter` and that only the needed columns are read.
+    related: [sql, analysis-exception]
+    skills: [temp-view-sql]
+  - id: udf-registration
+    term: UDF registration
+    aka: [spark.udf.register, register, registered, registering]
+    short: 'spark.udf.register("name", f) gives a function a name that SQL statements can call.'
+    long: |
+      A [[udf]] made with `@udf` works in Python code but SQL cannot see it until it is registered. Registering a
+      plain [[function]] or a [[lambda]] works too; give the [[return-type]] as the third argument, or SQL gets
+      strings.
+    related: [udf, lambda, sql, return-type]
+    skills: [sql-udf-register]
+  - id: lambda
+    term: Lambda
+    aka: [lambdas, lambda function, anonymous function]
+    short: 'A one-line function without a name, such as lambda x: x*2, which doubles x.'
+    long: |
+      Handy for [[udf-registration]]: `spark.udf.register('double_distance', lambda x: x*2, 'FLOAT')`. Without the
+      third argument the [[return-type]] is string, and sorting the results sorts text.
+    related: [udf-registration, function]
+    skills: [sql-udf-register]
+  - id: case-when
+    term: CASE WHEN
+    aka: [CASE, CASE expression, CASE WHEN ... THEN ... ELSE ... END]
+    short: 'SQL''s if-else: CASE WHEN test THEN value ELSE other END gives each row one value or the other.'
+    long: |
+      Each row is tested on its own. The test may call a registered [[udf]], as `double_distance(...) > 10` does,
+      and the new column usually gets a name with `AS` (an [[alias]]).
+    related: [sql, alias, udf-registration]
+    skills: [sql-clauses]
+  - id: alias
+    term: Alias
+    aka: [aliases, AS, renamed]
+    short: 'A new name for a result column, written with AS. Without one, Spark makes up names like avg(tip_amount).'
+    long: |
+      A name with a space or a dash must sit in [[backticks]]: ``AS `mean tip` ``. Quotes do not work: SQL
+      reads them as text, not as a name.
+    related: [backticks, case-when, sql]
+    skills: [sql-clauses]
+  - id: backticks
+    term: Backticks
+    aka: [backtick, back quotes, '`name`']
+    short: 'The ` marks around a name in SQL, needed when the name has a space, a dash or another unusual character.'
+    long: |
+      Without them `AS mean tip` ends the [[alias]] at `mean` and fails with `PARSE_SYNTAX_ERROR`. Single or double
+      quotes make text, not a name, and fail the same way in an alias.
+    related: [alias, sql]
+    skills: [sql-clauses]

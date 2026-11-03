@@ -1,0 +1,994 @@
+scenes:
+  # =================================================================== 1. a plain function vs a UDF
+  - id: plain-function
+    title: Teaching Spark your own function
+    goal: Why can't Spark use an ordinary Python function on a table, and what one line fixes it?
+    skills: [udf-wrap]
+    data: [taxi12]
+    state: { pairUpTo: 0 }
+    derive:
+      - { fn: tripsView, in: { cols: [PULocationID, DOLocationID] }, out: tv }
+      - { fn: pairSheet, in: { upTo: '@pairUpTo' }, out: ps }
+      - { fn: realCells, in: { keys: [udf.plain_def, udf.plain_values] }, out: plain }
+      - { fn: realCells, in: { keys: [udf.plain_columns] }, out: onCols }
+      - { fn: realCell, in: { key: udf.plain_select_cols }, out: sel }
+      - { fn: realCell, in: { key: udf.def }, out: ud }
+      - { fn: realCell, in: { key: udf.show }, out: us }
+    stage:
+      - id: trips
+        widget: Matrix
+        props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', rowHeader: trip, title: 'trips: the 12 lesson trips (two of ten columns)' }
+      - id: plain-cell
+        widget: Text
+        hidden: true
+        props: { body: '@plain.md' }
+      - id: cols-cell
+        widget: Text
+        hidden: true
+        props: { body: '@onCols.md' }
+      - id: sel-code
+        widget: Code
+        hidden: true
+        props: { source: '@sel.code', lang: python, title: 'The plain function inside select' }
+      - id: sel-out
+        widget: Text
+        hidden: true
+        props: { body: '@sel.out' }
+      - id: udf-code
+        widget: Code
+        hidden: true
+        props: { source: '@ud.code', lang: python, title: 'One new line: @udf' }
+      - id: sheet
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { rows: '@ps.rows', cols: '@ps.cols', values: '@ps.values', rowHeader: trip, title: 'One call per row' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: pairWalk, in: {}, roles: { sheet: sheet }, speed: 1.5 }
+      - id: udf-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output of `trips.select(pair_code('PULocationID', 'DOLocationID')).show()`:
+            {=us.out}
+    beats:
+      - say: |
+          `trips` is a **DataFrame**: a table Spark can spread over many computers. Each **column** is one named field
+          with a value for every row. `PULocationID` is where a trip started (the pickup zone) and `DOLocationID`
+          where it ended (the drop-off zone).
+        define: [dataframe, column]
+      - say: |
+          We want a code like `41-238` for every trip. A **function** is a named, reusable piece of code. `pair_code`
+          joins its two inputs with a hyphen, and on two plain numbers it works.
+        show: [plain-cell]
+        define: [function]
+        gate:
+          type: predict
+          question: 'Now we hand it the two columns: `pair_code(trips.PULocationID, trips.DOLocationID)`. What does it return?'
+          options:
+            - "The text `\"Column<'PULocationID'>-Column<'DOLocationID'>\"`"
+            - 'A column of 12 codes, one per trip'
+            - "The text `'41-238'`, from the first trip"
+            - 'An error, because a function cannot take columns'
+          answer: 0
+          optionFeedback:
+            '1': 'Python called the function once, not once per row. It never saw any trip.'
+            '2': 'The function never sees trip 1''s numbers; it gets two Column objects.'
+            '3': 'Python happily joins any two things that can be turned into text.'
+          explain: '`trips.PULocationID` is a description of the column, not its 12 values. The f-string glues the two descriptions.'
+      - say: |
+          The real run. Python called `pair_code` once and glued two descriptions together. Inside `select`, Spark
+          then looks for a column with that strange name.
+        show: [cols-cell, sel-code, sel-out]
+      - say: |
+          Read the last line: `UNRESOLVED_COLUMN`, and the "Did you mean" list. This kind of error is an
+          **AnalysisException**: Spark could not make sense of the request, here because no column has that name.
+        define: [analysis-exception]
+      - say: |
+          The fix is one line above `def`: `@udf`. A line starting with `@` is a **decorator**: it hands the new
+          function to `udf`, which returns a **user-defined function (UDF)**. Spark can now call it for every row.
+        hide: [plain-cell, cols-cell, sel-code, sel-out]
+        show: [udf-code]
+        define: [decorator, udf]
+        gate:
+          type: predict
+          question: Trip 9 starts in zone 75 and ends in zone 41. What does its row of the UDF's column show?
+          options: ['`75-41`', '`41-75`', '`7541`', "`Column<'PULocationID'>-Column<'DOLocationID'>`"]
+          answer: 0
+          optionFeedback:
+            '1': 'The function puts `pu` first, then `do`.'
+            '2': 'The f-string puts a hyphen between the two numbers.'
+            '3': 'With `@udf`, the function gets each row''s values, not the Column descriptions.'
+          explain: 'Spark calls `pair_code(75, 41)` for trip 9, which returns `75-41`.'
+      - say: Count along. Every row is one call, with that row's two numbers.
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play all 12 calls.
+          target: player
+          event: done
+      - say: |
+          The real output agrees, row for row. Trips 1 and 7 share a code, so 12 rows give 11 different codes. Now
+          count the different codes for a fresh table.
+        show: [udf-out]
+        gate:
+          type: practice
+          template: pair-distinct-numeric
+      - say: Why does Spark insist on calling the function itself?
+        gate:
+          type: reflect
+          prompt: In your own words, why does a plain Python function fail inside `select`, while the `@udf` version works?
+          model: |
+            Python runs a plain function once, right away, on the Column objects. Those only describe columns, so the
+            function returns one useless string. A UDF is handed to Spark instead. Spark calls it later, once per
+            row, with that row's real values, and puts the results in a new column.
+    takeaway: A plain function runs once on column descriptions; @udf makes Spark call it once per row with real values.
+
+  # =================================================================== 2. return types
+  - id: return-types
+    title: What comes back, and as what type
+    goal: When your function returns a number, does Spark store a number?
+    skills: [udf-return-type]
+    data: [taxi12, tweets8]
+    state: { decl: string, structUpTo: 0 }
+    derive:
+      - { fn: realCells, in: { keys: [udf.double_default_def, udf.double_default_show] }, out: dflt }
+      - { fn: realCell, in: { key: udf.double_default_schema }, out: dsch }
+      - { fn: returnTypeView, in: { decl: '@decl' }, out: rt }
+      - { fn: realCells, in: { keys: [udf.struct_type, udf.struct_def] }, out: stype }
+      - { fn: realCell, in: { key: udf.struct_show_full }, out: sshow }
+      - { fn: structSheet, in: { upTo: '@structUpTo' }, out: ss }
+      - { fn: realCells, in: { keys: [udf.ddl_def, udf.ddl_show, udf.struct_dot] }, out: ddl }
+    stage:
+      - id: default-cell
+        widget: Text
+        props: { body: '@dflt.md' }
+      - id: default-schema
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            ```python
+            trips.select(double_fare('fare_amount')).printSchema()
+            ```
+            {=dsch.out}
+      - id: decl-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Declared type
+          style: segmented
+          options:
+            - { value: string, label: no type }
+            - { value: double, label: 'double' }
+            - { value: intArrow, label: 'int, useArrow=True' }
+            - { value: intPickle, label: 'int, useArrow=False' }
+        bind: { value: decl }
+      - id: decl-cells
+        widget: Text
+        hidden: true
+        props: { body: '@rt.md' }
+      - id: struct-cell
+        widget: Text
+        hidden: true
+        props: { body: '@stype.md' }
+      - id: struct-sheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@ss.rows', cols: '@ss.cols', values: '@ss.values', rowHeader: tweet, title: 'Each tweet''s three fields, packed into one struct' }
+      - id: struct-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=sshow.out}
+      - id: ddl-cell
+        widget: Text
+        hidden: true
+        props: { body: '@ddl.md' }
+    beats:
+      - say: |
+          `double_fare` doubles each fare. The output shows `23.0` for a fare of 11.5. The **return type** is what you
+          tell Spark the function hands back. Here the decorator gives none.
+        define: [return-type]
+        gate:
+          type: predict
+          question: What type does `printSchema()` give the new column?
+          options: ['string', 'double', 'float', 'int']
+          answer: 0
+          optionFeedback:
+            '1': 'Spark does not look at what Python returns; it uses the declared type.'
+            '2': 'The new column does not copy `fare_amount`''s type.'
+            '3': '23.0 is not even printed as a whole number.'
+          explain: Without a declared type, a UDF's column is a string. `23.0` is text that only looks like a number.
+      - say: 'The real schema: `string`. To keep numbers, declare a type in the decorator, as in `@udf(''double'')`.'
+        show: [default-schema]
+      - say: |
+          Try four declarations above the same function. `useArrow` picks how values travel to Python and back; the
+          next scene explains it. One declaration gives **NULL**, a missing value, in every row, with no error.
+        hide: [default-cell, default-schema]
+        show: [decl-choice, decl-cells]
+        define: [null-value]
+        gate:
+          type: when
+          prompt: Find the declaration whose column is all NULL.
+          when: "decl == 'intPickle'"
+          hint: Look at the two int versions.
+      - say: |
+          With `useArrow=False`, the float 23.0 does not fit an int, and Spark quietly stores NULL. With Arrow, the same
+          mismatch is cast to 23. A wrong return type can wipe a column without any error, so declare what you return.
+        set: { decl: intPickle }
+      - say: |
+          Now a nested result. `collect_user_info` returns `(user_id, (user_name, user_description))`: a tuple inside
+          a tuple. Its declared type is a **struct**: a column whose values hold named fields, here `id` and `user`,
+          and `user` holds `name` and `description`.
+        hide: [decl-choice, decl-cells]
+        show: [struct-cell]
+        define: [struct]
+        gate:
+          type: predict
+          question: What does `show(truncate=False)` print for tweet 1 (user 101, Ana Santos, "Nurse. Coffee first.")?
+          options:
+            - '`{101, {Ana Santos, Nurse. Coffee first.}}`'
+            - '`(101, (Ana Santos, Nurse. Coffee first.))`'
+            - '`101`'
+            - '`[101, Ana Santos, Nurse. Coffee first.]`'
+          answer: 0
+          optionFeedback:
+            '1': 'Spark does not print Python tuples; it prints struct values in curly brackets.'
+            '2': 'The whole struct is shown, not just its first field.'
+            '3': 'Square brackets are for arrays, which have no field names.'
+          explain: Each tuple item lands in the field at the same position, and `show()` prints a struct in curly brackets.
+      - say: The tuple is filed field by field, tweet by tweet. Tweet 7 has an empty description, so its inner struct ends with nothing after the comma.
+        show: [struct-sheet, struct-out]
+        set: { structUpTo: 8 }
+      - say: |
+          The same type fits in one string: `id LONG, user STRUCT<name: STRING, description: STRING>`. That is a
+          **DDL schema string**, SQL's way of writing types. A dot path such as `info.user.name` reaches inside.
+        hide: [struct-sheet, struct-out, struct-cell]
+        show: [ddl-cell]
+        define: [ddl-schema-string]
+    takeaway: Spark stores what you declare. No type means string; a mismatch can mean silent NULLs; a struct type files a tuple into named fields.
+
+  # =================================================================== 3. pickle or Arrow
+  - id: pickle-or-arrow
+    title: How rows travel to Python
+    goal: Your function runs in Python, but the data lives in Spark. How do the values get across?
+    skills: [arrow-transfer]
+    data: [taxi12]
+    state: { size: 12 }
+    derive:
+      - { fn: realCell, in: { key: udf.arrow_def }, out: ad }
+      - { fn: realCell, in: { key: udf.arrow_show }, out: as }
+      - { fn: realCells, in: { keys: [ar.default] }, out: dfl }
+      - { fn: batchSheet, in: { size: '@size', upTo: 12 }, out: bs }
+      - { fn: batchPlan, in: { n: 12, size: '@size' }, out: bp }
+    stage:
+      - id: travel
+        widget: Callout
+        props:
+          kind: note
+          title: Two sides
+          body: |
+            Spark runs on Java. Your UDF runs in a separate Python program. For every call, the input values cross
+            from Spark to Python, and the result crosses back. Both directions need the values packed into bytes.
+      - id: arrow-code
+        widget: Code
+        hidden: true
+        props: { source: '@ad.code', lang: python, title: 'The same UDF with useArrow=True' }
+      - id: arrow-out
+        widget: Text
+        hidden: true
+        props: { body: '@as.out' }
+      - id: default-out
+        widget: Text
+        hidden: true
+        props: { body: '@dfl.md' }
+      - id: batches
+        widget: Matrix
+        hidden: true
+        props: { rows: '@bs.rows', cols: '@bs.cols', values: '@bs.values', rowHeader: trip, title: 'Which batch each trip travels in' }
+      - id: size-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'B: most rows per batch', min: 1, max: 12, step: 1 }
+        bind: { value: size }
+      - id: count
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Batches, value: '@bp.count', tone: accent }
+            - { label: Sizes, value: '{=bp.sizesText}' }
+    beats:
+      - say: |
+          Python's own way of packing a value into bytes is **pickle**. With pickle, each value is converted on its
+          own, and the function is called once per row: twelve conversions and twelve calls for twelve trips.
+        define: [pickle]
+      - say: |
+          **Apache Arrow** is a column format that both Java and Python read directly. With `@udf(useArrow=True)`,
+          many values cross in one go, with no per-value conversion.
+        show: [arrow-code]
+        define: [apache-arrow]
+        gate:
+          type: predict
+          question: Does `pair_code`'s output change with `useArrow=True`?
+          options:
+            - 'No: the same 12 codes'
+            - 'Yes: the codes become numbers'
+            - 'Yes: every row becomes NULL'
+            - 'Yes: it raises an error, because Arrow needs a declared type'
+          answer: 0
+          optionFeedback:
+            '1': 'The function still builds text, and text is the default type.'
+            '2': 'The function returns text that fits the default string type, so nothing is lost.'
+            '3': 'The default string type works with Arrow too.'
+          explain: Arrow changes how values travel, not what the function computes.
+      - say: |
+          The same codes. The difference shows with mismatched types: pickle stored NULL for a float in an int column;
+          Arrow cast it to 23. In PySpark 4.3, the version these runs used, plain `@udf` already uses Arrow:
+        show: [arrow-out, default-out]
+      - say: |
+          Arrow moves rows in **batches**: groups of rows sent together. $B$ is the most rows one batch may hold. Here
+          $B$ is 12, so all trips travel together.
+        hide: [arrow-code, arrow-out, default-out, travel]
+        show: [batches]
+        define: [batch]
+        gate:
+          type: predict
+          question: With $B = 5$, how many batches carry the 12 trips?
+          answer: { value: 3 }
+          explain: '5 + 5 + 2: two full batches and one with the 2 rows left over.'
+      - say: Now try other limits.
+        show: [size-slider, count]
+        gate:
+          type: when
+          prompt: Make the 12 trips travel in exactly 4 batches.
+          when: 'bp.count == 4'
+          hint: '12 rows in 4 equal batches.'
+      - say: Why bother with batches at all?
+        set: { size: 3 }
+        gate:
+          type: reflect
+          prompt: Why is handing 10,000 rows over as one Arrow batch usually faster than converting them one by one with pickle?
+          model: |
+            With pickle, each of the 10,000 values is converted on its own and the function is called 10,000 times.
+            Arrow's column format moves the whole batch with no per-value conversion, and a pandas UDF handles it in
+            one call. Each conversion and each call has a cost, so fewer of them is faster.
+    takeaway: Pickle sends values one row at a time; Arrow sends batches in a shared format, and handles type mismatches more strictly.
+
+  # =================================================================== 4. Series to Series
+  - id: whole-batches
+    title: A whole batch at once
+    goal: What if your function received a whole column of values at once, instead of one value per call?
+    skills: [pandas-series-udf]
+    data: [taxi12]
+    state: { lo: 0, hi: 100 }
+    derive:
+      - { fn: realCell, in: { key: pd.clip_def }, out: cd }
+      - { fn: realCell, in: { key: pd.clip_show }, out: c100 }
+      - { fn: clipView, in: { lo: '@lo', hi: '@hi' }, out: cv }
+      - { fn: realCells, in: { keys: [pd.clip5_show] }, out: c5 }
+      - { fn: realCells, in: { keys: [pd.batch_def, pd.batch_show_all] }, out: bsa }
+      - { fn: realCells, in: { keys: [pd.batch_small] }, out: bsm }
+    stage:
+      - id: clip-code
+        widget: Code
+        props: { source: '@cd.code', lang: python, title: 'A pandas UDF (notebook cell)' }
+      - id: clip-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output of `trips.select(clip_0_to_100(trips.trip_distance).alias('clipped_distance')).show()`:
+            {=c100.out}
+      - id: clip-table
+        widget: Matrix
+        hidden: true
+        props: { rows: '@cv.matrix.rows', cols: '@cv.matrix.cols', values: '@cv.matrix.values', rowHeader: trip, title: 'np.clip(s, lo, hi) on the 12 distances' }
+      - id: hi-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: hi, min: 1, max: 100, step: 1 }
+        bind: { value: hi }
+      - id: changed
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Values changed, value: '@cv.nChanged', tone: warn }
+      - id: clip5-out
+        widget: Text
+        hidden: true
+        props: { body: '@c5.md' }
+      - id: batch-all
+        widget: Text
+        hidden: true
+        props: { body: '@bsa.md' }
+      - id: batch-small
+        widget: Text
+        hidden: true
+        props: { body: '@bsm.md' }
+    beats:
+      - say: |
+          **pandas** is a Python library for tables that fit in one computer's memory; it is imported as `pd`. A
+          **pandas Series** is one column of values with whole-column maths: `s * 2` doubles every value at once.
+        define: [pandas, pandas-series]
+      - say: |
+          A **pandas UDF** receives a whole batch as a Series and returns a Series. The **type hints**
+          `s: pd.Series -> pd.Series` (notes on what goes in and out) tell `@pandas_udf` which kind you wrote.
+          `np.clip(s, 0, 100)` keeps every value between 0 and 100.
+        define: [pandas-udf, type-hint]
+        gate:
+          type: predict
+          question: The longest of the 12 lesson trips is 9.8 miles. How many distances does `clip_0_to_100` change?
+          answer: { value: 0 }
+          explain: Every distance is already between 0 and 100, so the clipped column equals the original.
+      - say: The real output equals the input. Now bring the top bound down and watch which trips get clipped.
+        show: [clip-out, clip-table, hi-slider, changed]
+        gate:
+          type: when
+          prompt: Set hi so that exactly 2 trips are clipped.
+          when: 'cv.nChanged == 2'
+          hint: Which two trips are the longest? Put hi between the second and the third longest.
+      - say: 'A real run with hi = 5: trips 2, 3, 6 and 12 become 5.0, all in one call on the whole batch.'
+        set: { hi: 5 }
+        hide: [clip-out, hi-slider]
+        show: [clip5-out]
+      - say: |
+          How big is a batch? This pandas UDF returns `len(s)` for every row: the size of the batch it received.
+          With the default limit of 10,000 rows, all 12 trips arrive together.
+        hide: [clip-code, clip-table, changed, clip5-out]
+        show: [batch-all]
+        gate:
+          type: predict
+          question: 'With the limit set to 5 rows per batch, what does `batch_size` print for trip 12?'
+          answer: { value: 2 }
+          explain: 'Batches of 5, 5 and 2: trips 11 and 12 travel in the last batch of 2.'
+      - say: The real run with the limit at 5. Now clip a fresh batch yourself.
+        show: [batch-small]
+        gate:
+          type: practice
+          template: clip-count-numeric
+    takeaway: A Series-to-Series pandas UDF gets a whole batch as a pandas Series and returns a Series of the same length.
+
+  # =================================================================== 5. iterators
+  - id: iterators
+    title: Set up once, then batch after batch
+    goal: How do you do slow setup work, like reading a file, only once instead of for every batch?
+    skills: [iterator-udf]
+    data: [tweets8, taxi12]
+    state: { hashUpTo: 0 }
+    derive:
+      - { fn: realCell, in: { key: pd.mask_id }, out: mi }
+      - { fn: realCells, in: { keys: [pd.seeds] }, out: sd }
+      - { fn: realCell, in: { key: pd.mask_demo }, out: md }
+      - { fn: hashSheet, in: { upTo: '@hashUpTo' }, out: hs }
+      - { fn: realCells, in: { keys: [pd.mask_return] }, out: mr }
+      - { fn: realCells, in: { keys: [pd.fare_rate] }, out: fr }
+    stage:
+      - id: mask-code
+        widget: Code
+        props: { source: '@mi.code', lang: python, title: 'Iterator of Series (notebook cell)' }
+      - id: seeds
+        widget: Text
+        hidden: true
+        props: { body: '@sd.md' }
+      - id: mask-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=mi.out}
+      - id: demo-code
+        widget: Code
+        hidden: true
+        props: { source: '@md.code', lang: python, title: 'The same hash with c = 1000, on user ids' }
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@hs.rows', cols: '@hs.cols', values: '@hs.values', rowHeader: tweet, title: '(a · x + b) mod c for each user id' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: hashWalk, in: {}, roles: { sheet: sheet }, speed: 1 }
+      - id: demo-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=md.out}
+      - id: return-cell
+        widget: Text
+        hidden: true
+        props: { body: '@mr.md' }
+      - id: rate-cell
+        widget: Text
+        hidden: true
+        props: { body: '@fr.md' }
+    beats:
+      - say: |
+          `mask_id` hides tweet ids behind a hash. Its input is an **iterator**: something a `for` loop takes items
+          from one at a time. Here the items are batches. Spark calls the function once, so the lines before the loop,
+          which read `seeds.json`, run once.
+        define: [iterator]
+      - say: |
+          Inside the loop, **yield** hands back one Series per batch and keeps the function going for the next batch.
+          `return` would end it. The seeds file in the notebook's folder holds:
+        show: [seeds]
+        define: [yield]
+        gate:
+          type: predict
+          question: 'With these seeds, what does `(a * x + b) % c` give for the 8 tweet ids?'
+          options:
+            - '0 for every tweet'
+            - 'Eight different numbers between 0 and 999'
+            - 'The ids themselves'
+            - 'NULL for every tweet'
+          answer: 0
+          optionFeedback:
+            '1': '`c` is 1 in this seeds file, and the remainder after dividing by 1 is always 0.'
+            '2': 'Nothing gives the ids back unchanged; the remainder by 1 is 0.'
+            '3': 'The type `''long''` fits whole numbers, so no NULL appears.'
+          explain: '`% 1` leaves remainder 0 for every whole number. With this `seeds.json` the "mask" hides everything, and tells nothing apart.'
+      - say: |
+          The real run: all zeros. `%` gives the remainder after dividing, and dividing by 1 never leaves one. The
+          seeds file you get may differ; check `c` before trusting a hash.
+        show: [mask-out]
+      - say: |
+          The same hash with `c = 1000`, on the user ids 101 to 108. All 8 ids arrive as one batch.
+        hide: [seeds, mask-out]
+        show: [demo-code]
+        gate:
+          type: predict
+          question: 'What is (193602 × 101 + 15914) % 1000, the hash of user 101?'
+          answer: { value: 716 }
+          explain: '$193602 \times 101 = 19553802$; $+ 15914 = 19569716$; the remainder after dividing by 1000 is the last three digits, 716.'
+      - say: Count along for all 8 ids. Each line of the walk is one id of the batch.
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play all 8 ids.
+          target: player
+          event: done
+      - say: The real output matches. Now hash a fresh id yourself.
+        show: [demo-out]
+        set: { hashUpTo: 8 }
+        gate:
+          type: practice
+          template: hash-numeric
+      - say: |
+          What if the loop says `return` instead of `yield`? The function ends after the first batch and hands back a
+          plain Series, not an iterator. The real run:
+        hide: [player, sheet, demo-out, mask-code, demo-code]
+        show: [return-cell]
+      - say: |
+          The fourth kind unpacks several columns per batch: `Iterator[Tuple[pd.Series, pd.Series]]`. `fare_rate`
+          yields fare ÷ distance, dollars per mile.
+        hide: [return-cell]
+        show: [rate-cell]
+        gate:
+          type: reflect
+          prompt: Why does `mask_id` read `seeds.json` before the `for` loop rather than inside it?
+          model: |
+            Code before the loop runs once per call; code inside runs once per batch. Reading the file once is
+            enough, because the seeds do not change between batches. Inside the loop, the file would be opened again
+            for every batch, which wastes time on big data.
+    takeaway: An iterator UDF sets up once, then loops over batches and yields one Series per batch; return would stop it after one.
+
+  # =================================================================== 6. one value per group
+  - id: one-per-group
+    title: One number per group
+    goal: How do you get one summary number for each country, using your own pandas code?
+    skills: [grouped-pandas]
+    data: [tweets8, taxi12]
+    state: { meanUpTo: 0 }
+    derive:
+      - { fn: tweetsView, in: { fields: [name, statuses_count, country_code] }, out: tv }
+      - { fn: groupMeanSheet, in: { upTo: '@meanUpTo' }, out: gm }
+      - { fn: realCell, in: { key: pd.mean_udf }, out: mu }
+      - { fn: realCells, in: { keys: [pd.clip_in_agg] }, out: ca }
+      - { fn: realCells, in: { keys: [pd.standardize_def] }, out: st }
+      - { fn: realCells, in: { keys: [pd.standardize_show, pd.standardize_keep] }, out: sk }
+    stage:
+      - id: tweets
+        widget: Matrix
+        props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', emptyLabel: 'NULL', rowHeader: tweet, title: 'The 8 tweets' }
+      - id: mean-code
+        widget: Code
+        hidden: true
+        props: { source: '@mu.code', lang: python, title: 'Series to scalar (notebook cell)' }
+      - id: sheet
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { rows: '@gm.rows', cols: '@gm.cols', values: '@gm.values', rowHeader: group, title: 'One mean per country' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: groupMeanWalk, in: {}, roles: { sheet: sheet }, speed: 1 }
+      - id: mean-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=mu.out}
+      - id: agg-error
+        widget: Text
+        hidden: true
+        props: { body: '@ca.md' }
+      - id: std-cell
+        widget: Text
+        hidden: true
+        props: { body: '@st.md' }
+      - id: std-keep
+        widget: Text
+        hidden: true
+        props: { body: '@sk.md' }
+    beats:
+      - say: |
+          `tweets.groupby('place.country_code')` puts tweets with the same country code into one group: that is
+          **groupBy**. Each group can then be summarized on its own.
+        define: [group-by]
+        gate:
+          type: predict
+          question: How many groups do the 8 tweets make?
+          answer: { value: 4 }
+          explain: 'PH, US and JP, plus one group for the two tweets with no place: NULL counts as a group of its own.'
+      - say: |
+          `mean_udf` has the hints `v: pd.Series -> float`: a Series in, one number out. Spark hands it each group's
+          `statuses_count` as one Series. Many values in, one value out per group is an **aggregation**.
+        show: [mean-code]
+        define: [aggregation]
+      - say: Count along, group by group. Add the group's values, then divide by how many there are.
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play all four groups.
+          target: player
+          event: done
+      - say: The real output, in the order Spark printed the groups. Now average a fresh group yourself.
+        show: [mean-out]
+        set: { meanUpTo: 4 }
+        gate:
+          type: practice
+          template: group-mean-numeric
+      - say: |
+          Only a UDF that returns one value can go in `agg`. A Series-to-Series UDF returns a value per row, and the
+          real run says so:
+        hide: [player, sheet, mean-code, mean-out]
+        show: [agg-error]
+      - say: |
+          **applyInPandas** hands each group to a plain Python function as a whole pandas table and stacks the tables
+          it returns. `standardize_fares` divides each fare by its vendor's highest fare.
+        hide: [agg-error, tweets]
+        show: [std-cell]
+        define: [apply-in-pandas]
+        gate:
+          type: predict
+          question: 'Trip 12 belongs to vendor 1 and has a fare of 31.0; vendor 1''s highest fare is 34.5. What is its normed fare, to 2 decimal places?'
+          answer: { value: 0.9, tol: 0.006 }
+          explain: '$31.0 / 34.5 = 0.8986$, about 0.90: vendor 1''s fares are divided by vendor 1''s own highest fare.'
+      - say: The real run, then a second run that keeps the vendor and fare beside each normed fare. Vendor 1's three trips come first.
+        show: [std-keep]
+    takeaway: A Series-to-scalar UDF gives one number per group inside agg; applyInPandas hands each whole group to your function.
+
+  # =================================================================== 7. SQL and views
+  - id: tables-by-name
+    title: Asking in SQL
+    goal: Can you ask Spark a question in plain SQL instead of a chain of Python methods?
+    skills: [temp-view-sql]
+    data: [taxi12]
+    state: { whereUpTo: 0 }
+    derive:
+      - { fn: realCells, in: { keys: [sql.before_view] }, out: bv }
+      - { fn: realCells, in: { keys: [sql.view_trips] }, out: vw }
+      - { fn: whereView, in: { x: 20, upTo: '@whereUpTo' }, out: wv }
+      - { fn: realCell, in: { key: sql.where }, out: w }
+      - { fn: realCells, in: { keys: [sql.type] }, out: ty }
+      - { fn: realCells, in: { keys: [sql.explain] }, out: ex }
+    stage:
+      - id: before
+        widget: Text
+        props: { body: '@bv.md' }
+      - id: view-cell
+        widget: Text
+        hidden: true
+        props: { body: '@vw.md' }
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { rows: '@wv.rows', cols: '@wv.cols', values: '@wv.values', rowHeader: trip, title: 'WHERE fare_amount > 20, row by row' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: whereWalk, in: { x: 20 }, roles: { sheet: sheet }, speed: 1.5 }
+      - id: where-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=w.out}
+      - id: type-out
+        widget: Text
+        hidden: true
+        props: { body: '@ty.md' }
+      - id: explain-out
+        widget: Text
+        hidden: true
+        props: { body: '@ex.md' }
+    beats:
+      - say: |
+          **SQL** is a language for asking tables questions: `SELECT` these columns `FROM` this table `WHERE` this is
+          true. `spark.sql("...")` runs one statement. The first try fails, although `trips.show()` works fine.
+        define: [sql]
+        gate:
+          type: predict
+          question: Why can't the statement find `trips`?
+          options:
+            - 'SQL looks up names Spark knows, and the Python variable `trips` is not one of them'
+            - 'The file taxi12.csv cannot be found'
+            - 'SQL needs table names in capitals'
+            - '`WHERE` cannot compare decimals'
+          answer: 0
+          optionFeedback:
+            '1': '`trips.show()` reads the same file and works.'
+            '2': 'Spark does not care about the case of the name.'
+            '3': '`WHERE fare_amount > 20` is a fine test; the error is about the table name.'
+          explain: The error `TABLE_OR_VIEW_NOT_FOUND` says Spark has no table or view by that name. Python variables are invisible to SQL.
+      - say: |
+          `trips.createOrReplaceTempView('trips')` gives the DataFrame a name SQL can find: a **temporary view**. It
+          copies nothing and lasts until the Spark session ends.
+        hide: [before]
+        show: [view-cell, sheet]
+        define: [temp-view]
+        gate:
+          type: predict
+          question: 'Now the same statement runs. How many trips have `fare_amount > 20`?'
+          answer: { value: 4 }
+          explain: 'Trips 2 (22.0), 3 (34.5), 6 (29.0) and 12 (31.0). The rest are 12.0 or less.'
+      - say: Count along. `WHERE` tests each row on its own.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play all 12 tests.
+          target: player
+          event: done
+      - say: |
+          The real output, with the four kept trips. `spark.sql` returns an ordinary DataFrame, so `.show()` or
+          `.withColumn(...)` work on it. Now count a fresh table yourself.
+        show: [where-out, type-out]
+        set: { whereUpTo: 12 }
+        gate:
+          type: practice
+          template: where-count-numeric
+      - say: |
+          `explain()` prints the **plan**: Spark's list of steps, written before anything runs. The `WHERE` became a
+          `Filter`, and the file scan reads only the two columns the statement needs.
+        hide: [player, sheet, where-out, type-out, view-cell]
+        show: [explain-out]
+        define: [plan]
+    takeaway: A temporary view gives a DataFrame a name SQL can see; spark.sql returns a DataFrame; explain shows the plan.
+
+  # =================================================================== 8. functions in SQL
+  - id: functions-in-sql
+    title: Your functions inside SQL
+    goal: Can a SQL statement call a Python function you wrote?
+    skills: [sql-udf-register]
+    data: [taxi12]
+    state: { t: 10 }
+    derive:
+      - { fn: realCells, in: { keys: [sql.udf_before_register] }, out: ub }
+      - { fn: realCells, in: { keys: [sql.register_pair, sql.pair_show] }, out: rp }
+      - { fn: realCells, in: { keys: [sql.register_double, sql.double_show] }, out: rd }
+      - { fn: realCell, in: { key: sql.case_when }, out: cw }
+      - { fn: caseView, in: { t: '@t', limit: 10 }, out: cv }
+      - { fn: realCells, in: { keys: [sql.register_notype, sql.notype_show] }, out: nt }
+    stage:
+      - id: before
+        widget: Text
+        props: { body: '@ub.md' }
+      - id: register-cell
+        widget: Text
+        hidden: true
+        props: { body: '@rp.md' }
+      - id: lambda-cell
+        widget: Text
+        hidden: true
+        props: { body: '@rd.md' }
+      - id: case-code
+        widget: Code
+        hidden: true
+        props: { source: '@cw.code', lang: python, title: 'CASE WHEN with the registered lambda (notebook cell)' }
+      - id: case-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=cw.out}
+      - id: case-table
+        widget: Matrix
+        hidden: true
+        props: { rows: '@cv.matrix.rows', cols: '@cv.matrix.cols', values: '@cv.matrix.values', rowHeader: trip, title: 'The first 10 trips, labelled with cut-off t' }
+      - id: t-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'cut-off t', min: 0, max: 20, step: 0.5 }
+        bind: { value: t }
+      - id: long-count
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: Long trips, value: '@cv.nLong', tone: accent }
+      - id: notype-cell
+        widget: Text
+        hidden: true
+        props: { body: '@nt.md' }
+    beats:
+      - say: The `@udf` version of `pair_code` works in Python code. In SQL it does not.
+        gate:
+          type: predict
+          question: 'SQL reports `UNRESOLVED_ROUTINE`: it cannot find a function (a routine) called `pair_code`. What does it need?'
+          options:
+            - 'The function registered under a SQL name with `spark.udf.register`'
+            - 'A temporary view called `pair_code`'
+            - '`from pyspark.sql.functions import pair_code`'
+            - 'The statement written in capitals'
+          answer: 0
+          optionFeedback:
+            '1': 'A view names a table, not a function.'
+            '2': '`pair_code` is your own function; PySpark does not ship it.'
+            '3': 'Case is not the problem; the name is unknown to SQL.'
+          explain: Like a DataFrame needs a view, a function needs a SQL name.
+      - say: |
+          `spark.udf.register("pair_code", pair_code)` gives the UDF a name SQL statements can call: **UDF
+          registration**. The same statement now prints the codes.
+        hide: [before]
+        show: [register-cell]
+        define: [udf-registration]
+      - say: |
+          You can register a plain one-liner too. `lambda x: x*2` is a **lambda**: a function without a name, written
+          in one line. Its third argument, `'FLOAT'`, is the return type; without it, SQL would get text.
+        hide: [register-cell]
+        show: [lambda-cell]
+        define: [lambda]
+      - say: |
+          **CASE WHEN** is SQL's if-else: `CASE WHEN test THEN value ELSE other END`. This statement labels a trip
+          `'long'` when its doubled distance is above 10. The first 10 distances are 1.94, 5.08, 9.8, 0.37, 1.4, 8.1,
+          1.76, 1.51, 1.56 and 1.0.
+        hide: [lambda-cell]
+        show: [case-code]
+        define: [case-when]
+        gate:
+          type: predict
+          question: How many of these 10 trips are labelled `'long'`?
+          answer: { value: 3 }
+          explain: 'Doubled: 10.16, 19.6 and 16.2 are above 10 (trips 2, 3 and 6). The rest are 7.6 or less.'
+      - say: The real output. Now move the cut-off and watch the labels change.
+        show: [case-out, case-table, t-slider, long-count]
+        gate:
+          type: when
+          prompt: Move the cut-off so that exactly 5 of the 10 trips are long.
+          when: 'cv.nLong == 5'
+          hint: The fifth-longest doubled distance is 3.52 and the sixth is 3.12.
+      - say: Now label a fresh set of trips yourself.
+        set: { t: 10 }
+        hide: [t-slider, long-count, case-out]
+        gate:
+          type: practice
+          template: case-count-numeric
+      - say: |
+          A lambda registered **without** a type returns text. The real run sorts its results with `ORDER BY dd DESC`:
+        hide: [case-code, case-table]
+        show: [notype-cell]
+        gate:
+          type: reflect
+          prompt: Why does 19.6 come after 2.0 in this "descending" order?
+          model: |
+            Without a return type the values are text, and text is sorted character by character, like words in a
+            dictionary. "4.3" starts with 4, "2.0" with 2 and "19.6" with 1, so 19.6 comes after 2.0. Registering
+            with 'FLOAT' makes them numbers again, and 19.6 comes first.
+    takeaway: Register a function to call it from SQL, give a lambda its return type, and use CASE WHEN for if-else labels.
+
+  # =================================================================== 9. groups and names
+  - id: group-and-name
+    title: Groups, averages and names with spaces
+    goal: How do you name a result column "mean tip", with a space, in SQL?
+    skills: [sql-clauses]
+    data: [taxi12]
+    derive:
+      - { fn: realCells, in: { keys: [sql.alias_none] }, out: an }
+      - { fn: realCells, in: { keys: [sql.alias_space_bad] }, out: ab }
+      - { fn: realCells, in: { keys: [sql.alias_space_ok, sql.alias_single_quotes] }, out: ao }
+      - { fn: realCell, in: { key: sql.group_count }, out: gc }
+      - { fn: realCells, in: { keys: [sql.group_missing] }, out: gm }
+    stage:
+      - id: none-cell
+        widget: Text
+        props: { body: '@an.md' }
+      - id: bad-cell
+        widget: Text
+        hidden: true
+        props: { body: '@ab.md' }
+      - id: ok-cell
+        widget: Text
+        hidden: true
+        props: { body: '@ao.md' }
+      - id: count-code
+        widget: Code
+        hidden: true
+        props: { source: '@gc.code', lang: python, title: 'Trips per pickup zone' }
+      - id: count-out
+        widget: Text
+        hidden: true
+        props:
+          body: |
+            Real output:
+            {=gc.out}
+      - id: missing-cell
+        widget: Text
+        hidden: true
+        props: { body: '@gm.md' }
+    beats:
+      - say: |
+          `GROUP BY VendorID` makes one group per vendor, and `AVG(tip_amount)` gives each group's mean tip. Spark names
+          the result `avg(tip_amount)`. `AS` gives a result column a new name: an **alias**.
+        define: [alias]
+      - say: The report wants the name `mean tip`, with a space. The first try fails.
+        show: [bad-cell]
+        gate:
+          type: predict
+          question: Which alias parses?
+          options: ['`` AS `mean tip` ``', "`AS 'mean tip'`", '`AS "mean tip"`']
+          answer: 0
+          optionFeedback:
+            '1': 'Quotes make a text value, not a name. The real run fails with the same PARSE_SYNTAX_ERROR.'
+            '2': 'Double quotes are text in Spark SQL too; a real run with them failed as well.'
+          explain: 'Backticks mark a name. Without them SQL reads `AS mean` and stumbles over `tip`.'
+      - say: |
+          The ` marks are **backticks**. They make `mean tip`, space and all, one name. The single-quote version
+          fails the same way as before:
+        hide: [bad-cell, none-cell]
+        show: [ok-cell]
+        define: [backticks]
+      - say: |
+          A count per group works the same way. `COUNT(*)` counts the rows of each pickup zone, and `ORDER BY trips
+          DESC, PULocationID` puts the busiest zone first and breaks ties by zone number.
+        hide: [ok-cell]
+        show: [count-code]
+        gate:
+          type: predict
+          question: How many rows does the result have? (The 12 trips start in zones 41, 97, 7, 7, 74, 33, 41, 7, 75, 74, 7 and 33.)
+          answer: { value: 6 }
+          explain: 'One row per different zone: 7, 33, 41, 74, 75 and 97.'
+      - say: 'The real output: zone 7 leads with 4 trips. Add a column that is neither grouped nor counted, and Spark refuses:'
+        show: [count-out, missing-cell]
+        gate:
+          type: reflect
+          prompt: Why does `SELECT PULocationID, VendorID, COUNT(*) ... GROUP BY PULocationID` fail?
+          model: |
+            Each zone becomes one row, but a zone can have trips from both vendors. Spark cannot put several vendor
+            numbers in one cell, so it asks you to group by VendorID too, or summarize it. Every column in SELECT
+            must be grouped or summarized.
+    takeaway: Backticks name columns with spaces; every SELECT column must be grouped or summarized; ORDER BY fixes the order.

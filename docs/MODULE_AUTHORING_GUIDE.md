@@ -597,9 +597,29 @@ interface Cell {
   decision?: { prompt: Markdown; type: 'mcq' | 'open'; options?: Markdown[]; answer?: number;
                shuffle?: boolean;                    // default true, as for predict gates
                optionFeedback?: Record<string, Markdown>;   // key = option index: shown when that wrong option is picked
+               outcomes?: Record<string, { say?: Markdown; stage?: StageWidget[] }>;   // key = option index: what running it does
                model: Markdown };
 }
 ```
+
+**Branching cells (`outcomes`).** When a decision's options are code the learner could run, give a wrong option an `outcome`: the real output or traceback that line produces (a `realCell` run, never a hand-typed error). Picking it shows the outcome and leaves the other options open, so the learner reads the error, then tries again; the cell counts as done on the right pick or on "Show answer". Rules:
+- Only real runs. If a wrong option was never run, give it `optionFeedback` instead of an outcome.
+- An outcome's stage widget ids are unique across the case, like any cell widget.
+- Keep each branch a one-step detour back to the same cell. Do not chain outcomes into new cells: the case stays one path.
+- The `model` still explains every option, because a learner who picks right first never sees the detours.
+- An outcome on the correct option is allowed (its real output); it shows after the pick.
+
+**Recording real runs** (for `realCell`-style outputs; `modules/pandas-read-data/assets/record.py` is a working recorder):
+- Record on the course's runtime (same Python minor version, same library major version): pandas 2 prints text
+  columns as `object`, pandas 3 as `str`.
+- Run each "kernel" in a fresh namespace and number cells like Jupyter; print stdout plus the repr of a final bare
+  expression.
+- Set `pd.set_option("display.max_columns", 20)` and `pd.set_option("display.width", 200)`: a script runs in
+  "terminal" mode and `head()` hides columns behind `...`, which a notebook never does.
+- Never ship OS-specific error text. A Windows run of `os.listdir` on a missing folder says `[WinError 3]`, not the
+  Linux `[Errno 2]` learners see; drop such cells or record them on Linux.
+- Trim library frames from tracebacks to one `  ...` line and say so in SOURCE_NOTES.
+
 The case study should **use every major idea from the lecture in one pipeline**: raw data, then computation with live parameters, then interpretation, then a decision. `atScale` shows the production or big-data version (for BDCC, typically PySpark MLlib, or pandas/mlxtend, SQL, or MapReduce as appropriate) with notes on complexity, parallelism and data size. In a journal module, `atScale` is **in practice**: how a real company runs the procedure (the ERP or spreadsheet set-up, who prepares and approves the entries, month-end close, internal controls), with `code` blocks only if a spreadsheet formula or a short script genuinely helps (`lang: text` is fine). Mark anything not in the lecture with a `Callout` of kind `beyond`.
 
 ### 5.10 `quiz.yaml`
@@ -699,6 +719,82 @@ interface Variant { prompt?: Markdown; explanation?: Markdown; options: Markdown
 - **Distractors** are plausible, in the same vocabulary and length as the right answer, and unambiguously wrong: no
   textbook edge case that is arguably right, and check another module's data before writing a "wrong" claim about it.
 - **match:** the right-hand labels may repeat (two "Value-added" cards are interchangeable when graded), but avoid labels that give the pairing away by sharing words with the left side.
+
+### 5.11 `exam.yaml` (optional: a mock exam)
+
+A module may add a **mock exam**: one story told in a fixed order, not questions drawn at random. It shows as a
+"Mock exam" tab. Each attempt gets one seed; every problem's questions are built from that seed, so all problems
+use the same generated data, and answers stay hidden until the learner submits.
+
+```ts
+interface ExamFile {
+  title: string;
+  intro: Markdown;                 // the story; {=…} uses the vars of the `story` generator
+  story: string;                   // generator key; must return a `storyKey` var (an id of the drawn data)
+  timeLimitMin?: number;
+  problems: { id: Id; title: string;
+              spec: Markdown;      // the problem as an exam words it; {=…} uses the story vars
+              items: { template: Id; points: number }[] }[];   // quiz.yaml templates, scored in order
+}
+```
+- **One seed, one dataset.** Every scored template's generator calls the same data draw first (`examData(rng)`),
+  before any other use of `rng`, and returns the same `storyKey`. The simplest set-up is one generator for the story
+  and every exam template (`examQ` in `pandas-select-rows`). The validator checks, for 25 seeds, that every item's
+  `storyKey` equals the story's.
+- **Put the data in each item's prompt**, not only in the intro: the templates also appear in the module's normal
+  quiz pool, where they must stand alone.
+- **Exam items are usually `case` templates** at difficulty 3. Case parts cannot take generator `options`; ask for a
+  number (an id, a count, a lift) or use static options whose right answer the draw guarantees.
+- **Skills:** exam templates use the module's own skills, like any template. Score what the module teaches; don't
+  score steps another module owns.
+- **Computation copied from another module** (no imports in `logic.js`) is copied verbatim, and `examples.yaml`
+  runs the copy on that module's dataset and expects that module's numbers.
+- `explain` templates can't be scored; the validator rejects them in an exam.
+- **Later items may show earlier results** (the matrix Problem 1a asks about, the candidates 1b counts), so the runner
+  reveals items one at a time and locks each when the learner moves on. Order the items so a prompt never shows an
+  answer to an item that comes after it.
+- **`hint`** (per problem, optional): which pandas step the problem checks, shown collapsed until the learner opens it.
+
+**Coding version (`coding`, optional).** The learner writes real Python. Pyodide 0.27.8 (Python 3.12, pandas 2.2,
+the course's runtime) runs in a Web Worker from the app's own `/pyodide/` folder, fetched at build time by
+`scripts/fetch-pyodide.mjs`. The tab then offers "Write the code" and "Work it out by hand".
+
+```ts
+coding?: {
+  title: string; story: string;          // generator: the files' text and every test value, from one seed
+  intro: Markdown; timeLimitMin?: number;
+  files: Record<string, string>;         // path ({=…} allowed) → story var holding the file's text
+  setup: string;                         // the first cell (imports), editable
+  problems: { id: Id; title: string; spec: Markdown; hint?: Markdown;
+              stub: string;              // the learner's starting code
+              tests: { code: string; points: number }[] }[];   // test cells; {=…} fills in the expected values
+}
+```
+- **Mirror the real exam**: same function names, return types, sort orders and `assert_equal` test cells, on a small
+  generated dataset in the real file layout and path. Scale count thresholds to the data; keep scale-free ones
+  (25% support, 0.8 confidence, a 0.1 stopping fraction).
+- **Spell out every convention a test depends on** (centring, neighbour rule, initialisation, update order, stopping
+  rule, tie-breaks, the lift formula). The learner cannot ask; an unstated convention fails correct code.
+- **Make expected values robust to float noise**: redraw seeds whose ranking, neighbour cut-off or stopping test sits
+  within 1e-6 of a tie, and allow only exact ties where the spec gives a tie-break.
+- **Walkthrough and twists (per problem, shown only after submit).** `walkthrough: [{ say, code }]` rebuilds the
+  solution step by step on the attempt's data; its last step defines the function and runs the test, so the steps
+  *are* the reference solution. `twists: [{ id, title, change, spec, stub, solution, tests }]` change the spec so the
+  code must change ("more than", user-based, a fixed number of sweeps, 40% support, ranking by confidence…). The
+  learner picks "Every problem" or "Only the ones I missed". The interface shows solutions only after submit, but this
+  is a soft gate: `exam.yaml` is served to the browser, so a determined learner can read it (the test cells show the
+  expected values anyway, as in a real exam notebook). Review mode first restarts the kernel and quietly runs the
+  setup and every problem's walkthrough steps, so each reference function exists whatever the learner's cells did.
+- **Twists must really change the answer**: the generator computes each twist's expected values on the same files and
+  redraws seeds where a twist's tested value equals the original's. If a ranking rarely changes, test something that
+  does (an SSE history, an estimate rounded to 3 decimals) instead. Give every sort a full tie-break in the spec, down
+  to the consequent if two rules can share an antecedent; where the real exam's wording leaves a tie undefined, keep the
+  wording and redraw such seeds.
+- **Check in real pandas before shipping**: `scripts/exam-check/` exports every seed's files with the exact shipped
+  cells (setup, walkthrough steps, tests, twist solutions and tests) and runs them with the course's pandas. Every seed
+  must pass. Note the result in SOURCE_NOTES. The scripts stay outside `modules/`, so learners can't download them.
+- A test cell scores its points when it runs without an error. On submit the kernel restarts and every cell runs top to
+  bottom before the tests, as a grader would.
 
 ---
 

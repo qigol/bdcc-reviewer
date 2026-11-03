@@ -1,0 +1,242 @@
+examples:
+  # ---- the lesson files, read by the engine vs. real printSchema --------------------------------
+  - id: trips-schema
+    source: 'Notebook › setup (trips.printSchema); real run setup.trips_schema on taxi12.csv'
+    fn: realMatch
+    in: { key: setup.trips_schema }
+    expect: { same: true }
+  - id: tweets-schema
+    source: 'Notebook › setup (tweets.printSchema); real run setup.tweets_schema on tweets8.jsonl'
+    fn: realMatch
+    in: { key: setup.tweets_schema }
+    expect: { same: true }
+
+  # ---- User-defined functions -------------------------------------------------------------------
+  - id: pair-code-show
+    source: 'Notebook › User-defined functions (pair_code select show); real run udf.show'
+    fn: realMatch
+    in: { key: udf.show }
+    expect: { same: true }
+  - id: pair-code-sql-show
+    source: 'Notebook › SQL statements (pair_code after spark.udf.register, LIMIT 10); real run sql.pair_show'
+    fn: realMatch
+    in: { key: sql.pair_show }
+    expect: { same: true }
+  - id: pair-walk
+    source: 'Count-along of udf.show: one call per row'
+    fn: pairWalk
+    in: {}
+    expect: { steps: 12, last: '33-143' }
+  - id: pair-distinct
+    source: 'udf.show: 41-238 appears twice (trips 1 and 7)'
+    fn: pairSheet
+    in: { upTo: 12 }
+    expect: { distinct: 11, filled: 12 }
+  - id: struct-show
+    source: 'Notebook › User-defined functions (StructType returnType); real run udf.struct_show_full'
+    fn: realMatch
+    in: { key: udf.struct_show_full }
+    expect: { same: true }
+  - id: ddl-show
+    source: 'Notebook › User-defined functions (DDL schema string returnType); real run udf.ddl_show'
+    fn: realMatch
+    in: { key: udf.ddl_show }
+    expect: { same: true }
+  - id: struct-sheet
+    source: 'udf.struct_show_full, built tweet by tweet'
+    fn: structSheet
+    in: { upTo: 8 }
+    expect: { filled: 8 }
+  - id: int-pickle-nulls
+    source: 'Extra real run ar.int_pickle_show: @udf(''int'', useArrow=False) returning a float'
+    fn: returnTypeView
+    in: { decl: intPickle }
+    expect: { nulls: 4 }
+  - id: int-arrow-no-nulls
+    source: 'Extra real run ar.int_arrow_show: @udf(''int'', useArrow=True) returning a float'
+    fn: returnTypeView
+    in: { decl: intArrow }
+    expect: { nulls: 0 }
+
+  # ---- Arrow batches ------------------------------------------------------------------------
+  - id: batches-default
+    source: 'Extra real run pd.batch_show_all: one batch of 12'
+    fn: batchPlan
+    in: { n: 12, size: 10000 }
+    expect: { count: 1, sizes: [12] }
+  - id: batches-of-5
+    source: 'Extra real run pd.batch_small: maxRecordsPerBatch 5 gives batch sizes 5, 5, 2'
+    fn: batchPlan
+    in: { n: 12, size: 5 }
+    expect: { count: 3, sizes: [5, 5, 2], last: 2 }
+  - id: batch-trace
+    source: 'pd.batch_small, batch by batch'
+    fn: batchTrace
+    in: { size: 5 }
+    expect: { count: 3 }
+
+  # ---- pandas UDFs ------------------------------------------------------------------------------
+  - id: clip-100-show
+    source: 'Notebook › Pandas UDF › Series to Series (clip_0_to_100); real run pd.clip_show'
+    fn: realMatch
+    in: { key: pd.clip_show }
+    expect: { same: true }
+  - id: clip-5-show
+    source: 'Extra real run pd.clip5_show (np.clip(s, 0, 5))'
+    fn: realMatch
+    in: { key: pd.clip5_show }
+    expect: { same: true }
+  - id: clip-counts
+    source: 'pd.clip_show changes no value; pd.clip5_show changes trips 2, 3, 6 and 12'
+    fn: clipView
+    in: { lo: 0, hi: 5 }
+    expect: { nChanged: 4, changed: [2, 3, 6, 12] }
+  - id: clip-100-none
+    source: 'pd.clip_show: every distance is already between 0 and 100'
+    fn: clipView
+    in: { lo: 0, hi: 100 }
+    expect: { nChanged: 0 }
+  - id: clip-trace
+    source: 'pd.clip5_show, value by value'
+    fn: clipTrace
+    in: { lo: 0, hi: 5 }
+    expect: { changed: 4 }
+  - id: mask-id-seeds
+    source: 'Notebook › Pandas UDF › Iterator of Series (mask_id with seeds.json, c = 1); real run pd.mask_id prints 0 for all 8 ids'
+    fn: hashInt64
+    in: { a: 193602, b: 15914, c: 1, x: 1178762251000001 }
+    expect: { value: 0 }
+  - id: mask-demo-show
+    source: 'Extra real run pd.mask_demo (c = 1000 on user.id)'
+    fn: realMatch
+    in: { key: pd.mask_demo }
+    expect: { same: true }
+  - id: mask-demo-first
+    source: 'pd.mask_demo: (193602 × 101 + 15914) % 1000 = 716'
+    fn: hashSheet
+    in: { a: 193602, b: 15914, c: 1000, upTo: 8 }
+    expect: { first: 716, masks: [716, 318, 920, 522, 124, 726, 328, 930] }
+  - id: hash-walk
+    source: 'pd.mask_demo, id by id'
+    fn: hashWalk
+    in: { a: 193602, b: 15914, c: 1000 }
+    expect: { steps: 8 }
+  - id: fare-rate-show
+    source: 'Notebook › Pandas UDF › Iterator of multiple Series (fare_rate); real run pd.fare_rate'
+    fn: realMatch
+    in: { key: pd.fare_rate }
+    expect: { same: true }
+  - id: fare-rate-top
+    source: 'pd.fare_rate: trip 4 (zone 7) has the highest fare per mile, 4.0 / 0.37'
+    fn: fareRateView
+    in: {}
+    expect: { top: 4, topZone: 7, topRate: 10.81081081081081 }
+  - id: mean-udf-show
+    source: 'Notebook › Pandas UDF › Series to Scalar (mean_udf per country); real run pd.mean_udf'
+    fn: realMatch
+    in: { key: pd.mean_udf }
+    expect: { same: true }
+  - id: mean-udf-values
+    source: 'pd.mean_udf: PH (1200 + 450 + 3000) / 3 = 1550; real run pd.mean_udf_all gives 1673.75 over all 8'
+    fn: groupMeanSheet
+    in: { upTo: 4 }
+    expect: { ph: 1550, jp: 640, nul: 2550, us: 1500, overall: 1673.75 }
+  - id: mean-walk
+    source: 'pd.mean_udf, group by group'
+    fn: groupMeanWalk
+    in: {}
+    expect: { steps: 4 }
+  - id: normed-show
+    source: 'Notebook › applyInPandas (standardize_fares, grouped by VendorID); real run pd.standardize_keep'
+    fn: realMatch
+    in: { key: pd.standardize_keep }
+    expect: { same: true }
+
+  # ---- SQL statements -----------------------------------------------------------------------
+  - id: where-show
+    source: 'Extra real run sql.where (fare_amount > 20 on the trips view)'
+    fn: realMatch
+    in: { key: sql.where }
+    expect: { same: true }
+  - id: where-count
+    source: 'sql.where keeps trips 2, 3, 6 and 12'
+    fn: whereView
+    in: { x: 20 }
+    expect: { n: 4, kept: [2, 3, 6, 12] }
+  - id: where-walk
+    source: 'sql.where, row by row'
+    fn: whereWalk
+    in: { x: 20 }
+    expect: { steps: 12, kept: 4 }
+  - id: case-show
+    source: 'Notebook › SQL statements (CASE WHEN with double_distance); real run sql.case_when'
+    fn: realMatch
+    in: { key: sql.case_when }
+    expect: { same: true }
+  - id: case-all-show
+    source: 'Extra real run sql.case_when_all (all 12 trips)'
+    fn: realMatch
+    in: { key: sql.case_when_all }
+    expect: { same: true }
+  - id: case-count
+    source: 'sql.case_when: 3 of the first 10 trips are long'
+    fn: caseView
+    in: { t: 10, limit: 10 }
+    expect: { nLong: 3, nShort: 7 }
+  - id: case-trace
+    source: 'sql.case_when, row by row'
+    fn: caseTrace
+    in: { t: 10, limit: 10 }
+    expect: { nLong: 3 }
+  - id: typed-order
+    source: 'Extra real run sql.typed_order (FLOAT lambda, ORDER BY dd DESC)'
+    fn: realMatch
+    in: { key: sql.typed_order }
+    expect: { same: true }
+  - id: text-order
+    source: 'Extra real run sql.notype_show (lambda without a type, so dd is text; ORDER BY dd DESC)'
+    fn: realMatch
+    in: { key: sql.notype_show }
+    expect: { same: true }
+  - id: text-order-ends
+    source: 'sql.notype_show: as text, 4.3 comes first and 0.74 last'
+    fn: ddOrder
+    in: { asText: true }
+    expect: { first: '4.3', last: '0.74' }
+  - id: group-avg-show
+    source: 'Extra real run sql.alias_space_ok (AVG(tip_amount) AS `mean tip` per VendorID)'
+    fn: realMatch
+    in: { key: sql.alias_space_ok }
+    expect: { same: true }
+  - id: group-avg-values
+    source: 'sql.alias_space_ok: vendor 1 (6 + 0 + 6.35) / 3; vendor 2 (2.46 + 2 + 0.96 + 1.86 + 4.47) / 9'
+    fn: groupAvg
+    in: {}
+    expect: { groups.0.mean: 4.116666666666666, groups.0.n: 3, groups.1.mean: 1.3055555555555556, groups.1.n: 9 }
+
+  # ---- Application ------------------------------------------------------------------------------
+  - id: app-band-means
+    source: 'Application cell 3, real run app.c3.fixed'
+    fn: realMatch
+    in: { key: app.c3.fixed }
+    expect: { same: true }
+  - id: app-band-values
+    source: 'app.c3.fixed: long = (22 + 34.5 + 29 + 31) / 4; short = 68.5 / 8'
+    fn: bandMeans
+    in: { cut: 5 }
+    expect: { long.mean: 29.125, long.n: 4, short.mean: 8.5625, short.n: 8 }
+  - id: app-text-order
+    source: 'Application cell 5, real run app.c5 (lambda without a type)'
+    fn: realMatch
+    in: { key: app.c5 }
+    expect: { same: true }
+  - id: app-typed-order
+    source: 'Application cell 5, real run app.c5.typed (lambda with DOUBLE)'
+    fn: realMatch
+    in: { key: app.c5.typed }
+    expect: { same: true }
+  - id: app-top-rate
+    source: 'app.c5.typed: zone 7 first with 10.81081081081081'
+    fn: rateOrder
+    in: { asText: false }
+    expect: { topZone: 7, topRate: 10.81081081081081 }

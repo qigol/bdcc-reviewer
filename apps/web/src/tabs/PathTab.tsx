@@ -5,8 +5,7 @@ import { learningPath, workbenchTabLabel, type PathStep } from '@kodigo/schema';
 import { useModuleCtx } from './ModulePage';
 import { useAttempts, useMastery, useModuleProgress } from '../storage/progress';
 import { cn } from '../lib/util';
-
-type Status = 'done' | 'started' | 'todo';
+import { stepHref, stepStatus } from '../plan/stepStatus';
 
 /** The guided path: objectives, then every lesson step in teaching order with its status. */
 export function PathTab() {
@@ -21,25 +20,8 @@ export function PathTab() {
   const skillScore = (id: string) => mastery.find((x) => x.skillKey === `${mod.id}:${id}`)?.score ?? 0;
   const moduleMastery = m.skills.length ? m.skills.reduce((a, s) => a + skillScore(s.id), 0) / m.skills.length : 0;
 
-  const statusOf = (s: PathStep): Status => {
-    if (s.kind === 'scene') {
-      const p = progress.find((x) => x.tab === 'intuition' && x.itemId === s.id);
-      return p?.status === 'done' ? 'done' : p ? 'started' : 'todo';
-    }
-    if (s.kind === 'section') {
-      const seen = progress.some((x) => x.tab === 'math-code' && x.itemId === s.id);
-      const practiced = !s.tryIt.length || attempts.some((a) => s.tryIt.includes(a.templateId) && a.score >= 0.5);
-      return seen && practiced ? 'done' : seen ? 'started' : 'todo';
-    }
-    if (s.kind === 'case') {
-      const p = progress.filter((x) => x.tab === 'application');
-      return p.some((x) => x.status === 'done') ? 'done' : p.length ? 'started' : 'todo';
-    }
-    return moduleMastery >= 0.75 ? 'done' : attempts.some((a) => a.mode !== 'lesson' && a.mode !== 'predict') ? 'started' : 'todo';
-  };
-  const hrefOf = (s: PathStep) =>
-    s.kind === 'scene' ? `${base}/intuition/${s.id}` : s.kind === 'section' ? `${base}/math-code/${s.id}` : s.kind === 'case' ? `${base}/application` : `/quiz?modules=${m.id}&start=1`;
-  const statuses = steps.map(statusOf);
+  const hrefOf = (s: PathStep) => stepHref(s, base, m.id);
+  const statuses = steps.map((s) => stepStatus(s, progress, attempts, moduleMastery));
   const done = statuses.filter((x) => x === 'done').length;
   const nextIdx = statuses.findIndex((x) => x !== 'done');
   const next = nextIdx >= 0 ? steps[nextIdx] : undefined;

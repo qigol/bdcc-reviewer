@@ -1,0 +1,346 @@
+sections:
+  # =====================================================================================
+  - id: find-and-read
+    title: 'Folder, file, peek, read'
+    skills: [find-files, peek-file, read-csv]
+    summary: |
+      A spec names a folder and a question, not always a file. List the folder, choose the file that answers the
+      question, look at its first lines, then read it with the [[file-path|full path]] and check its [[shape]].
+      Step through the real run on food-mini.
+    keyFormula: '\texttt{pd.read\_csv(DATA + "/file.csv")} \;\to\; \texttt{.shape} = (\text{rows}, \text{columns})'
+    derive:
+      - { fn: folderTree, in: {}, out: ft }
+      - { fn: realCell, in: { key: pd.explore.peek }, out: pk }
+      - { fn: realCell, in: { key: pd.explore.read }, out: rd }
+    live:
+      - id: folder
+        widget: Tree
+        props: { root: '@ft.root' }
+      - id: peek-out
+        widget: Text
+        props: { body: '{=pk.out}' }
+    steps:
+      - tex: |
+          \anchor{list}{\texttt{sorted(os.listdir(DATA))}} \;\to\; 4 \text{ files}
+        say: |
+          The real listing is `{=ft.listed}`. The question is about ratings, and only two files could hold them.
+      - tex: |
+          \anchor{path}{\texttt{DATA + "/RAW\_interactions.csv"}} \qquad \text{(the full path, folder + name)}
+        say: |
+          The README says `RAW_interactions.csv` holds every review. `interactions_train.csv` is a pre-split subset
+          with extra code columns; reading it changes every count.
+      - tex: |
+          \anchor{peek}{\texttt{f.readline()}} \times 3 \;\to\; \text{header} + 2 \text{ rows}
+        say: |
+          Peek before you read. The first line is the [[header-row]] with five names. A value holding a comma is
+          wrapped in double quotes.
+      - tex: |
+          \anchor{read}{\texttt{interactions = pd.read\_csv(...)}} \;\Rightarrow\; \anchor{shape}{\texttt{interactions.shape}} = {=rd.printed}
+        say: |
+          [[read-csv-fn|read_csv]] turns the file into a [[dataframe]]. `shape` prints rows then columns:
+          {=rd.printed}, 30 reviews and five columns.
+    code:
+      lang: python
+      source: |
+        """Find the ratings file in an unfamiliar folder, peek at it, read it, check its size."""
+        import os
+        import pandas as pd
+
+        DATA = "/mnt/data/public/food-mini"
+        sorted(os.listdir(DATA))                       # @a:list
+
+        path = DATA + "/RAW_interactions.csv"          # @a:path
+        # @a peek
+        with open(path) as f:
+            for _ in range(3):
+                print(f.readline(), end="")
+        # @end
+
+        interactions = pd.read_csv(path)               # @a:read
+        interactions.shape                             # @a:shape
+    links:
+      - { anchor: list, label: 'List the folder', say: 'Every file in the folder, sorted by name.' }
+      - { anchor: path, label: 'The full path', say: 'Folder plus file name. A bare file name is looked for in the notebook''s own folder.' }
+      - { anchor: peek, label: 'Peek', say: 'Print the first three lines as plain text: header, separator, quoting.' }
+      - { anchor: read, label: 'Read', say: 'Load the whole file into a DataFrame.' }
+      - { anchor: shape, label: 'Shape', say: '(rows, columns): the first check after every read.' }
+    trace: { fn: readTrace, in: {} }
+    examples: [folder-listing, csv-lines, read-trace, wrong-file-name, bare-file-name]
+    pitfalls:
+      - '`pd.read_csv("RAW_interactions.csv")` without the folder raises `FileNotFoundError`: the notebook looks in its own folder.'
+      - 'Reading `interactions_train.csv` because it sounds like "the data": it is a pre-split subset, so every count changes.'
+      - 'Splitting a peeked line at every comma: a comma inside double quotes is part of the text.'
+    examTip: 'When a spec gives only a folder, list it and read its README before you write the function.'
+    tryIt: [peek-values, read-code-fill, load-parsons]
+
+  # =====================================================================================
+  - id: check-the-load
+    title: Check what you loaded
+    skills: [inspect-frame]
+    summary: |
+      A table that loads without an error can still surprise you. Look at its first rows, its [[dtype|dtypes]] and
+      the distinct values of the columns you will compute on. In food-mini, `value_counts` reveals two ratings of 0.
+    keyFormula: '\texttt{df["rating"].value\_counts()} \;\to\; \text{how often each value appears}'
+    data: [foodmini]
+    derive:
+      - { fn: realCell, in: { key: pd.explore.head }, out: hd }
+      - { fn: realCell, in: { key: pd.explore.dtypes }, out: dt }
+      - { fn: realCell, in: { key: pd.explore.ratings_vc }, out: vc }
+      - { fn: realCell, in: { key: pd.explore.nunique }, out: nu }
+      - { fn: checkValueCounts, in: {}, out: cvc }
+    live:
+      - id: vc-out
+        widget: Text
+        props: { body: '{=vc.out}' }
+    steps:
+      - tex: |
+          \anchor{head}{\texttt{interactions.head()}} \;\to\; \text{the first 5 rows}
+        say: |
+          The first rows show what one record looks like: a user, a recipe, a date, a rating and the review text.
+      - tex: |
+          \anchor{dtypes}{\texttt{interactions.dtypes}} \;\to\; \texttt{int64}, \texttt{object}
+        say: |
+          `user_id`, `recipe_id` and `rating` are whole numbers (`int64`). `date` and `review` are `object`: text.
+          The dates were not parsed as dates.
+      - tex: |
+          \anchor{vc}{\texttt{interactions["rating"].value\_counts()}} \;\to\; 0{:}\ {=cvc.zeros}
+        say: |
+          [[value-counts|value_counts]] lists every distinct rating. {=cvc.zeros} reviews have rating 0: in Food.com
+          that marks a review left without stars. Decide whether your spec counts them before averaging.
+      - tex: |
+          \anchor{nunique}{\texttt{.nunique()}} \;\to\; {=nu.printed} \;\;(\text{users}, \text{recipes})
+        say: |
+          `nunique` counts distinct values: 8 users and 8 recipes. The utility matrix can be at most 8 by 8.
+    code:
+      lang: python
+      source: |
+        """Look before you compute: rows, types, values."""
+        interactions.head()                                  # @a:head
+        interactions.dtypes                                  # @a:dtypes
+        interactions["rating"].value_counts().sort_index()   # @a:vc
+        # @a nunique
+        interactions["user_id"].nunique(), interactions["recipe_id"].nunique()
+        # @end
+    links:
+      - { anchor: head, label: 'First rows', say: 'What one record looks like.' }
+      - { anchor: dtypes, label: 'Column types', say: 'int64 = whole numbers, float64 = decimals, object = text.' }
+      - { anchor: vc, label: 'Distinct values', say: 'Odd values such as 0 show up here.' }
+      - { anchor: nunique, label: 'Distinct counts', say: 'How many users and recipes there are.' }
+    examples: [rating-value-counts, column-typo]
+    pitfalls:
+      - 'Averaging `rating` without checking it: the 0s pull every mean down.'
+      - '`interactions["ratings"]` raises `KeyError: ''ratings''`. Copy column names from `interactions.columns`.'
+    examTip: 'Run `value_counts()` on every column you will count or average, once, before writing the function.'
+    tryIt: [star-ratings, mean-with-zero, inspect-match]
+
+  # =====================================================================================
+  - id: lists-as-text
+    title: Lists saved as text
+    skills: [list-columns]
+    summary: |
+      A CSV holds only text, so a list such as a recipe's tags is saved as its printed form and read back as one
+      string. Turn it back into a list with [[literal-eval|ast.literal_eval]], best while reading with
+      [[converters]].
+    keyFormula: '\texttt{pd.read\_csv(path, converters=\{"tags": ast.literal\_eval\})}'
+    derive:
+      - { fn: tagsView, in: { row: 0 }, out: tv }
+      - { fn: realCell, in: { key: pd.tags.naive_split }, out: ns }
+      - { fn: realCell, in: { key: pd.tags.converters }, out: cv }
+      - { fn: realCell, in: { key: pd.tags.explode }, out: ex }
+    live:
+      - id: tags-r
+        widget: Readout
+        props:
+          items:
+            - { label: 'len of the text', value: '{=tv.chars}', tone: bad }
+            - { label: 'tags in the list', value: '{=tv.n}', tone: good }
+    steps:
+      - tex: |
+          \anchor{as-str}{\texttt{type(recipes.loc[0, "tags"])}} = \texttt{str}, \quad \texttt{len} = {=tv.chars}
+        say: |
+          Chicken adobo's tags read back as one string of {=tv.chars} characters. `.str.len()` counts characters,
+          and `"dinner" in` it matches `dinner-party` as a substring.
+      - tex: |
+          \texttt{s[1:-1].split(", ")} \;\to\; \texttt{ {=tv.naiveFirst} }
+        say: |
+          Cutting the brackets and splitting at `, ` looks like a fix, but every tag keeps its quote marks, so
+          `"easy" in tags` is False. Don't hand-parse.
+      - tex: |
+          \anchor{literal}{\texttt{ast.literal\_eval(s)}} \;\to\; \text{a list of } {=tv.n} \text{ tags}
+        say: |
+          `ast.literal_eval` reads the text as the Python list it was printed from. It runs no other code, so it
+          is safe on data files.
+      - tex: |
+          \anchor{converters}{\texttt{converters=\{"tags": ast.literal\_eval\}}} \;\Rightarrow\; \anchor{explode}{\texttt{.explode()}} \to \text{one row per tag}
+        say: |
+          With `converters`, every tag cell is a real list as soon as the file is read: the real run prints
+          {=cv.printed}. `explode` then gives one row per tag, ready for `value_counts`.
+    code:
+      lang: python
+      source: |
+        """Turn list-like text back into lists while reading."""
+        import ast
+
+        recipes = pd.read_csv(DATA + "/RAW_recipes.csv")
+        type(recipes.loc[0, "tags"])                 # @a:as-str
+
+        ast.literal_eval(recipes.loc[0, "tags"])     # @a:literal
+
+        # @a converters
+        recipes = pd.read_csv(DATA + "/RAW_recipes.csv",
+                              converters={"tags": ast.literal_eval})
+        # @end
+        recipes["tags"].explode().value_counts()     # @a:explode
+    links:
+      - { anchor: as-str, label: 'Text, not a list', say: 'What read_csv gives you for a list column.' }
+      - { anchor: literal, label: 'literal_eval', say: 'Text → the Python list it was printed from.' }
+      - { anchor: converters, label: 'converters', say: 'Apply literal_eval to every tag cell while reading.' }
+      - { anchor: explode, label: 'explode', say: 'One row per tag, so value_counts counts tags.' }
+    examples: [tags-as-text, naive-split-quotes, tags-row-0]
+    pitfalls:
+      - '`recipes["tags"].str.len()` on the text counts characters (99), not tags (7).'
+      - '`"dinner" in tags_text` is True for `dinner-party`: a substring test, not a membership test.'
+      - '`s[1:-1].split(", ")` keeps quote marks on every tag.'
+    examTip: 'If `dtypes` says `object` for a column that should hold lists, add `converters={"col": ast.literal_eval}` to the read.'
+    tryIt: [tags-chars, tags-items, converters-code-fill]
+
+  # =====================================================================================
+  - id: utility-matrix
+    title: Count, keep, pivot
+    skills: [threshold-filter, pivot-matrix]
+    summary: |
+      "Only recipes with at least 4 ratings" is three steps: count each recipe's rows with [[group-count|groupby
+      count]], keep the ids that pass, filter the rows with [[isin]]. Then [[pivot]] turns the rows into a
+      [[ratings-matrix|utility matrix]] with sorted labels and [[nan]] for unrated cells.
+    keyFormula: '\texttt{rated.pivot(index="user\_id", columns="recipe\_id", values="rating")}'
+    state: { threshold: 4 }
+    derive:
+      - { fn: countsView, in: { threshold: '@threshold' }, out: cv }
+      - { fn: utilView, in: { threshold: '@threshold' }, out: uv }
+    live:
+      - id: counts
+        widget: Matrix
+        props: { rows: '@cv.rows', cols: '@cv.cols', values: '@cv.values', format: int, rowHeader: recipe_id, title: 'Ratings per recipe' }
+      - id: util
+        widget: Matrix
+        props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 1, rowHeader: user_id, title: 'Utility matrix' }
+    steps:
+      - tex: |
+          \anchor{counts}{\texttt{counts = df.groupby("recipe\_id")["rating"].count()}}
+        say: |
+          One count per recipe, recipes in ascending order. A 0 rating is a value, so it is counted.
+      - tex: |
+          \anchor{keep}{\texttt{counts[counts >= t].index}} \quad \text{vs} \quad \texttt{counts > t}
+        say: |
+          "At least {=threshold}" is `>=`: it keeps {=cv.nGe} recipes. "More than {=threshold}" is `>`: {=cv.nGt}.
+          Copy the spec's words exactly; the asserts check the exact columns.
+      - tex: |
+          \anchor{isin}{\texttt{rated = df[df["recipe\_id"].isin(keep)]}} \;\to\; {=cv.rated} \text{ rows}
+        say: |
+          `isin` marks each row whose recipe was kept; the filter keeps {=cv.rated} of the 30 rows.
+      - tex: |
+          \anchor{pivot}{\texttt{rated.pivot(...)}} \;\to\; {=uv.shape}, \quad {=uv.nan} \text{ NaN cells}
+        say: |
+          `pivot` puts users in rows and recipes in columns, both sorted by id. Of the {=uv.nRows} × {=uv.nCols}
+          cells, {=uv.rated} hold a rating and {=uv.nan} are NaN. Try another threshold above.
+    code:
+      lang: python
+      source: |
+        """Keep recipes with at least t ratings, then build the utility matrix."""
+        t = 4
+        counts = interactions.groupby("recipe_id")["rating"].count()   # @a:counts
+        keep = counts[counts >= t].index                                # @a:keep
+        rated = interactions[interactions["recipe_id"].isin(keep)]      # @a:isin
+        # @a pivot
+        util = rated.pivot(index="user_id", columns="recipe_id",
+                           values="rating")
+        # @end
+        util.shape
+    links:
+      - { anchor: counts, label: 'Count per recipe', say: 'Rows per recipe id; 0 ratings count.' }
+      - { anchor: keep, label: 'The cut', say: 'At least = `>=`; more than = `>`.' }
+      - { anchor: isin, label: 'Filter rows', say: 'Keep the rows about kept recipes.' }
+      - { anchor: pivot, label: 'Pivot', say: 'Users × recipes, sorted labels, NaN where unrated.' }
+    trace: { fn: matrixTrace, in: { threshold: '@threshold' } }
+    examples: [counts-per-recipe, keep-at-least-4, utility-matrix, matrix-trace, pivot-duplicates]
+    pitfalls:
+      - 'Writing `> 4` for "at least 4": recipes with exactly 4 ratings vanish from the matrix.'
+      - 'Counting users before the filter: a user who only rated dropped recipes has no row.'
+      - '`pivot` with a repeated (user, recipe) pair raises `ValueError: Index contains duplicate entries`; use `pivot_table` or drop duplicates.'
+    examTip: 'Check `util.shape`, the first few `util.columns` and `util.index` against the spec''s sort order before moving on.'
+    tryIt: [keep-at-least, pivot-hand-calc, keep-code-fill]
+
+  # =====================================================================================
+  - id: graded-functions
+    title: Functions that bring their own data
+    skills: [self-contained, loc-iloc]
+    summary: |
+      A graded function such as `item_recommend(user)` gets only a user id. The grader calls it in a fresh
+      [[kernel]], so the function builds the matrix itself, looks the user up by [[row-label|label]] with `loc`,
+      and returns the answer.
+    keyFormula: '\texttt{def f(user): util = create\_utility\_matrix(); \ldots; return answer}'
+    derive:
+      - { fn: realCell, in: { key: pd.fresh.uses_global }, out: bad }
+      - { fn: realCell, in: { key: pd.fresh_fixed.self_contained }, out: good }
+    live:
+      - id: fresh-bad
+        widget: Text
+        props:
+          body: |
+            **Fresh kernel, function that uses a global** (real run)
+
+            {=bad.out}
+    steps:
+      - tex: |
+          \anchor{loader}{\texttt{def create\_utility\_matrix():}} \;\to\; \text{reads the file, returns the matrix}
+        say: |
+          Wrap the reading and pivoting in one function. Any later function can now get the matrix by calling it.
+      - tex: |
+          \anchor{load-inside}{\texttt{df\_utility = create\_utility\_matrix()}} \quad \text{inside } \texttt{rated\_by}
+        say: |
+          The version that used a `df_utility` made in another cell failed in a fresh kernel with
+          `{=bad.final}`. Building it inside the function removes the dependency.
+      - tex: |
+          \anchor{loc}{\texttt{df\_utility.loc[user]}} \quad (\text{by label}) \qquad \texttt{.iloc[k]} \quad (\text{by position})
+        say: |
+          The spec passes a user *id*, a label, so use `loc`. `iloc[1101]` asks for row number 1101 of an 8-row
+          matrix and raises an [[index-error]].
+      - tex: |
+          \anchor{return}{\texttt{return}} \;\; \text{the list} \;\to\; {=good.printed}
+        say: |
+          Without `return` the function hands back `None`, and the test's next step fails. In a fresh kernel the
+          self-contained version prints {=good.printed}.
+    code:
+      lang: python
+      source: |
+        """Graded functions run in a fresh kernel: bring your own data."""
+        # @a loader
+        def create_utility_matrix():
+            """Read the reviews, keep recipes with >= 4 ratings, pivot."""
+            df = pd.read_csv(DATA + "/RAW_interactions.csv")
+            counts = df.groupby("recipe_id")["rating"].count()
+            keep = counts[counts >= 4].index
+            rated = df[df["recipe_id"].isin(keep)]
+            return rated.pivot(index="user_id", columns="recipe_id", values="rating")
+        # @end
+
+        def rated_by(user):
+            """Recipe ids the user rated, by user id (a row label)."""
+            df_utility = create_utility_matrix()              # @a:load-inside
+            row = df_utility.loc[user]                        # @a:loc
+            return row.dropna().index.tolist()                # @a:return
+
+        rated_by(1502)
+    links:
+      - { anchor: loader, label: 'Loader function', say: 'One place that reads the file and builds the matrix.' }
+      - { anchor: load-inside, label: 'Load inside', say: 'No variable from another cell is needed.' }
+      - { anchor: loc, label: 'Look up by label', say: 'A user id is a label: loc, not iloc.' }
+      - { anchor: return, label: 'Return', say: 'Hand the answer back; printing is not returning.' }
+    trace: { fn: functionTrace, in: {} }
+    examples: [fresh-kernel-global, fresh-kernel-fixed, missing-return, user-1101-row, iloc-with-label, loc-with-position, function-trace]
+    pitfalls:
+      - 'A function that uses `df_utility` from another cell passes while you test and fails for the grader with `NameError`.'
+      - 'Passing a user id to `iloc` (IndexError), or a position to `loc` (KeyError).'
+      - 'Printing the answer instead of returning it: the function returns `None`.'
+    examTip: 'Before you submit, restart the kernel and run only the function cells and the test cells.'
+    tryIt: [loc-iloc-mcq, self-contained-code-fill, function-parsons]

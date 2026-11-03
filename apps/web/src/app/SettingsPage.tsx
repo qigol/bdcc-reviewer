@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
-import { Download, RotateCcw, Upload } from 'lucide-react';
-import { useSetting } from '../storage/progress';
+import { Link } from 'react-router-dom';
+import { CalendarDays, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { useSetting, type Exam } from '../storage/progress';
+import { useCourses } from '../modules/courses';
+import { toYmd } from '../plan/studyPlan';
 import { exportProgress, importProgress, resetProgress } from '../storage/exportImport';
 import { useModuleStore } from '../modules/store';
 import { download } from '../lib/util';
@@ -9,7 +12,6 @@ export function SettingsPage() {
   const [theme, setTheme] = useSetting('theme');
   const [narration, setNarration] = useSetting('narration');
   const [reduced, setReduced] = useSetting('reducedMotion');
-  const [examDate, setExamDate] = useSetting('examDate');
   const [, setToken] = useSetting('adminToken');
   const { list } = useModuleStore();
   const [msg, setMsg] = useState<string | null>(null);
@@ -22,8 +24,8 @@ export function SettingsPage() {
         <Row label="Theme"><select className="input" value={theme} onChange={(e) => setTheme(e.target.value as any)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></Row>
         <Row label="Narrate scenes (text-to-speech)"><input type="checkbox" checked={narration} onChange={(e) => setNarration(e.target.checked)} className="h-4 w-4 accent-[rgb(var(--accent))]" /></Row>
         <Row label="Reduce motion (fades instead of tweens)"><input type="checkbox" checked={reduced} onChange={(e) => setReduced(e.target.checked)} className="h-4 w-4 accent-[rgb(var(--accent))]" /></Row>
-        <Row label="Exam date"><input type="date" className="input" value={examDate ?? ''} onChange={(e) => setExamDate(e.target.value || null)} /></Row>
       </div>
+      <ExamsEditor />
       <h2 className="mb-2 mt-6 font-semibold">Your progress</h2>
       <p className="mb-2 text-sm text-muted">Progress lives in this browser (IndexedDB). Download it to back it up or move it to another device (e.g. laptop → phone), then import it there. Imports merge; for conflicts, the newer entry wins.</p>
       <div className="card flex flex-wrap items-center gap-2 p-4">
@@ -39,7 +41,7 @@ export function SettingsPage() {
       </div>
       <div className="card mt-3 flex flex-wrap items-center gap-2 p-4">
         <span className="text-sm font-medium">Reset</span>
-        <select className="input" value={resetTarget} onChange={(e) => setResetTarget(e.target.value)}>
+        <select className="input min-w-0 max-w-full" value={resetTarget} onChange={(e) => setResetTarget(e.target.value)}>
           <option value="">everything</option>
           {list.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
         </select>
@@ -51,6 +53,71 @@ export function SettingsPage() {
         <button className="btn ml-auto" onClick={() => { setToken(null); setMsg('Admin token forgotten on this device.'); }}>Forget admin token</button>
       </div>
     </div>
+  );
+}
+
+/** Exams (one per course or part of a course) and the daily study budget the plan schedules into. */
+function ExamsEditor() {
+  const [exams, setExams] = useSetting('exams');
+  const [hours, setHours] = useSetting('studyHoursPerDay');
+  const [hoursDraft, setHoursDraft] = useState<string | null>(null);
+  const { courses } = useCourses();
+  const update = (id: string, patch: Partial<Exam>) => setExams(exams.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  const add = () => {
+    const course = courses[0]?.course;
+    if (!course) return;
+    setExams([...exams, { id: crypto.randomUUID(), name: `${course} exam`, course, date: toYmd(Date.now() + 14 * 86400000) }]);
+  };
+  return (
+    <>
+      <h2 className="mb-2 mt-6 flex items-center gap-2 font-semibold"><CalendarDays size={17} /> Exams &amp; study plan</h2>
+      <p className="mb-2 text-sm text-muted">Add each exam and how long you can study a day. The <Link to="/plan" className="text-accent underline">study plan</Link> spreads your unfinished lessons over the days before each exam, with reviews first and practice the day before.</p>
+      <div className="card divide-y divide-line" data-testid="exams-editor">
+        <Row label="Study time per day (hours)">
+          {/* a draft while typing, so an empty or half-typed value isn't snapped back; invalid ones revert on blur */}
+          <input type="number" className="input w-24" min={0.5} max={16} step={0.5} value={hoursDraft ?? String(hours)} data-testid="study-hours"
+            onChange={(e) => { setHoursDraft(e.target.value); const v = Number(e.target.value); if (v > 0 && v <= 16) setHours(v); }}
+            onBlur={() => setHoursDraft(null)} />
+        </Row>
+        {exams.map((ex) => {
+          const mods = courses.find((g) => g.course === ex.course)?.modules ?? [];
+          const picked = ex.moduleIds?.length ? ex.moduleIds : null;
+          return (
+            <div key={ex.id} className="flex flex-col gap-2 px-4 py-3 text-sm" data-testid="exam-row">
+              <div className="flex flex-wrap items-center gap-2">
+                <input className="input min-w-0 flex-1" value={ex.name} aria-label="Exam name" onChange={(e) => update(ex.id, { name: e.target.value })} />
+                <select className="input min-w-0 max-w-full" value={ex.course} aria-label="Course" onChange={(e) => update(ex.id, { course: e.target.value, moduleIds: undefined, ...(ex.name === `${ex.course} exam` && { name: `${e.target.value} exam` }) })}>
+                  {!courses.some((g) => g.course === ex.course) && <option value={ex.course}>{ex.course}</option>}
+                  {courses.map((g) => <option key={g.course} value={g.course}>{g.course}</option>)}
+                </select>
+                <input type="date" className="input" value={ex.date} aria-label="Exam date" onChange={(e) => e.target.value && update(ex.id, { date: e.target.value })} />
+                <button className="btn-ghost btn-sm text-bad" title="Remove exam" aria-label={`Remove ${ex.name}`} onClick={() => setExams(exams.filter((e) => e.id !== ex.id))}><Trash2 size={15} /></button>
+              </div>
+              {mods.length > 1 && (
+                <details>
+                  <summary className="cursor-pointer text-xs text-muted">Covers {picked ? `${picked.length} of ${mods.length} modules` : `all ${mods.length} modules`}</summary>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {mods.map((m) => (
+                      <label key={m.id} className="flex items-center gap-1.5 text-xs">
+                        <input type="checkbox" className="h-3.5 w-3.5 accent-[rgb(var(--accent))]" checked={!picked || picked.includes(m.id)}
+                          onChange={(e) => {
+                            const cur = picked ?? mods.map((x) => x.id);
+                            const next = e.target.checked ? [...cur, m.id] : cur.filter((id) => id !== m.id);
+                            // all checked (or none) means the whole course
+                            update(ex.id, { moduleIds: next.length && next.length < mods.length ? mods.map((x) => x.id).filter((id) => next.includes(id)) : undefined });
+                          }} />
+                        {m.shortTitle}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })}
+        <div className="px-4 py-3"><button className="btn btn-sm" onClick={add} disabled={!courses.length} data-testid="add-exam"><Plus size={14} /> Add exam</button></div>
+      </div>
+    </>
   );
 }
 

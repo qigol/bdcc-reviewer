@@ -299,7 +299,7 @@ Dexie DB `kodigo`, v1:
 | `mastery` | `skillKey` | score, n, updatedAt |
 | `notes` | `++id`, index `moduleId` | anchor (scene/section id), text (explain-backs, personal notes), createdAt |
 | `bookmarks` | `[moduleId+ref]` | label, createdAt |
-| `settings` | `key` | theme, narration, reducedMotion, examDate, adminToken, lastLocation |
+| `settings` | `key` | theme, narration, reducedMotion, exams (name, course, date, optional module subset), studyHoursPerDay, adminToken, lastLocation |
 
 - **Resume**: `settings.lastLocation` = `{moduleId, tab, id, beat}`, updated on every navigation.
 - **Export/import**: Settings → "Download my progress" (JSON with all tables and a DB version). Import merges by key, and for conflicts the later `updatedAt` wins.
@@ -444,7 +444,7 @@ The authoritative props, selectors, commands and events are in `MODULE_AUTHORING
 10. **"Recommender Showdown" capstone module** (`prerequisites: [fim, nb-cf, lf-cf]`): association rules vs user-/item-based vs ALS on the same data, scored with NDCG.
 11. **Concept map**: a graph of modules and skills colored by mastery.
 12. **Custom widgets as Web Components.** A module may ship `widgets.js` defining custom elements (`widget: custom:x-foo`) for the rare visual that the catalog can't express.
-13. **Exam countdown study plan**: given an exam date, schedules scenes and reviews per day.
+13. **Exam countdown study plan** (done): several exams (one per course, or part of one) and a daily hours budget; `/plan` spreads unfinished path steps over the days before each exam, with SRS reviews first and practice the day before. See `apps/web/src/plan/studyPlan.ts`.
 14. **Optional progress sync** to the server (`/api/progress/:profile`) for multiple devices, off by default.
 15. **Source PDF deep links**: bundle the deck in `sources/` so "slide 43" opens `deck.pdf#page=N`.
 

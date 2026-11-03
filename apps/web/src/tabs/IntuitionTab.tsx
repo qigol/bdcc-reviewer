@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, BookMarked, Check, CheckCircle2, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookMarked, Check, CheckCircle2, ChevronDown, ChevronUp, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { resolveRefs, evalExpr, TRANSIENT_COMMANDS, workbenchTabLabel, type Scene, type Term } from '@kodigo/schema';
 import { useModuleCtx } from './ModulePage';
 import { StageProvider, Stage, useStage } from '../engine/Stage';
@@ -76,6 +76,9 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
   }, []);
   const [beat, setBeat] = useState(0);
   const [finished, setFinished] = useState(false);
+  // phones only: fold the narration card down to its Back/Next row to see the stage; each new beat opens it again
+  const [folded, setFolded] = useState(false);
+  useEffect(() => setFolded(false), [beat]);
   const [gates, setGates] = useState<Record<number, GateState>>({});
   const [replayKey, setReplayKey] = useState(0);
   const beats = scene.beats;
@@ -186,16 +189,20 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
             <AnimatePresence mode="wait">
               {!finished ? (
                 <motion.div key={`beat-${beat}`} ref={cardRef} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reducedMotion ? 0.1 : 0.25 }}
-                  className="card sticky bottom-3 z-10 flex flex-col gap-3 p-4 shadow-lg">
-                  <Markdown text={cur.say} className="text-[15px]" />
-                  {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
-                  {cur.gate && cur.gate.type !== 'continue' && (
-                    <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`} seedKey={`${mod.id}:${scene.id}:${beat}`}
-                      onAnswer={(correct, response) => { if (!mod.preview) db.attempts.add({ key: `${mod.id}/predict:${scene.id}:${beat}`, templateId: `predict:${scene.id}:${beat}`, moduleId: mod.id, seed: 0, type: 'predict', skills: scene.skills ?? [], score: correct ? 1 : 0, response, timeMs: 0, mode: 'predict', at: Date.now() }); }} />
-                  )}
+                  className="card sticky bottom-3 z-10 flex max-h-[40vh] flex-col gap-3 p-3 shadow-lg sm:max-h-none sm:p-4">
+                  {/* on phones the card is capped so the stage stays visible; its text scrolls, the Back/Next row stays put */}
+                  <div className={cn('scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto sm:overflow-visible', folded && 'hidden sm:flex')}>
+                    <Markdown text={cur.say} className="text-[15px]" />
+                    {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
+                    {cur.gate && cur.gate.type !== 'continue' && (
+                      <GateView key={`${scene.id}:${beat}`} gate={cur.gate} state={gs} setState={setGate} whenTrue={whenTrue} mod={mod} noteAnchor={`reflect:${scene.id}:${beat}`} seedKey={`${mod.id}:${scene.id}:${beat}`}
+                        onAnswer={(correct, response) => { if (!mod.preview) db.attempts.add({ key: `${mod.id}/predict:${scene.id}:${beat}`, templateId: `predict:${scene.id}:${beat}`, moduleId: mod.id, seed: 0, type: 'predict', skills: scene.skills ?? [], score: correct ? 1 : 0, response, timeMs: 0, mode: 'predict', at: Date.now() }); }} />
+                    )}
+                  </div>
                   <div className="flex items-center gap-3">
-                    <button className="btn" onClick={() => goto(beat - 1)} disabled={beat === 0}><ArrowLeft size={15} /> Back</button>
-                    <div className="flex flex-1 items-center justify-center gap-1.5" aria-label="beats">
+                    <button className="btn-ghost btn-sm sm:hidden" title={folded ? 'Show the text' : 'Hide the text'} aria-label={folded ? 'Show the text' : 'Hide the text'} aria-expanded={!folded} onClick={() => setFolded(!folded)}>{folded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+                    <button className="btn" title="Back" onClick={() => goto(beat - 1)} disabled={beat === 0}><ArrowLeft size={15} /> <span className="sr-only sm:not-sr-only">Back</span></button>
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1.5" aria-label="beats">
                       {beats.map((_, i) => (
                         <button key={i} aria-label={`beat ${i + 1}`} onClick={() => i <= beat && goto(i)} className={cn('h-2 rounded-full transition-all', i === beat ? 'w-6 bg-accent' : i < beat ? 'w-2 bg-accent/50' : 'w-2 bg-line')} />
                       ))}

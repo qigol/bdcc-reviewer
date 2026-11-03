@@ -1,0 +1,882 @@
+templates:
+  # =====================================================================================
+  # User-defined functions
+  # =====================================================================================
+  - id: plain-vs-udf-mcq
+    type: mcq
+    skills: [udf-wrap]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: plain-function }
+    prompt: |
+      `pair_code` is a plain Python [[function]]: `def pair_code(pu, do): return f'{pu}-{do}'`, with no `@udf`
+      line. What does `trips.select(pair_code(trips.PULocationID, trips.DOLocationID)).show()` do?
+    options:
+      - 'It fails with an [[analysis-exception]]: the function joined the two Column descriptions into one long name that is no column'
+      - 'It prints one code per trip, such as `41-238`'
+      - 'It prints the single code `PULocationID-DOLocationID`'
+      - 'It fails with a NameError, because `pair_code` is not defined'
+    answer: 0
+    optionFeedback:
+      '1': 'That is what the `@udf` version prints. The plain function runs once, in Python, on two Column objects, not on each row''s values.'
+      '2': 'Close: with the names as strings it builds `PULocationID-DOLocationID`. Here it gets Column objects, and `select` then looks for a column with that made-up name and fails.'
+      '3': '`pair_code` is defined; the def cell ran. The error comes from Spark, not from Python names.'
+    hints:
+      - What does `f'{pu}-{do}'` give when `pu` is `trips.PULocationID`, a Column object?
+    explanation: |
+      Without `@udf`, Python calls `pair_code` once with two Column objects and returns the string
+      `"Column<'PULocationID'>-Column<'DOLocationID'>"`. `select` treats that string as a column name, and the real
+      run fails with `UNRESOLVED_COLUMN`. Only a [[udf]] makes Spark call the function once per row.
+    variants:
+      - prompt: 'After `@udf` is added above `def pair_code`, what does `pair_code(41, 238)` return in the notebook?'
+        options:
+          - 'A PySparkTypeError: a UDF expects columns (or column names), not plain numbers'
+          - "The string '41-238'"
+          - 'The number 41238'
+          - 'A Column that Spark fills in later with 41-238'
+        answer: 0
+        optionFeedback:
+          '1': 'That was true before `@udf`. Now `pair_code` is a UDF, and the real run says `Argument col should be Column or str, got int`.'
+          '2': 'Nothing adds the numbers; the f-string joins them with a hyphen, and here it does not even run.'
+          '3': 'A UDF only builds a Column from column names or Columns. 41 is neither, so it raises at once.'
+        explanation: 'A UDF works on columns. To test the Python logic on plain values, call the function before decorating it.'
+      - prompt: 'Which line makes Spark call `pair_code` once for every row of `trips`?'
+        options:
+          - "`trips.select(pair_code('PULocationID', 'DOLocationID'))` after `@udf` is added above the def"
+          - "`trips.select(pair_code('PULocationID', 'DOLocationID'))` with the plain def"
+          - '`[pair_code(r[0], r[1]) for r in [(41, 238)]]` with the plain def'
+          - "`trips.select('PULocationID', 'DOLocationID').show()`"
+        answer: 0
+        optionFeedback:
+          '1': 'The plain def runs once on the two names and returns `PULocationID-DOLocationID`, which is no column.'
+          '2': 'That runs the function in plain Python on one hand-typed pair, not on the DataFrame.'
+          '3': 'That shows the two zones but never calls `pair_code`.'
+        explanation: '`@udf` wraps the function so Spark sends it each row''s values and builds a new column from the results.'
+
+  - id: pair-code-fill
+    type: code-fill
+    skills: [udf-wrap]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: udf-per-row }
+    prompt: Complete the cell so that Spark runs `pair_code` on every trip and shows the codes.
+    code: |
+      from pyspark.sql.functions import udf
+
+      @__BLANK_1__
+      def pair_code(pu, do):
+          """Concatenate PULocationID and DOLocationID with a hyphen"""
+          return f'{pu}-{do}'
+
+      trips.__BLANK_2__(pair_code('PULocationID', 'DOLocationID')).show()
+    blanks:
+      '1': { accept: [udf, 'udf()', 'udf(useArrow=True)'], hint: 'The name of the function that wraps it.' }
+      '2': { accept: ['select'], hint: 'The method that picks or builds columns.' }
+    hints:
+      - The function must be wrapped before Spark can call it per row.
+    explanation: '`@udf` turns the function into a [[udf]]; `select(...)` builds the new column, and `show()` prints it.'
+
+  - id: pair-distinct-numeric
+    type: numeric
+    skills: [udf-wrap]
+    difficulty: 1
+    tags: [math]
+    generator: pairDistinctQ
+    lessonRef: { tab: intuition, id: plain-function }
+    prompt: |
+      The `@udf` version of `pair_code` runs on this table. How many **different** codes appear in its output?
+
+      {=table}
+    answer: { var: distinct, tol: 0 }
+    hints:
+      - Write the code for each row first, `pickup-dropoff`.
+      - Then cross out codes you have already seen.
+    explanation: |
+      The codes are {=codes}. Rows with the same pickup **and** drop-off give the same code, so there are
+      {=distinct} different codes in {=n} rows.
+
+  # =====================================================================================
+  # Return types
+  # =====================================================================================
+  - id: return-type-mcq
+    type: mcq
+    skills: [udf-return-type]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: return-types }
+    prompt: |
+      `@udf` with no type, above `def double_fare(fare): return fare * 2`. The real run shows `23.0` for a fare of
+      11.5. What type does `printSchema()` give the new column?
+    options:
+      - '`string`: without a declared [[return-type]], Spark stores the result as text'
+      - '`double`: the function returns a Python float'
+      - '`float`: Spark copies the input column''s type'
+      - '`int`: 23.0 is a whole number'
+    answer: 0
+    optionFeedback:
+      '1': 'Spark does not look at what Python returns. It uses the declared type, and the default is string.'
+      '2': 'The input `fare_amount` is a double, but the UDF''s column takes the declared type, string.'
+      '3': 'The value is printed as `23.0`, text that only looks like a number.'
+    hints: ['What does `@udf` assume when you give it no type?']
+    explanation: 'The real `printSchema()` prints `double_fare(fare_amount): string`. Declare `@udf(''double'')` to keep numbers.'
+    variants:
+      - prompt: '`@udf(''int'', useArrow=False)` above `def double_fare_int(fare): return fare * 2`. What does `show()` print for a fare of 11.5?'
+        options:
+          - 'NULL: with pickle, a float that does not fit the declared int is dropped silently'
+          - '23'
+          - '23.0'
+          - 'A PythonException naming the type'
+        answer: 0
+        optionFeedback:
+          '1': 'That is what Arrow gives (`useArrow=True`): it casts 23.0 to 23. Pickle does not cast.'
+          '2': 'That would need a string or double type.'
+          '3': 'With pickle there is no error at all, which is what makes it dangerous.'
+        explanation: 'The real run prints NULL in every row: a silent NULL from a mismatched [[return-type]].'
+      - prompt: 'Which `returnType` makes `collect_user_info` return a nested column with `id` and `user.name`?'
+        options:
+          - "`'id LONG, user STRUCT<name: STRING, description: STRING>'`"
+          - "`'string'`"
+          - "`'id, user.name, user.description'`"
+          - "`'array<string>'`"
+        answer: 0
+        optionFeedback:
+          '1': 'Then Spark would print the tuple as text, with no fields to reach into.'
+          '2': 'A schema needs a type for every field, not only names.'
+          '3': 'An array holds items by position, with no field names.'
+        explanation: 'A [[ddl-schema-string]] (or the matching StructType) describes the [[struct]] the tuple fills.'
+
+  - id: ddl-fill
+    type: code-fill
+    skills: [udf-return-type]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: struct-return }
+    prompt: |
+      Write the [[ddl-schema-string]] that matches this `StructType`, so that `@udf(UserInfoType2)` gives the same
+      nested column.
+      ```python
+      StructType([
+          StructField('id', LongType()),
+          StructField('user', StructType([
+              StructField('name', StringType()),
+              StructField('description', StringType())
+          ]))
+      ])
+      ```
+    code: |
+      UserInfoType2 = "id __BLANK_1__, user __BLANK_2__<name: STRING, description: STRING>"
+    blanks:
+      '1': { accept: ['LONG', 'BIGINT', 'long', 'bigint'], hint: 'LongType in DDL.' }
+      '2': { accept: ['STRUCT', 'struct'], hint: 'The DDL word for a nested type with named fields.' }
+    hints: ['Each StructField becomes `name TYPE`; a nested StructType becomes `STRUCT<...>`.']
+    explanation: '`LongType()` is `LONG` (or `BIGINT`), and the nested StructType is `STRUCT<name: STRING, description: STRING>`.'
+
+  - id: type-output-match
+    type: match
+    skills: [udf-return-type, arrow-transfer]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: return-types }
+    prompt: 'Each declaration sits above `def f(fare): return fare * 2`. Match it to what the real run printed for a fare of 11.5.'
+    pairs:
+      - ['`@udf` (no type)', 'the text 23.0 (column type string)']
+      - ["`@udf('double')`", 'the number 23.0']
+      - ["`@udf('int', useArrow=True)`", '23']
+      - ["`@udf('int', useArrow=False)`", 'NULL']
+    hints: ['Arrow casts a value to the declared type; pickle drops values that do not fit.']
+    explanation: 'Without a type, Spark keeps text. Arrow casts 23.0 to the int 23; [[pickle]] cannot, so the value becomes [[null-value|NULL]].'
+
+  # =====================================================================================
+  # Arrow and batches
+  # =====================================================================================
+  - id: arrow-mcq
+    type: mcq
+    skills: [arrow-transfer]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: pickle-or-arrow }
+    prompt: 'What does `useArrow=True` change for a row-at-a-time `@udf`?'
+    options:
+      - 'How the values travel between Spark and Python: in Arrow''s shared column format instead of [[pickle]]'
+      - 'What the function computes: Arrow runs a faster version of your code'
+      - 'Where the result goes: Arrow writes it to a file'
+      - 'Nothing at all; it is only a label'
+    answer: 0
+    optionFeedback:
+      '1': 'Your Python code is the same. Only the way rows are packed and unpacked changes.'
+      '2': 'The result is still a new column in the DataFrame.'
+      '3': 'It changes the transfer, and with it how a mismatched return type is handled.'
+    hints: ['The function body is identical in both versions. What else happens on every call?']
+    explanation: '[[apache-arrow|Arrow]] sends values in batches in a format both sides read without converting each value. A mismatched type is then cast or raises an error, instead of becoming a silent NULL.'
+    variants:
+      - prompt: 'In the PySpark version these runs used (4.3), what does `spark.conf.get("spark.sql.execution.pythonUDF.arrow.enabled")` print in a fresh session?'
+        options:
+          - "'true': plain @udf functions already use Arrow"
+          - "'false': pickle is always the default"
+          - 'An error: the setting only exists on Databricks'
+          - "'pickle'"
+        answer: 0
+        optionFeedback:
+          '1': 'The notebook describes older versions. The real run on 4.3 printed `''true''`.'
+          '2': 'It is a standard Spark setting; the real local run printed it.'
+          '3': 'The setting is true or false, not a format name.'
+        explanation: 'Check the setting in your own notebook: the default depends on the Spark version.'
+      - prompt: 'Which kind of UDF always uses Arrow, whatever the setting?'
+        options:
+          - 'A pandas UDF made with `@pandas_udf`'
+          - 'A plain `@udf`'
+          - 'A lambda registered with `spark.udf.register`'
+          - 'None: Arrow must always be switched on'
+        answer: 0
+        optionFeedback:
+          '1': 'A plain `@udf` follows the setting or `useArrow=`.'
+          '2': 'A registered plain function or lambda is a row-at-a-time UDF.'
+          '3': 'Pandas UDFs need Arrow to build their pandas Series, so they always use it.'
+        explanation: 'A [[pandas-udf]] receives whole Arrow [[batch|batches]] as pandas objects.'
+
+  - id: batch-count-numeric
+    type: numeric
+    skills: [arrow-transfer]
+    difficulty: 1
+    tags: [math]
+    generator: batchQ
+    lessonRef: { tab: math-code, id: arrow-batches }
+    prompt: |
+      A partition holds **{=n}** rows and `spark.sql.execution.arrow.maxRecordsPerBatch` is **{=size}**. How many
+      times is a Series-to-Series [[pandas-udf]] called on this partition?
+    answer: { var: calls, tol: 0 }
+    hints:
+      - Each call gets one [[batch]] of at most {=size} rows.
+      - Divide, then round **up** for the leftover rows.
+    explanation: 'The batch sizes are {=sizesText}: $\lceil {=n} / {=size} \rceil = {=calls}$ calls.'
+
+  - id: last-batch-numeric
+    type: numeric
+    skills: [arrow-transfer]
+    difficulty: 2
+    tags: [math]
+    generator: batchQ
+    lessonRef: { tab: math-code, id: arrow-batches }
+    prompt: |
+      A pandas UDF returns `pd.Series([len(s)] * len(s))`, the size of the [[batch]] it received. The partition has
+      **{=n}** rows and batches hold at most **{=size}**. What does it print for the **last** row?
+    answer: { var: last, tol: 0 }
+    hints:
+      - Fill whole batches of {=size} first.
+      - The last batch holds whatever is left.
+    explanation: 'Batches: {=sizesText}. The last row sits in the last batch, so it prints {=last}.'
+
+  # =====================================================================================
+  # Series to Series
+  # =====================================================================================
+  - id: clip-count-numeric
+    type: numeric
+    skills: [pandas-series-udf]
+    difficulty: 1
+    tags: [math]
+    generator: clipQ
+    lessonRef: { tab: intuition, id: whole-batches }
+    prompt: |
+      A Series-to-Series [[pandas-udf]] returns `np.clip(s, {=lo}, {=hi})`. One batch holds these values:
+      {=values}. How many values does it **change**?
+    answer: { var: changed, tol: 0 }
+    hints:
+      - A value inside the range, bounds included, stays as it is.
+      - Count values above {=hi} **and** values below {=lo}.
+    explanation: '{=above} values are above {=hi} and {=below} below {=lo}: {=changed} change. The output is {=clipped}.'
+
+  - id: clip-hand
+    type: hand-calc
+    skills: [pandas-series-udf]
+    difficulty: 3
+    tags: [math]
+    generator: clipQ
+    lessonRef: { tab: math-code, id: clip-series }
+    prompt: |
+      `clip_udf` returns `np.clip(s, {=lo}, {=hi})` on this batch: {=values}. Work through it as the Series does.
+    steps:
+      - prompt: How many values are above the top bound and become {=hi}?
+        answer: { var: above, tol: 0 }
+        hint: Strictly above; a value equal to {=hi} stays.
+      - prompt: How many values are below the bottom bound and become {=lo}?
+        answer: { var: below, tol: 0 }
+        hint: Look for negative values.
+      - prompt: What is the sum of the clipped Series?
+        answer: { var: sumOut, tol: 0.01 }
+        hint: Replace each value outside the range by its bound, then add.
+        misconceptions:
+          - { var: sumIn, feedback: 'That is the sum before clipping.' }
+          - { var: sumHighOnly, feedback: 'You lowered the big values but left the negative ones. They rise to {=lo}.' }
+    hints:
+      - '`np.clip(x, lo, hi)` is `min(max(x, lo), hi)` for each value.'
+    explanation: 'Clipped: {=clipped}. Its sum is {=sumOut}; before clipping it was {=sumIn}.'
+
+  - id: udf-kind-match
+    type: match
+    skills: [pandas-series-udf, iterator-udf, grouped-pandas]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: iterators }
+    prompt: Match each pandas UDF signature to what Spark does with it.
+    pairs:
+      - ['`def f(s: pd.Series) -> pd.Series`', 'called once per batch; returns one value per row']
+      - ['`def f(it: Iterator[pd.Series]) -> Iterator[pd.Series]`', 'called once; loops over the batches and yields a Series for each']
+      - ['`def f(it: Iterator[Tuple[pd.Series, pd.Series]]) -> Iterator[pd.Series]`', 'called once; each batch brings two columns together']
+      - ['`def f(v: pd.Series) -> float`', 'one number per group, used inside agg']
+    hints: ['Read the [[type-hint|type hints]] after each parameter and after `->`.']
+    explanation: 'The [[type-hint|type hints]] decide the kind: Series to Series, [[iterator]] of Series, iterator of tuples, or Series to scalar (an [[aggregation]]).'
+
+  # =====================================================================================
+  # Iterators
+  # =====================================================================================
+  - id: hash-numeric
+    type: numeric
+    skills: [iterator-udf]
+    difficulty: 1
+    tags: [math]
+    generator: hashQ
+    lessonRef: { tab: intuition, id: iterators }
+    prompt: |
+      An [[iterator]] UDF reads `a = {=a}`, `b = {=b}`, `c = {=c}` once, then yields `(a * x + b) % c` for every
+      batch. What does it give for the id `x = {=x}`?
+    answer: { var: h, tol: 0 }
+    hints:
+      - First $a \cdot x$, then add $b$.
+      - '`%` keeps the remainder after dividing by {=c}.'
+    explanation: '${=a} \times {=x} + {=b} = {=axb}$, and ${=axb} = {=quotient} \times {=c} + {=h}$, so the result is **{=h}**.'
+
+  - id: hash-hand
+    type: hand-calc
+    skills: [iterator-udf]
+    difficulty: 2
+    tags: [math]
+    generator: hashQ
+    lessonRef: { tab: math-code, id: iterator-hash }
+    prompt: 'Work out `(a * x + b) % c` for a = {=a}, b = {=b}, c = {=c} and x = {=x}, one step at a time.'
+    steps:
+      - prompt: '$a \cdot x$'
+        answer: { var: ax, tol: 0 }
+        hint: Multiply.
+      - prompt: '$a \cdot x + b$'
+        answer: { var: axb, tol: 0 }
+        hint: Add b to the last result.
+      - prompt: 'The remainder after dividing by c'
+        answer: { var: h, tol: 0 }
+        hint: How much is left after taking away as many whole c's as fit?
+        misconceptions:
+          - { var: quotient, feedback: 'That is how many times {=c} fits. `%` keeps what is left over.' }
+          - { var: noB, feedback: 'That is $(a \cdot x) \% c$, without b.' }
+    hints: ['Keep the order of the brackets: multiply, add, then take the remainder.']
+    explanation: '${=a} \times {=x} = {=ax}$; $+ {=b} = {=axb}$; ${=axb} \bmod {=c} = {=h}$.'
+
+  - id: yield-find-error
+    type: find-error
+    code: true
+    skills: [iterator-udf]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: iterators }
+    prompt: 'This iterator UDF, decorated with `@pandas_udf(''long'')`, fails with `UDF_RETURN_TYPE ... should be iterator of pandas.Series, but is Series`. Click the line that causes it.'
+    steps:
+      - 'def mask_bad(ids: Iterator[pd.Series]) -> Iterator[pd.Series]:'
+      - '    a, b, c = 193602, 15914, 1000'
+      - '    for x in ids:'
+      - '        return (a * x + b) % c'
+    wrong: 3
+    stepFeedback:
+      '0': 'These hints are exactly right for an iterator UDF.'
+      '1': 'Setup before the loop runs once; that is the point of the iterator kind.'
+      '2': 'Looping over the batches is right.'
+    hints: ['What must an iterator UDF hand back for each batch?']
+    explanation: '`return` ends the function after the first batch and hands back one Series, not an iterator. Write `yield (a * x + b) % c`.'
+
+  - id: fare-rate-numeric
+    type: numeric
+    skills: [iterator-udf]
+    difficulty: 1
+    tags: [math]
+    generator: fareRateQ
+    lessonRef: { tab: math-code, id: iterator-hash }
+    prompt: |
+      `fare_rate` loops `for trip_distance, fare_amount in iterator:` and yields `fare_amount / trip_distance`. A
+      trip is **{=d}** miles long with a fare of **{=f}** dollars. What does it yield for this trip? Give two decimal
+      places.
+    answer: { var: rate, tol: 0.006 }
+    hints:
+      - Dollars per mile.
+      - Divide the fare by the distance.
+    explanation: '${=f} / {=d} = {=rate|2}$ dollars per mile.'
+
+  # =====================================================================================
+  # Series to scalar and applyInPandas
+  # =====================================================================================
+  - id: group-mean-numeric
+    type: numeric
+    skills: [grouped-pandas]
+    difficulty: 1
+    tags: [math]
+    generator: groupMeanQ
+    lessonRef: { tab: intuition, id: one-per-group }
+    prompt: |
+      `tweets.groupby('country_code').agg(mean_udf(tweets.statuses_count))` runs on these tweets, where
+      `mean_udf` returns `v.mean()`. What does it print for **{=target}**? Give two decimal places.
+
+      {=table}
+    answer: { var: mean, tol: 0.006 }
+    hints:
+      - The function receives only the {=target} rows as one Series.
+      - Add them up and divide by how many there are.
+    explanation: '{=target}: $({=values}) / {=k} = {=mean|2}$.'
+
+  - id: norm-fare-numeric
+    type: numeric
+    skills: [grouped-pandas]
+    difficulty: 3
+    tags: [math]
+    generator: normFareQ
+    lessonRef: { tab: math-code, id: group-mean }
+    prompt: |
+      `trips.groupby('VendorID').applyInPandas(standardize_fares, ...)` divides each fare by
+      `s['fare_amount'].max()`. What is `normed_fare` for **trip {=trip}**? Give two decimal places.
+
+      {=table}
+    answer: { var: normed, tol: 0.006 }
+    hints:
+      - '[[apply-in-pandas]] hands the function one vendor''s rows at a time.'
+      - Find vendor {=vendor}'s highest fare first.
+    explanation: 'Vendor {=vendor}''s highest fare is {=max}, so ${=fareT} / {=max} = {=normed|2}$.'
+
+  - id: agg-two-tier
+    type: two-tier
+    skills: [grouped-pandas]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: one-per-group }
+    prompt: '`trips.groupby(''VendorID'').agg(clip_0_to_100(trips.trip_distance))` fails. Which UDF kind belongs in `agg` instead?'
+    options:
+      - 'A Series-to-scalar UDF, such as `def f(v: pd.Series) -> float`'
+      - 'Another Series-to-Series UDF with a different return type'
+      - 'Any `@udf`, because a plain UDF works per group'
+    answer: 0
+    reasons:
+      - '`agg` needs one value per group, and only a Series-to-scalar UDF returns one value for many'
+      - '`agg` needs a float return type'
+      - '`agg` needs one value per row, which a Series-to-Series UDF cannot give'
+    reasonAnswer: 0
+    optionFeedback:
+      '1': 'The type is not the problem. A Series-to-Series UDF returns one value **per row**, and the real run fails with `MISSING_AGGREGATION`.'
+      '2': 'A plain UDF is row-at-a-time too, so it gives no single value for a group.'
+    reasonFeedback:
+      '1': 'A Series-to-scalar UDF declared `''double''` works; what matters is one value per group.'
+      '2': 'It is the other way round: `agg` makes one value per group.'
+    hints: ['How many values does `agg` keep for each vendor?']
+    explanation: 'An [[aggregation]] squeezes each group into one value. `mean_udf` (Series to scalar) does that; `clip_0_to_100` returns a value per row, so Spark reports `MISSING_AGGREGATION`.'
+
+  # =====================================================================================
+  # Temporary views and spark.sql
+  # =====================================================================================
+  - id: where-count-numeric
+    type: numeric
+    skills: [temp-view-sql]
+    difficulty: 1
+    tags: [math]
+    generator: whereQ
+    lessonRef: { tab: intuition, id: tables-by-name }
+    prompt: |
+      A [[temp-view]] `rides` holds these fares: {=fares}. How many rows does
+      `spark.sql("SELECT * FROM rides WHERE fare_amount > {=x}")` return?
+    answer: { var: kept, tol: 0 }
+    hints:
+      - Test each fare on its own.
+      - '`>` is strict.'
+    explanation: '{=kept} fares are greater than {=x}. A fare equal to {=x} fails the test.'
+
+  - id: view-order
+    type: order
+    skills: [temp-view-sql]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: sql-where }
+    prompt: Put the steps for answering a question about `trips` with SQL in order.
+    items:
+      - "Read the file: `trips = spark.read.csv('taxi12.csv', header=True, inferSchema=True)`"
+      - "Give it a name SQL can see: `trips.createOrReplaceTempView('trips')`"
+      - 'Write the statement: `q = spark.sql("SELECT PULocationID FROM trips WHERE fare_amount > 20")`'
+      - 'Run an action on the DataFrame it returns: `q.show()`'
+    hints: ['SQL can only name tables that already have a view.']
+    explanation: '`spark.sql` returns a [[dataframe]], so `show()` (an action) comes last; the [[temp-view]] must exist before the statement names it.'
+
+  - id: view-mcq
+    type: mcq
+    skills: [temp-view-sql]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: tables-by-name }
+    prompt: '`spark.sql("SELECT * FROM trips")` fails with `[TABLE_OR_VIEW_NOT_FOUND] The table or view trips cannot be found`, although `trips.show()` works. Why?'
+    options:
+      - 'The Python variable `trips` is not a name SQL can see; `trips.createOrReplaceTempView(''trips'')` must run first'
+      - 'The CSV file was moved'
+      - 'SQL needs the table name in capitals'
+      - 'A query must end with LIMIT'
+    answer: 0
+    optionFeedback:
+      '1': '`trips.show()` reads the same file and works, so the file is fine.'
+      '2': 'Spark does not care about the case of table names here.'
+      '3': 'LIMIT is optional.'
+    hints: ['SQL looks up names in Spark''s catalog, not in Python''s variables.']
+    explanation: 'A [[temp-view]] gives the DataFrame a name in Spark''s catalog. Python variables are invisible to [[sql]].'
+    variants:
+      - prompt: 'After `trips.createOrReplaceTempView(''taxi'')`, which statement works?'
+        options:
+          - '`spark.sql("SELECT COUNT(*) FROM taxi")`'
+          - '`spark.sql("SELECT COUNT(*) FROM trips")`'
+          - '`spark.sql("SELECT COUNT(*) FROM createOrReplaceTempView")`'
+          - '`spark.sql("SELECT COUNT(*) FROM taxi12.csv")`'
+        answer: 0
+        optionFeedback:
+          '1': 'The view is called `taxi`; the real run with `FROM trips` still fails with TABLE_OR_VIEW_NOT_FOUND.'
+          '2': 'That is the method, not the view.'
+          '3': 'SQL names the view, not the file.'
+        explanation: 'SQL uses the view''s name, whatever the Python variable is called.'
+      - prompt: 'What does `spark.sql("SELECT * FROM trips")` return?'
+        options:
+          - 'A DataFrame, so `.show()`, `.withColumn(...)` and `.explain()` all work on it'
+          - 'A printed table'
+          - 'A Python list of rows'
+          - 'A string holding the SQL'
+        answer: 0
+        optionFeedback:
+          '1': 'Nothing is printed until an action such as `show()` runs.'
+          '2': 'That is what `collect()` gives.'
+          '3': 'Spark parses the string and builds a plan from it.'
+        explanation: 'The real run prints `<class ''pyspark.sql.classic.dataframe.DataFrame''>`.'
+
+  # =====================================================================================
+  # SQL clauses
+  # =====================================================================================
+  - id: case-count-numeric
+    type: numeric
+    skills: [sql-clauses, sql-udf-register]
+    difficulty: 2
+    tags: [math]
+    generator: caseQ
+    lessonRef: { tab: math-code, id: sql-case-udf }
+    prompt: |
+      `double_distance` is registered as `lambda x: x*2`. The query labels a trip `'long'` when
+      `double_distance(trip_distance) > {=t}`, else `'short'`. The distances are {=dists}. How many trips are long?
+    answer: { var: nLong, tol: 0 }
+    hints:
+      - Double each distance first.
+      - Then test it against {=t}, strictly.
+    explanation: '{=nLong} doubled distances are greater than {=t}; the other {=nShort} trips are short.'
+
+  - id: backtick-fill
+    type: code-fill
+    lang: sql
+    skills: [sql-clauses]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: intuition, id: group-and-name }
+    prompt: 'Name the result column `mean tip`, with the space, so the statement parses.'
+    code: |
+      SELECT VendorID, AVG(tip_amount) AS __BLANK_1__
+      FROM trips
+      GROUP BY VendorID
+    blanks:
+      '1': { accept: ['`mean tip`'], hint: 'The mark on the key left of 1.' }
+    hints: ['Quotes make text, not a name.']
+    explanation: '[[backticks]] make `mean tip` one name. Without them, or with quotes, the real run fails with `PARSE_SYNTAX_ERROR`.'
+
+  - id: sql-parsons
+    type: order
+    code: true
+    skills: [sql-clauses]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: math-code, id: sql-group-alias }
+    prompt: |
+      Build the statement: the number of trips per pickup zone, as a column named `trips`, busiest zone first and
+      ties by zone. Two lines in the bank do not belong.
+    items:
+      - 'SELECT PULocationID, COUNT(*) AS trips'
+      - 'FROM trips'
+      - 'GROUP BY PULocationID'
+      - 'ORDER BY trips DESC, PULocationID'
+    distractors:
+      - 'SELECT PULocationID, VendorID, COUNT(*) AS trips'
+      - 'WHERE COUNT(*) > 1'
+    hints:
+      - Every column in SELECT must be grouped or summarized.
+      - WHERE tests single rows, before any group exists.
+    explanation: 'Real output: zone 7 (4 trips) first, then 33, 41 and 74 with 2 each. Adding `VendorID` without grouping it fails with `MISSING_AGGREGATION`.'
+
+  - id: group-avg-hand
+    type: hand-calc
+    skills: [sql-clauses]
+    difficulty: 3
+    tags: [math]
+    generator: groupAvgQ
+    lessonRef: { tab: math-code, id: sql-group-alias }
+    prompt: |
+      ``SELECT VendorID, AVG(tip_amount) AS `mean tip` FROM rides GROUP BY VendorID`` runs on this view. Work out
+      the row for **vendor {=v}**.
+
+      {=table}
+    steps:
+      - prompt: Add up vendor {=v}'s tips.
+        answer: { var: sum, tol: 0.01 }
+        hint: Only the rows with VendorID {=v}.
+      - prompt: How many trips does vendor {=v} have?
+        answer: { var: k, tol: 0 }
+        hint: Count the same rows.
+      - prompt: What is `mean tip` for vendor {=v}? Give two decimal places.
+        answer: { var: mean, tol: 0.006 }
+        hint: Divide the sum by the count.
+        misconceptions:
+          - { var: divN, feedback: 'You divided by all {=n} trips. AVG divides by this group''s trips.' }
+          - { var: overall, feedback: 'That is the average over both vendors.' }
+    hints: ['GROUP BY makes one group per vendor; AVG works inside each group.']
+    explanation: 'Vendor {=v}: ${=sum} / {=k} = {=mean|2}$.'
+
+  # =====================================================================================
+  # UDFs in SQL
+  # =====================================================================================
+  - id: register-fill
+    type: code-fill
+    skills: [sql-udf-register]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: sql-case-udf }
+    prompt: 'Make `double_distance` callable from SQL, returning a float.'
+    code: |
+      spark.udf.__BLANK_1__('double_distance', lambda x: x*2, __BLANK_2__)
+      spark.sql("SELECT double_distance(CAST(trip_distance AS FLOAT)) FROM trips LIMIT 10").show()
+    blanks:
+      '1': { accept: ['register'], hint: 'r…' }
+      '2': { accept: ["'FLOAT'", "'float'", 'FloatType()'], hint: 'The return type, as a string.' }
+    hints: ['Without the third argument, SQL gets strings back.']
+    explanation: '`spark.udf.register(name, f, returnType)` is [[udf-registration]]. The [[lambda]] needs `''FLOAT''` so the column holds numbers.'
+
+  - id: text-order-two-tier
+    type: two-tier
+    skills: [sql-udf-register]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: functions-in-sql }
+    prompt: |
+      `spark.udf.register('double_distance_s', lambda x: x*2)` (no type), then `ORDER BY dd DESC` on its results.
+      Where does the trip with `dd = 19.6` land among the 12 trips?
+    options: ['Below 4.3, 3.88 and 2.0, near the end', 'First, as the largest value', 'Missing, because it is NULL']
+    answer: 0
+    reasons:
+      - 'Without a type the results are text, and text sorts character by character: "4" comes after "1"'
+      - 'Spark sorts numbers in the order the rows were read'
+      - 'Doubled values above 10 become NULL'
+    reasonAnswer: 0
+    optionFeedback:
+      '1': 'That is what the typed (`''FLOAT''`) version does. The real run without a type puts 19.6 eighth.'
+      '2': 'Nothing is NULL here; the values are all there, as text.'
+    reasonFeedback:
+      '1': 'The order is a real sort, just of text.'
+      '2': 'No value is turned into NULL.'
+    hints: ['What is the default return type of a registered function?']
+    explanation: 'The real run lists 4.3, 3.88, 3.52, 3.12, 3.02, 2.8, 2.0, then 19.6. As text, "4" > "3" > "2" > "1". Register with `''FLOAT''` to sort numbers.'
+
+  - id: band-case
+    type: case
+    skills: [sql-udf-register, sql-clauses]
+    difficulty: 3
+    tags: [application]
+    generator: bandCaseQ
+    lessonRef: { tab: application, id: mean-fare-alias }
+    prompt: |
+      **A delivery app's trips.** `def band(d): return 'long' if d > {=cut} else 'short'` is the plan. The view
+      `rides` holds:
+
+      {=table}
+    parts:
+      - type: mcq
+        prompt: 'Which line lets `SELECT band(trip_distance) FROM rides` run?'
+        options:
+          - "`spark.udf.register('band', band)`"
+          - '`band = udf(band)`'
+          - "`spark.udf.register('band', band, 'BOOLEAN')`"
+          - "`rides.createOrReplaceTempView('band')`"
+        answer: 0
+        optionFeedback:
+          '1': 'A `@udf` works in Python code, but SQL still cannot find `band`: the real run raises UNRESOLVED_ROUTINE.'
+          '2': 'It registers, but `''long''` and `''short''` do not fit BOOLEAN: the real run prints NULL in every row.'
+          '3': 'That makes a view named band, not a function.'
+        explanation: 'Registering with the default (string) type is right for text labels.'
+      - type: numeric
+        prompt: How many trips are `'long'`?
+        answer: { var: nLong, tol: 0 }
+        explanation: '{=nLong} distances are greater than {=cut}.'
+      - type: numeric
+        prompt: '``SELECT band(trip_distance) AS band, AVG(fare_amount) AS `mean fare` ... GROUP BY band(trip_distance)``: what is `mean fare` for the long trips? Give two decimal places.'
+        answer: { var: meanLong, tol: 0.006 }
+        misconceptions:
+          - { var: meanAll, feedback: 'That averages all trips. GROUP BY averages the long ones on their own.' }
+          - { var: divN, feedback: 'You divided the long trips'' total by every trip.' }
+        explanation: 'Long trips: ${=sumLong} / {=nLong} = {=meanLong|2}$.'
+    hints: ['Register first, then label, then average each label''s fares.']
+    explanation: 'Register `band`, label {=nLong} trips long, and average their fares: {=meanLong|2}.'
+
+  - id: pandas-udf-explain
+    type: explain
+    skills: [pandas-series-udf, arrow-transfer]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: whole-batches }
+    prompt: 'A teammate''s `@udf` that doubles a fare is slow on millions of trips. Explain why a pandas UDF doing `s * 2` is usually faster.'
+    model: |
+      A plain UDF is called once per row, and each value is converted to and from Python on its own.
+      A pandas UDF gets a whole Arrow batch (up to 10,000 rows) as a pandas Series, so Python is called once per
+      batch, and `s * 2` doubles every value in one fast step. Fewer calls and no per-row conversion save time.
+    checklist:
+      - A plain UDF runs once per row
+      - A pandas UDF runs once per batch of many rows
+      - Arrow converts a whole batch in one go, not value by value
+      - 's * 2 works on the whole Series at once'
+    hints: ['Count how many times Python is called in each case.']
+    explanation: 'Batches cut the number of calls and the per-row conversions.'
+
+  # =====================================================================================
+  # Transfer: new settings
+  # =====================================================================================
+  - id: transfer-udf-null
+    type: mcq
+    skills: [udf-return-type]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: return-types }
+    prompt: |
+      A weather team writes `@udf('int', useArrow=False)` above `def to_celsius(f): return (f - 32) * 5 / 9`. Every
+      value in the new column is NULL and no error appears. What is the fix?
+    options:
+      - "Declare `'double'`: the function returns floats, which pickle cannot fit into int"
+      - 'Add `.show()` twice'
+      - 'Rename the column to celsius'
+      - 'Use `useArrow=False` again on the select'
+    answer: 0
+    optionFeedback:
+      '1': 'Showing again prints the same NULLs.'
+      '2': 'The name has nothing to do with the values.'
+      '3': 'Pickle is the reason the mismatch turns silently into NULL.'
+    hints: ['Compare what the function returns with what is declared.']
+    explanation: 'A float in an int column becomes a silent [[null-value|NULL]] with [[pickle]]. Declare the [[return-type]] the function really returns.'
+    variants:
+      - prompt: 'A shop registers `spark.udf.register(''is_big'', lambda q: ''yes'' if q > 10 else ''no'', ''BOOLEAN'')`. What do SQL queries see?'
+        options:
+          - 'NULL in every row: the strings do not fit BOOLEAN'
+          - "'yes' and 'no'"
+          - 'true and false'
+          - 'An AnalysisException'
+        answer: 0
+        optionFeedback:
+          '1': 'They would only with the default string type.'
+          '2': 'Spark does not translate words into true or false.'
+          '3': 'The query is valid; the values are what go wrong.'
+        explanation: 'The real run of a band label registered as BOOLEAN printed NULL in all 12 rows.'
+      - prompt: 'A clinic declares `@udf(''int'', useArrow=True)` and returns the text `''ward 7''`. What happens?'
+        options:
+          - "The query fails: Arrow cannot parse 'ward 7' as an int"
+          - 'Every value is NULL'
+          - 'It prints 7'
+          - "It prints 'ward 7'"
+        answer: 0
+        optionFeedback:
+          '1': 'That is pickle''s behaviour. Arrow raises an error instead.'
+          '2': 'Arrow does not pick digits out of text.'
+          '3': 'The declared type is int, so text cannot be stored.'
+        explanation: 'The real run raised `ArrowInvalid: Failed to parse string: ''zone 7'' as a scalar of type int32`.'
+
+  - id: transfer-sql-error
+    type: mcq
+    skills: [sql-udf-register, temp-view-sql]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: application, id: band-in-sql }
+    prompt: 'A library analyst writes `@udf def genre(code): ...` then `spark.sql("SELECT genre(code) FROM books")`, and gets `[UNRESOLVED_ROUTINE] Cannot resolve routine genre`. What is missing?'
+    options:
+      - "`spark.udf.register('genre', genre)`"
+      - "`books.createOrReplaceTempView('genre')`"
+      - "`from pyspark.sql.functions import genre`"
+      - "A `LIMIT` clause"
+    answer: 0
+    optionFeedback:
+      '1': 'A routine is a function, not a view.'
+      '2': '`genre` is the analyst''s own function; pyspark does not ship it.'
+      '3': 'LIMIT does not make a function visible.'
+    hints: ['A routine is a function.']
+    explanation: 'A `@udf` is only a Python name. [[udf-registration]] gives SQL a name for it.'
+    variants:
+      - prompt: '`spark.sql("SELECT * FROM loans")` fails with TABLE_OR_VIEW_NOT_FOUND. The DataFrame is in the variable `loans_df`. Which line fixes it?'
+        options:
+          - "`loans_df.createOrReplaceTempView('loans')`"
+          - "`spark.udf.register('loans', loans_df)`"
+          - '`loans = loans_df`'
+          - "`loans_df.createOrReplaceTempView('loans_df')`"
+        answer: 0
+        optionFeedback:
+          '1': 'register expects a function; the real run says it should be callable, got DataFrame.'
+          '2': 'A new Python variable is still invisible to SQL.'
+          '3': 'The query names `loans`, so the view must be called `loans`.'
+        explanation: 'The view name must match the name after FROM.'
+      - prompt: '``SELECT region, SUM(sales) AS total sales FROM shops GROUP BY region`` fails with PARSE_SYNTAX_ERROR near `sales`. Fix?'
+        options:
+          - 'Write ``AS `total sales` `` with backticks'
+          - "Write `AS 'total sales'`"
+          - 'Write `AS "total sales"`'
+          - 'Remove GROUP BY'
+        answer: 0
+        optionFeedback:
+          '1': 'Quotes make text; the real run fails the same way.'
+          '2': 'Double quotes fail too in Spark SQL.'
+          '3': 'GROUP BY is needed for SUM per region.'
+        explanation: 'A name with a space needs [[backticks]].'
+
+  - id: transfer-pandas-kind
+    type: mcq
+    skills: [iterator-udf, pandas-series-udf]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: intuition, id: iterators }
+    prompt: 'A team scores 10 million reviews with a model that takes 20 seconds to load from disk. Which pandas UDF kind should hold the scoring code?'
+    options:
+      - 'Iterator of Series: load the model once before the loop, then yield scores per batch'
+      - 'Series to Series: load the model inside the function'
+      - 'Series to scalar: one score for all reviews'
+      - 'A plain @udf: one row at a time'
+    answer: 0
+    optionFeedback:
+      '1': 'That reloads the model for every batch: 20 seconds a thousand times.'
+      '2': 'They need a score per review, not one number.'
+      '3': 'One call per row is the slowest choice, and the model would still load too often.'
+    hints: ['Where does code before the `for` loop run, and how often?']
+    explanation: 'An [[iterator]] UDF runs its setup once per call, then loops over the batches, like `mask_id` reading `seeds.json` once.'
+    variants:
+      - prompt: 'Which kind computes the median delivery time per city inside `agg`?'
+        options:
+          - 'Series to scalar: `def f(v: pd.Series) -> float`'
+          - 'Series to Series'
+          - 'Iterator of Series'
+          - 'A plain @udf'
+        answer: 0
+        optionFeedback:
+          '1': 'It returns a value per row, which `agg` rejects.'
+          '2': 'It also returns a Series per batch, not one value per group.'
+          '3': 'A plain UDF works per row.'
+        explanation: 'One number per group means Series to scalar.'
+      - prompt: 'Which kind computes `price * quantity` from two columns, batch by batch, with one setup line?'
+        options:
+          - 'Iterator of tuples of Series'
+          - 'Series to scalar'
+          - 'A plain Python function with no decorator'
+          - 'Iterator of Series with one column'
+        answer: 0
+        optionFeedback:
+          '1': 'That gives one number per group, not per row.'
+          '2': 'Spark cannot call a plain function on columns, and it has no batches or setup.'
+          '3': 'One column cannot bring price and quantity together.'
+        explanation: '`for price, qty in iterator:` unpacks the two columns of each batch, as `fare_rate` does.'

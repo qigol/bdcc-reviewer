@@ -6,7 +6,7 @@
 import YAML, { LineCounter, isNode } from 'yaml';
 import type { ZodError, ZodTypeAny } from 'zod';
 import {
-  Manifest, Dataset, ExamplesFile, GlossaryFile, IntuitionFile, MathCodeFile, ApplicationFile, QuizFile,
+  Manifest, Dataset, ExamplesFile, GlossaryFile, IntuitionFile, MathCodeFile, ApplicationFile, QuizFile, ExamFile,
   REQUIRED_FILES, OPTIONAL_FILES, IDENT_RE,
   type Scene, type Section, type StageWidget, type Template, type Derive, type GeneratorOutput, type TraceStep,
 } from './schemas';
@@ -52,6 +52,8 @@ export interface ParsedModule {
   mathCode: MathCodeFile['sections'];
   application: ApplicationFile;
   quiz: QuizFile['templates'];
+  /** optional mock exam (exam.yaml) */
+  exam?: ExamFile;
   widgetRequests?: string;
   animations?: string;
   assets: string[];
@@ -198,6 +200,16 @@ export function parseModule(files: FileMap): { module?: ParsedModule; issues: Is
     if (!r.success) issues.push(...zodIssues(r.error, file, docs[file]));
     else parsed[key] = r.data;
   }
+  const examFile = findFile(files, 'exam');
+  if (examFile) {
+    let data: any;
+    try { data = parseYaml(examFile); } catch (e: any) { err('yaml', String(e?.message ?? e), { file: examFile }); }
+    if (data !== undefined) {
+      const r = ExamFile.safeParse(data);
+      if (!r.success) issues.push(...zodIssues(r.error, examFile, docs[examFile]));
+      else parsed.exam = r.data;
+    }
+  }
 
   const datasets: Record<string, Dataset> = {};
   for (const file of datasetFiles) {
@@ -228,6 +240,7 @@ export function parseModule(files: FileMap): { module?: ParsedModule; issues: Is
     mathCode: parsed['math-code'].sections,
     application: parsed.application,
     quiz: parsed.quiz.templates,
+    exam: parsed.exam,
     widgetRequests: typeof files['WIDGET_REQUESTS.md'] === 'string' ? (files['WIDGET_REQUESTS.md'] as string) : undefined,
     animations: typeof files['ANIMATIONS.md'] === 'string' ? (files['ANIMATIONS.md'] as string) : undefined,
     assets: paths.filter((p) => p.startsWith('assets/')),
@@ -628,7 +641,7 @@ function checkApplication(ctx: Ctx) {
   const file = 'application.yaml';
   const app = ctx.mod.application;
   const c = app.case;
-  const outs = c.cells.flatMap((cell) => stepPlayerOuts(cell.stage ?? []));
+  const outs = c.cells.flatMap((cell) => [cell.stage ?? [], ...Object.values(cell.decision?.outcomes ?? {}).map((o) => o.stage ?? [])].flatMap(stepPlayerOuts));
   const scope = buildScope(ctx, file, 'case', { data: c.data, state: c.state, derive: c.derive, extra: outs });
   const stateKeys = new Set(Object.keys(c.state ?? {}));
   checkText(c.story, scope, file, 'case.story', ctx);
@@ -647,8 +660,46 @@ function checkApplication(ctx: Ctx) {
         if (cell.decision.answer !== undefined && (cell.decision.answer < 0 || cell.decision.answer >= n)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision.answer`, message: 'answer index out of range' });
         for (const k of Object.keys(cell.decision.optionFeedback ?? {})) if (!(Number(k) >= 0 && Number(k) < n)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.decision.optionFeedback`, message: `optionFeedback key "${k}" is not an option index` });
       }
+      for (const [k, o] of Object.entries(cell.decision.outcomes ?? {})) {
+        const op = `${p}.decision.outcomes.${k}`;
+        if (cell.decision.type !== 'mcq' || !(Number(k) >= 0 && Number(k) < (cell.decision.options?.length ?? 0))) ctx.issues.push({ level: 'error', step: 'refs', file, path: op, message: `outcomes key "${k}" is not an option index of an mcq decision` });
+        if (!o.say && !o.stage?.length) ctx.issues.push({ level: 'error', step: 'refs', file, path: op, message: 'an outcome needs say or stage' });
+        if (o.say) checkText(o.say, scope, file, `${op}.say`, ctx);
+        if (o.stage) checkStage(o.stage, scope, stateKeys, file, `${op}.stage`, ctx, ids);
+      }
     }
   });
+}
+
+function checkExam(ctx: Ctx) {
+  const exam = ctx.mod.exam;
+  if (!exam) return;
+  const file = 'exam.yaml';
+  const ids = new Set(ctx.mod.quiz.map((t) => t.id));
+  ctx.genRefs.push({ gen: exam.story, file, path: 'story' });
+  checkText(exam.intro, null, file, 'intro', ctx);
+  uniqueIds(exam.problems, 'problem', file, ctx, 'problems');
+  exam.problems.forEach((p, i) => {
+    checkText(p.spec, null, file, `problems[${i}].spec`, ctx);
+    checkText(p.hint, null, file, `problems[${i}].hint`, ctx);
+    p.items.forEach((it, j) => {
+      if (!ids.has(it.template)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `problems[${i}].items[${j}].template`, message: `Unknown quiz template "${it.template}"` });
+      else if (ctx.mod.quiz.find((t) => t.id === it.template)?.type === 'explain') ctx.issues.push({ level: 'error', step: 'refs', file, path: `problems[${i}].items[${j}].template`, message: 'explain templates are self-graded and cannot be scored in an exam' });
+    });
+  });
+  const c = exam.coding;
+  if (c) {
+    ctx.genRefs.push({ gen: c.story, file, path: 'coding.story' });
+    uniqueIds(c.problems, 'coding problem', file, ctx, 'coding.problems');
+    checkText(c.intro, null, file, 'coding.intro', ctx);
+    c.problems.forEach((p, i) => {
+      checkText(p.spec, null, file, `coding.problems[${i}].spec`, ctx);
+      checkText(p.hint, null, file, `coding.problems[${i}].hint`, ctx);
+      (p.walkthrough ?? []).forEach((s, j) => checkText(s.say, null, file, `coding.problems[${i}].walkthrough[${j}].say`, ctx));
+      uniqueIds(p.twists ?? [], 'twist', file, ctx, `coding.problems[${i}].twists`);
+      (p.twists ?? []).forEach((t, j) => { checkText(t.change, null, file, `coding.problems[${i}].twists[${j}].change`, ctx); checkText(t.spec, null, file, `coding.problems[${i}].twists[${j}].spec`, ctx); });
+    });
+  }
 }
 
 function checkTemplate(t: Template, i: number, ctx: Ctx, at?: string) {
@@ -812,6 +863,7 @@ export function checkIntegrity(mod: ParsedModule): { issues: Issue[]; fnRefs: Ct
   mod.mathCode.forEach((s, i) => checkSection(s, i, ctx));
   checkApplication(ctx);
   mod.quiz.forEach((t, i) => checkTemplate(t, i, ctx));
+  checkExam(ctx);
   checkTermLinks(mod, ctx);
   checkTermCoverage(mod, ctx);
   const listed = new Set(m.requires.widgets);
@@ -1093,6 +1145,7 @@ export async function runLogicChecks(
         const scope = await runDerive(host, c.derive, { ...datasetScope(mod, c.data), ...structuredClone(c.state ?? {}) });
         for (const [i, cell] of c.cells.entries()) {
           if (cell.stage) await smokeStage(cell.stage, scope, 'application.yaml', `case.cells[${i}].stage`);
+          for (const [k, o] of Object.entries(cell.decision?.outcomes ?? {})) if (o.stage) await smokeStage(o.stage, scope, 'application.yaml', `case.cells[${i}].decision.outcomes.${k}.stage`);
           checkResolved([cell.say, cell.decision ?? null], scope, 'application.yaml', `case.cells[${i}]`);
         }
       } catch (e: any) { E('logic', 'application.yaml', 'case', `derive failed: ${e?.message ?? e}`); }
@@ -1151,6 +1204,46 @@ export async function runLogicChecks(
       else if (t.generator && collapsed / nSeeds > 0.1) W('lint', 'quiz.yaml', p, `template "${t.id}": in ${collapsed} of ${nSeeds} seeds a misconception lands within tolerance of the answer: either the wrong method is then graded correct, or the data never separates it from the right one, so the question doesn't test it (redraw such cases, guide §5.10)`);
       if (slow) W('quiz', 'quiz.yaml', p, `template "${t.id}": generator took ${slow.toFixed(0)} ms (limit 50 ms)`);
       if (t.type === 'numeric' && misconceptionCount < 2) W('lint', 'quiz.yaml', p, `numeric template "${t.id}" has ${misconceptionCount} misconceptions (guide: ≥ 2)`);
+    }
+    // exam: one seed must give one story, so every scored generator draws the same data as the story generator
+    const exam = mod.exam;
+    if (exam && genSet.has(exam.story)) {
+      const problems = new Set<string>();
+      for (let s = 1; s <= seeds; s++) {
+        const st = await host.generate(exam.story, s, 3);
+        if (st.error || !st.output) { problems.add(`story generator "${exam.story}" threw: ${st.error}`); continue; }
+        const key = st.output.vars.storyKey;
+        if (key === undefined) { problems.add(`story generator "${exam.story}" must return a storyKey var`); break; }
+        for (const tx of [exam.intro, ...exam.problems.flatMap((p) => [p.spec, p.hint ?? ''])]) for (const m of interpolate(tx, st.output.vars, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}} (story vars)`);
+        for (const pr of exam.problems) for (const it of pr.items) {
+          const t = mod.quiz.find((x) => x.id === it.template);
+          if (!t?.generator || !genSet.has(t.generator)) continue;
+          const r = await host.generate(t.generator, s, t.difficulty);
+          if (r.output && r.output.vars.storyKey !== key) problems.add(`problem "${pr.id}": template "${t.id}" (generator ${t.generator}) draws a different story than "${exam.story}" (storyKey differs at seed ${s}); call the shared data draw first`);
+        }
+      }
+      for (const pr of problems) E('quiz', 'exam.yaml', 'problems', pr);
+    }
+    // coding exam: every file var is text, and every {=…} in files, specs, stubs and tests resolves
+    const c = exam?.coding;
+    if (c && genSet.has(c.story)) {
+      const problems = new Set<string>();
+      for (let s = 1; s <= Math.min(seeds, 10); s++) {
+        const st = await host.generate(c.story, s, 3);
+        if (st.error || !st.output) { problems.add(`coding story generator "${c.story}" threw: ${st.error}`); continue; }
+        const vars = st.output.vars;
+        for (const [p, v] of Object.entries(c.files)) {
+          if (typeof vars[v] !== 'string') problems.add(`file ${p}: story var "${v}" is not text`);
+          for (const m of interpolate(p, vars, { mode: 'md' }).missing) problems.add(`file path: unresolved {=${m}}`);
+        }
+        const texts = [c.intro, c.setup, ...c.problems.flatMap((p) => [
+          p.spec, p.hint ?? '', p.stub, ...p.tests.map((t) => t.code),
+          ...(p.walkthrough ?? []).flatMap((s) => [s.say, s.code]),
+          ...(p.twists ?? []).flatMap((t) => [t.change, t.spec, t.stub, t.solution, ...t.tests]),
+        ])];
+        for (const tx of texts) for (const m of interpolate(tx, vars, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}} (coding story vars)`);
+      }
+      for (const pr of problems) E('quiz', 'exam.yaml', 'coding', pr);
     }
   }
   return { issues, examples: mod.examples.length, examplesPassed: passed, instances };

@@ -1,0 +1,440 @@
+scenes:
+  # ================================================================== 1. a mask
+  - id: one-mask
+    title: A condition is a column of True and False
+    goal: '"Keep the reviews rated 4 or more." What does pandas actually build from that sentence?'
+    skills: [bool-mask]
+    derive:
+      - { fn: maskView, in: {}, out: mv }
+      - { fn: realCell, in: { key: pd.mask.one_mask }, out: om }
+      - { fn: realCell, in: { key: pd.mask.one_filter }, out: of }
+      - { fn: realCell, in: { key: pd.mask.mask_sum }, out: ms }
+    stage:
+      - id: rows
+        widget: Text
+        props:
+          body: |
+            **food-mini, the first 10 of 30 reviews**
+
+            {=mv.md}
+      - id: mask-out
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            {=om.codeMd}
+            {=om.out}
+      - id: results
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'interactions[mask].shape', value: '{=of.printed}', tone: accent }
+            - { label: 'mask.sum()', value: '{=ms.printed}', tone: good }
+      - id: what-gives
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: c1, label: '`df["rating"] >= 4`' }
+            - { id: c2, label: '`df[df["rating"] >= 4]`' }
+            - { id: c3, label: '`(df["rating"] >= 4).sum()`' }
+            - { id: c4, label: '`df["user_id"] == 1101`' }
+            - { id: c5, label: '`df[df["user_id"] == 1101].shape[0]`' }
+          bins:
+            - { id: mask, label: 'A mask (True/False per row)' }
+            - { id: rows, label: 'The rows that pass' }
+            - { id: count, label: 'How many pass' }
+          solution: { c1: mask, c2: rows, c3: count, c4: mask, c5: count }
+    beats:
+      - say: |
+          Every exam spec hides a few **conditions**: "at least N ratings", "not rated by the user", "confidence of
+          at least 0.8". Each is true or false for every row. Here are the first ten reviews.
+        define: [condition]
+        gate:
+          type: predict
+          question: How many of these ten reviews have a rating of 4 or more?
+          answer: { value: 8, tol: 0 }
+          explain: 'Rows 0 to 7 pass (5, 5, 4, 4, 5, 5, 5, 5); row 8 is 0 and row 9 is 3.'
+      - say: |
+          pandas writes the answer down row by row: `df["rating"] >= 4` gives a **boolean mask**, one True or False per
+          row, under the same row labels.
+        define: [boolean-mask]
+        show: [mask-out]
+      - say: |
+          Put the mask inside `df[...]` and pandas keeps the True rows. Sum it and you get how many there are, because
+          True counts as 1. Over all 30 reviews: {=ms.printed}.
+        show: [results]
+      - say: Mask, rows, or count? Sort each line by what it gives.
+        show: [what-gives]
+        gate:
+          type: event
+          prompt: Put every line in the right bin.
+          target: what-gives
+          event: solved
+      - say: Match the pieces.
+        gate:
+          type: practice
+          template: mask-match
+    takeaway: 'A condition gives a mask; df[mask] keeps the True rows; mask.sum() counts them.'
+
+  # ================================================================== 2. combining
+  - id: combine
+    title: '&, | and ~, in parentheses'
+    goal: 'Two conditions in one sentence. Why do `and` and a missing pair of parentheses both crash?'
+    skills: [combine-masks]
+    derive:
+      - { fn: realCell, in: { key: pd.mask.and_ok }, out: ok }
+      - { fn: realCell, in: { key: pd.mask.and_word }, out: aw }
+      - { fn: realCell, in: { key: pd.mask.no_parens }, out: np }
+      - { fn: realCell, in: { key: pd.mask.or_ok }, out: orr }
+    stage:
+      - id: ok-cell
+        widget: Text
+        props:
+          body: |
+            {=ok.codeMd}
+            {=ok.out}
+      - id: and-cell
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            {=aw.codeMd}
+            {=aw.out}
+      - id: np-cell
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            {=np.codeMd}
+            {=np.out}
+      - id: words
+        widget: DropBins
+        region: side
+        hidden: true
+        props:
+          chips:
+            - { id: w1, label: '"rated 4+ **by** user 1101"' }
+            - { id: w2, label: '"rated 0 **or** about halo-halo"' }
+            - { id: w3, label: '"every recipe **except** 1207 and 2318"' }
+            - { id: w4, label: '"support at least 25% **and** confidence at least 0.8"' }
+            - { id: w5, label: '"**not** rated by the user"' }
+          bins:
+            - { id: and, label: '`&`' }
+            - { id: or, label: '`|`' }
+            - { id: not, label: '`~`' }
+          solution: { w1: and, w2: or, w3: not, w4: and, w5: not }
+    beats:
+      - say: |
+          "Reviews rated 4 or more **by user 1101**" is two masks joined with `&`. The three operators **&, | and ~**:
+          `&` is true where both are true, `|` where either is, `~` flips a mask. Each condition sits in its own parentheses.
+        define: [mask-operators]
+      - say: 'The real run keeps three reviews: {=ok.printed}.'
+        gate:
+          type: predict
+          question: 'What happens if you write Python''s word `and` between the two conditions instead of `&`?'
+          options: ['The same three rows', 'A ValueError', 'Every row', 'An empty table']
+          answer: 1
+          optionFeedback:
+            '0': '`and` works on single True/False values, not on whole columns.'
+            '2': 'Nothing is kept or dropped: Python stops first.'
+            '3': 'pandas raises an error instead of returning an empty table.'
+          explain: '`and` asks each mask for one True or False, and a column of 30 values cannot give one, so pandas raises a ValueError.'
+      - say: |
+          The real error: an **ambiguous truth value**. Drop the parentheses and you get the same error, for a sneakier
+          reason: `&` binds tighter than `>=`, so Python first computes `4 & interactions["user_id"]`.
+        define: [ambiguous-truth-value]
+        show: [and-cell, np-cell]
+      - say: 'The other two: `|` for "or", here giving the users {=orr.printed}, and `~` for "except". Match each phrase.'
+        show: [words]
+        gate:
+          type: event
+          prompt: Put each phrase under the operator it needs.
+          target: words
+          event: solved
+      - say: Count rows that pass two conditions.
+        gate:
+          type: practice
+          template: mask-and-count
+    takeaway: '& both, | either, ~ not, and every condition in its own parentheses.'
+
+  # ================================================================== 3. candidates
+  - id: candidates
+    title: Only what the user has not rated
+    goal: '"Recommend recipes the user has not rated." Which cells are those, and why does `== NaN` find nothing?'
+    skills: [missing-mask, read-asserts]
+    derive:
+      - { fn: utilView, in: {}, out: uv }
+      - { fn: userView, in: { user: 1245 }, out: u }
+      - { fn: realCell, in: { key: pd.unrated.eq_nan }, out: eq }
+      - { fn: realCell, in: { key: pd.unrated.assert_bad }, out: ab }
+    stage:
+      - id: util
+        widget: Matrix
+        props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 0, rowHeader: user_id, title: 'util (all 8 recipes)' }
+      - id: eq-cell
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            {=eq.codeMd}
+            {=eq.out}
+      - id: assert-cell
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            {=ab.codeMd}
+            {=ab.out}
+    beats:
+      - say: |
+          In the utility matrix an empty cell is **NaN**: the user never rated that recipe. Those cells are the
+          **candidate items**: exactly what a recommender may suggest.
+        define: [nan, candidate-items]
+        do:
+          - { target: util, cmd: highlight, args: { sel: 'row:1245', tone: accent } }
+        gate:
+          type: predict
+          question: How many candidate recipes does user 1245 have?
+          answer: { value: 4, tol: 0 }
+          explain: 'Row 1245 has NaN under 2318, 4415, 6110 and 8233: four candidates.'
+      - say: |
+          It looks natural to write `row[row == float("nan")]`. The real run returns {=eq.printed}: NaN is not equal to
+          anything, itself included.
+        show: [eq-cell]
+      - say: |
+          **isna** gives a mask that is True where a value is missing; **notna** is its opposite. The candidates are
+          `row[row.isna()]`: {=u.unrated}.
+        define: [isna]
+      - say: |
+          A common slip is `row.dropna()`, which keeps the *rated* cells. The test catches it. **assert_equal** prints the
+          first item that differs: ACTUAL is yours ({=ab.actual}), DESIRED is the test's ({=ab.desired}).
+        define: [assert-equal]
+        show: [assert-cell]
+      - say: Why does the test show only one number, when the whole list is wrong?
+        gate:
+          type: reflect
+          prompt: The assert printed only item 0. How would you use ACTUAL and DESIRED to find what is wrong?
+          model: |
+            ACTUAL 1207 is a recipe user 1245 **rated**; DESIRED 2318 is one they did not. So my list holds rated
+            recipes: I kept notna instead of isna. The assert stops at the first difference, so I compare those two
+            values with the data, not the whole list.
+      - say: Count a user's candidates.
+        gate:
+          type: practice
+          template: unrated-count
+    takeaway: 'Candidates are row[row.isna()]. NaN never equals anything; dropna gives the rated items.'
+
+  # ================================================================== 4. neighbours
+  - id: neighbours
+    title: Enough raters in common
+    goal: '"Only neighbours with at least k commonly rating users": which two columns, and which operator?'
+    skills: [pair-mask]
+    state: { k: 3 }
+    derive:
+      - { fn: commonView, in: { target: 1207, k: '@k' }, out: cv }
+      - { fn: utilView, in: {}, out: uv }
+    stage:
+      - id: util
+        widget: Matrix
+        props: { rows: '@uv.rows', cols: '@uv.cols', values: '@uv.values', emptyLabel: NaN, format: 0, rowHeader: user_id, title: util }
+      - id: common
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { rows: '@cv.rows', cols: '@cv.cols', values: '@cv.values', format: int, rowHeader: recipe_id, title: 'Common raters with 1207' }
+      - id: kslider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'k', min: 1, max: 5, step: 1 }
+        bind: { value: k }
+      - id: kept
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'neighbours of 1207', value: '{=cv.nGe}', tone: good }
+    beats:
+      - say: |
+          Item-based filtering compares two recipe columns over the users who rated **both**: the **co-rated** users.
+          Look at columns 1207 and 2318.
+        define: [co-rated]
+        do:
+          - { target: util, cmd: highlight, args: { sel: ['col:1207', 'col:2318'], tone: accent } }
+        gate:
+          type: predict
+          question: How many users rated both 1207 and 2318?
+          answer: { value: 3, tol: 0 }
+          explain: 'Users 1101, 1388 and 1502 have a rating in both columns: `(util[1207].notna() & util[2318].notna()).sum()` = 3.'
+      - say: |
+          With `|` you would count {=cv.either12} users (either recipe), and with one column {=cv.one12}. Both are
+          wrong, and neither raises an error.
+      - say: Now count it for every other recipe, and keep those with at least k.
+        show: [common, kslider, kept]
+        gate:
+          type: when
+          prompt: Set k so that 1207 has exactly 2 neighbours.
+          when: 'cv.nGe == 2'
+          hint: 'Which recipes share 4 raters with 1207?'
+      - say: The loop skips 1207 itself.
+        gate:
+          type: reflect
+          prompt: Why must the target recipe be left out of its own neighbour list?
+          model: |
+            A recipe shares every rater with itself, so it always passes the k cut and is perfectly similar to itself.
+            It would take a neighbour slot and copy the very rating you are trying to predict.
+      - say: Your turn.
+        gate:
+          type: practice
+          template: neighbours-count
+    takeaway: 'Co-rated = (a.notna() & b.notna()).sum(). Keep >= k, and never the target itself.'
+
+  # ================================================================== 5. thresholds
+  - id: thresholds
+    title: Percentages and the largest
+    goal: '"Found in at least 25% of recipes" and "the largest baskets": where do the boundary cases go?'
+    skills: [relative-threshold, max-filter]
+    derive:
+      - { fn: freqView, in: { frac: 0.25 }, out: fv }
+      - { fn: realCell, in: { key: pd.relative.largest_nl }, out: nl }
+      - { fn: realCell, in: { key: pd.relative.n_tags }, out: nt }
+    stage:
+      - id: counts
+        widget: Text
+        props:
+          body: |
+            **Recipes per tag** (8 recipes in all)
+
+            {=fv.md}
+      - id: sizes
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            {=nt.codeMd}
+            {=nt.out}
+      - id: phrases
+        widget: DropBins
+        region: bottom
+        hidden: true
+        props:
+          chips:
+            - { id: p1, label: '"at least 25% of recipes"' }
+            - { id: p2, label: '"more than 25% of recipes"' }
+            - { id: p3, label: '"the largest baskets"' }
+            - { id: p4, label: '"the single largest basket, any one"' }
+          bins:
+            - { id: ge, label: '`counts >= n * 0.25`' }
+            - { id: gt, label: '`counts > n * 0.25`' }
+            - { id: eqmax, label: '`size == size.max()`' }
+            - { id: nl, label: '`nlargest(1, "size")`' }
+          solution: { p1: ge, p2: gt, p3: eqmax, p4: nl }
+    beats:
+      - say: |
+          Itemset specs give support as a share of the baskets: **relative support**. "At least 25% of recipes" with 8
+          recipes means a count of at least 8 × 0.25 = {=fv.minsup}: the **minsup** as a count.
+        define: [relative-support, minsup]
+        gate:
+          type: predict
+          question: How many tags are found in at least 25% of the recipes?
+          answer: { value: 11, tol: 0 }
+          explain: 'Tags with a count of 2 or more: the 2 eights, the 4, the five 3s and the three 2s = 11. With `>` the three 2s drop out: 8.'
+      - say: |
+          Two slips give no error. `counts > minsup` drops the boundary ({=fv.nGt} tags). `counts >= 0.25` compares a
+          count with a fraction, so every tag passes.
+      - say: |
+          Now "the largest". Three recipes share the maximum of {=fv.max} tags. **nlargest(1)** keeps one row, even
+          when several tie: here {=nl.printed}.
+        define: [nlargest]
+        show: [sizes]
+        gate:
+          type: predict
+          question: 'How many recipes does `recipes[recipes["n_tags"] == recipes["n_tags"].max()]` keep?'
+          answer: { value: 3, tol: 0 }
+          explain: 'Chicken adobo, garlic fried rice and tortang talong all have 7 tags; `== max` keeps every tie.'
+      - say: Match each phrase to its code.
+        show: [phrases]
+        gate:
+          type: event
+          prompt: Put each phrase under its line.
+          target: phrases
+          event: solved
+      - say: Your turn, on new baskets.
+        gate:
+          type: practice
+          template: relsup-count
+    takeaway: 'Turn percentages into counts (n × frac), keep the boundary with >=, and keep every tie with == max.'
+
+  # ================================================================== 6. ranking
+  - id: ranking
+    title: Who gets fifth place
+    goal: '"Sort by decreasing rating, then by increasing id." Why does a test fail on just one item?'
+    skills: [sort-tiebreak, read-asserts]
+    derive:
+      - { fn: rankView, in: { k: 5 }, out: rv }
+      - { fn: realCell, in: { key: pd.topk.assert_tie }, out: at }
+      - { fn: realCell, in: { key: pd.topk.sorted_ok }, out: so }
+    stage:
+      - id: means
+        widget: Matrix
+        props: { rows: '@rv.rows', cols: '@rv.cols', values: '@rv.values', format: 3, rowHeader: recipe_id, title: 'Mean rating per recipe' }
+      - id: ok-cell
+        widget: Text
+        region: side
+        hidden: true
+        props:
+          body: |
+            {=so.codeMd}
+            {=so.out}
+      - id: tie-cell
+        widget: Text
+        region: bottom
+        hidden: true
+        props:
+          body: |
+            {=at.codeMd}
+            {=at.out}
+    beats:
+      - say: |
+          The spec asks for the top 5 recipes by mean rating, ties broken by increasing recipe id: a **tie-break**, a
+          second sort key.
+        define: [tie-break]
+        do:
+          - { target: means, cmd: highlight, args: { sel: ['row:5021', 'row:7064'], tone: warn } }
+        gate:
+          type: predict
+          question: Which recipe takes fifth place?
+          options: ['7064', '5021', '6110', '4415']
+          answer: 1
+          optionFeedback:
+            '0': '7064 ties with 5021 at 4.0. Increasing id puts 5021 first.'
+            '2': '6110 (4.5) is third.'
+            '3': '4415 (3.5) is below both 4.0s.'
+          explain: 'After 8233, 1207, 6110 and 2318, two recipes tie at 4.0. Increasing id puts 5021 ahead of 7064.'
+      - say: '`ascending=[False, True]` sorts the score down and the id up. The real run:'
+        show: [ok-cell]
+      - say: |
+          Sort the ids descending by mistake, and the list is right except for its last item. The test points straight
+          at it: item 4, ACTUAL {=at.actual}, DESIRED {=at.desired}.
+        show: [tie-cell]
+      - say: |
+          Association rules work the same way. Filter with **minconf** (minimum confidence) and minsup joined by `&`,
+          then rank by **lift**, descending, with the antecedent as the tie-break. On food-mini, `breakfast` and
+          `main-dish` tie at lift 2.667, and the antecedent puts `breakfast` first.
+        define: [minconf, lift]
+      - say: Find the k-th place in a new list.
+        gate:
+          type: practice
+          template: topk-kth
+    takeaway: 'Two-key sorts settle ties; a failed assert on one late item usually means a tie at the cut-off.'

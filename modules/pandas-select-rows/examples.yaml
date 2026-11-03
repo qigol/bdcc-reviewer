@@ -1,0 +1,173 @@
+examples:
+  # ---- JS equivalents == the real pandas runs -------------------------------------------------------
+  - id: masks
+    source: 'Real runs pd.mask.one_filter, and_ok, or_ok, not_ok'
+    fn: checkMasks
+    in: {}
+    expect: { sameAnd: true, sameOr: true, ge4: 25, realGe4: '(25, 5)', notTwo: 19, realNot: '(19, 5)' }
+    note: '25 of 30 reviews have rating >= 4; user 1101 gave 4+ to 1207, 2318 and 4415.'
+  - id: unrated-1245
+    source: 'Real runs pd.unrated.unrated and pd.unrated.dropna'
+    fn: checkUnrated
+    in: {}
+    expect: { same: true, sameRated: true }
+  - id: common-raters
+    source: 'Real runs pd.corated.both, either, one_col, common_all, neighbors_ge, neighbors_gt, user_rated_nb'
+    fn: checkCommon
+    in: {}
+    expect: { same: true, sameGe: true, sameGt: true, sameRatedNb: true, both12: 3, either12: 8, one12: 6 }
+    note: '1207 and 2318 share 3 raters; 8 users rated either; 6 rated 1207.'
+  - id: ranking
+    source: 'Real runs pd.topk.sorted_ok, sorted_desc_id, exclude_rated'
+    fn: checkRank
+    in: {}
+    expect: { sameOk: true, sameSlip: true, sameExclude: true, kth: 5021, kthSlip: 7064 }
+    note: '5021 and 7064 tie at 4.0 for fifth place; id ascending picks 5021.'
+  - id: frequent-tags
+    source: 'Real runs pd.relative.minsup, freq_ge, freq_gt, largest_ok'
+    fn: checkFreq
+    in: {}
+    expect: { sameGe: true, sameGt: true, sameLargest: true, minsup: 2, nGe: 11, nGt: 8 }
+    note: 'Compared as sets: value_counts orders tied counts arbitrarily.'
+  - id: rules
+    source: 'Real runs pd.rules.build, strong_ok, strong_or, strong_gt, top_pairs'
+    fn: checkRules
+    in: {}
+    expect: { total: 182, realTotal: 182, nStrong: 24, realStrong: 24, nOr: 106, realOr: 106, nGt: 15, realGt: 15, sameTop: true }
+
+  # ---- lesson numbers --------------------------------------------------------------------------------
+  - id: neighbours-of-1207
+    source: 'Real run pd.corated.neighbors_ge'
+    fn: commonView
+    in: { target: 1207, k: 3 }
+    expect: { ge: [2318, 3542, 5021, 7064], gt: [3542, 7064], ratedNb: [3542, 5021, 7064] }
+  - id: candidates-of-1245
+    source: 'Real run pd.unrated.unrated'
+    fn: userView
+    in: { user: 1245 }
+    expect: { unrated: [2318, 4415, 6110, 8233], rated: [1207, 3542, 5021, 7064], nUnrated: 4 }
+  - id: top-for-1245
+    source: 'Real run pd.topk.exclude_rated'
+    fn: rankView
+    in: { k: 4, user: 1245 }
+    expect: { ok: [8233, 6110, 2318, 4415] }
+  - id: largest-baskets
+    source: 'Real runs pd.relative.largest_ok and largest_nl'
+    fn: freqView
+    in: { frac: 0.25 }
+    expect: { largest: [chicken adobo, garlic fried rice, tortang talong], max: 7 }
+
+  # ---- real errors and failed asserts -------------------------------------------------------------------
+  - id: and-word
+    source: 'Real run pd.mask.and_word'
+    fn: realCell
+    in: { key: pd.mask.and_word }
+    expect: { ename: ValueError }
+  - id: missing-parens
+    source: 'Real run pd.mask.no_parens'
+    fn: realCell
+    in: { key: pd.mask.no_parens }
+    expect: { final: 'ValueError: The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().' }
+  - id: eq-nan
+    source: 'Real run pd.unrated.eq_nan'
+    fn: realCell
+    in: { key: pd.unrated.eq_nan }
+    expect: { ok: true, printed: '[]' }
+  - id: assert-rated
+    source: 'Real run pd.unrated.assert_bad'
+    fn: realCell
+    in: { key: pd.unrated.assert_bad }
+    expect: { ename: AssertionError, actual: '1207', desired: '2318' }
+  - id: assert-tie
+    source: 'Real run pd.topk.assert_tie'
+    fn: realCell
+    in: { key: pd.topk.assert_tie }
+    expect: { actual: '7064', desired: '5021' }
+  - id: assert-or
+    source: 'Real run pd.rules.assert_or'
+    fn: realCell
+    in: { key: pd.rules.assert_or }
+    expect: { actual: '106', desired: '24' }
+  - id: nlargest-one
+    source: 'Real run pd.relative.largest_nl'
+    fn: realCell
+    in: { key: pd.relative.largest_nl }
+    expect: { printed: "['chicken adobo']" }
+
+  # ---- traces ------------------------------------------------------------------------------------------
+  - id: mask-trace
+    source: 'Section unrated trace; real run pd.unrated.unrated'
+    fn: maskTrace
+    in: { user: 1245 }
+    expect: { steps: 10, unrated: [2318, 4415, 6110, 8233] }
+  - id: common-trace
+    source: 'Section neighbours trace; real run pd.corated.neighbors_ge'
+    fn: commonTrace
+    in: { target: 1207, k: 3 }
+    expect: { steps: 9, ge: [2318, 3542, 5021, 7064] }
+
+  # ---- mock exam: the copied nb-cf item-based CF gives nb-cf's slide numbers on nb-cf's data -------------
+  - id: ib-sim-hp1-hp2
+    source: 'nb-cf example ib-sim-hp1-hp2 (Sessions 5–7, slide 18), on the copied hp4x7'
+    fn: sim
+    in: { matrix: '@hp4x7', a: HP1, b: HP2, mode: item }
+    expect: { sim: 1 }
+  - id: ib-sim-hp1-hp3
+    source: 'nb-cf example ib-sim-hp1-hp3 (slide 18)'
+    fn: sim
+    in: { matrix: '@hp4x7', a: HP1, b: HP3, mode: item }
+    expect: { sim: -1 }
+  - id: ib-sim-hp3-tw
+    source: 'nb-cf example ib-sim-hp3-tw (slide 18): no common rater'
+    fn: sim
+    in: { matrix: '@hp4x7', a: HP3, b: TW, mode: item }
+    expect: { sim: 0, overlap: 0 }
+  - id: ib-hp-c-hp1
+    source: 'nb-cf example ib-hp-c-hp1 (slide 20)'
+    fn: predict
+    in: { matrix: '@hp4x7', user: C, item: HP1, k: 2, mode: item }
+    expect: { centered: -1.7 }
+    tol: 0.05
+  - id: ib-hp-a-hp2
+    source: 'nb-cf example ib-hp-a-hp2 (slide 21)'
+    fn: predict
+    in: { matrix: '@hp4x7', user: A, item: HP2, k: 2, mode: item }
+    expect: { centered: 0.7 }
+    tol: 0.05
+  - id: ib-hp-b-tw
+    source: 'nb-cf example ib-hp-b-tw (slide 27)'
+    fn: predict
+    in: { matrix: '@hp4x7', user: B, item: TW, k: 2, mode: item }
+    expect: { centered: 0.3 }
+    tol: 0.05
+  - id: ib-hp-d-tw
+    source: 'nb-cf example ib-hp-d-tw (slide 28)'
+    fn: predict
+    in: { matrix: '@hp4x7', user: D, item: TW, k: 2, mode: item }
+    expect: { centered: 0 }
+    tol: 0.05
+  - id: ub-parity
+    source: 'nb-cf example ub-b-c (slide 10), user-based on ab5x6 is not copied; the user-based branch is checked on hp4x7 instead: B and A share HP1 only'
+    fn: sim
+    in: { matrix: '@hp4x7', a: A, b: B, mode: user }
+    expect: { overlap: 1 }
+
+  # ---- coding exam: the lean coordinate descent gives lf-cf's numbers on lf-cf's data --------------------
+  - id: cd-first-two
+    source: 'lf-cf examples cgd-x and cgd-y (Sessions 8–10, slides 11 and 14), on the copied r5x5'
+    fn: cgdFirstTwo
+    in: { R: '@r5x5' }
+    expect: { x: 2.6, y: 1.68 }
+    tol: 0.005
+  - id: cd-history-d2
+    source: 'lf-cf cgdRun on r5x5 (2 factors, all-ones start, 4 sweeps), recomputed 2026-11-03'
+    fn: cgdFit
+    in: { R: '@r5x5', d: 2, sweeps: 4 }
+    expect: { history: [75, 22.24590442871989, 19.921383886038615, 9.70158428342052, 2.694390189549283] }
+    tol: 0.000001
+  - id: cd-history-d3
+    source: 'lf-cf cgdRun on r5x5 (3 factors, all-ones start, 4 sweeps), recomputed 2026-11-03'
+    fn: cgdFit
+    in: { R: '@r5x5', d: 3, sweeps: 4 }
+    expect: { history: [39, 21.50293121117515, 13.441137696482583, 2.4262436202138926, 1.3408559988639486] }
+    tol: 0.000001

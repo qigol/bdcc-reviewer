@@ -10,6 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { readZip, writeZip, widgetsMarkdown, normalizePath, isTextPath, type FileMap } from '@kodigo/schema';
 import { Registry } from './registry';
+import { christmasStatus, parseMode } from './christmas/schedule';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -19,6 +20,10 @@ const WEB_DIR = path.resolve(process.env.WEB_DIR ?? './web');
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB ?? 30);
 const PROD = process.env.NODE_ENV === 'production';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? (PROD ? '' : 'dev');
+// Christmas countdown: auto (calendar) | on (open everything now) | off; CHRISTMAS_NOW=YYYY-MM-DD fakes the date
+const CHRISTMAS_MODE = parseMode(process.env.CHRISTMAS_QUIZ);
+const CHRISTMAS_TZ = process.env.CHRISTMAS_TZ || 'Asia/Manila';
+const CHRISTMAS_NOW = process.env.CHRISTMAS_NOW;
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' }, bodyLimit: MAX_UPLOAD_MB * 1024 * 1024 });
 const registry = new Registry(MODULES_BUILTIN, DATA_DIR, (m) => app.log.info(m));
@@ -63,6 +68,11 @@ app.addHook('onSend', async (req, reply, payload) => {
 
 // ------------------------------------------------------------ API
 app.get('/api/health', async () => ({ ok: true, time: new Date().toISOString() }));
+
+app.get('/api/christmas', async (_req, reply) => {
+  reply.header('cache-control', 'no-store');
+  return christmasStatus(new Date(), CHRISTMAS_MODE, CHRISTMAS_TZ, CHRISTMAS_NOW);
+});
 
 app.get('/api/modules', async () => {
   const list = await registry.list();

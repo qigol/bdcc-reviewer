@@ -284,7 +284,7 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
         </header>
 
         {section.keyFormula && (
-          <div className="card flex flex-wrap items-center gap-3 border-accent/30 bg-accent/5 px-4 py-2">
+          <div className="card scrollbar-thin flex flex-wrap items-center gap-3 overflow-x-auto border-accent/30 bg-accent/5 px-4 py-2">
             <span className="label">Key formula</span>
             <Tex tex={section.keyFormula} display={false} className="text-lg" />
           </div>
@@ -333,7 +333,7 @@ function SectionView({ section, next }: { section: Section; next?: Section }) {
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <div className="card p-4" ref={derivRef}>
             <div className="mb-2 flex items-center justify-between">
               <span className="label">Derivation</span>
@@ -430,7 +430,7 @@ export function LectureCheck({ mod, ids }: { mod: LoadedModule; ids: string[] })
             <div key={ex.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-panel2 px-3 py-1.5 text-sm" data-testid={`example-${ex.id}`} data-ok={r?.ok ? 'true' : r ? 'false' : 'pending'}>
               <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-white', !r ? 'bg-muted/40' : r.ok ? 'bg-good' : 'bg-bad')}>{r ? r.ok ? <Check size={12} /> : <X size={12} /> : '…'}</span>
               <span className="font-mono text-xs text-muted">{ex.fn}</span>
-              <span className="flex-1">{Object.entries(ex.expect).map(([k, v]) => <span key={k} className="mr-3"><span className="text-muted">{k}</span> = <b>{show(v)}</b>{r && !r.ok && <span className="ml-1 text-bad">(got {show(r.got[k])})</span>}</span>)}</span>
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{Object.entries(ex.expect).map(([k, v]) => <span key={k} className="mr-3"><span className="text-muted">{k}</span> = <b>{show(v)}</b>{r && !r.ok && <span className="ml-1 text-bad">(got {show(r.got[k])})</span>}</span>)}</span>
               {ex.note && <span className="text-xs text-muted"><Markdown text={ex.note} inline raw /></span>}
               <span className="text-xs text-muted">{ex.source}</span>
               {pdf && ex.page && <a className="text-xs text-accent underline" href={`${mod.fileUrl(`sources/${pdf.file}`)}#page=${ex.page}`} target="_blank" rel="noreferrer">open slide <ExternalLink size={11} className="inline" /></a>}

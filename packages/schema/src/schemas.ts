@@ -284,6 +284,9 @@ export const Cell = z
         shuffle: z.boolean().optional(),
         /** feedback shown when the learner picks that option (key = option index) */
         optionFeedback: z.record(z.string(), Markdown).optional(),
+        /** what running that option would do (key = option index): a real output or error, shown when it is picked.
+         *  A wrong option with an outcome is a detour: the learner sees the result and may pick again. */
+        outcomes: z.record(z.string(), z.object({ say: Markdown.optional(), stage: z.array(StageWidget).optional() }).strict()).optional(),
         answer: z.number().int().optional(),
         model: Markdown,
       })
@@ -312,6 +315,83 @@ export const ApplicationFile = z
     tradeoffs: z.object({ title: z.string(), columns: z.array(z.string()), rows: z.array(z.array(z.string())) }).strict().optional(),
     connections: z.array(z.object({ module: Id, note: Markdown }).strict()).optional(),
     explainBack: z.object({ prompt: Markdown, rubric: z.array(z.string()).min(1) }).strict(),
+  })
+  .strict();
+
+// ------------------------------------------------------------ exam (optional)
+/** A mock exam: one story, one generated dataset per attempt, problems in a fixed order (guide §5.11). */
+export const ExamFile = z
+  .object({
+    title: z.string(),
+    /** the story; {=…} uses the vars of the `story` generator */
+    intro: Markdown,
+    /** generator whose vars the intro and specs interpolate; every scored item's generator draws the same data */
+    story: z.string(),
+    timeLimitMin: z.number().int().positive().optional(),
+    problems: z
+      .array(
+        z
+          .object({
+            id: Id,
+            title: z.string(),
+            /** the problem's spec, as an exam would word it; {=…} uses the story vars */
+            spec: Markdown,
+            /** which pandas step the problem checks; shown collapsed, opened on request; {=…} uses the story vars */
+            hint: Markdown.optional(),
+            items: z.array(z.object({ template: Id, points: z.number().positive() }).strict()).min(1),
+          })
+          .strict(),
+      )
+      .min(1),
+    /** optional coding version: the learner writes the functions and Python runs in the browser (guide §5.11) */
+    coding: z
+      .object({
+        title: z.string(),
+        /** generator whose vars every file, spec, stub and test interpolates ({=…}) */
+        story: z.string(),
+        intro: Markdown,
+        timeLimitMin: z.number().int().positive().optional(),
+        /** file path ({=…} allowed) → the story var holding that file's text; written into Python before each run */
+        files: z.record(z.string(), z.string()),
+        /** the first cell (imports), editable */
+        setup: z.string(),
+        problems: z
+          .array(
+            z
+              .object({
+                id: Id,
+                title: z.string(),
+                spec: Markdown,
+                hint: Markdown.optional(),
+                /** the learner's starting code */
+                stub: z.string(),
+                /** test cells, as in the midterm notebooks; a cell scores its points when it runs without an error */
+                tests: z.array(z.object({ code: z.string(), points: z.number().positive() }).strict()).min(1),
+                /** after submit: the solution built step by step; the steps together are the checked reference */
+                walkthrough: z.array(z.object({ say: Markdown, code: z.string() }).strict()).optional(),
+                /** after submit: the same problem with a twist in the spec that forces a code change */
+                twists: z
+                  .array(
+                    z
+                      .object({
+                        id: Id, title: z.string(),
+                        /** what changed, in one sentence */
+                        change: Markdown,
+                        spec: Markdown, stub: z.string(),
+                        /** shown on request after the learner tries; checked like the walkthrough */
+                        solution: z.string(),
+                        tests: z.array(z.string()).min(1),
+                      })
+                      .strict(),
+                  )
+                  .optional(),
+              })
+              .strict(),
+          )
+          .min(1),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -496,6 +576,7 @@ export type Section = z.infer<typeof Section>;
 export type MathCodeFile = z.infer<typeof MathCodeFile>;
 export type Cell = z.infer<typeof Cell>;
 export type ApplicationFile = z.infer<typeof ApplicationFile>;
+export type ExamFile = z.infer<typeof ExamFile>;
 export type NumericAnswer = z.infer<typeof NumericAnswer>;
 export type Misconception = z.infer<typeof Misconception>;
 export type Template = z.infer<typeof Template>;
@@ -549,5 +630,5 @@ export const REQUIRED_FILES = [
   'application.yaml',
   'quiz.yaml',
 ] as const;
-export const OPTIONAL_FILES = ['WIDGET_REQUESTS.md', 'ANIMATIONS.md'] as const;
+export const OPTIONAL_FILES = ['WIDGET_REQUESTS.md', 'ANIMATIONS.md', 'exam.yaml'] as const;
 export const OPTIONAL_DIRS = ['datasets/', 'assets/', 'sources/'] as const;

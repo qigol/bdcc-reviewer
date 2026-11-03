@@ -2,11 +2,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Tab, type Progress, type Attempt } from './db';
 import { srsGrade, type Confidence } from './confidence';
 
+/** an upcoming exam; `moduleIds` narrows it to part of the course (default: every module in it) */
+export interface Exam { id: string; name: string; course: string; date: string; moduleIds?: string[] }
+
 export interface Settings {
   theme: 'light' | 'dark' | 'system';
   narration: boolean;
   reducedMotion: boolean;
-  examDate: string | null;
+  exams: Exam[];
+  /** daily study budget for the exam plan */
+  studyHoursPerDay: number;
   adminToken: string | null;
   lastLocation: { moduleId: string; tab: string; id?: string; beat?: number; path: string; title?: string; at: number } | null;
   showBeyond: boolean;
@@ -17,12 +22,26 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   narration: false,
   reducedMotion: false,
-  examDate: null,
+  exams: [],
+  studyHoursPerDay: 2,
   adminToken: null,
   lastLocation: null,
   showBeyond: true,
   course: null,
 };
+
+/** One-time move of the old single `examDate` setting into `exams`, on the last-studied course or the only one. */
+export async function migrateExamDate(courses: string[]) {
+  const old = (await db.settings.get('examDate'))?.value as string | null | undefined;
+  if (old === undefined) return;
+  if (old && !(await getSetting('exams')).length) {
+    const saved = await getSetting('course');
+    const course = saved && courses.includes(saved) ? saved : courses[0];
+    if (!course) return; // try again once courses have loaded
+    await setSetting('exams', [{ id: crypto.randomUUID(), name: `${course} exam`, course, date: old }]);
+  }
+  await db.settings.delete('examDate');
+}
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]> {
   const row = await db.settings.get(key);

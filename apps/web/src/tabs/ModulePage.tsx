@@ -37,6 +37,7 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
     { to: 'intuition', label: 'Intuition' },
     { to: 'math-code', label: workbenchTabLabel(m) },
     { to: 'application', label: 'Application' },
+    ...(mod.parsed.exam ? [{ to: 'exam', label: 'Mock exam' }] : []),
   ];
   const errors = mod.issues.filter((i) => i.level === 'error');
   return (
@@ -54,16 +55,17 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
               <div className="truncate text-xs text-muted"><Markdown text={m.summary} inline raw /></div>
             </div>
           </div>
-          <nav className="flex gap-1" role="tablist">
+          {/* on phones the tab row gets its own line and scrolls sideways instead of widening the page */}
+          <nav className="scrollbar-thin flex w-full min-w-0 gap-1 overflow-x-auto sm:w-auto" role="tablist">
             {tabs.map((t) => (
               <NavLink key={t.to} to={`${base}/${t.to}`} role="tab"
-                className={({ isActive }) => cn('rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition', isActive || loc.pathname.includes(`/${t.to}`) ? 'border-[color:var(--mod,rgb(var(--accent)))] text-ink' : 'border-transparent text-muted hover:text-ink')}
+                className={({ isActive }) => cn('shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition',isActive || loc.pathname.includes(`/${t.to}`) ? 'border-[color:var(--mod,rgb(var(--accent)))] text-ink' : 'border-transparent text-muted hover:text-ink')}
                 style={({ isActive }) => (isActive ? { borderColor: m.color } : undefined)}>
                 {t.label}
               </NavLink>
             ))}
             {!preview && (
-              <button className="btn mb-1.5 ml-2" onClick={() => nav(`/quiz?modules=${m.id}&start=1`)}><Dumbbell size={15} /> Practice</button>
+              <button className="btn mb-1.5 ml-2 shrink-0" title="Practice" aria-label="Practice" onClick={() => nav(`/quiz?modules=${m.id}&start=1`)}><Dumbbell size={15} /> <span className="hidden sm:inline">Practice</span></button>
             )}
           </nav>
         </div>

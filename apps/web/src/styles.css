@@ -70,9 +70,10 @@ body { @apply bg-bg text-ink antialiased; font-feature-settings: 'cv11', 'ss01';
 .md p:last-child { margin-bottom: 0; }
 .md ul { list-style: disc; padding-left: 1.3em; margin: 0.35em 0; }
 .md ol { list-style: decimal; padding-left: 1.3em; margin: 0.35em 0; }
-.md code { @apply rounded bg-panel2 px-1 py-0.5 font-mono text-[0.88em]; }
+/* inline code may break anywhere so a long schema or call can't widen the page on phones; code blocks scroll instead */
+.md code { @apply rounded bg-panel2 px-1 py-0.5 font-mono text-[0.88em]; overflow-wrap: anywhere; }
 .md pre { @apply rounded-lg bg-panel2 p-3 overflow-auto text-sm; }
-.md pre code { @apply bg-transparent p-0; }
+.md pre code { @apply bg-transparent p-0; overflow-wrap: normal; }
 .md table { @apply my-2 w-full border-collapse text-sm; }
 .md th, .md td { @apply border border-line px-2 py-1 text-left; }
 .md th { @apply bg-panel2; }
@@ -105,6 +106,30 @@ body { @apply bg-bg text-ink antialiased; font-feature-settings: 'cv11', 'ss01';
 .acct-row { transition: background-color .2s, box-shadow .2s; }
 .acct-row.anc-hover { background: rgb(var(--accent) / 0.12); box-shadow: inset 3px 0 0 rgb(var(--accent)); }
 .acct-row.trace-on { background: rgb(var(--warn) / 0.16); box-shadow: inset 3px 0 0 rgb(var(--warn)); }
+
+/* Christmas countdown (only rendered while the server says it's live) */
+:root { --xmas-red: 200 30 45; --xmas-green: 21 128 61; --xmas-gold: 202 138 4; }
+.dark { --xmas-red: 248 90 100; --xmas-green: 74 222 128; --xmas-gold: 250 204 21; }
+.xmas-stripe { background: repeating-linear-gradient(135deg, rgb(var(--xmas-red)) 0 10px, rgb(var(--panel)) 10px 14px, rgb(var(--xmas-green)) 14px 24px, rgb(var(--panel)) 24px 28px); }
+.xmas-door:not(.xmas-door-locked) { background-image: radial-gradient(circle at 50% 0%, rgb(var(--xmas-red) / 0.10), transparent 70%); }
+.xmas-door-locked { background-image: repeating-linear-gradient(45deg, rgb(var(--line) / 0.35) 0 6px, transparent 6px 12px); opacity: 0.75; }
+.xmas-today { box-shadow: 0 0 0 2px rgb(var(--xmas-gold)), 0 0 14px rgb(var(--xmas-gold) / 0.45); }
+.xmas-lights { position: fixed; top: 48px; left: 0; right: 0; z-index: 29; height: 14px; display: flex; justify-content: space-around; overflow: hidden;
+  background: radial-gradient(ellipse 22px 6px at 50% -2px, transparent 9px, rgb(var(--muted) / 0.55) 10px, transparent 11px) 0 0 / calc(100% / 28) 8px repeat-x; }
+.xmas-bulb { width: 7px; height: 10px; margin-top: 3px; border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%; background: rgb(var(--bulb)); box-shadow: 0 0 6px rgb(var(--bulb) / 0.8); animation: xmas-twinkle 2.4s ease-in-out infinite; }
+.xmas-bulb-0 { --bulb: var(--xmas-red); }
+.xmas-bulb-1 { --bulb: var(--xmas-green); }
+.xmas-bulb-2 { --bulb: var(--xmas-gold); }
+.xmas-bulb-3 { --bulb: 59 130 246; }
+/* behind the cards: flakes show in the gaps, never over text */
+.xmas-snow { position: fixed; inset: 0; z-index: -1; overflow: hidden; }
+.xmas-flake { position: absolute; top: -24px; color: rgb(147 197 253 / 0.55); animation: xmas-fall linear infinite; }
+.dark .xmas-flake { color: rgb(255 255 255 / 0.35); }
+@keyframes xmas-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; box-shadow: none; } }
+@keyframes xmas-fall { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(var(--drift, 0), 105vh) rotate(240deg); } }
+@media (prefers-reduced-motion: reduce) { .xmas-snow { display: none; } .xmas-bulb { animation: none; } }
+.reduce-motion .xmas-snow { display: none; }
+.reduce-motion .xmas-bulb { animation: none; }
 
 /* glossary term links: [[term-id]] */
 .term-link { text-decoration: underline dotted rgb(var(--accent) / 0.7); text-underline-offset: 3px; cursor: help; font-weight: 550; }

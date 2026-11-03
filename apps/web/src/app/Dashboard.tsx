@@ -1,15 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, CalendarClock, Dumbbell, GraduationCap, PlayCircle, Repeat, Target } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, CalendarDays, Dumbbell, GraduationCap, PlayCircle, Repeat, Sparkles, Target, X } from 'lucide-react';
+import { HIGHLIGHTS, type Highlight } from './highlights';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
 import { useAllModules } from '../modules/useAll';
 import { levelOf, LEVEL_COLOR, useAllProgress, useDueReviews, useMastery, useSetting } from '../storage/progress';
 import { workbenchShortLabel } from '@kodigo/schema';
 import { Ring } from './Ring';
+import { ExamCountdowns, PlanItems, fmtMinutes } from './PlanPage';
+import { usePlan } from '../plan/usePlan';
 import { ModuleIcon } from './icons';
 import { Markdown } from '../lib/md';
 import { cn, timeAgo } from '../lib/util';
+import { useChristmas } from '../christmas/useChristmas';
+import { christmasHighlight } from '../christmas/banner';
 
 export function Dashboard() {
   const store = useModuleStore();
@@ -19,9 +24,9 @@ export function Dashboard() {
   const mastery = useMastery();
   const due = useDueReviews();
   const [last] = useSetting('lastLocation');
-  const [examDate] = useSetting('examDate');
+  const { plan, loading: planLoading } = usePlan();
   const nav = useNavigate();
-  const days = examDate ? Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000) : null;
+  const xmas = christmasHighlight(useChristmas());
   const weak = mastery
     .filter((m) => m.n >= 1)
     .map((m) => {
@@ -68,7 +73,8 @@ export function Dashboard() {
         <h1 className="text-2xl font-bold">Qdigo</h1>
         <p className="text-muted">Q's got your Qs.</p>
       </div>
-      <div className="mb-6 grid gap-3 md:grid-cols-3">
+      <Highlights items={[...(xmas ? [xmas] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
           <PlayCircle className="shrink-0 text-accent" size={32} />
           <div className="min-w-0 flex-1">
@@ -79,20 +85,30 @@ export function Dashboard() {
           {last && <button className="btn-primary" onClick={() => nav(last.path)}>Continue <ArrowRight size={15} /></button>}
         </div>
         <div className="card flex flex-col justify-center gap-2 p-4">
-          <div className="flex items-center gap-2">
-            <CalendarClock size={18} className="text-accent" />
-            {days !== null ? <span className="font-semibold">{days > 0 ? `${days} day${days === 1 ? '' : 's'} to the exam` : days === 0 ? "Exam day. Q's got your Qs!" : 'Exam date passed'}</span> : <Link to="/settings" className="text-sm text-muted underline">Set your exam date</Link>}
-          </div>
+          {plan.exams.length ? <ExamCountdowns exams={plan.exams} compact /> : (
+            <div className="flex items-center gap-2"><CalendarClock size={18} className="text-accent" /><Link to="/settings" className="text-sm text-muted underline">Add your exams</Link></div>
+          )}
           <button className="btn justify-between" onClick={() => nav('/review')}><span className="flex items-center gap-2"><Repeat size={15} /> Reviews due</span><b>{due.length}</b></button>
         </div>
       </div>
+
+      {plan.exams.some((e) => e.daysLeft >= 0) && (
+        <div className="card mb-6 p-4" data-testid="today-plan">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="mr-auto flex items-center gap-2 font-semibold"><CalendarDays size={18} className="text-accent" /> Today's plan {plan.days[0] && <span className="text-xs font-normal text-muted">{fmtMinutes(plan.days[0].minutes)}</span>}</h2>
+            <Link to="/plan" className="btn btn-sm">Full plan <ArrowRight size={14} /></Link>
+          </div>
+          {planLoading ? <div className="h-16 animate-pulse rounded-lg bg-panel2" /> : <PlanItems items={plan.days[0]?.items ?? []} exams={plan.exams} />}
+          {plan.exams.some((e) => e.unscheduledMinutes > 0) && <div className="mt-2 flex items-center gap-1.5 text-xs text-warn"><AlertTriangle size={13} /> Not everything fits before your exams. <Link to="/plan" className="underline">See the plan</Link></div>}
+        </div>
+      )}
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">{multiCourse ? 'Courses' : 'Modules'}</h2>
         <button className="btn" onClick={() => nav('/quiz')}><Dumbbell size={15} /> Build a quiz</button>
       </div>
       {store.listLoaded && !store.list.length && <div className="card p-6 text-sm text-muted">No modules installed. Add one in <Link to="/admin" className="text-accent underline">Admin</Link>.</div>}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {courses.map((g) => {
           const on = g.course === focused;
           return (
@@ -127,7 +143,7 @@ export function Dashboard() {
               <h3 className="mr-auto flex items-center gap-2 font-semibold"><GraduationCap size={18} className="text-accent" /> {g.course} <span className="text-xs font-normal text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</span></h3>
               <Link to={`/quiz?course=${q(g.course)}`} className="btn btn-sm"><Dumbbell size={14} /> Quiz on {g.course}</Link>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {loading && !loaded.length && g.modules.filter((e) => !errors[e.id]).map((m) => <div key={m.id} className="card h-56 animate-pulse" />)}
               {loaded.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
               {g.modules.filter((e) => errors[e.id]).map((e) => (
@@ -146,7 +162,7 @@ export function Dashboard() {
               {weakCourses.map((c) => <button key={c} className="btn" onClick={() => nav(`/quiz?course=${q(c)}&mode=weak&start=1`)}>Practice {multiCourse ? `${c} ` : ''}weak spots</button>)}
             </div>
           </div>
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {weak.map((w) => {
               const lvl = levelOf(w.score, w.n);
               return (
@@ -163,6 +179,49 @@ export function Dashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+const DISMISSED_KEY = 'kodigo-dismissed-highlights';
+const readDismissed = (): string[] => { try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]'); } catch { return []; } };
+
+function Highlights({ items }: { items: Highlight[] }) {
+  const [dismissed, setDismissed] = useState(readDismissed);
+  const shown = items.filter((h) => !dismissed.includes(h.id));
+  if (!shown.length) return null;
+  const dismiss = (id: string) => {
+    const next = [...dismissed, id];
+    setDismissed(next);
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
+  };
+  return (
+    <section className="mb-6 grid gap-3" aria-label="What's new" data-testid="highlights">
+      {shown.map((h) => {
+        const body = (
+          <>
+            {h.festive ? <span className="shrink-0 text-[28px] leading-none" aria-hidden>🎄</span> : <Sparkles className="shrink-0 text-accent" size={28} />}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="label">{h.course ? `${h.course} · ` : ''}{h.festive ? 'Christmas countdown' : "What's new"}</span>
+                <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', h.to ? 'tone-good mark-bg' : 'tone-accent mark-bg')}>{h.badge}</span>
+              </div>
+              <div className="font-semibold">{h.title}</div>
+              <div className="text-sm text-muted">{h.blurb}</div>
+            </div>
+            {h.to && <span className="btn-primary hidden sm:inline-flex">{h.festive ? 'Open' : 'Try it'} <ArrowRight size={15} /></span>}
+          </>
+        );
+        return (
+          <div key={h.id} className={cn('card relative overflow-hidden', h.festive ? 'border-[rgb(var(--xmas-red)/0.4)]' : 'border-accent/40')} data-highlight={h.id}>
+            <div className={cn('absolute inset-y-0 left-0', h.festive ? 'xmas-stripe w-1.5' : 'w-1 bg-accent')} />
+            {h.to
+              ? <Link to={h.to} className="flex items-center gap-3 p-4 pr-10 transition hover:bg-panel2">{body}</Link>
+              : <div className="flex items-center gap-3 p-4 pr-10">{body}</div>}
+            <button className="btn-ghost btn-sm absolute right-1.5 top-1.5" onClick={() => dismiss(h.id)} title="Dismiss" aria-label={`Dismiss ${h.title}`}><X size={14} /></button>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
