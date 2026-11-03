@@ -15,6 +15,11 @@ problems:
     spec: |
       Create a function `create_utility_matrix` that returns a DataFrame with users as rows and recipes as columns,
       considering **only recipes with at least {=nMin} ratings**. Sort users and recipes by their ids.
+    hint: |
+      Count, cut, pivot. `counts = interactions.groupby("recipe_id")["rating"].count()`, keep
+      `counts[counts >= {=nMin}].index`, filter the rows with `isin`, then
+      `pivot(index="user_id", columns="recipe_id", values="rating")`. Columns are the kept recipes; NaN cells are
+      user-recipe pairs with no rating.
     items:
       - { template: exam-1a, points: 10 }
   - id: p1b
@@ -25,6 +30,10 @@ problems:
       rating users**. Recommend only recipes the user has not rated. Follow the conventions used in class:
       user-mean-centred cosine over co-rated users, positive similarities only, mean added back. Sort by
       **decreasing estimated rating, then by increasing recipe id**.
+    hint: |
+      Two selections, then a sort. Candidates: `row = util.loc[user]` and `row[row.isna()]`. Neighbours of candidate `j`:
+      recipes `r` the user rated with `(util[j].notna() & util[r].notna()).sum() >= {=m}`. Ranking:
+      `sort_values(["estimate", "recipe_id"], ascending=[False, True])`.
     items:
       - { template: exam-1b-select, points: 10 }
       - { template: exam-1b-rank, points: 10 }
@@ -34,6 +43,9 @@ problems:
       Treat each recipe as a transaction and its tags as items. A set of tags is frequent if it is found in **at least
       50%** of the recipes. Create `largest_baskets()` that returns **all** the largest frequent tag sets, sorted by
       decreasing support, with the tags in each set sorted alphabetically.
+    hint: |
+      Turn 50% into a count first: `len(recipes) * 0.5`. A set is frequent when its count is `>=` that number. The
+      largest sets are every frequent set whose size equals the maximum size (`size == size.max()`), ties included.
     items:
       - { template: exam-2a, points: 10 }
   - id: p2b
@@ -41,5 +53,151 @@ problems:
     spec: |
       Create `strong_rules()` that returns the tag association rules with **support of at least 50% and confidence of
       at least 0.8**, each with a single-tag consequent, sorted by **decreasing lift, then by antecedent**.
+    hint: |
+      confidence(A → b) = count(A ∪ {b}) / count(A); lift = confidence / (share of recipes with b). Keep
+      `(support >= 0.5) & (confidence >= 0.8)`, then `sort_values(["lift", "antecedent"], ascending=[False, True])`.
     items:
       - { template: exam-2b, points: 10 }
+coding:
+  title: 'Midterm mock (coding): Food.com, smaller'
+  story: codeExamQ
+  timeLimitMin: 120
+  intro: |
+    This is the midterm, problem for problem, on a smaller dataset: {=nRatings} ratings of {=nRecipes} recipes by
+    {=nUsers} users, in the same file layout as the Food.com Recipes and Interactions dataset. Each attempt draws new
+    data. Write each function in its cell, run it, then run its test cell: `assert_equal` checks it and prints ACTUAL
+    and DESIRED when it fails.
+
+    Python 3.12 and pandas 2.2 run in your browser. The files are at `{=dataDir}`. When you submit, the kernel restarts
+    and your cells run top to bottom before the tests, as a grader would run them.
+  files:
+    '{=dataDir}/RAW_interactions.csv': interactionsCsv
+    '{=dataDir}/RAW_recipes.csv': recipesCsv
+  setup: |
+    import numpy as np
+    import pandas as pd
+    from numpy.testing import assert_equal
+  problems:
+    - id: c1a
+      title: 'Problem 1a [10 pts]'
+      spec: |
+        For Problem 1, you will be working with the dataset found at `{=dataDir}`.
+
+        Create a function `create_utility_matrix` that reads `{=dataDir}/RAW_interactions.csv` and returns a pandas data
+        frame corresponding to the utility matrix. Consider only items that have at least {=nMin} ratings. Sort users
+        and items by their ids.
+      hint: |
+        Count each recipe's ratings with `groupby`, keep `counts >= {=nMin}`, filter the rows with `isin`, then
+        `pivot(index="user_id", columns="recipe_id", values="rating")`.
+      stub: |
+        def create_utility_matrix():
+            """Return the utility matrix: users as rows, recipes as columns."""
+            # YOUR CODE HERE
+            raise NotImplementedError()
+      tests:
+        - points: 10
+          code: |
+            df_utility = create_utility_matrix()
+            assert_equal(df_utility.shape, {=shapePy})
+            assert_equal(df_utility.columns[:10].tolist(), {=colsPy})
+            assert_equal(df_utility.index[:10].tolist(), {=indexPy})
+            ratings = df_utility.iloc[0][df_utility.iloc[0].notnull()]
+            assert_equal(ratings.tolist(), {=firstRatingsPy})
+            assert_equal(ratings.index.tolist(), {=firstItemsPy})
+    - id: c1b
+      title: 'Problem 1b [10 pts]'
+      spec: |
+        Create a function `item_recommend` that accepts a user ID and returns the {=topN} best recipe ID recommendations
+        for that user by an item-based recommender system using (up to) {=k} nearest neighbors. Consider only neighbors
+        that have at least {=m} commonly rating users. Follow the preprocessing and conventions used in class. Sort by
+        decreasing estimated rating then by increasing recipe ID.
+
+        *The conventions used in class (nb-cf):* centre each rating by its user's mean over the recipes that user rated
+        in the utility matrix; similarity is the cosine of the centred ratings over co-rated users (0 if a length is 0);
+        a candidate's neighbors are the recipes the user rated; take the top {=k} by similarity (ties by recipe ID),
+        then keep only positive similarities; estimate = user mean + Σ sim × centred rating / Σ sim. Recipes without a
+        neighbor get no estimate.
+      hint: |
+        Candidates: `row = util.loc[user]` and `row[row.isna()]`. Common raters of recipes `j` and `r`:
+        `(util[j].notna() & util[r].notna()).sum() >= {=m}`. Rank with
+        `sort_values(["estimate", "recipe_id"], ascending=[False, True])`.
+      stub: |
+        def item_recommend(user):
+            """Return the best recipe ids for a user ID by item-based collaborative filtering."""
+            # YOUR CODE HERE
+            raise NotImplementedError()
+      tests:
+        - points: 10
+          code: |
+            assert_equal(item_recommend({=user}), {=itemRecPy})
+    - id: c1c
+      title: 'Problem 1c [10 pts]'
+      spec: |
+        Create a function `cd_recommend` that will recommend the {=topN} best unrated recipe IDs to the given `user` ID
+        according to coordinate gradient descent with {=d} latent components and stopping condition of improvement in
+        SSE (fraction change) less than 0.1. Follow the usual initial conditions and optimization order to pass the
+        asserts. Sort by decreasing estimated rating then by increasing recipe ID.
+
+        *The usual initial conditions and order (lf-cf):* U (users × {=d}) and V ({=d} × recipes) start as all ones. One
+        sweep updates every entry of U, user by user and factor by factor, then every entry of V, factor by factor and
+        recipe by recipe. Each entry is set to its exact minimiser over the observed ratings:
+        Σ factor × (rating − rest) / Σ factor². SSE is summed over observed ratings. After each sweep, stop when
+        (previous SSE − new SSE) / previous SSE < 0.1, and predict with the factors from that sweep.
+      hint: |
+        Use the matrix from Problem 1a. Keep a mask of the observed cells (`~np.isnan(R)`), and compute the SSE only over
+        them. Recommend among the user's NaN cells.
+      stub: |
+        def cd_recommend(user):
+            """Return the best unrated recipe ids for a user ID by coordinate descent."""
+            # YOUR CODE HERE
+            raise NotImplementedError()
+      tests:
+        - points: 10
+          code: |
+            assert_equal(cd_recommend({=user}), {=cdRecPy})
+    - id: c2a
+      title: 'Problem 2a [10 pts]'
+      spec: |
+        For Problem 2, consider each recipe in `{=dataDir}/RAW_recipes.csv` as a transaction and their tags as items in
+        the transaction.
+
+        Create a function `largest_baskets` that returns the list of all largest baskets of frequent tags in terms of
+        the number of items in the basket. A set of tags is frequent if it is found in at least 25% of the recipes.
+        Sort the baskets by decreasing support. Sort the items in each basket lexicographically.
+      hint: |
+        The `tags` column is text: read it with `converters={"tags": ast.literal_eval}`. "At least 25%" is
+        `count >= 0.25 * len(recipes)`. Keep every frequent set whose size equals the maximum size; ties in support go
+        by the sorted tag list.
+      stub: |
+        def largest_baskets():
+            """Return all the largest frequent tag sets, by decreasing support."""
+            # YOUR CODE HERE
+            raise NotImplementedError()
+      tests:
+        - points: 10
+          code: |
+            lb = largest_baskets()
+            assert_equal(lb[:2], {=largestPy})
+    - id: c2b
+      title: 'Problem 2b [10 pts]'
+      spec: |
+        Create a function `highest_lifts` that will return the 10 tag association rules with the highest lift. Each
+        rule should have a support of at least 25% and a confidence of at least 0.8. Return as a tuple of antecedent
+        and consequent. Sort the rules by decreasing lift then by antecedent. Sort the antecedent lexicographically.
+        Consider only 1-itemset consequents.
+
+        *Compute lift as* confidence / (support of the consequent as a fraction), so ties come out exactly equal and the
+        antecedent decides them.
+      hint: |
+        Build rules from the frequent sets of size 2 or more: each tag in the set is a possible consequent. Filter with
+        `(support >= 0.25) & (confidence >= 0.8)`, then sort by `(-lift, antecedent)`.
+      stub: |
+        def highest_lifts():
+            """Return the 10 rules with the highest lift as (antecedent, consequent) tuples."""
+            # YOUR CODE HERE
+            raise NotImplementedError()
+      tests:
+        - points: 10
+          code: |
+            hl = highest_lifts()
+            assert_equal(hl[:5], {=liftsPy})

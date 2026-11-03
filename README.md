@@ -67,6 +67,8 @@ pnpm dev            # Vite on :5173 (proxies /api) + the API server on :8080 wit
 pnpm test           # vitest: sdk, checkers, parser, bundles, validator, and all built-in modules
 pnpm typecheck
 pnpm build          # web (Vite) + server (esbuild bundle → apps/server/dist/index.js)
+pnpm pyodide:fetch  # Python 3.12 + pandas for the coding mock exam (~23 MB into apps/web/public/pyodide,
+                    # sha256-checked; `pnpm dev` and the web build run it, so the first build needs network)
 pnpm smoke          # Playwright: every scene plays to its takeaway, every section renders,
                     # every quiz template instantiates (starts the built server itself)
 ```

@@ -753,6 +753,35 @@ interface ExamFile {
 - **Later items may show earlier results** (the matrix Problem 1a asks about, the candidates 1b counts), so the runner
   reveals items one at a time and locks each when the learner moves on. Order the items so a prompt never shows an
   answer to an item that comes after it.
+- **`hint`** (per problem, optional): which pandas step the problem checks, shown collapsed until the learner opens it.
+
+**Coding version (`coding`, optional).** The learner writes real Python. Pyodide 0.27.8 (Python 3.12, pandas 2.2,
+the course's runtime) runs in a Web Worker from the app's own `/pyodide/` folder, fetched at build time by
+`scripts/fetch-pyodide.mjs`. The tab then offers "Write the code" and "Work it out by hand".
+
+```ts
+coding?: {
+  title: string; story: string;          // generator: the files' text and every test value, from one seed
+  intro: Markdown; timeLimitMin?: number;
+  files: Record<string, string>;         // path ({=…} allowed) → story var holding the file's text
+  setup: string;                         // the first cell (imports), editable
+  problems: { id: Id; title: string; spec: Markdown; hint?: Markdown;
+              stub: string;              // the learner's starting code
+              tests: { code: string; points: number }[] }[];   // test cells; {=…} fills in the expected values
+}
+```
+- **Mirror the real exam**: same function names, return types, sort orders and `assert_equal` test cells, on a small
+  generated dataset in the real file layout and path. Scale count thresholds to the data; keep scale-free ones
+  (25% support, 0.8 confidence, a 0.1 stopping fraction).
+- **Spell out every convention a test depends on** (centring, neighbour rule, initialisation, update order, stopping
+  rule, tie-breaks, the lift formula). The learner cannot ask; an unstated convention fails correct code.
+- **Make expected values robust to float noise**: redraw seeds whose ranking, neighbour cut-off or stopping test sits
+  within 1e-6 of a tie, and allow only exact ties where the spec gives a tie-break.
+- **Check with a reference solution before shipping**: export the files and expected values for 25+ seeds, run a
+  reference solution written from the spec in real pandas (the course's version), and require every test to pass.
+  Note the result in SOURCE_NOTES; don't ship the reference (no answer keys in modules).
+- A test cell scores its points when it runs without an error. On submit the kernel restarts and every cell runs top to
+  bottom before the tests, as a grader would.
 
 ---
 

@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Clock, Dices, Flag, Play, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Calculator as CalcIcon, Clock, Code2, Dices, Flag, NotebookPen, PencilLine, Play, Trophy } from 'lucide-react';
 import type { QuizInstance } from '@kodigo/schema';
 import { useModuleCtx } from '../tabs/ModulePage';
 import { Markdown } from '../lib/md';
 import { cn } from '../lib/util';
 import { instantiate, randomSeed } from '../quiz/session';
 import { QuestionView, emptyResponse, grade, type Graded } from '../quiz/Question';
+import { Calculator } from '../quiz/Calculator';
 import { recordAttempt } from '../storage/progress';
+import { ExamGuide, ProblemHint, ScratchPad, useRowMarking } from './ExamTools';
+import { CodingExam } from './CodingExam';
 
 /**
  * A mock exam (exam.yaml): one story, one seed per attempt, problems in a fixed order. Every scored item's generator
@@ -18,8 +21,20 @@ type Phase = 'intro' | 'running' | 'done';
 
 export function ExamTab() {
   const { mod } = useModuleCtx();
+  const [mode, setMode] = useState<'code' | 'hand'>('code');
   if (!mod.parsed.exam) return <div className="p-10 text-center text-muted">This module has no mock exam.</div>;
-  return <ExamRunner />;
+  if (!mod.parsed.exam.coding) return <ExamRunner />;
+  return (
+    <>
+      <div className="mx-auto flex w-full max-w-[1000px] gap-1 px-4 pt-5" role="tablist" aria-label="Exam version">
+        {([['code', <><Code2 size={14} /> Write the code</>], ['hand', <><PencilLine size={14} /> Work it out by hand</>]] as const).map(([m, label]) => (
+          <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} data-testid={`exam-mode-${m}`}
+            className={cn('flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition', mode === m ? 'border-accent bg-accent/10 text-ink' : 'border-line text-muted hover:text-ink')}>{label}</button>
+        ))}
+      </div>
+      {mode === 'code' ? <CodingExam /> : <ExamRunner />}
+    </>
+  );
 }
 
 function ExamRunner() {
@@ -34,6 +49,16 @@ function ExamRunner() {
   const [current, setCurrent] = useState(0);
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(Date.now());
+  // note-taking tools: scratchpad, calculator (types into the last answer box clicked), row marking
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [calcTarget, setCalcTarget] = useState<HTMLInputElement | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useRowMarking(rootRef, seed);
+  const trackAnswerField = (e: React.FocusEvent) => {
+    const el = e.target;
+    if (el instanceof HTMLInputElement && el.type === 'text' && !el.disabled) setCalcTarget(el);
+  };
 
   // build the story and every item from one seed
   useEffect(() => {
@@ -87,7 +112,7 @@ function ExamRunner() {
   const pts = (x: number) => (Math.round(x * 10) / 10).toString();
 
   return (
-    <div className="mx-auto w-full max-w-[1000px] px-4 py-5" data-testid="exam">
+    <div ref={rootRef} onFocus={trackAnswerField} className="mx-auto w-full max-w-[1000px] px-4 py-5" data-testid="exam">
       <div className="card mb-4 border-l-4 p-5" style={{ borderLeftColor: mod.parsed.manifest.color }}>
         <div className="label">Mock exam</div>
         <h2 className="mb-1 text-xl font-semibold">{exam.title}</h2>
@@ -102,7 +127,19 @@ function ExamRunner() {
           </>}
           {phase === 'running' && leftMs !== null && <span className={cn('ml-auto font-mono font-semibold', leftMs < 5 * 60_000 ? 'text-bad' : 'text-ink')}><Clock size={14} className="inline" /> {fmtTime(leftMs)}</span>}
         </div>
+        {phase === 'intro' && <ExamGuide className="mt-4" />}
       </div>
+
+      {phase === 'running' && (
+        <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel/95 px-3 py-2 text-sm shadow-sm backdrop-blur" data-testid="exam-tools">
+          <button className={cn('btn btn-sm', notesOpen && 'border-accent text-accent')} onClick={() => setNotesOpen((o) => !o)} aria-pressed={notesOpen} data-testid="exam-notes"><NotebookPen size={13} /> Scratchpad</button>
+          <button className={cn('btn btn-sm', calcOpen && 'border-accent text-accent')} onClick={() => setCalcOpen((o) => !o)} aria-pressed={calcOpen} data-testid="exam-calc"><CalcIcon size={13} /> Calculator</button>
+          <span className="text-xs text-muted">Click a table row to mark it while you count.</span>
+        </div>
+      )}
+      <ScratchPad storageKey={`kodigo-exam-notes:${mod.id}:${seed}`} open={phase !== 'intro' && notesOpen} onClose={() => setNotesOpen(false)} />
+      <Calculator open={phase === 'running' && calcOpen} onClose={() => setCalcOpen(false)} target={calcTarget} focusOnOpen />
+      {phase === 'running' && <ExamGuide className="mb-4" defaultOpen={false} />}
 
       {phase === 'done' && (
         <div className="card mb-4 p-5" data-testid="exam-score">
@@ -128,6 +165,7 @@ function ExamRunner() {
               <span className="chip ml-auto">{pts(max)} pts</span>
             </div>
             <Markdown text={p.spec} scope={story} className="mb-3" />
+            {p.hint && <ProblemHint><Markdown text={p.hint} scope={story} /></ProblemHint>}
             <div className="flex flex-col gap-4">
               {its.map(({ it, i }) => (
                 <div key={i} className="rounded-xl border border-line p-3">

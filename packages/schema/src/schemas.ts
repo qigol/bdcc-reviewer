@@ -336,11 +336,44 @@ export const ExamFile = z
             title: z.string(),
             /** the problem's spec, as an exam would word it; {=…} uses the story vars */
             spec: Markdown,
+            /** which pandas step the problem checks; shown collapsed, opened on request; {=…} uses the story vars */
+            hint: Markdown.optional(),
             items: z.array(z.object({ template: Id, points: z.number().positive() }).strict()).min(1),
           })
           .strict(),
       )
       .min(1),
+    /** optional coding version: the learner writes the functions and Python runs in the browser (guide §5.11) */
+    coding: z
+      .object({
+        title: z.string(),
+        /** generator whose vars every file, spec, stub and test interpolates ({=…}) */
+        story: z.string(),
+        intro: Markdown,
+        timeLimitMin: z.number().int().positive().optional(),
+        /** file path ({=…} allowed) → the story var holding that file's text; written into Python before each run */
+        files: z.record(z.string(), z.string()),
+        /** the first cell (imports), editable */
+        setup: z.string(),
+        problems: z
+          .array(
+            z
+              .object({
+                id: Id,
+                title: z.string(),
+                spec: Markdown,
+                hint: Markdown.optional(),
+                /** the learner's starting code */
+                stub: z.string(),
+                /** test cells, as in the midterm notebooks; a cell scores its points when it runs without an error */
+                tests: z.array(z.object({ code: z.string(), points: z.number().positive() }).strict()).min(1),
+              })
+              .strict(),
+          )
+          .min(1),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

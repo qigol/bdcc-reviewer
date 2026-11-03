@@ -681,11 +681,19 @@ function checkExam(ctx: Ctx) {
   uniqueIds(exam.problems, 'problem', file, ctx, 'problems');
   exam.problems.forEach((p, i) => {
     checkText(p.spec, null, file, `problems[${i}].spec`, ctx);
+    checkText(p.hint, null, file, `problems[${i}].hint`, ctx);
     p.items.forEach((it, j) => {
       if (!ids.has(it.template)) ctx.issues.push({ level: 'error', step: 'refs', file, path: `problems[${i}].items[${j}].template`, message: `Unknown quiz template "${it.template}"` });
       else if (ctx.mod.quiz.find((t) => t.id === it.template)?.type === 'explain') ctx.issues.push({ level: 'error', step: 'refs', file, path: `problems[${i}].items[${j}].template`, message: 'explain templates are self-graded and cannot be scored in an exam' });
     });
   });
+  const c = exam.coding;
+  if (c) {
+    ctx.genRefs.push({ gen: c.story, file, path: 'coding.story' });
+    uniqueIds(c.problems, 'coding problem', file, ctx, 'coding.problems');
+    checkText(c.intro, null, file, 'coding.intro', ctx);
+    c.problems.forEach((p, i) => { checkText(p.spec, null, file, `coding.problems[${i}].spec`, ctx); checkText(p.hint, null, file, `coding.problems[${i}].hint`, ctx); });
+  }
 }
 
 function checkTemplate(t: Template, i: number, ctx: Ctx, at?: string) {
@@ -1200,7 +1208,7 @@ export async function runLogicChecks(
         if (st.error || !st.output) { problems.add(`story generator "${exam.story}" threw: ${st.error}`); continue; }
         const key = st.output.vars.storyKey;
         if (key === undefined) { problems.add(`story generator "${exam.story}" must return a storyKey var`); break; }
-        for (const tx of [exam.intro, ...exam.problems.map((p) => p.spec)]) for (const m of interpolate(tx, st.output.vars, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}} (story vars)`);
+        for (const tx of [exam.intro, ...exam.problems.flatMap((p) => [p.spec, p.hint ?? ''])]) for (const m of interpolate(tx, st.output.vars, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}} (story vars)`);
         for (const pr of exam.problems) for (const it of pr.items) {
           const t = mod.quiz.find((x) => x.id === it.template);
           if (!t?.generator || !genSet.has(t.generator)) continue;
@@ -1209,6 +1217,23 @@ export async function runLogicChecks(
         }
       }
       for (const pr of problems) E('quiz', 'exam.yaml', 'problems', pr);
+    }
+    // coding exam: every file var is text, and every {=…} in files, specs, stubs and tests resolves
+    const c = exam?.coding;
+    if (c && genSet.has(c.story)) {
+      const problems = new Set<string>();
+      for (let s = 1; s <= Math.min(seeds, 10); s++) {
+        const st = await host.generate(c.story, s, 3);
+        if (st.error || !st.output) { problems.add(`coding story generator "${c.story}" threw: ${st.error}`); continue; }
+        const vars = st.output.vars;
+        for (const [p, v] of Object.entries(c.files)) {
+          if (typeof vars[v] !== 'string') problems.add(`file ${p}: story var "${v}" is not text`);
+          for (const m of interpolate(p, vars, { mode: 'md' }).missing) problems.add(`file path: unresolved {=${m}}`);
+        }
+        const texts = [c.intro, c.setup, ...c.problems.flatMap((p) => [p.spec, p.hint ?? '', p.stub, ...p.tests.map((t) => t.code)])];
+        for (const tx of texts) for (const m of interpolate(tx, vars, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}} (coding story vars)`);
+      }
+      for (const pr of problems) E('quiz', 'exam.yaml', 'coding', pr);
     }
   }
   return { issues, examples: mod.examples.length, examplesPassed: passed, instances };

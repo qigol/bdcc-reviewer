@@ -17,7 +17,7 @@ export const HIGHLIGHTS: Highlight[] = [
     // replaces the 'bdcc-notebook-quiz-sim' teaser; a new id so learners who dismissed the teaser see it's live
     id: 'bdcc-midterm-mock-exam',
     title: 'Midterm mock exam',
-    blurb: 'Four midterm-style problems on one dataset (utility matrix, item-based recommendations, frequent tags, strong rules), timed, with new data every attempt.',
+    blurb: 'The midterm, problem for problem, on a smaller dataset: write real Python in your browser against the test cells, or work it out by hand. New data every attempt.',
     course: 'BDCC',
     to: '/m/pandas-select-rows/exam',
     badge: 'New',

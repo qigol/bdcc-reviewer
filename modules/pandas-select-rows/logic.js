@@ -827,12 +827,22 @@ export default function register(sdk) {
     const blank = used.length === 0;
     const value = blank ? null : num / den;
     const rating = blank ? null : value + mu[ui];
-    return { centered: value, mean: mu[ui], rating, blank, used: used.map((c) => c.label), top: top.map((c) => c.label), nCands: cands.length };
+    // cutGap (exam only): how far the k-th similarity is from the next; near 0, float noise could swap neighbours
+    const cutGap = cands.length > k ? cands[k - 1].sim - cands[k].sim : Infinity;
+    return { centered: value, mean: mu[ui], rating, blank, used: used.map((c) => c.label), top: top.map((c) => c.label), nCands: cands.length, cutGap };
   }
 
   const EX_USERS = [2101, 2214, 2378, 2490, 2533, 2647, 2712];
   const EX_RECIPES = [310, 452, 587, 603, 741, 896];
   const EX_TAGS = ['dinner', 'easy', 'quick', 'spicy', 'vegetarian'];
+  const EX_NAMES = { 310: 'adobong pusit', 452: 'arroz caldo', 587: 'bistek tagalog', 603: 'ginataang gulay', 741: 'kare-kare', 896: 'lumpiang shanghai' };
+  // coding exam: the files as the midterm folder would hold them (copied helpers: csv.writer quoting, Python repr)
+  const EX_DIR = '/mnt/data/public/food-mock';
+  const exCsvLine = (vals) => vals.map((v) => { const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',');
+  const pyStrRepr = (s) => "'" + s.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  const pyIntList = (xs) => '[' + xs.join(', ') + ']';
+  const pyStrList = (xs) => '[' + xs.map(pyStrRepr).join(', ') + ']';
+  const exDate = (i) => { const d = new Date(Date.UTC(2021, 0, 1 + i * 17)); return d.toISOString().slice(0, 10); };
   const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16); };
   const subsets = (xs) => { const out = []; for (let m = 1; m < 1 << xs.length; m++) out.push(xs.filter((_, i) => m & (1 << i))); return out; };
   const r2 = (x) => Math.round(x * 100) / 100;
@@ -933,6 +943,15 @@ export default function register(sdk) {
         nRules: d.rules.length, nStrong: d.strong.length, topRule: ruleTxt(top), topLift: r2(top.lift), topConf: r2(top.conf),
         assertActual: withRated[0], assertDesired: rank[0],
         filled: d.rows.filter((r) => d.keep.includes(r[1])).length,
+        // coding exam: the files, and the test cells' expected values as Python literals
+        dataDir: EX_DIR,
+        interactionsCsv: [exCsvLine(['user_id', 'recipe_id', 'date', 'rating']), ...d.rows.map((r, i) => exCsvLine([r[0], r[1], exDate(i), r[2]]))].join('\n') + '\n',
+        recipesCsv: [exCsvLine(['name', 'id', 'tags']), ...EX_RECIPES.map((id, i) => exCsvLine([EX_NAMES[id], id, pyStrList(d.tags[i])]))].join('\n') + '\n',
+        shapePy: '(' + d.p.users.length + ', ' + d.keep.length + ')',
+        keepPy: pyIntList(d.keep), usersPy: pyIntList(d.p.users),
+        recsPy: pyIntList(rank),
+        largestPy: '[' + d.largest.map((f) => pyStrList(f.S)).join(', ') + ']',
+        rules3Py: '[' + d.strong.slice(0, 3).map((r) => '(' + pyStrList(r.A) + ', ' + pyStrRepr(r.b) + ')').join(', ') + ']',
       },
       misconceptions: [
         { var: 'nKeepGt', for: 'nKeep', feedback: '"At least {=nMin}" keeps recipes with exactly {=nMin} ratings: `>=`.' },
@@ -949,12 +968,179 @@ export default function register(sdk) {
     };
   }
 
+  // ==========================================================================================
+  // CODING MOCK EXAM (exam.yaml `coding`): the midterm's five problems, word for word in shape, on a smaller
+  // Food.com-like dataset drawn from the seed. The learner's Python runs in the browser; these are the test values.
+  // ==========================================================================================
+  // Coordinate descent as in lf-cf (cgdUpdate / cgdRun): U and V start as all ones; a sweep updates every u_is
+  // (user by user, factor by factor), then every v_sj (factor by factor, item by item), each solved exactly:
+  // value = Σ factor·(r − rest) / Σ factor² over the observed cells (0 if the denominator is 0). Lean copy without
+  // the per-update SSE and traces; examples cd-* check it against lf-cf's numbers on its r5x5.
+  function cgdFit({ R, d = 2, sweeps = null, stopFrac = 0.1, maxSweeps = 200 }) {
+    const V0 = R.values, m = V0.length, n = V0[0].length;
+    const U = Array.from({ length: m }, () => Array(d).fill(1));
+    const V = Array.from({ length: d }, () => Array(n).fill(1));
+    const sseNow = () => { let t = 0; for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) { const r = V0[i][j]; if (r === null) continue; let p = 0; for (let s = 0; s < d; s++) p += U[i][s] * V[s][j]; t += (r - p) * (r - p); } return t; };
+    const history = [sseNow()];
+    const fracs = [];
+    let first = null;
+    for (let sw = 0; sw < (sweeps ?? maxSweeps); sw++) {
+      for (let i = 0; i < m; i++) for (let s = 0; s < d; s++) {
+        let num = 0, den = 0;
+        for (let j = 0; j < n; j++) { const r = V0[i][j]; if (r === null) continue; let rest = 0; for (let t = 0; t < d; t++) if (t !== s) rest += U[i][t] * V[t][j]; num += V[s][j] * (r - rest); den += V[s][j] * V[s][j]; }
+        U[i][s] = den === 0 ? 0 : num / den;
+        if (first === null) first = { x: U[i][s] };
+      }
+      for (let s = 0; s < d; s++) for (let j = 0; j < n; j++) {
+        let num = 0, den = 0;
+        for (let i = 0; i < m; i++) { const r = V0[i][j]; if (r === null) continue; let rest = 0; for (let t = 0; t < d; t++) if (t !== s) rest += U[i][t] * V[t][j]; num += U[i][s] * (r - rest); den += U[i][s] * U[i][s]; }
+        V[s][j] = den === 0 ? 0 : num / den;
+      }
+      const cur = sseNow();
+      const prev = history[history.length - 1];
+      history.push(cur);
+      fracs.push((prev - cur) / prev);
+      if (sweeps === null && (prev - cur) / prev < stopFrac) break;
+    }
+    const P = U.map((row) => Array.from({ length: n }, (_, j) => row.reduce((a, u, s) => a + u * V[s][j], 0)));
+    return { U, V, P, history, fracs, sweepsRun: fracs.length, sse: history[history.length - 1] };
+  }
+  // lf-cf's first two single-entry updates (u11 then v11 from all ones), for the parity examples
+  function cgdFirstTwo({ R }) {
+    const V0 = R.values, n = V0[0].length, m = V0.length, d = 2;
+    const U = Array.from({ length: m }, () => Array(d).fill(1)), V = Array.from({ length: d }, () => Array(n).fill(1));
+    let num = 0, den = 0;
+    for (let j = 0; j < n; j++) { const r = V0[0][j]; if (r === null) continue; const rest = U[0][1] * V[1][j]; num += V[0][j] * (r - rest); den += V[0][j] ** 2; }
+    U[0][0] = num / den;
+    num = 0; den = 0;
+    for (let i = 0; i < m; i++) { const r = V0[i][0]; if (r === null) continue; const rest = U[i][1] * V[1][0]; num += U[i][0] * (r - rest); den += U[i][0] ** 2; }
+    return { x: U[0][0], y: num / den };
+  }
+
+  const CX_DIR = '/mnt/data/public/food-com-mini';
+  const CX_NAMES = ['adobong manok', 'arroz caldo', 'bibingka', 'bicol express', 'bistek tagalog', 'buko pie', 'champorado', 'chicken inasal',
+    'dinuguan', 'ensaymada', 'ginataang gulay', 'kaldereta', 'kare-kare', 'laing', 'leche flan', 'lechon kawali', 'lumpiang shanghai',
+    'mechado', 'menudo', 'pancit bihon', 'pinakbet', 'puto', 'sinigang na hipon', 'tinola'];
+  // Food.com-style tags with how often a recipe carries them (a few near-universal tags make larger frequent sets)
+  const CX_TAGS = [['time-to-make', 0.95], ['course', 0.9], ['preparation', 0.85], ['main-ingredient', 0.6], ['dietary', 0.45],
+    ['easy', 0.5], ['occasion', 0.3], ['60-minutes-or-less', 0.4], ['low-in-something', 0.3], ['vegetables', 0.25]];
+  const CX_REVIEWS = ['Great recipe!', 'Too salty for me.', 'Made it twice, family loved it.', 'Easy, quick, and tasty.', 'Not bad.',
+    'I added more garlic.', 'Perfect for a rainy day.', 'Needed more time to cook, but good.', 'Will make again.', 'Just okay.'];
+  const pick = (rng, xs) => xs[rng.int(0, xs.length - 1)];
+  const gapsOk = (xs, eps = 1e-6) => xs.every((x, i) => i === 0 || Math.abs(xs[i - 1] - x) > eps);
+
+  function codeData(rng) {
+    for (let tries = 0; tries < 300; tries++) {
+      const recipeIds = rng.sample(Array.from({ length: 900 }, (_, i) => 1000 + i * 37), 24).sort((a, b) => a - b);
+      const userIds = rng.sample(Array.from({ length: 900 }, (_, i) => 20000 + i * 113), 30).sort((a, b) => a - b);
+      const quality = recipeIds.map(() => rng.float() * 1.6 - 0.8);
+      const weight = recipeIds.map(() => 0.3 + rng.float() * 2);
+      const rows = [];
+      for (const u of userIds) {
+        const bias = rng.float() * 1.2 - 0.6;
+        const count = rng.int(4, 13);
+        const chosen = new Set();
+        while (chosen.size < count) {
+          let x = rng.float() * weight.reduce((a, b) => a + b, 0), j = 0;
+          while (x > weight[j]) { x -= weight[j]; j++; }
+          chosen.add(Math.min(j, recipeIds.length - 1));
+        }
+        for (const j of chosen) rows.push([u, recipeIds[j], Math.max(1, Math.min(5, Math.round(3.6 + quality[j] + bias + (rng.float() - 0.5) * 1.6)))]);
+      }
+      // file order: shuffled, like a real export
+      const fileRows = rng.shuffle(rows);
+      const counts = countsOf(fileRows);
+      const nMin = [10, 9, 8, 7, 6].find((t) => { const kk = counts.filter((c) => c[1] >= t).length; return kk >= 10 && kk <= 15 && counts.some((c) => c[1] === t); });
+      if (!nMin) continue;
+      const keep = counts.filter((c) => c[1] >= nMin).map((c) => c[0]);
+      const p = pivotOf(fileRows.filter((r) => keep.includes(r[1])));
+      const M = { rows: p.users, cols: p.items, values: p.values };
+      const k = 3, m = 3, topN = 5, d = 3;
+      const fit = cgdFit({ R: M, d });
+      if (fit.fracs.some((f) => Math.abs(f - 0.1) < 1e-6)) continue;
+      // a user whose item-based and CGD top lists are both well separated
+      let pickUser = null;
+      for (const u of rng.shuffle(p.users)) {
+        const ui = p.users.indexOf(u), row = p.values[ui];
+        const cand = p.items.filter((_, j) => row[j] === null);
+        if (cand.length < topN + 1) continue;
+        const est = [];
+        let unsafe = false;
+        for (const it of cand) {
+          const pr = predict({ matrix: M, user: u, item: it, k, mode: 'item', minCommon: m });
+          if (pr.cutGap < 1e-6) unsafe = true;
+          if (!pr.blank) est.push({ id: it, est: pr.rating });
+        }
+        if (unsafe || est.length < topN + 1) continue;
+        const ib = est.slice().sort((a, b) => b.est - a.est || a.id - b.id);
+        if (!gapsOk(ib.slice(0, topN + 1).map((e) => e.est))) continue;
+        const cd = cand.map((it) => ({ id: it, est: fit.P[ui][p.items.indexOf(it)] })).sort((a, b) => b.est - a.est || a.id - b.id);
+        if (!gapsOk(cd.slice(0, topN + 1).map((e) => e.est))) continue;
+        pickUser = { u, ib: ib.slice(0, topN).map((e) => e.id), cd: cd.slice(0, topN).map((e) => e.id) };
+        break;
+      }
+      if (!pickUser) continue;
+      // tags for problem 2
+      const tags = recipeIds.map(() => {
+        const t = CX_TAGS.filter(([, pr]) => rng.float() < pr).map(([name]) => name);
+        return t.length >= 2 ? t : ['time-to-make', 'course'];
+      });
+      const tagNames = CX_TAGS.map(([name]) => name).slice().sort();
+      const n = tags.length, minsup = n * 0.25;
+      const supOf = (S) => tags.filter((t) => S.every((x) => t.includes(x))).length;
+      const freq = subsets(tagNames).map((S) => ({ S, sup: supOf(S) })).filter((f) => f.sup >= minsup);
+      const maxSize = Math.max(...freq.map((f) => f.S.length));
+      if (maxSize < 3) continue;
+      const largest = freq.filter((f) => f.S.length === maxSize).sort((a, b) => b.sup - a.sup || lt(a.S.join('\u0000'), b.S.join('\u0000')));
+      const cnt = new Map(freq.map((f) => [f.S.join('\u0000'), f.sup]));
+      const rules = [];
+      for (const f of freq) if (f.S.length >= 2) for (const b of f.S) {
+        const A = f.S.filter((x) => x !== b);
+        const conf = f.sup / cnt.get(A.join('\u0000'));
+        if (conf >= 0.8) rules.push({ A, b, lift: conf / (cnt.get(b) / n) });
+      }
+      rules.sort((x, y) => y.lift - x.lift || lt(x.A.join('\u0000'), y.A.join('\u0000')));
+      // exact lift ties are fine (the spec's formula gives identical floats, and the antecedent breaks the tie);
+      // a near-tie that is not exact could flip with another formula's rounding, so redraw it
+      const lifts = rules.slice(0, 6).map((r) => r.lift);
+      if (rules.length < 10 || lifts.some((x, i) => i > 0 && x !== lifts[i - 1] && Math.abs(x - lifts[i - 1]) < 1e-9)) continue;
+      return { fileRows, recipeIds, userIds, tags, nMin, keep, p, k, m, topN, d, fit, ...pickUser, largest, rules, n };
+    }
+    throw new Error('codeData: no draw');
+  }
+
+  // Generator for the coding exam: the files and every test cell's expected value as Python literals.
+  function codeExamQ({ rng }) {
+    const D = codeData(rng);
+    const pyTuple = (r) => '(' + pyStrList(r.A) + ', ' + pyStrRepr(r.b) + ')';
+    const first = D.p.values[0];
+    const firstRated = D.p.items.map((it, j) => [it, first[j]]).filter(([, v]) => v !== null);
+    const interactionsCsv = [exCsvLine(['user_id', 'recipe_id', 'date', 'rating', 'review']),
+      ...D.fileRows.map((r, i) => exCsvLine([r[0], r[1], exDate(i), r[2], CX_REVIEWS[(r[0] + r[1]) % CX_REVIEWS.length]]))].join('\n') + '\n';
+    const recipesCsv = [exCsvLine(['name', 'id', 'minutes', 'tags', 'n_steps']),
+      ...D.recipeIds.map((id, i) => exCsvLine([CX_NAMES[i], id, 15 + ((id * 7) % 90), pyStrList(D.tags[i]), 3 + (id % 9)]))].join('\n') + '\n';
+    return {
+      vars: {
+        storyKey: fnv(interactionsCsv + recipesCsv),
+        dataDir: CX_DIR, interactionsCsv, recipesCsv,
+        nRatings: D.fileRows.length, nRecipes: D.recipeIds.length, nUsers: D.userIds.length,
+        nMin: D.nMin, k: D.k, m: D.m, topN: D.topN, d: D.d, user: D.u,
+        shapePy: '(' + D.p.users.length + ', ' + D.keep.length + ')',
+        colsPy: pyIntList(D.keep.slice(0, 10)), indexPy: pyIntList(D.p.users.slice(0, 10)),
+        firstRatingsPy: '[' + firstRated.map(([, v]) => v.toFixed(1)).join(', ') + ']', firstItemsPy: pyIntList(firstRated.map(([it]) => it)),
+        itemRecPy: pyIntList(D.ib), cdRecPy: pyIntList(D.cd), sweeps: D.fit.sweepsRun,
+        largestPy: '[' + D.largest.slice(0, 2).map((f) => pyStrList(f.S)).join(', ') + ']', nLargest: D.largest.length,
+        liftsPy: '[' + D.rules.slice(0, 5).map(pyTuple).join(', ') + ']',
+      },
+    };
+  }
+
   return {
     fns: {
       realCell, utilView, userView, commonView, rankView, freqView, rulesView, maskView,
       checkMasks, checkUnrated, checkCommon, checkRank, checkFreq, checkRules, maskTrace, commonTrace,
-      sim, predict,
+      sim, predict, cgdFit, cgdFirstTwo,
     },
-    generators: { maskCountQ, unratedQ, coratedQ, topkQ, relSupportQ, largestQ, rulesQ, assertQ, examQ },
+    generators: { maskCountQ, unratedQ, coratedQ, topkQ, relSupportQ, largestQ, rulesQ, assertQ, examQ, codeExamQ },
   };
 }

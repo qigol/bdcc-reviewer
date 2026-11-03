@@ -18,6 +18,7 @@ COPY apps ./apps
 COPY packages ./packages
 COPY modules ./modules
 COPY docs ./docs
+COPY scripts ./scripts
 # fail the image build if a built-in module is invalid
 RUN pnpm kodigo validate modules \
  && pnpm --filter @kodigo/web build \
