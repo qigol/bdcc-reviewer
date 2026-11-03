@@ -750,6 +750,9 @@ interface ExamFile {
 - **Computation copied from another module** (no imports in `logic.js`) is copied verbatim, and `examples.yaml`
   runs the copy on that module's dataset and expects that module's numbers.
 - `explain` templates can't be scored; the validator rejects them in an exam.
+- **Later items may show earlier results** (the matrix Problem 1a asks about, the candidates 1b counts), so the runner
+  reveals items one at a time and locks each when the learner moves on. Order the items so a prompt never shows an
+  answer to an item that comes after it.
 
 ---
 

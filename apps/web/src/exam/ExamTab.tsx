@@ -18,12 +18,20 @@ type Phase = 'intro' | 'running' | 'done';
 
 export function ExamTab() {
   const { mod } = useModuleCtx();
+  if (!mod.parsed.exam) return <div className="p-10 text-center text-muted">This module has no mock exam.</div>;
+  return <ExamRunner />;
+}
+
+function ExamRunner() {
+  const { mod } = useModuleCtx();
   const exam = mod.parsed.exam!;
   const [seed, setSeed] = useState(randomSeed);
   const [story, setStory] = useState<Record<string, any> | null>(null);
   const [storyError, setStoryError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [phase, setPhase] = useState<Phase>('intro');
+  // items are revealed and locked in order: later prompts may show earlier results (the matrix, the estimates)
+  const [current, setCurrent] = useState(0);
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(Date.now());
 
@@ -74,7 +82,7 @@ export function ExamTab() {
     return { per, max: per.reduce((a, p) => a + p.max, 0), got: per.reduce((a, p) => a + p.got, 0) };
   }, [items, exam]);
 
-  const newExam = () => { setPhase('intro'); setSeed(randomSeed()); };
+  const newExam = () => { setPhase('intro'); setCurrent(0); setSeed(randomSeed()); };
   const fmtTime = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
   const pts = (x: number) => (Math.round(x * 10) / 10).toString();
 
@@ -90,7 +98,7 @@ export function ExamTab() {
           {exam.timeLimitMin && <span className="chip"><Clock size={12} /> {exam.timeLimitMin} min</span>}
           {phase === 'intro' && <>
             <button className="btn-ghost btn-sm" onClick={() => setSeed(randomSeed())} title="A new dataset"><Dices size={13} /> Different data</button>
-            <button className="btn-primary ml-auto" disabled={!ready} onClick={() => { setStartedAt(Date.now()); setNow(Date.now()); setPhase('running'); }} data-testid="exam-start"><Play size={14} /> Start the exam</button>
+            <button className="btn-primary ml-auto" disabled={!ready} onClick={() => { setCurrent(0); setStartedAt(Date.now()); setNow(Date.now()); setPhase('running'); }} data-testid="exam-start"><Play size={14} /> Start the exam</button>
           </>}
           {phase === 'running' && leftMs !== null && <span className={cn('ml-auto font-mono font-semibold', leftMs < 5 * 60_000 ? 'text-bad' : 'text-ink')}><Clock size={14} className="inline" /> {fmtTime(leftMs)}</span>}
         </div>
@@ -110,8 +118,9 @@ export function ExamTab() {
       )}
 
       {phase !== 'intro' && story && exam.problems.map((p) => {
-        const its = items.map((it, i) => ({ it, i })).filter(({ it }) => it.problemId === p.id);
-        const max = its.reduce((a, { it }) => a + it.points, 0);
+        const its = items.map((it, i) => ({ it, i })).filter(({ it, i }) => it.problemId === p.id && (phase === 'done' || i <= current));
+        if (!its.length) return null;
+        const max = items.filter((it) => it.problemId === p.id).reduce((a, it) => a + it.points, 0);
         return (
           <section key={p.id} className="card mb-4 p-5" data-problem={p.id}>
             <div className="mb-2 flex items-baseline gap-2">
@@ -125,9 +134,13 @@ export function ExamTab() {
                   <div className="mb-1 text-xs text-muted">{pts(it.points)} pts{it.graded && ` · scored ${pts(it.points * it.graded.score)}`}</div>
                   {it.error ? <div className="text-sm text-bad">Couldn't build this item: {it.error}</div>
                     : !it.inst ? <div className="h-24 animate-pulse rounded-lg bg-panel2" />
+                    : phase === 'running' && i < current ? <div className="text-sm text-muted" data-saved={i}>Answer saved. You'll see it with the solution after you submit.</div>
                     : <QuestionView key={`${i}:${seed}`} inst={it.inst} mod={mod} response={it.response}
                         setResponse={(r) => setItems((s) => { const n = s.slice(); n[i] = { ...n[i], response: r }; return n; })}
                         graded={phase === 'done' ? it.graded ?? null : null} reveal={phase === 'done'} practice={false} />}
+                  {phase === 'running' && i === current && i < items.length - 1 && (
+                    <div className="mt-3 flex justify-end"><button className="btn-primary" onClick={() => setCurrent(i + 1)} data-testid="exam-next">Save and continue</button></div>
+                  )}
                 </div>
               ))}
             </div>
@@ -136,8 +149,9 @@ export function ExamTab() {
       })}
 
       {phase === 'running' && (
-        <div className="flex justify-end">
-          <button className="btn-primary" onClick={submit} data-testid="exam-submit"><Flag size={14} /> Submit the exam</button>
+        <div className="flex items-center justify-end gap-3">
+          <span className="text-sm text-muted">Item {current + 1} of {items.length}{current < items.length - 1 && ' · unanswered items score 0'}</span>
+          <button className={current === items.length - 1 ? 'btn-primary' : 'btn'} onClick={submit} data-testid="exam-submit"><Flag size={14} /> Submit the exam</button>
         </div>
       )}
     </div>
