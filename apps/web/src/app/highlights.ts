@@ -14,10 +14,12 @@ export interface Highlight {
 
 export const HIGHLIGHTS: Highlight[] = [
   {
-    id: 'bdcc-notebook-quiz-sim',
-    title: 'Notebook quiz simulation',
-    blurb: 'A simulated run of the BDCC notebook quiz, so you can rehearse it before the real one.',
+    // replaces the 'bdcc-notebook-quiz-sim' teaser; a new id so learners who dismissed the teaser see it's live
+    id: 'bdcc-midterm-mock-exam',
+    title: 'Midterm mock exam',
+    blurb: 'Four midterm-style problems on one dataset (utility matrix, item-based recommendations, frequent tags, strong rules), timed, with new data every attempt.',
     course: 'BDCC',
-    badge: 'Coming soon',
+    to: '/m/pandas-select-rows/exam',
+    badge: 'New',
   },
 ];
