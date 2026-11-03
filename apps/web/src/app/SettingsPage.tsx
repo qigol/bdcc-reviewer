@@ -41,7 +41,7 @@ export function SettingsPage() {
       </div>
       <div className="card mt-3 flex flex-wrap items-center gap-2 p-4">
         <span className="text-sm font-medium">Reset</span>
-        <select className="input" value={resetTarget} onChange={(e) => setResetTarget(e.target.value)}>
+        <select className="input min-w-0 max-w-full" value={resetTarget} onChange={(e) => setResetTarget(e.target.value)}>
           <option value="">everything</option>
           {list.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
         </select>
@@ -86,7 +86,7 @@ function ExamsEditor() {
             <div key={ex.id} className="flex flex-col gap-2 px-4 py-3 text-sm" data-testid="exam-row">
               <div className="flex flex-wrap items-center gap-2">
                 <input className="input min-w-0 flex-1" value={ex.name} aria-label="Exam name" onChange={(e) => update(ex.id, { name: e.target.value })} />
-                <select className="input" value={ex.course} aria-label="Course" onChange={(e) => update(ex.id, { course: e.target.value, moduleIds: undefined, ...(ex.name === `${ex.course} exam` && { name: `${e.target.value} exam` }) })}>
+                <select className="input min-w-0 max-w-full" value={ex.course} aria-label="Course" onChange={(e) => update(ex.id, { course: e.target.value, moduleIds: undefined, ...(ex.name === `${ex.course} exam` && { name: `${e.target.value} exam` }) })}>
                   {!courses.some((g) => g.course === ex.course) && <option value={ex.course}>{ex.course}</option>}
                   {courses.map((g) => <option key={g.course} value={g.course}>{g.course}</option>)}
                 </select>

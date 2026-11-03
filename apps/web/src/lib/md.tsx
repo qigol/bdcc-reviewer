@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, memo, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
@@ -63,16 +63,30 @@ export function TermLink({ id, children }: { id: string; children: ReactNode }) 
   const terms = useContext(GlossaryContext);
   const href = useContext(TermHrefContext);
   const [pinned, setPinned] = useState(false);
+  const tip = useRef<HTMLSpanElement>(null);
+  // the page width is read before the card opens: on phones an overflowing card widens the layout viewport itself
+  const pageW = useRef(0);
+  const toggle = () => { pageW.current = document.documentElement.clientWidth; setPinned(!pinned); };
+  // an opened card near the right edge (phones) is slid left so it stays on screen with an 8px gutter
+  useLayoutEffect(() => {
+    const el = tip.current;
+    if (!el) return;
+    el.style.transform = '';
+    if (!pinned) return;
+    const r = el.getBoundingClientRect();
+    const dx = Math.max(8 - r.left, Math.min(0, (pageW.current || window.innerWidth) - 8 - r.right));
+    if (dx) el.style.transform = `translateX(${dx}px)`;
+  }, [pinned]);
   const t = terms[id];
   if (!t) return <>{children}</>;
   if (href) return <Link to={href(id)} className="term-link" style={{ cursor: 'pointer' }} data-term={id}>{children}</Link>;
   return (
     <span className="group relative inline">
       <span role="button" tabIndex={0} className="term-link" aria-expanded={pinned} data-term={id}
-        onClick={(e) => { e.preventDefault(); setPinned(!pinned); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPinned(!pinned); } if (e.key === 'Escape') setPinned(false); }}
+        onClick={(e) => { e.preventDefault(); toggle(); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } if (e.key === 'Escape') setPinned(false); }}
         onBlur={() => setPinned(false)}>{children}</span>
       {/* display:none while closed: an invisible card near the right edge would still widen the page on phones */}
-      <span role="tooltip" className={cn('pointer-events-none absolute bottom-full left-0 z-40 mb-1.5 w-72 rounded-lg border border-line bg-panel p-2.5 text-left text-xs font-normal leading-snug text-ink shadow-lg', pinned ? 'block' : 'hidden group-hover:block')}>
+      <span ref={tip} role="tooltip" className={cn('pointer-events-none absolute bottom-full left-0 z-40 mb-1.5 w-72 max-w-[calc(100vw-1rem)] rounded-lg border border-line bg-panel p-2.5 text-left text-xs font-normal leading-snug text-ink shadow-lg', pinned ? 'block' : 'hidden group-hover:block')}>
         <span className="block font-semibold">{t.term}{t.aka?.length ? <span className="font-normal text-muted"> ({t.aka.join(', ')})</span> : null}</span>
         <span className="mt-0.5 block">{t.short}</span>
         {t.formula && <span className="mt-1 block" dangerouslySetInnerHTML={{ __html: renderTex(t.formula, false) }} />}

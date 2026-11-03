@@ -45,9 +45,9 @@ export function CheatsheetPage() {
           return (
             <section key={mod.id} className="card break-inside-avoid p-4">
               <h2 className="mb-2 border-b border-line pb-1 text-lg font-semibold" style={{ color: m.color }}>{m.title}</h2>
-              <div className="grid gap-x-6 gap-y-1 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
                 {mod.parsed.mathCode.filter((s) => s.keyFormula).map((s) => (
-                  <div key={s.id} className="break-inside-avoid py-1">
+                  <div key={s.id} className="scrollbar-thin break-inside-avoid overflow-x-auto py-1">
                     <div className="text-xs font-semibold text-muted">{s.title}{s.beyondSlides ? ' (beyond slides)' : ''}</div>
                     <Tex tex={s.keyFormula} className="text-[15px]" />
                   </div>

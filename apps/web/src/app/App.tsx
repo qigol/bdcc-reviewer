@@ -51,8 +51,11 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
   const popup = usePopup();
   const inQuiz = loc.pathname.startsWith('/quiz/run/');
   const quizCourse = inQuiz ? getSession(loc.pathname.split('/')[3] ?? '')?.course : undefined;
-  const item = (to: string, label: React.ReactNode, active?: boolean) => (
-    <NavLink to={to} className={({ isActive }) => cn('flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium transition', isActive || active ? 'bg-panel2 text-ink' : 'text-muted hover:text-ink')}>{label}</NavLink>
+  // page links: on phones they come first and show only their icon, so they stay on screen ahead of the course menus
+  const pageItem = 'relative order-first flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium transition sm:order-none sm:px-2.5';
+  const text = (s: string) => <span className="sr-only sm:not-sr-only">{s}</span>;
+  const item = (to: string, title: string, label: React.ReactNode, active?: boolean) => (
+    <NavLink to={to} title={title} className={({ isActive }) => cn(pageItem, isActive || active ? 'bg-panel2 text-ink' : 'text-muted hover:text-ink')}>{label}</NavLink>
   );
   return (
     <header className="no-print sticky top-0 z-30 border-b border-line bg-panel/85 backdrop-blur">
@@ -62,14 +65,14 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
           {courses.map((g) => (
             <CourseMenu key={g.course} group={g} open={openCourse === g.course} onOpenChange={(o) => setOpenCourse(o ? g.course : null)} />
           ))}
-          {courses.length > 0 && <span className="mx-1 h-5 w-px shrink-0 bg-line" />}
-          {item('/quiz', <><Dumbbell size={15} />Quiz</>, loc.pathname.startsWith('/quiz'))}
-          {item('/plan', <><CalendarDays size={15} />Plan</>)}
-          {item('/review', <><Repeat size={15} />Review{due.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{due.length}</span>}</>)}
+          {courses.length > 0 && <span className="order-[-1] mx-1 h-5 w-px shrink-0 bg-line sm:order-none" />}
+          {item('/quiz', 'Quiz', <><Dumbbell size={15} />{text('Quiz')}</>, loc.pathname.startsWith('/quiz'))}
+          {item('/plan', 'Plan', <><CalendarDays size={15} />{text('Plan')}</>)}
+          {item('/review', 'Review', <><Repeat size={15} />{text('Review')}{due.length > 0 && <span className="absolute right-0 top-0 rounded-full bg-accent px-1 text-[9px] font-bold leading-[14px] text-white sm:static sm:px-1.5 sm:text-[10px] sm:leading-normal">{due.length}</span>}</>)}
           {inQuiz
             // mid-quiz: open the glossary over the quiz instead of leaving it
-            ? <button className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition hover:text-ink" onClick={() => popup.open({ title: 'Glossary', src: quizCourse ? `/glossary?course=${encodeURIComponent(quizCourse)}` : '/glossary', note: 'Your quiz stays open underneath' })}><BookMarked size={15} />Glossary</button>
-            : item('/glossary', <><BookMarked size={15} />Glossary</>)}
+            ? <button className={cn(pageItem, 'text-muted hover:text-ink')} title="Glossary" onClick={() => popup.open({ title: 'Glossary', src: quizCourse ? `/glossary?course=${encodeURIComponent(quizCourse)}` : '/glossary', note: 'Your quiz stays open underneath' })}><BookMarked size={15} />{text('Glossary')}</button>
+            : item('/glossary', 'Glossary', <><BookMarked size={15} />{text('Glossary')}</>)}
         </nav>
         <button className="btn-ghost btn-sm hidden md:inline-flex" onClick={onSearch} title="Search (Ctrl/Cmd-K)"><Search size={15} /><span className="kbd">Ctrl K</span></button>
         <Link to="/cheatsheet" className="btn-ghost btn-sm" title="Cheat sheet"><FileText size={16} /></Link>

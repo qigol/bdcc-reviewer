@@ -74,7 +74,7 @@ export function Dashboard() {
         <p className="text-muted">Q's got your Qs.</p>
       </div>
       <Highlights items={[...(xmas ? [xmas] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
-      <div className="mb-6 grid gap-3 md:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
           <PlayCircle className="shrink-0 text-accent" size={32} />
           <div className="min-w-0 flex-1">
@@ -108,7 +108,7 @@ export function Dashboard() {
         <button className="btn" onClick={() => nav('/quiz')}><Dumbbell size={15} /> Build a quiz</button>
       </div>
       {store.listLoaded && !store.list.length && <div className="card p-6 text-sm text-muted">No modules installed. Add one in <Link to="/admin" className="text-accent underline">Admin</Link>.</div>}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {courses.map((g) => {
           const on = g.course === focused;
           return (
@@ -143,7 +143,7 @@ export function Dashboard() {
               <h3 className="mr-auto flex items-center gap-2 font-semibold"><GraduationCap size={18} className="text-accent" /> {g.course} <span className="text-xs font-normal text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</span></h3>
               <Link to={`/quiz?course=${q(g.course)}`} className="btn btn-sm"><Dumbbell size={14} /> Quiz on {g.course}</Link>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {loading && !loaded.length && g.modules.filter((e) => !errors[e.id]).map((m) => <div key={m.id} className="card h-56 animate-pulse" />)}
               {loaded.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
               {g.modules.filter((e) => errors[e.id]).map((e) => (
@@ -162,7 +162,7 @@ export function Dashboard() {
               {weakCourses.map((c) => <button key={c} className="btn" onClick={() => nav(`/quiz?course=${q(c)}&mode=weak&start=1`)}>Practice {multiCourse ? `${c} ` : ''}weak spots</button>)}
             </div>
           </div>
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {weak.map((w) => {
               const lvl = levelOf(w.score, w.n);
               return (
