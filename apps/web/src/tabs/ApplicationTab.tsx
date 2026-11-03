@@ -161,7 +161,8 @@ function CellView({ cell, index, seedKey, answered, onAnswered }: { cell: Cell; 
             <div className="mt-2 rounded-lg border border-line bg-panel p-3 text-sm" data-outcome={choice}>
               <div className="label mb-1">{revealed ? 'What it does' : 'You ran it. Here is what happened'}</div>
               {outcome.say && <Markdown text={outcome.say} className="mb-2" />}
-              {outcome.stage && <Stage widgets={outcome.stage} />}
+              {/* keyed by the pick: a new pick must not keep the previous outcome's widgets */}
+              {outcome.stage && <Stage key={choice} widgets={outcome.stage} />}
               {!revealed && <div className="mt-2 flex items-center justify-between gap-2"><span className="text-muted">Pick another option.</span><button className="btn" onClick={finish}>Show answer</button></div>}
             </div>
           )}
