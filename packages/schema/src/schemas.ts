@@ -318,6 +318,32 @@ export const ApplicationFile = z
   })
   .strict();
 
+// ------------------------------------------------------------ exam (optional)
+/** A mock exam: one story, one generated dataset per attempt, problems in a fixed order (guide §5.11). */
+export const ExamFile = z
+  .object({
+    title: z.string(),
+    /** the story; {=…} uses the vars of the `story` generator */
+    intro: Markdown,
+    /** generator whose vars the intro and specs interpolate; every scored item's generator draws the same data */
+    story: z.string(),
+    timeLimitMin: z.number().int().positive().optional(),
+    problems: z
+      .array(
+        z
+          .object({
+            id: Id,
+            title: z.string(),
+            /** the problem's spec, as an exam would word it; {=…} uses the story vars */
+            spec: Markdown,
+            items: z.array(z.object({ template: Id, points: z.number().positive() }).strict()).min(1),
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+
 // ------------------------------------------------------------ quiz
 export const NumericAnswer = z
   .object({
@@ -499,6 +525,7 @@ export type Section = z.infer<typeof Section>;
 export type MathCodeFile = z.infer<typeof MathCodeFile>;
 export type Cell = z.infer<typeof Cell>;
 export type ApplicationFile = z.infer<typeof ApplicationFile>;
+export type ExamFile = z.infer<typeof ExamFile>;
 export type NumericAnswer = z.infer<typeof NumericAnswer>;
 export type Misconception = z.infer<typeof Misconception>;
 export type Template = z.infer<typeof Template>;
@@ -552,5 +579,5 @@ export const REQUIRED_FILES = [
   'application.yaml',
   'quiz.yaml',
 ] as const;
-export const OPTIONAL_FILES = ['WIDGET_REQUESTS.md', 'ANIMATIONS.md'] as const;
+export const OPTIONAL_FILES = ['WIDGET_REQUESTS.md', 'ANIMATIONS.md', 'exam.yaml'] as const;
 export const OPTIONAL_DIRS = ['datasets/', 'assets/', 'sources/'] as const;

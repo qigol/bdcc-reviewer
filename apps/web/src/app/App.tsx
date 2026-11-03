@@ -9,6 +9,7 @@ import { IntuitionTab } from '../tabs/IntuitionTab';
 import { PathTab } from '../tabs/PathTab';
 import { MathCodeTab } from '../tabs/MathCodeTab';
 import { ApplicationTab } from '../tabs/ApplicationTab';
+import { ExamTab } from '../exam/ExamTab';
 import { Dashboard } from './Dashboard';
 import { GlossaryPage } from './GlossaryPage';
 import { CheatsheetPage } from './CheatsheetPage';
@@ -102,6 +103,7 @@ function Shell() {
       <Route path="math-code" element={<MathCodeTab />} />
       <Route path="math-code/:sectionId" element={<MathCodeTab />} />
       <Route path="application" element={<ApplicationTab />} />
+      <Route path="exam" element={<ExamTab />} />
     </>
   );
   return (

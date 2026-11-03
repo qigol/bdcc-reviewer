@@ -1,6 +1,6 @@
 /** JSON Schema export of the module format (handy for LLMs and editors). */
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { Manifest, Dataset, ExamplesFile, GlossaryFile, IntuitionFile, MathCodeFile, ApplicationFile, QuizFile } from './schemas';
+import { Manifest, Dataset, ExamplesFile, GlossaryFile, IntuitionFile, MathCodeFile, ApplicationFile, QuizFile, ExamFile } from './schemas';
 
 export function moduleJsonSchemas(): Record<string, unknown> {
   const entries: [string, any][] = [
@@ -12,6 +12,7 @@ export function moduleJsonSchemas(): Record<string, unknown> {
     ['math-code.yaml', MathCodeFile],
     ['application.yaml', ApplicationFile],
     ['quiz.yaml', QuizFile],
+    ['exam.yaml (optional)', ExamFile],
   ];
   return Object.fromEntries(entries.map(([k, s]) => [k, zodToJsonSchema(s, { $refStrategy: 'none' })]));
 }

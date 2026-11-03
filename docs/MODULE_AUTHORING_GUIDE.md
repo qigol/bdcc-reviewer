@@ -720,6 +720,37 @@ interface Variant { prompt?: Markdown; explanation?: Markdown; options: Markdown
   textbook edge case that is arguably right, and check another module's data before writing a "wrong" claim about it.
 - **match:** the right-hand labels may repeat (two "Value-added" cards are interchangeable when graded), but avoid labels that give the pairing away by sharing words with the left side.
 
+### 5.11 `exam.yaml` (optional: a mock exam)
+
+A module may add a **mock exam**: one story told in a fixed order, not questions drawn at random. It shows as a
+"Mock exam" tab. Each attempt gets one seed; every problem's questions are built from that seed, so all problems
+use the same generated data, and answers stay hidden until the learner submits.
+
+```ts
+interface ExamFile {
+  title: string;
+  intro: Markdown;                 // the story; {=…} uses the vars of the `story` generator
+  story: string;                   // generator key; must return a `storyKey` var (an id of the drawn data)
+  timeLimitMin?: number;
+  problems: { id: Id; title: string;
+              spec: Markdown;      // the problem as an exam words it; {=…} uses the story vars
+              items: { template: Id; points: number }[] }[];   // quiz.yaml templates, scored in order
+}
+```
+- **One seed, one dataset.** Every scored template's generator calls the same data draw first (`examData(rng)`),
+  before any other use of `rng`, and returns the same `storyKey`. The simplest set-up is one generator for the story
+  and every exam template (`examQ` in `pandas-select-rows`). The validator checks, for 25 seeds, that every item's
+  `storyKey` equals the story's.
+- **Put the data in each item's prompt**, not only in the intro: the templates also appear in the module's normal
+  quiz pool, where they must stand alone.
+- **Exam items are usually `case` templates** at difficulty 3. Case parts cannot take generator `options`; ask for a
+  number (an id, a count, a lift) or use static options whose right answer the draw guarantees.
+- **Skills:** exam templates use the module's own skills, like any template. Score what the module teaches; don't
+  score steps another module owns.
+- **Computation copied from another module** (no imports in `logic.js`) is copied verbatim, and `examples.yaml`
+  runs the copy on that module's dataset and expects that module's numbers.
+- `explain` templates can't be scored; the validator rejects them in an exam.
+
 ---
 
 ## 6. Worked mini-example (excerpts from the reference module `fim`)

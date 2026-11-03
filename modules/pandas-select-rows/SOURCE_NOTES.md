@@ -55,3 +55,15 @@
 - max-filter: == max vs nlargest(1)
 - sort-tiebreak: two-key sort, head(k)
 - read-asserts: ACTUAL / DESIRED
+
+## Mock exam (exam.yaml, 1.1.0)
+- Four problems in the midterm's shape (1a utility matrix, 1b item-based recommendations, 2a largest frequent tag
+  sets, 2b strong rules), on data drawn by `examData(rng)`: 6 users, 6 recipes, 18 ratings, 5 tags. Loading is not
+  scored (that is pandas-read-data); only the selections are, with this module's skills.
+- Item-based CF: `means`, `centered`, `vector`, `sim` and `predict` copied verbatim from modules/nb-cf/logic.js (trace
+  output removed). `predict` gained `minCommon` (default 0 = nb-cf) for "neighbours with at least m common raters".
+  Examples ib-* run the copy on nb-cf's hp4x7 and expect nb-cf's slide values (−1.7, 0.7, 0.3, 0 …).
+- Frequent tag sets by brute force over the 5 tags; rules from frequent sets of size ≥ 2 with a one-tag consequent.
+- Draws are rejected until every question discriminates: the cut changes with > vs >=, the common-rater rule removes a
+  neighbour, the user's best rated recipe outranks every estimate (so the assert question's slip changes item 0),
+  and at least one but not every rule passes confidence 0.8.

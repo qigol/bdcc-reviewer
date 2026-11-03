@@ -37,6 +37,7 @@ export function ModulePage({ preview = false }: { preview?: boolean }) {
     { to: 'intuition', label: 'Intuition' },
     { to: 'math-code', label: workbenchTabLabel(m) },
     { to: 'application', label: 'Application' },
+    ...(mod.parsed.exam ? [{ to: 'exam', label: 'Mock exam' }] : []),
   ];
   const errors = mod.issues.filter((i) => i.level === 'error');
   return (

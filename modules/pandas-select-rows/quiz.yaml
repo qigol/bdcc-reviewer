@@ -673,3 +673,171 @@ templates:
       - 'Combines with `&`/`|` and parentheses as the spec words it'
       - 'Uses ACTUAL and DESIRED to narrow down the cause'
     explanation: 'Debug selections one condition at a time.'
+
+  # =============================================================== mock exam (exam.yaml): one seed, one dataset
+  - id: exam-1a
+    type: case
+    skills: [bool-mask, combine-masks]
+    difficulty: 3
+    tags: [application]
+    generator: examQ
+    prompt: |
+      `interactions` ({=nRows} ratings):
+
+      {=interactionsMd}
+
+      `create_utility_matrix()` keeps recipes with **at least {=nMin}** ratings, then pivots users × recipes.
+    parts:
+      - type: numeric
+        prompt: How many recipe columns does the matrix have?
+        answer: { var: nKeep, tol: 0 }
+        hints: ['Count each recipe''s ratings first.', '"At least" keeps the boundary: `>=`.']
+        explanation: |
+          Ratings per recipe:
+
+          {=countsMd}
+
+          Recipes {=keep} have at least {=nMin}.
+      - type: numeric
+        prompt: How many cells of the matrix are NaN?
+        answer: { var: nan, tol: 0 }
+        hints: ['Rows × columns, minus the cells that hold a rating.']
+        explanation: '{=nUsers} × {=nKeep} = {=cells} cells; {=filled} hold a rating, so {=nan} are NaN.'
+    hints:
+      - 'Cut first, then pivot.'
+    explanation: |
+      `counts = interactions.groupby("recipe_id")["rating"].count()`, keep `counts >= {=nMin}` ({=keep}), filter with
+      `isin`, pivot. The matrix:
+
+      {=utilMd}
+
+  - id: exam-1b-select
+    type: case
+    skills: [missing-mask, pair-mask]
+    difficulty: 3
+    tags: [application]
+    generator: examQ
+    prompt: |
+      The utility matrix from Problem 1a:
+
+      {=utilMd}
+
+      `item_recommend({=user})` first selects the candidates, then the neighbours of each candidate.
+    parts:
+      - type: numeric
+        prompt: 'How many candidate recipes does user {=user} have?'
+        answer: { var: nCand, tol: 0 }
+        hints: ['Candidates are the NaN cells of the user''s row.']
+        explanation: 'User {=user} has not rated {=cand}.'
+      - type: numeric
+        prompt: 'For candidate {=target}, how many of the recipes user {=user} rated share **at least {=m}** commonly rating users with {=target}?'
+        answer: { var: nbOk, tol: 0 }
+        hints: ['Go through the recipes the user rated ({=rated}).', 'For each, count users with a rating in both columns.']
+        explanation: 'Of the {=nbAll} recipes user {=user} rated, {=nbOk} share at least {=m} raters with {=target}; only those may be neighbours.'
+    hints:
+      - 'Two selections: `row.isna()`, then `(util[a].notna() & util[b].notna()).sum() >= m`.'
+    explanation: 'Candidates {=cand}; neighbours need {=m} common raters, which leaves {=nbOk} of the {=nbAll} rated recipes for {=target}.'
+
+  - id: exam-1b-rank
+    type: case
+    skills: [sort-tiebreak, read-asserts, missing-mask]
+    difficulty: 3
+    tags: [application]
+    generator: examQ
+    prompt: |
+      Item-based estimates for user {=user}'s candidates (up to {=k} neighbours, at least {=m} common raters, class
+      conventions):
+
+      {=estMd}
+    parts:
+      - type: numeric
+        prompt: 'Which recipe id does `item_recommend({=user})` return first?'
+        answer: { var: first, tol: 0 }
+        hints: ['Highest estimate first; ties by smaller id.']
+        explanation: 'Decreasing estimate, then increasing id: {=top2}.'
+      - type: mcq
+        prompt: |
+          A classmate's version fails the test:
+
+          ```text
+          Items are not equal:
+          item=0
+
+           ACTUAL: {=assertActual}
+           DESIRED: {=assertDesired}
+          ```
+
+          Look up recipe {=assertActual} in user {=user}'s row of the matrix. What is the most likely cause?
+        options:
+          - 'It ranks recipes the user already rated: keep only `row.isna()` candidates'
+          - 'It sorts the estimates in increasing order'
+          - 'Its neighbour rule uses `>` instead of `>=`'
+          - 'The test expects the wrong user'
+        answer: 0
+        optionFeedback:
+          '1': 'Sorting the candidates either way never puts a rated recipe first.'
+          '2': 'A neighbour rule changes estimates, not which recipes are candidates.'
+          '3': 'Suspect your code first: ACTUAL is a recipe this user rated.'
+        explanation: 'Recipe {=assertActual} is one user {=user} rated (its real rating beats every estimate), so the version ranked rated recipes too.'
+    hints:
+      - 'Rank only the candidates, highest estimate first.'
+    explanation: 'The answer starts {=top2}. A rated recipe in ACTUAL points at the candidate mask.'
+
+  - id: exam-2a
+    type: case
+    skills: [relative-threshold, max-filter]
+    difficulty: 3
+    tags: [application]
+    generator: examQ
+    prompt: |
+      `recipes` ({=n} recipes):
+
+      {=tagsMd}
+
+      A tag set is frequent if it is found in **at least 50%** of the recipes.
+    parts:
+      - type: numeric
+        prompt: 'What is the minimum support as a count?'
+        answer: { var: minsup, tol: 0 }
+        hints: ['50% of {=n} recipes.']
+        explanation: '0.5 × {=n} = {=minsup}.'
+      - type: numeric
+        prompt: 'How many tag sets (of any size) are frequent?'
+        answer: { var: nFreq, tol: 0 }
+        hints: ['Count single tags first, then pairs, then triples.', 'A set found in exactly {=minsup} recipes is frequent.']
+        explanation: '{=nFreq} tag sets reach {=minsup}; with `>` only {=nFreqGt} would.'
+      - type: numeric
+        prompt: 'How many sets does `largest_baskets()` return?'
+        answer: { var: nLargest, tol: 0 }
+        hints: ['Find the largest frequent size, then count every set of that size.']
+        explanation: 'The largest frequent size is {=maxSize}: {=largestTxt}.'
+    hints:
+      - 'Turn 50% into a count, and keep every tie at the largest size.'
+    explanation: 'minsup = {=minsup}; {=nFreq} frequent sets; the largest have size {=maxSize}: {=largestTxt}.'
+
+  - id: exam-2b
+    type: case
+    skills: [combine-masks, sort-tiebreak]
+    difficulty: 3
+    tags: [application]
+    generator: examQ
+    prompt: |
+      `recipes` ({=n} recipes):
+
+      {=tagsMd}
+
+      Candidate rules come from the frequent tag sets (support at least 50%), one tag as the consequent.
+    parts:
+      - type: numeric
+        prompt: 'Of the {=nRules} candidate rules, how many also have confidence of at least 0.8?'
+        answer: { var: nStrong, tol: 0 }
+        hints: ['confidence(A → b) = support(A ∪ {b}) / support(A).']
+        explanation: '{=nStrong} of {=nRules} rules reach 0.8.'
+      - type: numeric
+        prompt: 'What is the lift of the first rule `strong_rules()` returns? Give two decimals.'
+        answer: { var: topLift, tol: 0.01 }
+        hints: ['lift = confidence / (share of recipes with the consequent).', 'Only rules with confidence ≥ 0.8 count.']
+        explanation: 'The first strong rule is {=topRule}, lift {=topLift}.'
+    hints:
+      - 'Both thresholds must hold; then sort by lift, descending.'
+    explanation: '{=nStrong} strong rules; the first is {=topRule} with lift {=topLift}.'

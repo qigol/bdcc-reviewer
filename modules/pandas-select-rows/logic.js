@@ -755,11 +755,206 @@ export default function register(sdk) {
     return { vars: { code: c.codeMd, out: c.out, actual: c.actual, desired: c.desired }, options, answer: options.indexOf(pick.right) };
   }
 
+  // ==========================================================================================
+  // MOCK EXAM (exam.yaml). One seed → one dataset: examQ draws everything with examData(rng) first.
+  // Item-based CF follows nb-cf exactly: the helpers below are copied VERBATIM from modules/nb-cf/logic.js
+  // (means, centered, vector, sim without its trace, predict without its trace); examples ib-* check them against
+  // nb-cf's slide numbers on its hp4x7 dataset.
+  // ==========================================================================================
+  const EPS = 1e-12;
+  function means(M) {
+    return M.values.map((row) => {
+      const o = row.filter((x) => x !== null && x !== undefined);
+      return o.length ? o.reduce((a, b) => a + b, 0) / o.length : null;
+    });
+  }
+  function centered(M) {
+    const mu = means(M);
+    return M.values.map((row, i) => row.map((x) => (x === null || x === undefined ? null : x - mu[i])));
+  }
+  function vector(C, M, mode, label) {
+    if (mode === 'item') {
+      const j = M.cols.indexOf(label);
+      if (j < 0) throw new Error(`unknown item ${label}`);
+      return C.map((row) => row[j]);
+    }
+    const i = M.rows.indexOf(label);
+    if (i < 0) throw new Error(`unknown user ${label}`);
+    return C[i];
+  }
+  // nb-cf sim: cosine of user-mean-centered vectors over co-rated entries (0 for no overlap or a zero norm)
+  function sim({ matrix, a, b, mode = 'user' }) {
+    const C = centered(matrix);
+    const va = vector(C, matrix, mode, a);
+    const vb = vector(C, matrix, mode, b);
+    const idx = [];
+    for (let k = 0; k < va.length; k++) if (va[k] !== null && vb[k] !== null) idx.push(k);
+    const xa = idx.map((k) => va[k]);
+    const xb = idx.map((k) => vb[k]);
+    const dot = xa.reduce((s, x, k) => s + x * xb[k], 0);
+    const na = Math.sqrt(xa.reduce((s, x) => s + x * x, 0));
+    const nb = Math.sqrt(xb.reduce((s, x) => s + x * x, 0));
+    const value = na < EPS || nb < EPS ? 0 : dot / (na * nb);
+    return { sim: value, overlap: idx.length };
+  }
+  // nb-cf predict (top-k by similarity, then only sim > 0; centered prediction + the user's mean).
+  // minCommon (exam only, default 0 = nb-cf): a neighbour also needs at least minCommon common raters.
+  function predict({ matrix, user, item, k, mode = 'user', minCommon = 0 }) {
+    const C = centered(matrix);
+    const mu = means(matrix);
+    const ui = matrix.rows.indexOf(user);
+    const ij = matrix.cols.indexOf(item);
+    if (ui < 0 || ij < 0) throw new Error('unknown user or item');
+    const cands = [];
+    if (mode === 'user') {
+      matrix.rows.forEach((peer, p) => {
+        if (p === ui || C[p][ij] === null) return;
+        const s = sim({ matrix, a: user, b: peer, mode: 'user' });
+        if (s.overlap >= minCommon) cands.push({ label: peer, sim: s.sim, dev: C[p][ij], order: p });
+      });
+    } else {
+      matrix.cols.forEach((other, q) => {
+        if (q === ij || C[ui][q] === null) return;
+        const s = sim({ matrix, a: item, b: other, mode: 'item' });
+        if (s.overlap >= minCommon) cands.push({ label: other, sim: s.sim, dev: C[ui][q], order: q });
+      });
+    }
+    cands.sort((x, y) => y.sim - x.sim || x.order - y.order);
+    const top = cands.slice(0, k);
+    const used = top.filter((c) => c.sim > EPS);
+    const num = used.reduce((s, c) => s + c.sim * c.dev, 0);
+    const den = used.reduce((s, c) => s + c.sim, 0);
+    const blank = used.length === 0;
+    const value = blank ? null : num / den;
+    const rating = blank ? null : value + mu[ui];
+    return { centered: value, mean: mu[ui], rating, blank, used: used.map((c) => c.label), top: top.map((c) => c.label), nCands: cands.length };
+  }
+
+  const EX_USERS = [2101, 2214, 2378, 2490, 2533, 2647, 2712];
+  const EX_RECIPES = [310, 452, 587, 603, 741, 896];
+  const EX_TAGS = ['dinner', 'easy', 'quick', 'spicy', 'vegetarian'];
+  const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16); };
+  const subsets = (xs) => { const out = []; for (let m = 1; m < 1 << xs.length; m++) out.push(xs.filter((_, i) => m & (1 << i))); return out; };
+  const r2 = (x) => Math.round(x * 100) / 100;
+  // one recipe ranking: estimate descending, then recipe id ascending
+  const rankEst = (est) => est.slice().sort((a, b) => b.est - a.est || a.id - b.id).map((e) => e.id);
+
+  // The whole exam's data from one rng. Redraws until every problem is well posed.
+  function examData(rng) {
+    for (let tries = 0; tries < 8000; tries++) {
+      const users = rng.sample(EX_USERS, 6).sort((a, b) => a - b);
+      const items = EX_RECIPES.slice();
+      const rows = drawRows(rng, 18, users, items);
+      const nMin = rng.pick([3, 4]);
+      const counts = countsOf(rows);
+      const keep = counts.filter((c) => c[1] >= nMin).map((c) => c[0]);
+      const keepGt = counts.filter((c) => c[1] > nMin).map((c) => c[0]);
+      if (keep.length < 3 || keep.length > 5 || keepGt.length === keep.length) continue;
+      const kept = rows.filter((r) => keep.includes(r[1]));
+      const p = pivotOf(kept);
+      const allUsers = uniqSorted(rows.map((r) => r[0])).length;
+      const M = { rows: p.users, cols: p.items, values: p.values };
+      const k = 2, m = rng.pick([2, 3]);
+      // a user with 2+ candidates and 2+ rated kept recipes, whose candidates get distinct non-blank estimates
+      let pick = null;
+      for (const u of rng.shuffle(p.users)) {
+        const row = rowOf(p, u);
+        const cand = p.items.filter((_, j) => row[j] === null), rated = p.items.filter((_, j) => row[j] !== null);
+        if (cand.length < 2 || rated.length < 2) continue;
+        const est = [];
+        for (const it of cand) { const pr = predict({ matrix: M, user: u, item: it, k, mode: 'item', minCommon: m }); if (!pr.blank) est.push({ id: it, est: pr.rating, used: pr.used, nCands: pr.nCands }); }
+        if (est.length < 2 || new Set(est.map((e) => r2(e.est))).size !== est.length) continue;
+        // a candidate where the common-rater rule removes at least one of the user's rated recipes
+        const target = est.find((e) => { const ok = rated.filter((o) => sim({ matrix: M, a: e.id, b: o, mode: 'item' }).overlap >= m).length; return ok >= 1 && ok < rated.length; });
+        if (!target) continue;
+        // the assert question shows a version that forgot to drop rated recipes: it must change the first item
+        const bestRated = Math.max(...rated.map((o) => row[p.items.indexOf(o)]));
+        if (!(bestRated > Math.max(...est.map((e) => e.est)) + 1e-9)) continue;
+        pick = { u, cand, rated, est, target };
+        break;
+      }
+      if (!pick) continue;
+      // tags per recipe for problems 2a / 2b
+      const tags = EX_RECIPES.map(() => rng.sample(EX_TAGS, rng.int(2, 4)).sort());
+      const n = tags.length, minsup = n * 0.5;
+      const supOf = (S) => tags.filter((t) => S.every((x) => t.includes(x))).length;
+      const freq = subsets(EX_TAGS).map((S) => ({ S, sup: supOf(S) })).filter((f) => f.sup >= minsup);
+      const freqGt = subsets(EX_TAGS).filter((S) => supOf(S) > minsup).length;
+      if (!freq.length) continue;
+      const maxSize = Math.max(...freq.map((f) => f.S.length));
+      const largest = freq.filter((f) => f.S.length === maxSize).sort((a, b) => b.sup - a.sup || lt(a.S.join(','), b.S.join(',')));
+      if (maxSize < 2) continue;
+      const rules = [];
+      for (const f of freq) if (f.S.length >= 2) for (const b of f.S) {
+        const A = f.S.filter((x) => x !== b);
+        const conf = f.sup / supOf(A);
+        rules.push({ A, b, sup: f.sup / n, conf, lift: conf / (supOf([b]) / n) });
+      }
+      const strong = rules.filter((r) => r.conf >= 0.8).sort((x, y) => y.lift - x.lift || lt(x.A.join(','), y.A.join(',')));
+      const nOr = rules.length; // every candidate rule already passes support (built from frequent itemsets)
+      if (strong.length < 1 || strong.length === rules.length) continue;
+      return { rows, users, items, nMin, counts, keep, keepGt, allUsers, p, M, k, m, ...pick, tags, n, minsup, freq, freqGt, maxSize, largest, rules, strong, nOr };
+    }
+    throw new Error('examData: no draw');
+  }
+  function countsOf(rows) {
+    const c = {};
+    for (const r of rows) c[r[1]] = (c[r[1]] || 0) + 1;
+    return uniqSorted(rows.map((r) => r[1])).map((id) => [id, c[id]]);
+  }
+
+  // One generator for the whole exam (story vars + every problem's answers). storyKey identifies the dataset.
+  function examQ({ rng }) {
+    const d = examData(rng);
+    const rank = rankEst(d.est);
+    const rankAsc = d.est.slice().sort((a, b) => a.est - b.est || a.id - b.id).map((e) => e.id);
+    const withRated = rankEst(d.est.concat(d.rated.map((id) => ({ id, est: rowOf(d.p, d.u)[d.p.items.indexOf(id)] }))));
+    const target = d.target;
+    const nbAll = d.rated.length; // neighbours before the common-rater rule
+    const nbOk = d.rated.filter((o) => sim({ matrix: d.M, a: target.id, b: o, mode: 'item' }).overlap >= d.m).length;
+    const top = d.strong[0];
+    const ruleTxt = (r) => '{' + r.A.join(', ') + '} → ' + r.b;
+    const fmtList = (xs) => '[' + xs.join(', ') + ']';
+    const top2 = rank.slice(0, 2);
+    const largestTxt = d.largest.map((f) => '[' + f.S.map((x) => "'" + x + "'").join(', ') + ']').join(', ');
+    return {
+      vars: {
+        storyKey: fnv(JSON.stringify(d.rows) + JSON.stringify(d.tags)),
+        interactionsMd: mdTable(['', 'user_id', 'recipe_id', 'rating'], d.rows.map((r, i) => [String(i), String(r[0]), String(r[1]), String(r[2])])),
+        tagsMd: mdTable(['recipe_id', 'tags'], EX_RECIPES.map((id, i) => [String(id), '`' + JSON.stringify(d.tags[i]).replace(/"/g, "'") + '`'])),
+        countsMd: mdTable(['recipe_id', 'ratings'], d.counts.map((c) => [String(c[0]), String(c[1])])),
+        utilMd: matMd(d.p),
+        nRows: d.rows.length, nMin: d.nMin, nKeep: d.keep.length, nKeepGt: d.keepGt.length, keep: d.keep.join(', '),
+        nUsers: d.p.users.length, allUsers: d.allUsers, cells: d.p.users.length * d.p.items.length, nan: d.p.users.length * d.p.items.length - d.rows.filter((r) => d.keep.includes(r[1])).length,
+        user: d.u, k: d.k, m: d.m, nCand: d.cand.length, nRated: d.rated.length, cand: d.cand.join(', '), rated: d.rated.join(', '),
+        target: target.id, nbAll, nbOk, estMd: mdTable(['recipe_id', 'estimate'], d.est.map((e) => [String(e.id), e.est.toFixed(3)])),
+        top2: fmtList(top2), first: rank[0], firstAsc: rankAsc[0], firstRated: withRated[0],
+        n: d.n, minsup: d.minsup, nFreq: d.freq.length, nFreqGt: d.freqGt, maxSize: d.maxSize, nLargest: d.largest.length, largestTxt,
+        nRules: d.rules.length, nStrong: d.strong.length, topRule: ruleTxt(top), topLift: r2(top.lift), topConf: r2(top.conf),
+        assertActual: withRated[0], assertDesired: rank[0],
+        filled: d.rows.filter((r) => d.keep.includes(r[1])).length,
+      },
+      misconceptions: [
+        { var: 'nKeepGt', for: 'nKeep', feedback: '"At least {=nMin}" keeps recipes with exactly {=nMin} ratings: `>=`.' },
+        { var: 'cells', for: 'nan', feedback: 'That is every cell. Subtract the cells that hold a rating.' },
+        { var: 'filled', for: 'nan', feedback: 'Those are the filled cells. NaN cells are the empty ones.' },
+        { var: 'nRated', for: 'nCand', feedback: 'Those are the recipes the user rated. Candidates are the NaN cells.' },
+        { var: 'nbAll', for: 'nbOk', feedback: 'That counts every recipe the user rated. A neighbour also needs at least {=m} common raters with {=target}.' },
+        { var: 'nFreqGt', for: 'nFreq', feedback: '"At least 50%" keeps itemsets in exactly {=minsup} recipes: `>=`.' },
+        { var: 'nRules', for: 'nStrong', feedback: 'That is every candidate rule. Keep only confidence ≥ 0.8.' },
+        { var: 'firstAsc', for: 'first', feedback: 'That is the lowest estimate. The spec sorts by decreasing estimated rating.' },
+        { var: 'firstRated', for: 'first', feedback: 'User {=user} already rated that recipe. Only candidates (NaN cells) are recommended.' },
+        { var: 'topConf', for: 'topLift', feedback: "That is the rule's confidence. Lift divides it by the share of recipes that have the consequent." },
+      ],
+    };
+  }
+
   return {
     fns: {
       realCell, utilView, userView, commonView, rankView, freqView, rulesView, maskView,
       checkMasks, checkUnrated, checkCommon, checkRank, checkFreq, checkRules, maskTrace, commonTrace,
+      sim, predict,
     },
-    generators: { maskCountQ, unratedQ, coratedQ, topkQ, relSupportQ, largestQ, rulesQ, assertQ },
+    generators: { maskCountQ, unratedQ, coratedQ, topkQ, relSupportQ, largestQ, rulesQ, assertQ, examQ },
   };
 }
