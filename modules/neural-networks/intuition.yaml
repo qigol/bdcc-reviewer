@@ -1,0 +1,941 @@
+scenes:
+  # ------------------------------------------------------------------ 1
+  - id: one-neuron
+    title: One artificial neuron
+    goal: What does the smallest building block of these models actually compute?
+    skills: [neuron]
+    data: [neuron3]
+    state: { fstep: 0 }
+    derive:
+      - { fn: neuron, in: { x: '@neuron3.x', w: '@neuron3.w', b: '@neuron3.b' }, out: r }
+    stage:
+      - id: img
+        widget: Image
+        props: { src: assets/neuron.svg, alt: 'One neuron: inputs 2, 1 and 3 with weights 0.5, −1 and 0.25 and bias 0.1 feed a sum z, which an activation g turns into the output a' }
+      - id: f
+        widget: Formula
+        region: bottom
+        props:
+          size: lg
+          steps:
+            - 'z = \anchor{w}{w_1}x_1 + \anchor{w}{w_2}x_2 + \anchor{w}{w_3}x_3 + \anchor{b}{b}'
+            - 'z = \anchor{w}{(0.5)}(2) + \anchor{w}{(-1)}(1) + \anchor{w}{(0.25)}(3) + \anchor{b}{0.1}'
+            - 'z = 1 - 1 + 0.75 + 0.1 = 0.85, \qquad a = \text{ReLU}(0.85) = 0.85'
+          step: '@fstep'
+      - id: out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'sum z', value: '@r.z' }
+            - { label: 'ReLU(z)', value: '@r.relu', tone: good }
+            - { label: 'S-shaped bend (soon)', value: '@r.sigmoid', format: 2 }
+    beats:
+      - say: |
+          A **model** is a recipe with adjustable numbers that turns what we know about a case into a guess. Each fact it
+          reads, like a temperature or a pixel, is a **feature**. What it gives back is its **prediction**.
+        define: [model, feature, prediction]
+      - say: |
+          A **neural network** is a model built from many tiny calculators called **artificial neurons**. On the left are
+          three features flowing into one neuron.
+        define: [neural-network, neuron]
+      - say: |
+          Each arrow carries a **weight**: how strongly that input pushes the neuron, and in which direction. A negative
+          weight pulls down. The **bias** $b$ is one extra number added on top.
+        define: [weight, bias]
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:w', tone: accent } }
+      - say: |
+          The neuron multiplies each input by its weight, adds the three products, then adds the bias. That total, $z$, is
+          the **weighted sum**.
+        define: [weighted-sum]
+        set: { fstep: 1 }
+        gate:
+          type: predict
+          question: What is $z$ for this neuron?
+          answer: { value: 0.85, tol: 0.01 }
+          explain: '$(0.5)(2) + (-1)(1) + (0.25)(3) + 0.1 = 1 - 1 + 0.75 + 0.1 = 0.85$.'
+      - say: |
+          The last step bends $z$ with an **activation function** $g$. The usual one is **ReLU**: keep a positive $z$ as
+          it is, turn a negative $z$ into 0. Here $z$ is positive, so the output is $a = 0.85$.
+        define: [activation-function, relu]
+        set: { fstep: 2 }
+        gate:
+          type: predict
+          question: If the weights had made $z = -0.85$ instead, what would ReLU output?
+          options: ['0', '−0.85', '0.85', '1']
+          answer: 0
+          optionFeedback:
+            '1': That passes $z$ straight through. ReLU replaces any negative sum with 0.
+            '2': ReLU does not flip the sign. A negative sum becomes 0.
+            '3': Only a step activation jumps to 1. ReLU outputs $\max(0, z)$.
+          explain: '$\text{ReLU}(-0.85) = \max(0, -0.85) = 0$.'
+      - say: |
+          Other bends exist. An S-shaped one, used for probabilities, would give about 0.70 for this neuron; you will meet
+          it in a later scene. Now try one with new numbers.
+        show: [out]
+        gate:
+          type: practice
+          template: neuron-z
+    takeaway: A neuron multiplies each input by a weight, adds them with a bias into z, then bends z with an activation.
+
+  # ------------------------------------------------------------------ 2
+  - id: lines-and-logic
+    title: One neuron draws one straight line
+    goal: Can a single neuron learn any yes/no rule on two inputs?
+    skills: [linear-limits]
+    state: { mpUp: 0, showAnd: false, showOr: false, gate: and, b: 0.5, w1: 1, w2: 1 }
+    derive:
+      - { fn: mpTable, in: { upTo: '@mpUp', showAnd: '@showAnd', showOr: '@showOr' }, out: mp }
+      - { fn: lineFit, in: { w1: '@w1', w2: '@w2', b: '@b', gate: '@gate' }, out: lf }
+    stage:
+      - id: tt
+        widget: Matrix
+        props: { data: '@mp', format: int, rowHeader: input, title: 'Two 0/1 inputs and their sum' }
+      - id: plot
+        widget: Chart
+        hidden: true
+        props: { kind: scatter, series: '@lf.series', xLabel: x1, yLabel: x2, title: 'The four inputs as corners of a square; the dots of the line show where the sum is 0' }
+      - id: bs
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'bias $b$', min: -2.5, max: 1, step: 0.25, format: 2 }
+        bind: { value: b }
+      - id: w1s
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'weight $w_1$', min: -2, max: 2, step: 0.25, format: 2 }
+        bind: { value: w1 }
+      - id: w2s
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'weight $w_2$', min: -2, max: 2, step: 0.25, format: 2 }
+        bind: { value: w2 }
+      - id: score
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'rule', value: '{=lf.gate}' }
+            - { label: 'points right (of 4)', value: '@lf.correct', tone: accent }
+    beats:
+      - say: |
+          In 1943 McCulloch and Pitts used an even simpler neuron, a **threshold unit**. It adds its 0/1 inputs and
+          outputs 1 only if the sum reaches a cutoff θ ("theta"); otherwise it outputs 0. The table lists the four
+          possible inputs and their sums.
+        define: [threshold-unit]
+        set: { mpUp: 4 }
+      - say: Set the cutoff at θ = 2.
+        gate:
+          type: predict
+          question: With θ = 2, for which inputs does the unit output 1?
+          options: ['Only (1, 1)', '(0, 1), (1, 0) and (1, 1)', 'Only (0, 0)', 'All four inputs']
+          answer: 0
+          optionFeedback:
+            '1': Those have sums 1, 1 and 2. Only a sum of 2 reaches θ = 2. That pattern is θ = 1.
+            '2': (0, 0) has sum 0, the smallest. It never reaches the cutoff.
+            '3': Sums of 0 and 1 are below 2.
+          explain: Only (1, 1) has sum 2. So θ = 2 computes AND, and θ = 1 would compute OR.
+      - say: |
+          θ = 2 gives AND and θ = 1 gives OR. But a person chose those numbers. In 1958 Rosenblatt's **perceptron**
+          learned its weights from examples instead. Adjusting a model's numbers from examples with known answers is
+          **training**.
+        define: [perceptron, training]
+        set: { showAnd: true, showOr: true }
+      - say: |
+          Draw the inputs as corners of a square. A unit with weights $(1, 1)$ and bias $b$ fires where
+          $x_1 + x_2 + b > 0$. The line where the sum is exactly 0 is its **decision boundary**: fire on one side, silent
+          on the other.
+        define: [decision-boundary]
+        show: [plot, bs, score]
+        gate:
+          type: when
+          prompt: Slide the bias until the line does **AND** (4 of 4 right).
+          when: 'lf.correct == 4'
+          hint: Only (1, 1) should be on the firing side. Push the line down past (0, 1) and (1, 0).
+      - say: AND works for any $b$ between −2 and −1. Now make the same unit do OR.
+        set: { b: -1.5, gate: or }
+        gate:
+          type: when
+          prompt: Slide the bias until the line does **OR**.
+          when: 'lf.correct == 4'
+          hint: Now only (0, 0) should stay silent.
+      - say: |
+          Same weights, different bias: the line just slides. Data that one straight line can split into its two groups
+          is **linearly separable**. AND and OR both are.
+        define: [linearly-separable]
+        set: { b: -0.5 }
+      - say: |
+          Now **XOR**, "exclusive or": output 1 when exactly one input is on. Look at the chart: the two "1" corners sit
+          diagonally across from each other. Think before you touch anything.
+        define: [xor]
+        set: { gate: xor }
+        hide: [score, bs]
+        gate:
+          type: predict
+          question: If you could choose both weights and the bias freely, what is the most XOR points one straight line could get right?
+          options: ['1 of 4', '2 of 4', '3 of 4', '4 of 4']
+          shuffle: false
+          answer: 2
+          optionFeedback:
+            '0': The OR line already gets three right.
+            '1': The OR line already gets three right.
+            '3': The two "1" corners are diagonal; any line that keeps them together also catches a "0" corner.
+          explain: The OR line gets 3. No line gets all 4. Try it with all three sliders.
+      - say: |
+          Why never 4? Fire means sum > 0. (1, 0) and (0, 1) need $w_1 + b > 0$ and $w_2 + b > 0$. Adding them gives
+          $w_1 + w_2 + b > -b$, and (0, 0) → 0 needs $b \le 0$, so the right side is at least 0. Then (1, 1) fires too.
+          Minsky and Papert (1969) made this rigorous. Try all three sliders: you will never reach 4.
+        show: [score, bs, w1s, w2s]
+        gate:
+          type: reflect
+          prompt: In your own words, why can no single straight line separate XOR?
+          model: |
+            The two inputs that should output 1 sit on opposite corners, and so do the two that should output 0. Any line
+            that puts (0, 1) and (1, 0) on the firing side also puts (1, 1) there, because its sum is even larger. So one
+            line always gets at least one corner wrong.
+    takeaway: One neuron draws one straight line. AND and OR are linearly separable; XOR is not, so one neuron cannot do it.
+
+  # ------------------------------------------------------------------ 3
+  - id: hidden-layers
+    title: A hidden layer, and counting what it costs
+    goal: How do extra neurons in the middle fix XOR, and how many numbers does a network need?
+    skills: [linear-limits, architecture]
+    state: { xorUp: 0, xorWalk: 0 }
+    derive:
+      - { fn: xorSheet, in: { upTo: '@xorUp', walk: '@xorWalk' }, out: xs }
+      - { fn: hiddenSpace, in: {}, out: hs }
+    stage:
+      - id: xor
+        widget: Image
+        props: { src: assets/xor-net.svg, alt: 'XOR network: inputs x1 and x2 feed an OR unit h1 and an AND unit h2; the output fires if h1 − h2 − 0.5 > 0' }
+      - id: n342
+        widget: Image
+        hidden: true
+        props: { src: assets/net-342.svg, alt: 'A network with 3 inputs, 4 hidden neurons and 2 outputs; every input connects to every hidden neuron, and every hidden neuron to every output' }
+      - id: sheet
+        widget: Matrix
+        region: side
+        props: { data: '@xs', format: int, rowHeader: input, title: 'The XOR network, input by input' }
+      - id: hsp
+        widget: Chart
+        region: side
+        hidden: true
+        props: { kind: scatter, series: '@hs.series', xLabel: h1 (OR unit), yLabel: h2 (AND unit), title: 'The same four inputs in the hidden space' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: xorWalk, in: { stopAt: 9 }, roles: { sheet: sheet }, speed: 0.7 }
+    beats:
+      - say: |
+          The fix is to put neurons in between. A **hidden layer** sits between the inputs and the output and builds new
+          features. Here $h_1$ is an OR unit, $h_2$ an AND unit, and the output fires for "OR but not AND". All use the
+          step activation.
+        define: [hidden-layer]
+      - say: Play the network through the first three inputs, one unit at a time.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: One input is left.
+        gate:
+          type: predict
+          question: 'For the input (1, 1), what does the output $y$ give?'
+          options: ['0', '1']
+          shuffle: false
+          answer: 0
+          explain: 'OR fires ($h_1 = 1$) and AND fires ($h_2 = 1$), so $1 - 1 - 0.5 = -0.5 < 0$: the output stays 0.'
+      - say: |
+          Look at where the inputs land in the hidden space $(h_1, h_2)$. (0, 1) and (1, 0) both become (1, 0). Now one
+          straight line splits the groups. The hidden units re-represented the data, which works only because each unit
+          bends its sum.
+        set: { xorUp: 12 }
+        show: [hsp]
+      - say: |
+          Real networks are wider. The **input layer** just holds the features and computes nothing. The **output layer**
+          gives the prediction, here two numbers, one score per class.
+        define: [input-layer, output-layer]
+        hide: [xor, hsp, player, sheet]
+        show: [n342]
+      - say: |
+          Every arrow is one weight. Every hidden or output neuron also has one bias. Together these are the network's
+          **parameters**: the numbers that training adjusts.
+        define: [parameter]
+        gate:
+          type: predict
+          question: How many parameters does this 3–4–2 network have?
+          answer: { value: 26 }
+          explain: '$(3 \times 4 + 4) + (4 \times 2 + 2) = 16 + 10 = 26$. Inputs have no bias.'
+      - say: |
+          Stacking many hidden layers makes a network deep: that is **deep learning**. Count one yourself.
+        define: [deep-learning]
+        gate:
+          type: practice
+          template: param-count
+    takeaway: Hidden units re-represent the data so one line can split it. Parameters are every weight plus one bias per non-input neuron.
+
+  # ------------------------------------------------------------------ 4
+  - id: activation-bend
+    title: The bend that makes depth worth it
+    goal: Why does every neuron bend its sum instead of passing it straight on?
+    skills: [activations]
+    state: { kind: relu, x: 1 }
+    derive:
+      - { fn: activation, in: { x: '@x', kind: '@kind' }, out: ak }
+      - { fn: collapse, in: { w1: 2, b1: 1, w2: 3, b2: -4 }, out: cl }
+    stage:
+      - id: fp
+        widget: FunctionPlot
+        props: { fn: activation, args: { kind: '@kind' }, domain: [-4, 4], x: '@x', draggable: true, xLabel: 'z', yLabel: 'g(z)' }
+        bind: { x: x }
+      - id: kc
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: activation
+          options:
+            - { value: linear, label: linear }
+            - { value: step, label: step }
+            - { value: sigmoid, label: sigmoid }
+            - { value: tanh, label: tanh }
+            - { value: relu, label: ReLU }
+        bind: { value: kind }
+      - id: rd
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'z', value: '@x', format: 2 }
+            - { label: 'g(z)', value: '@ak.y', format: 3, tone: accent }
+      - id: c1
+        widget: Chart
+        region: bottom
+        hidden: true
+        props: { kind: line, series: '@cl.noAct', xLabel: x, yLabel: y, title: 'Layer 1: 2x + 1, then layer 2: 3(·) − 4, no activation' }
+      - id: c2
+        widget: Chart
+        region: bottom
+        hidden: true
+        props: { kind: line, series: '@cl.both', xLabel: x, yLabel: y, title: 'The same two layers, with and without a ReLU between them' }
+    beats:
+      - say: |
+          This is ReLU. Left of zero it is flat at 0; right of zero it rises one for one. Find the part where it throws the
+          sum away.
+        gate:
+          type: when
+          prompt: Drag the point to a place where ReLU outputs 0.
+          when: 'x < 0'
+          hint: Go left of zero.
+      - say: |
+          Another bend is the **sigmoid**, $\sigma(z) = 1/(1 + e^{-z})$ ("sigma of z"). It squashes any number into the
+          range 0 to 1, so its output can be read as a probability.
+        define: [sigmoid]
+        gate:
+          type: predict
+          question: 'Before you switch the plot: what is $\sigma(0)$?'
+          answer: { value: 0.5, tol: 0.01 }
+          explain: '$e^0 = 1$, so $\sigma(0) = 1/(1 + 1) = 0.5$, exactly halfway.'
+      - say: |
+          Compare the five shapes. tanh is an S from −1 to 1. The step is the old threshold: flat everywhere except one
+          jump, so a small weight change usually changes nothing.
+        show: [kc, rd]
+        gate:
+          type: when
+          prompt: Switch to **tanh**, then try the others.
+          when: 'kind == ''tanh'''
+      - say: |
+          Why bend at all? Take two layers with no activation: layer 1 computes $h = 2x + 1$, layer 2 computes
+          $y = 3h - 4$.
+        gate:
+          type: predict
+          question: 'Written as one layer $y = W''x + b''$, what is $W''$?'
+          answer: { value: 6 }
+          explain: '$y = 3(2x + 1) - 4 = 6x - 1$, so $W'' = 6$ and $b'' = -1$.'
+      - say: |
+          $y = 6x - 1$: still one straight line. Two layers with no bend are just one layer, and so are 100. Now put a
+          ReLU between them and a corner appears.
+        show: [c1]
+      - say: The bend is what lets each extra layer add power, as it did for XOR.
+        hide: [c1]
+        show: [c2]
+        gate:
+          type: reflect
+          prompt: Why would a network of 100 layers with no activations be no better than one layer?
+          model: |
+            Each layer is a weighted sum plus a bias. Putting one inside another gives another weighted sum plus a bias,
+            so the whole stack collapses into a single layer. Only a bend between layers, like ReLU, lets depth build
+            shapes that one layer cannot.
+    takeaway: Activations bend the sum. Without a bend, any stack of layers collapses into one straight-line layer.
+
+  # ------------------------------------------------------------------ 5
+  - id: history
+    title: From the perceptron to modern AI
+    goal: What problem did each big step in neural networks solve?
+    skills: [nn-history]
+    stage:
+      - id: err
+        widget: Chart
+        hidden: true
+        props:
+          kind: bar
+          series:
+            - { name: second-best entry, y: [26.2] }
+            - { name: AlexNet (deep CNN), y: [15.3] }
+          yLabel: top-5 error (%)
+          title: 'ImageNet 2012: share of photos where the right label was not in the top 5 guesses (lower is better)'
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: bp, label: Backpropagation (1986) }
+            - { id: conv, label: Convolution (1998) }
+            - { id: res, label: Residual connections (2016) }
+            - { id: gate, label: 'LSTM and GRU gates (1997, 2014)' }
+            - { id: att, label: Attention (2014) }
+            - { id: tf, label: Transformer (2017) }
+          bins:
+            - { id: train, label: 'No way to train hidden layers' }
+            - { id: img, label: 'Flattened images: too many weights, pixel neighbours forgotten' }
+            - { id: deep, label: 'Very deep plain networks train worse' }
+            - { id: forget, label: 'Recurrent networks forget far-back steps' }
+            - { id: squeeze, label: 'A whole sentence squeezed into one vector' }
+            - { id: slow, label: 'Recurrent attention is slow and hard to run in parallel' }
+          solution: { bp: train, conv: img, res: deep, gate: forget, att: squeeze, tf: slow }
+    beats:
+      - say: |
+          Hidden layers fix XOR, but how do you train them? Three problems: hidden units have no correct answer to aim at;
+          with many weights, which one caused the error?; and step activations are flat, so they give no hint which way
+          to move.
+      - say: |
+          The answer, made widely known in 1986, was **backpropagation**: use smooth activations, compute the prediction,
+          then send the error backward through every layer to work out how much each weight caused it. You will do it by
+          hand soon.
+        define: [backpropagation]
+      - say: Then came images.
+        gate:
+          type: predict
+          question: 'A 224 × 224 colour photo is 150,528 numbers. Fed into a layer of 1,000 neurons, about how many weights does that one layer need?'
+          options: ['About 150 million', 'About 150 thousand', 'About 1.5 million', 'About 15 billion']
+          answer: 0
+          explain: '$150{,}528 \times 1{,}000 \approx 150$ million weights, in the first layer alone.'
+      - say: |
+          Flattening also forgets which pixels are neighbours. A **convolutional network** slides one small pattern
+          detector across every position and reuses its weights. In 2012 a deep one, trained on GPUs with ReLU, cut the
+          ImageNet error from 26.2% to 15.3%.
+        define: [cnn]
+        show: [err]
+      - say: |
+          Deeper plain networks then trained worse; shortcut ("residual") connections fixed that in 2016. Sentences need
+          memory: a **recurrent network** feeds its own state back in at each word. Gated versions (LSTM, GRU) remember
+          further back.
+        define: [rnn]
+      - say: |
+          Attention (2014) let the decoder look back at every word. The **Transformer** (2017) made attention the main
+          block, with no recurrence, so whole sentences train in parallel. A **large language model** is a very large
+          Transformer trained by backpropagation to predict the next word piece.
+        define: [transformer, llm]
+      - say: Match each innovation to the problem it fixed.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Place every innovation.
+          target: bins
+          event: solved
+          hint: Ask what broke just before each one.
+    takeaway: Each step fixed the limit of the last. Through all of it, neurons, nonlinear activations and backpropagation stayed.
+
+  # ------------------------------------------------------------------ 6
+  - id: lab-forward
+    title: The lab network, forward
+    goal: Given a small network and one example, how far off is its guess?
+    skills: [forward-pass]
+    data: [labnet]
+    state: { fwdUp: 0, fwdWalk: 0 }
+    derive:
+      - { fn: fwdSheet, in: { net: '@labnet', upTo: '@fwdUp', walk: '@fwdWalk' }, out: ws }
+    stage:
+      - id: net
+        widget: Image
+        props: { src: assets/lab-net.svg, alt: 'The lab network: inputs x1 = 2 and x2 = −1, hidden units h1 and h2 with weights w11 = 0.5, w21 = −0.5, w12 = −0.5, w22 = −1 and biases b1 = 0.5, b2 = 1, output weights v1 = −0.5, v2 = 1, output bias c = 0.5, target 2.5' }
+      - id: netf
+        widget: Image
+        hidden: true
+        props: { src: assets/lab-net-forward.svg, alt: 'The lab network after the forward pass: z1 = 2, a1 = 2, z2 = 1, a2 = 1, prediction 0.5, loss 2' }
+      - id: sheet
+        widget: Matrix
+        region: bottom
+        props: { data: '@ws', rowHeader: value, title: 'Forward pass: equation, substitution, result' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: fwdWalk, in: { net: '@labnet', from: 1, to: 4 }, roles: { sheet: sheet }, speed: 0.6 }
+    beats:
+      - say: |
+          This is the network from the lab: two inputs, two ReLU hidden units, one plain (linear) output. $w_{ij}$ goes
+          **from** input $i$ **to** hidden unit $j$, so $w_{21}$ runs from $x_2$ to $h_1$. Working from the inputs to the
+          prediction is the **forward pass**.
+        define: [forward-pass]
+      - say: Start with hidden unit 1. Read its two weights and its bias off the diagram.
+        gate:
+          type: predict
+          question: '$z_1 = w_{11}x_1 + w_{21}x_2 + b_1 = ?$'
+          answer: { value: 2, tol: 0.01 }
+          explain: '$(0.5)(2) + (-0.5)(-1) + 0.5 = 1 + 0.5 + 0.5 = 2$.'
+      - say: Every line is equation, then substitution, then result. Play the next three lines.
+        set: { fwdUp: 1 }
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: Both hidden units are on. Now the output, a plain weighted sum of $a_1$ and $a_2$.
+        gate:
+          type: predict
+          question: '$\hat y = v_1a_1 + v_2a_2 + c = ?$'
+          answer: { value: 0.5, tol: 0.01 }
+          explain: '$(-0.5)(2) + (1)(1) + 0.5 = -1 + 1 + 0.5 = 0.5$.'
+      - say: |
+          The correct answer for this example, the **target**, is $y = 2.5$. The **loss** turns the miss into one number:
+          $L = \tfrac12(\hat y - y)^2$. Training tries to make it small.
+        define: [target, loss]
+        set: { fwdUp: 5 }
+        gate:
+          type: predict
+          question: What is the loss $L$?
+          answer: { value: 2, tol: 0.01 }
+          explain: '$\tfrac12(0.5 - 2.5)^2 = \tfrac12(4) = 2$.'
+      - say: The prediction 0.5 is below the target 2.5. Keep every value; going backward reuses all of them.
+        set: { fwdUp: 6 }
+        hide: [net]
+        show: [netf]
+    takeaway: The forward pass computes each sum, each activation, the prediction and the loss, in that order, keeping every value.
+
+  # ------------------------------------------------------------------ 7
+  - id: your-forward
+    title: Your network, forward
+    goal: Can you run a forward pass on your own?
+    skills: [forward-pass]
+    data: [yournet]
+    state: { yUp: 0 }
+    derive:
+      - { fn: fwdSheet, in: { net: '@yournet', upTo: '@yUp' }, out: ws }
+    stage:
+      - id: net
+        widget: Image
+        props: { src: assets/your-net.svg, alt: 'Your network: inputs x1 = 1 and x2 = 2, weights w11 = −1, w21 = 0.5, w12 = 0.5, w22 = −1, biases b1 = 0.5, b2 = 0.5, output weights v1 = 1, v2 = 1, output bias c = 0.5, target 3.5' }
+      - id: netf
+        widget: Image
+        hidden: true
+        props: { src: assets/your-net-forward.svg, alt: 'Your network after the forward pass: z1 = 0.5, a1 = 0.5, z2 = −1, a2 = 0 with unit 2 switched off, prediction 1, loss 3.125' }
+      - id: sheet
+        widget: Matrix
+        region: bottom
+        props: { data: '@ws', rowHeader: value, title: 'Your forward pass; each line fills in after you answer it' }
+    beats:
+      - say: |
+          Your turn, with a network of the same shape and new numbers. Use pencil and paper. Each line of the sheet fills
+          in once you have answered it.
+        gate:
+          type: predict
+          question: '$z_1 = w_{11}x_1 + w_{21}x_2 + b_1 = ?$'
+          answer: { value: 0.5, tol: 0.01 }
+          explain: '$(-1)(1) + (0.5)(2) + 0.5 = -1 + 1 + 0.5 = 0.5$.'
+      - say: Now hidden unit 2.
+        set: { yUp: 1 }
+        gate:
+          type: predict
+          question: '$z_2 = w_{12}x_1 + w_{22}x_2 + b_2 = ?$'
+          answer: { value: -1, tol: 0.01 }
+          explain: '$(0.5)(1) + (-1)(2) + 0.5 = 0.5 - 2 + 0.5 = -1$.'
+      - say: Unit 1's sum is positive, so $a_1 = 0.5$. Unit 2's sum is negative.
+        set: { yUp: 2 }
+        gate:
+          type: predict
+          question: '$a_2 = \text{ReLU}(z_2) = ?$'
+          options: ['0', '−1', '1', '0.5']
+          answer: 0
+          optionFeedback:
+            '1': That is $z_2$ itself. ReLU turns a negative sum into 0.
+            '2': ReLU does not flip the sign.
+            '3': That is $a_1$, the other unit.
+          explain: '$\max(0, -1) = 0$.'
+      - say: |
+          For this input unit 2 is a **switched-off unit**: its sum is negative, so it outputs 0 and adds nothing to
+          the prediction.
+        define: [inactive-relu]
+        set: { yUp: 4 }
+        gate:
+          type: predict
+          question: '$\hat y = v_1a_1 + v_2a_2 + c = ?$'
+          answer: { value: 1, tol: 0.01 }
+          explain: '$(1)(0.5) + (1)(0) + 0.5 = 1$.'
+      - say: The target is $y = 3.5$.
+        set: { yUp: 5 }
+        gate:
+          type: predict
+          question: 'The loss $L = \tfrac12(\hat y - y)^2 = ?$'
+          answer: { value: 3.125, tol: 0.001 }
+          explain: '$\tfrac12(1 - 3.5)^2 = \tfrac12(6.25) = 3.125$.'
+      - say: Your prediction is 2.5 too low. Keep these values for the backward pass. One more forward pass, with fresh numbers.
+        set: { yUp: 6 }
+        hide: [net]
+        show: [netf]
+        gate:
+          type: practice
+          template: forward-yhat
+    takeaway: Same recipe on new numbers. A unit with a negative sum is switched off and contributes nothing.
+
+  # ------------------------------------------------------------------ 8
+  - id: chain-rule
+    title: Rates of change multiply
+    goal: If one number feeds another, which feeds a third, how fast does the last one react to the first?
+    skills: [chain-rule]
+    state: { x: 2, cstep: 0 }
+    derive:
+      - { fn: squareSlope, in: { x: '@x' }, out: sq }
+    stage:
+      - id: fp
+        widget: FunctionPlot
+        props: { fn: square, domain: [-3, 3], x: '@x', draggable: true, showTangent: true, xLabel: 'x', yLabel: 'x^2' }
+        bind: { x: x }
+      - id: rd
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: 'x', value: '@x', format: 2 }
+            - { label: 'slope of the tangent', value: '@sq.slope', format: 2, tone: accent }
+      - id: f
+        widget: Formula
+        region: bottom
+        props:
+          size: lg
+          steps:
+            - 'y = x^2, \qquad \frac{dy}{dx} = 2x'
+            - 'y = (\anchor{in}{5x})^2: \qquad \frac{dy}{dx} = \anchor{out}{\frac{dy}{du}} \cdot \anchor{in}{\frac{du}{dx}}, \quad u = 5x'
+            - '\frac{dy}{dx} = \anchor{out}{2u} \cdot \anchor{in}{5} = 2(5x)(5) = 50x \qquad \text{check: } 25x^2 \to 50x\ \checkmark'
+          step: '@cstep'
+    beats:
+      - say: |
+          To train, we must know how the loss reacts when one weight changes a little. That rate is a **derivative**: how
+          fast an output changes as its input changes, the slope of the tangent line. For $y = x^2$ it is $2x$.
+        define: [derivative]
+        gate:
+          type: when
+          prompt: Drag the point to where the curve is flat (slope 0).
+          when: 'abs(x) < 0.15'
+          hint: The bottom of the bowl.
+      - say: |
+          Now a function inside a function: $y = (5x)^2$. The **chain rule** says rates multiply. Gears: if $u$ turns 3×
+          as fast as $x$, and $y$ turns 2× as fast as $u$, then $y$ turns 2 × 3 = 6× as fast as $x$.
+        define: [chain-rule]
+        set: { cstep: 1 }
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:in', tone: accent } }
+      - say: 'Recipe: name the inner $u = 5x$ and the outer $u^2$. Differentiate the outer, keeping $u$ inside, then multiply by the inner''s slope.'
+        gate:
+          type: predict
+          question: 'What is $\dfrac{dy}{dx}$ for $y = (5x)^2$ at $x = 1$?'
+          answer: { value: 50 }
+          explain: '$2u \cdot 5 = 2(5)(5) = 50$. Check: $(5x)^2 = 25x^2$, whose slope is $50x$.'
+      - say: Both routes agree. Try one with new numbers.
+        set: { cstep: 2 }
+        gate:
+          type: practice
+          template: chain-numeric
+      - say: |
+          A network is a long chain of these: weight → sum → activation → prediction → loss. Backpropagation is the chain
+          rule applied link by link, from the loss back to each weight.
+    takeaway: For a function inside a function, multiply the outer slope by the inner slope. Each network layer is one more gear.
+
+  # ------------------------------------------------------------------ 9
+  - id: lab-backward
+    title: The lab network, backward
+    goal: Which way, and how hard, should each of the nine numbers move to shrink the loss?
+    skills: [local-derivatives, backprop]
+    data: [labnet]
+    state: { bUp: 0, bwdWalk: 0 }
+    derive:
+      - { fn: bwdSheet, in: { net: '@labnet', upTo: '@bUp', walk: '@bwdWalk' }, out: bs }
+    stage:
+      - id: chain
+        widget: Image
+        props: { src: assets/chain-path.svg, alt: 'The chain from w11 to the loss: w11 to z1 to a1 to the prediction to L, with local derivatives x1, ReLU slope, v1 and ŷ − y on the links' }
+      - id: netb
+        widget: Image
+        hidden: true
+        props: { src: assets/lab-net-backward.svg, alt: 'The lab network with every loss gradient: w11 2, w21 −1, b1 1, w12 −4, w22 2, b2 −2, v1 −4, v2 −2, c −2' }
+      - id: sheet
+        widget: Matrix
+        region: bottom
+        props: { data: '@bs', rowHeader: '∂L/∂ …', title: 'Backward pass: chain, substitution, result' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: bwdWalk, in: { net: '@labnet', from: 6, to: 14 }, roles: { sheet: sheet }, speed: 0.6 }
+    beats:
+      - say: |
+          Two kinds of derivative. A **local derivative** links two neighbours and is read from one equation, holding the
+          rest still: from $\hat y = v_1a_1 + v_2a_2 + c$, $\partial \hat y/\partial v_1 = a_1$. (∂, "partial", means
+          change only this one.) A **loss gradient**, like $\partial L/\partial v_1$, multiplies local derivatives along
+          the path to $L$.
+        define: [local-derivative, loss-gradient]
+      - say: Start at the loss. $L = \tfrac12(\hat y - y)^2$; the power rule's 2 cancels the ½.
+        gate:
+          type: predict
+          question: '$\partial L/\partial \hat y = \hat y - y = ?$'
+          answer: { value: -2, tol: 0.01 }
+          explain: '$0.5 - 2.5 = -2$. Negative: raising $\hat y$ would lower the loss.'
+      - say: 'The chain for $v_1$ is $v_1 \to \hat y \to L$: two links.'
+        set: { bUp: 1 }
+        gate:
+          type: predict
+          question: '$\partial L/\partial v_1 = (\hat y - y)\,a_1 = ?$'
+          answer: { value: -4, tol: 0.01 }
+          explain: '$(-2)(2) = -4$.'
+      - say: |
+          The bias $c$ is like $v_1$ with a 1 in place of $a_1$: $-2$. Into the hidden layer:
+          $\partial L/\partial a_1 = (\hat y - y)\,v_1 = (-2)(-0.5) = 1$. Next, through the ReLU. Its local derivative is
+          the **ReLU slope**: 1 where $z > 0$, 0 where $z < 0$.
+        define: [relu-slope]
+        set: { bUp: 3 }
+        gate:
+          type: predict
+          question: 'Here $z_1 = 2$ and $a_1 = 2$. What is $\text{ReLU}''(z_1) = \partial a_1/\partial z_1$?'
+          options: ['1', '2', '0', '0.5']
+          answer: 0
+          optionFeedback:
+            '1': That is the activation value $a_1$. The derivative is the **slope** of ReLU at $z_1$.
+            '2': The slope is 0 only where $z < 0$. Here $z_1 = 2 > 0$.
+            '3': ReLU's slope is either 1 or 0, never in between.
+          explain: 'ReLU is a 45° line for $z > 0$: slope 1, whatever $a_1$ is.'
+      - say: 'So $\partial L/\partial z_1 = (1)(1) = 1$. Store it. Now the full chain $w_{11} \to z_1 \to a_1 \to \hat y \to L$.'
+        set: { bUp: 5 }
+        gate:
+          type: predict
+          question: '$\partial L/\partial w_{11} = \dfrac{\partial L}{\partial z_1}\,x_1 = ?$'
+          answer: { value: 2, tol: 0.01 }
+          explain: '$(\hat y - y)\,v_1\,\text{ReLU}''(z_1)\,x_1 = (-2)(-0.5)(1)(2) = 2$, the same as $(1)(2)$.'
+      - say: |
+          The stored $\partial L/\partial z_1$ makes every other parameter of unit 1 one multiplication. Unit 2 works the
+          same way. Play the rest.
+        set: { bUp: 6 }
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          All nine gradients. Sense check: $\partial L/\partial w_{11} = 2 > 0$. Raising $w_{11}$ raises $a_1$, and since
+          $v_1 < 0$ that lowers $\hat y$, which is already too low. So the loss would rise: $w_{11}$ should go down.
+        hide: [chain]
+        show: [netb]
+        gate:
+          type: reflect
+          prompt: Why compute $\partial L/\partial z_1$ once and store it, instead of writing the full chain for each of $w_{11}$, $w_{21}$ and $b_1$?
+          model: |
+            The three chains share their first three factors, $(\hat y - y)$, $v_1$ and the ReLU slope. Their product is
+            $\partial L/\partial z_1$. Storing it means each parameter needs one more multiplication. Reusing stored
+            results layer by layer is what makes backpropagation fast.
+    takeaway: Backprop multiplies local derivatives from the loss back. Store the gradient at each z and reuse it for that unit's parameters.
+
+  # ------------------------------------------------------------------ 10
+  - id: lab-update
+    title: One step of gradient descent
+    goal: Once we know which way each number should move, how far do we move it?
+    skills: [gradient-descent]
+    data: [labnet]
+    state: { uUp: 0, updWalk: 0, eta: 0.05 }
+    derive:
+      - { fn: updSheet, in: { net: '@labnet', upTo: '@uUp', walk: '@updWalk' }, out: us }
+      - { fn: stepAt, in: { net: '@labnet', eta: '@eta' }, out: st }
+      - { fn: etaCurve, in: { net: '@labnet', max: 0.3 }, out: ec }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { data: '@us', rowHeader: parameter, title: 'Update: rule, substitution, new value' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: updWalk, in: { net: '@labnet', from: 1, to: 9 }, roles: { sheet: sheet }, speed: 0.8 }
+      - id: rd
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'learning rate η', value: '@st.eta', format: 2 }
+            - { label: 'loss before', value: '@st.L', format: 3 }
+            - { label: 'loss after one step', value: '@st.newL', format: 3, tone: accent }
+            - { label: 'prediction after', value: '@st.newYhat', format: 3 }
+      - id: es
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'learning rate η', min: 0.01, max: 0.3, step: 0.01, format: 2 }
+        bind: { value: eta }
+      - id: ch
+        widget: Chart
+        region: bottom
+        hidden: true
+        props: { kind: line, series: '@ec.series', xLabel: learning rate η, yLabel: loss, title: 'Loss after one step, for each learning rate' }
+    beats:
+      - say: |
+          A loss gradient points the way the loss rises. **Gradient descent** steps each parameter the other way:
+          $\theta_\text{new} = \theta - \eta\,\partial L/\partial \theta$. The **learning rate** η ("eta") sets the step
+          size; the lab uses 0.05.
+        define: [gradient-descent, learning-rate]
+        gate:
+          type: predict
+          question: '$w_{11} = 0.5$ and $\partial L/\partial w_{11} = 2$. What is $w_{11}^\text{new}$?'
+          answer: { value: 0.4, tol: 0.001 }
+          explain: '$0.5 - (0.05)(2) = 0.5 - 0.1 = 0.4$.'
+      - say: |
+          Every update uses the gradients of the **original** network; nothing changes until all nine are known. Play the
+          other eight.
+        set: { uUp: 1 }
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: 'Now run forward again with the new numbers: $z_1 = 1.7$ and $z_2 = 1.6$, both still positive.'
+        gate:
+          type: predict
+          question: 'With $v_1 = -0.3$, $v_2 = 1.1$ and $c = 0.6$, what is the new prediction $\hat y$?'
+          answer: { value: 1.85, tol: 0.01 }
+          explain: '$(-0.3)(1.7) + (1.1)(1.6) + 0.6 = -0.51 + 1.76 + 0.6 = 1.85$.'
+      - say: The prediction moved from 0.5 toward 2.5, and the loss fell from 2 to about 0.211, in one step.
+        show: [rd]
+      - say: What if the step were bigger?
+        show: [es, ch]
+        gate:
+          type: when
+          prompt: Find a learning rate where one step makes the loss **worse** than before.
+          when: 'st.newL > st.L'
+          hint: Push η well past 0.1.
+      - say: |
+          From about η = 0.075 the step overshoots: the prediction jumps past 2.5. Up to about 0.15 it still lands
+          closer than before; beyond that, farther away, so the loss rises. The gradient only gives the downhill
+          direction here. Back to 0.05, and try an update.
+        set: { eta: 0.05 }
+        gate:
+          type: practice
+          template: update-v1
+    takeaway: Subtract η times each gradient, all from the old network, then run forward again. Too large an η overshoots.
+
+  # ------------------------------------------------------------------ 11
+  - id: your-backward
+    title: Your network, backward and updated
+    goal: Can you push your own network's error back and take one learning step?
+    skills: [backprop, gradient-descent]
+    data: [yournet]
+    state: { yb: 0, yu: 0 }
+    derive:
+      - { fn: bwdSheet, in: { net: '@yournet', upTo: '@yb' }, out: bs }
+      - { fn: updSheet, in: { net: '@yournet', upTo: '@yu' }, out: us }
+    stage:
+      - id: net
+        widget: Image
+        props: { src: assets/your-net-forward.svg, alt: 'Your network after the forward pass: z1 = 0.5, a1 = 0.5, z2 = −1, a2 = 0 with unit 2 switched off, prediction 1, loss 3.125' }
+      - id: netb
+        widget: Image
+        hidden: true
+        props: { src: assets/your-net-backward.svg, alt: 'Your network with every loss gradient: w11 −2.5, w21 −5, b1 −2.5, v1 −1.25, c −2.5, and 0 for w12, w22, b2 and v2' }
+      - id: sheet
+        widget: Matrix
+        region: bottom
+        props: { data: '@bs', rowHeader: '∂L/∂ …', title: 'Your backward pass' }
+      - id: usheet
+        widget: Matrix
+        region: bottom
+        hidden: true
+        props: { data: '@us', rowHeader: parameter, title: 'Your update, η = 0.1' }
+    beats:
+      - say: Back to your network, where $\hat y = 1$ and $y = 3.5$. Same recipe as the lab network.
+        gate:
+          type: predict
+          question: '$\partial L/\partial \hat y = ?$'
+          answer: { value: -2.5, tol: 0.01 }
+          explain: '$1 - 3.5 = -2.5$.'
+      - say: The output weight from unit 1.
+        set: { yb: 1 }
+        gate:
+          type: predict
+          question: '$\partial L/\partial v_1 = (\hat y - y)\,a_1 = ?$'
+          answer: { value: -1.25, tol: 0.01 }
+          explain: '$(-2.5)(0.5) = -1.25$.'
+      - say: 'The bias $c$ works like $v_1$ with a 1 in place of $a_1$. Now into unit 1, which is on ($z_1 = 0.5 > 0$).'
+        set: { yb: 3 }
+        gate:
+          type: predict
+          question: '$\partial L/\partial z_1 = (\hat y - y)\,v_1\,\text{ReLU}''(z_1) = ?$'
+          answer: { value: -2.5, tol: 0.01 }
+          explain: '$(-2.5)(1)(1) = -2.5$.'
+      - say: Unit 1's second weight comes from $x_2 = 2$.
+        set: { yb: 5 }
+        gate:
+          type: predict
+          question: '$\partial L/\partial w_{21} = (\partial L/\partial z_1)\,x_2 = ?$'
+          answer: { value: -5, tol: 0.01 }
+          explain: '$(-2.5)(2) = -5$.'
+      - say: '$\partial L/\partial v_2 = (\hat y - y)\,a_2 = 0$, because $a_2 = 0$. Now into unit 2 itself, whose sum is $z_2 = -1$.'
+        set: { yb: 9 }
+        gate:
+          type: predict
+          question: '$\partial L/\partial z_2 = (\partial L/\partial a_2)\,\text{ReLU}''(z_2) = ?$'
+          options: ['0', '−2.5', '2.5', '−5']
+          answer: 0
+          optionFeedback:
+            '1': That is $\partial L/\partial a_2$. The ReLU slope at $z_2 = -1$ still multiplies it.
+            '2': Check the sign, and then the ReLU slope at a negative sum.
+            '3': That is $\partial L/\partial w_{21}$, for unit 1.
+          explain: 'The ReLU slope at $z_2 = -1$ is 0, so $(-2.5)(0) = 0$.'
+      - say: |
+          A switched-off unit passes no signal back. All three of unit 2's gradients are 0, so it does not learn from this
+          example.
+        set: { yb: 14 }
+        hide: [net]
+        show: [netb]
+        gate:
+          type: reflect
+          prompt: Suppose unit 2 were switched off for every example in the training data. What would happen to its weights over many steps, and why?
+          model: |
+            They would never change. Its ReLU slope is 0 for every example, so every gradient through it is 0 and every
+            update subtracts η × 0. The unit is "dead": it outputs 0 and cannot learn its way back on.
+      - say: Now update with η = 0.1.
+        show: [usheet]
+        gate:
+          type: predict
+          question: '$w_{21} = 0.5$ and $\partial L/\partial w_{21} = -5$. What is $w_{21}^\text{new}$?'
+          answer: { value: 1, tol: 0.001 }
+          explain: '$0.5 - (0.1)(-5) = 0.5 + 0.5 = 1$.'
+      - say: 'All nine updates, then run forward again: the new $z_1 = (-0.75)(1) + (1)(2) + 0.75 = 2$, and unit 2 is still off.'
+        set: { yu: 9 }
+        gate:
+          type: predict
+          question: 'With $v_1 = 1.125$ and $c = 0.75$, what is the new $\hat y$?'
+          answer: { value: 3, tol: 0.01 }
+          explain: '$(1.125)(2) + (1)(0) + 0.75 = 3$. The loss drops from 3.125 to $\tfrac12(3 - 3.5)^2 = 0.125$.'
+      - say: One step took the loss from 3.125 to 0.125. One more backward pass on fresh numbers.
+        gate:
+          type: practice
+          template: backprop-hand
+    takeaway: You ran a whole learning step by hand. A switched-off ReLU unit gets zero gradients, so it does not learn from that example.

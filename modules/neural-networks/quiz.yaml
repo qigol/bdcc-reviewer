@@ -1,0 +1,717 @@
+templates:
+  # ------------------------------------------------------------ one neuron
+  - id: neuron-z
+    type: numeric
+    skills: [neuron]
+    difficulty: 1
+    tags: [math]
+    generator: neuronQ
+    lessonRef: { tab: math-code, id: neuron }
+    prompt: |
+      A neuron has the inputs and weights below and bias $b = {=b}$. Compute its [[weighted-sum|weighted sum]] $z$.
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: input } }
+    answer: { var: z, tol: 0.01 }
+    hints:
+      - Multiply each input by its own weight.
+      - Add those products, then add the bias once.
+    explanation: |
+      $z = {=sumText} = {=z}$.
+
+  - id: neuron-relu
+    type: numeric
+    skills: [neuron, activations]
+    difficulty: 2
+    tags: [math]
+    generator: neuronQ
+    lessonRef: { tab: math-code, id: neuron }
+    prompt: |
+      Same kind of neuron, with bias $b = {=b}$ and a [[relu|ReLU]] activation. What does it **output**, $a = \text{ReLU}(z)$?
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: input } }
+    answer: { var: a, tol: 0.01 }
+    hints:
+      - First find $z$, the weighted sum plus the bias.
+      - ReLU keeps a positive $z$ and turns a negative $z$ into 0.
+    explanation: |
+      $z = {=sumText} = {=z}$, so $a = \max(0, {=z}) = {=a}$.
+
+  - id: code-neuron
+    type: code-fill
+    skills: [neuron]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: neuron }
+    prompt: Complete the neuron so it returns the weighted sum and the ReLU activation.
+    code: |
+      def neuron(x, w, b):
+          z = 0.0
+          for i in range(len(x)):
+              z = z + __BLANK_1__
+          z = z + b
+          a = __BLANK_2__
+          return z, a
+    blanks:
+      '1': { accept: ['w[i] * x[i]', 'x[i] * w[i]', 'w[i]*x[i]'] }
+      '2': { accept: ['max(0.0, z)', 'max(0, z)', 'max(z, 0)', 'max(z, 0.0)'] }
+    hints:
+      - Each input adds its weight times its value.
+    explanation: Each pass adds $w_i x_i$; after the bias, ReLU is $\max(0, z)$.
+
+  # ------------------------------------------------------------ activations
+  - id: activation-value
+    type: numeric
+    skills: [activations]
+    difficulty: 1
+    tags: [math]
+    generator: activationQ
+    lessonRef: { tab: math-code, id: activations }
+    prompt: |
+      A neuron's weighted sum is $z = {=z}$. What is the output of a **{=kindName}** activation?
+    answer: { var: val, tol: 0.01 }
+    hints:
+      - 'ReLU: $\max(0, z)$. Step: 1 if $z > 0$, else 0.'
+    explanation: |
+      {=kindName} of ${=z}$ is ${=val}$. ReLU keeps positives and zeroes negatives; the step outputs only 0 or 1.
+
+  - id: activation-match
+    type: match
+    skills: [activations]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: activation-bend }
+    prompt: Match each activation to what it does.
+    pairs:
+      - ['linear, $g(z) = z$', 'No bend; used at the output for predicting a number']
+      - ['step, $1[z > 0]$', 'Flat almost everywhere, so it gives no learning signal']
+      - ['sigmoid, $1/(1+e^{-z})$', 'Squashes to (0, 1); reads as a probability']
+      - ['tanh', 'Squashes to (−1, 1), centred on zero']
+      - ['ReLU, $\max(0, z)$', 'Cheap, and does not flatten for large positive z']
+    explanation: The step was the historic choice; ReLU is today's default for hidden layers.
+
+  - id: why-nonlinear
+    type: mcq
+    skills: [activations]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: activation-bend }
+    prompt: Two layers with **no** activation between them are stacked. What can the stack compute?
+    options:
+      - 'Exactly what one layer can: $W_2(W_1x + b_1) + b_2$ is again $W''x + b''$'
+      - 'More than one layer, because the second layer adds its own new weights'
+      - 'More than one layer, as long as the hidden layer has more neurons'
+      - 'Less than one layer, because the two sets of weights cancel each other'
+    answer: 0
+    optionFeedback:
+      '1': The new weights just multiply into the old ones. The result is still one straight line.
+      '2': Width does not help. Without a bend, any number of neurons collapses into one affine layer.
+      '3': Nothing cancels. The two layers merge into one equally powerful layer.
+    explanation: |
+      $W_2(W_1x + b_1) + b_2 = (W_2W_1)x + (W_2b_1 + b_2)$: one weight, one bias. The activation between layers is what
+      lets depth add power.
+
+  - id: collapse-b
+    type: numeric
+    skills: [activations]
+    difficulty: 2
+    tags: [math]
+    generator: collapseQ
+    lessonRef: { tab: math-code, id: collapse }
+    prompt: |
+      Layer 1 computes $h = {=w1}x + ({=b1})$ and layer 2 computes $y = {=w2}h + ({=b2})$, with no activation between them.
+      Written as one layer $y = W'x + b'$, what is $b'$?
+    answer: { var: B, tol: 0.01 }
+    hints:
+      - Substitute $h$ into the second equation.
+      - $b' = w_2 b_1 + b_2$.
+    explanation: |
+      $y = {=w2}({=w1}x + ({=b1})) + ({=b2}) = {=W}x + ({=B})$, so $b' = {=w2} \times ({=b1}) + ({=b2}) = {=B}$.
+
+  # ------------------------------------------------------------ one line, XOR, hidden layers
+  - id: line-fires
+    type: mcq
+    skills: [linear-limits]
+    difficulty: 1
+    tags: [math]
+    generator: lineQ
+    calculator: true
+    lessonRef: { tab: math-code, id: perceptron }
+    prompt: |
+      A threshold neuron fires when $w_1x_1 + w_2x_2 + b > 0$, with $w_1 = {=w1}$, $w_2 = {=w2}$ and $b = {=b}$.
+      What does it do at the point $({=x1}, {=x2})$?
+    shuffle: false
+    explanation: |
+      Sum $= ({=w1})({=x1}) + ({=w2})({=x2}) + ({=b}) = {=s}$. It fires only when the sum is above 0.
+
+  - id: xor-why
+    type: mcq
+    skills: [linear-limits]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lines-and-logic }
+    prompt: Why can no single threshold neuron compute XOR?
+    options:
+      - The two points that should output 1 sit on opposite corners, so no straight line puts them alone on one side
+      - A threshold neuron can only output 1 when both of its inputs are equal to 1
+      - XOR needs a weight larger than any value a single neuron is allowed to use
+      - XOR has four input combinations, and one neuron can only check three of them
+    answer: 0
+    optionFeedback:
+      '1': That would make it an AND unit only. With other weights, a neuron does OR, AND and more.
+      '2': Weights can be any size. The problem is geometric, not about magnitude.
+      '3': One neuron checks every input combination; it just draws one line through them.
+    explanation: |
+      (0,1) and (1,0) must be on the firing side, (0,0) and (1,1) on the other. Adding the two "fire" inequalities gives
+      $w_1 + w_2 + b > -b \ge 0$, which contradicts $(1,1) \to 0$. XOR is not [[linearly-separable]].
+
+  - id: one-line-gates
+    type: multi
+    skills: [linear-limits]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lines-and-logic }
+    prompt: Which of these rules on two 0/1 inputs can **one** straight line separate?
+    options:
+      - AND (1 only when both are 1)
+      - OR (1 when at least one is 1)
+      - XOR (1 when exactly one is 1)
+      - NOT-AND (0 only when both are 1)
+    answer: [0, 1, 3]
+    explanation: AND, OR and NOT-AND each split one corner, or three corners, from the rest. XOR needs two lines, or a hidden layer.
+
+  - id: xor-hidden
+    type: mcq
+    skills: [linear-limits, architecture]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: hidden-layers }
+    prompt: In the XOR network, hidden unit $h_1$ computes OR and $h_2$ computes AND. Where do the inputs (0, 1) and (1, 0) land in the hidden space $(h_1, h_2)$?
+    options:
+      - 'Both at (1, 0), so one line can now split them from (0, 0) and (1, 1)'
+      - 'At (0, 1) and (1, 0), the same places they had before'
+      - 'Both at (1, 1), the same place as the input (1, 1)'
+      - 'Both at (0, 0), the same place as the input (0, 0)'
+    answer: 0
+    optionFeedback:
+      '1': OR fires for both and AND fires for neither, so the two points merge.
+      '2': AND does not fire for (0, 1) or (1, 0), so $h_2 = 0$ for both.
+      '3': OR fires for both of them, so $h_1 = 1$, not 0.
+    explanation: OR = 1 and AND = 0 for both, so they meet at (1, 0). The hidden layer re-represents the data so one straight line is enough.
+
+  # ------------------------------------------------------------ layers and parameters
+  - id: param-count
+    type: numeric
+    skills: [architecture]
+    difficulty: 1
+    tags: [math]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: param-count }
+    prompt: |
+      A fully connected network has layer sizes {=shape} (input first, output last). How many [[parameter|parameters]]
+      (weights plus biases) does it have?
+    answer: { var: total, tol: 0 }
+    hints:
+      - Each layer after the input has (inputs × neurons) weights.
+      - Add one bias per hidden or output neuron. Inputs have no bias.
+    explanation: |
+      Per layer, $n_\text{in} \times n_\text{out} + n_\text{out}$: {=perLayer|list}. Total $= {=total}$.
+
+  - id: layer-roles
+    type: match
+    skills: [architecture]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: hidden-layers }
+    prompt: Match each part of a network to its job.
+    pairs:
+      - ['Input layer', 'Holds the features and does no computing']
+      - ['Hidden layer', 'Builds learned, intermediate features']
+      - ['Output layer', 'Gives the prediction, such as a class score']
+      - ['One line between two circles', 'One weight']
+      - ['One hidden or output circle', 'Carries one bias']
+    explanation: Every arrow is a weight and every non-input neuron has one bias; that is how parameters are counted.
+
+  # ------------------------------------------------------------ history
+  - id: history-order
+    type: order
+    skills: [nn-history]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: history }
+    prompt: Put these milestones in time order, earliest first.
+    items:
+      - Threshold neurons compute logic, but nothing is learned (1943)
+      - The perceptron learns its weights, but draws only one straight line (1958)
+      - Backpropagation trains hidden layers (1986)
+      - Convolutional networks reuse one pattern detector across an image (1998)
+      - A deep CNN on GPUs wins ImageNet by a wide margin (2012)
+      - Transformers replace recurrence with attention (2017)
+    explanation: Each step fixed the limitation of the one before it.
+
+  - id: history-match
+    type: match
+    skills: [nn-history]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: history }
+    prompt: Match each innovation to the problem it was built to solve.
+    pairs:
+      - ['Backpropagation', 'No way to train hidden layers']
+      - ['Convolution', 'Flattened images need too many weights and forget where pixels sit']
+      - ['Residual (shortcut) connections', 'Very deep plain networks train worse, even on training data']
+      - ['LSTM / GRU gates', 'Recurrent networks forget what happened many steps back']
+      - ['Attention', 'A whole sentence squeezed into one fixed-size vector']
+    explanation: Ask of every milestone, "what limitation motivated the next innovation?"
+
+  - id: transformer-why
+    type: mcq
+    skills: [nn-history]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: history }
+    prompt: What did the Transformer change compared with attention built on recurrent networks?
+    options:
+      - It dropped recurrence, so a whole sequence is processed in parallel on GPUs
+      - It dropped backpropagation, so it trains without computing gradients
+      - It dropped nonlinear activations, so it is one very large linear layer
+      - It dropped attention, so each word only sees the words beside it
+    answer: 0
+    optionFeedback:
+      '1': Transformers are still trained by backpropagation.
+      '2': They still use neurons with nonlinear activations.
+      '3': Attention is the main building block of a Transformer.
+    explanation: Self-attention between all tokens and no recurrence meant parallel training. What stayed was neurons, residual connections and backprop.
+
+  # ------------------------------------------------------------ forward pass
+  - id: forward-yhat
+    type: numeric
+    skills: [forward-pass]
+    difficulty: 1
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: forward-pass }
+    prompt: |
+      Input $x = ({=x1}, {=x2})$. The table lists each unit's weights and bias (`from1` is the weight from $x_1$ or $a_1$,
+      `from2` from $x_2$ or $a_2$). Hidden units use ReLU and the output is linear. Compute the [[prediction]] $\hat y$.
+    show:
+      - { id: p, widget: Matrix, props: { data: '@params', rowHeader: 'unit' } }
+    answer: { var: yhat, tol: 0.01 }
+    hints:
+      - Find $z_1$ and $z_2$ from the inputs, then apply ReLU to each.
+      - '$\hat y = v_1 a_1 + v_2 a_2 + c$, with the activations, not the sums.'
+    explanation: |
+      $z_1 = {=z1}$, $z_2 = {=z2}$, so $a_1 = {=a1}$, $a_2 = {=a2}$. Then
+      $\hat y = ({=v1})({=a1}) + ({=v2})({=a2}) + {=c} = {=yhat}$.
+
+  - id: forward-loss
+    type: numeric
+    skills: [forward-pass]
+    difficulty: 2
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: forward-pass }
+    prompt: |
+      Same layout: input $x = ({=x1}, {=x2})$, target $y = {=y}$. Compute the [[loss]] $L = \tfrac12(\hat y - y)^2$
+      (to 3 decimal places if needed).
+    show:
+      - { id: p, widget: Matrix, props: { data: '@params', rowHeader: 'unit' } }
+    answer: { var: L, tol: 0.002 }
+    hints:
+      - Run the forward pass to get $\hat y$ first.
+      - Square the difference, then halve it.
+    explanation: |
+      $\hat y = {=yhat}$, so $L = \tfrac12({=yhat} - {=y})^2 = {=L|4}$.
+
+  - id: forward-hand
+    type: hand-calc
+    skills: [forward-pass]
+    difficulty: 2
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: intuition, id: your-forward }
+    prompt: |
+      Do the forward pass by hand, one line at a time: input $x = ({=x1}, {=x2})$, target $y = {=y}$. Hidden units use
+      ReLU, the output is linear.
+    show:
+      - { id: p, widget: Matrix, props: { data: '@params', rowHeader: 'unit' } }
+    steps:
+      - prompt: '$z_1 = w_{11}x_1 + w_{21}x_2 + b_1$'
+        answer: { var: z1, tol: 0.01 }
+        hint: 'Row `unit1`: ({=w11})({=x1}) + ({=w21})({=x2}) + {=b1}.'
+      - prompt: '$z_2 = w_{12}x_1 + w_{22}x_2 + b_2$'
+        answer: { var: z2, tol: 0.01 }
+        hint: Row `unit2`, the same way.
+      - prompt: '$a_2 = \text{ReLU}(z_2)$'
+        answer: { var: a2, tol: 0.01 }
+        hint: 'If $z_2$ is negative, the unit is off.'
+      - prompt: '$\hat y = v_1a_1 + v_2a_2 + c$'
+        answer: { var: yhat, tol: 0.01 }
+        misconceptions:
+          - { var: noRelu, feedback: 'Use the activations $a_j$, not the sums $z_j$.' }
+          - { var: noC, feedback: 'Add the output bias $c$.' }
+      - prompt: '$L = \tfrac12(\hat y - y)^2$ (3 decimals if needed)'
+        answer: { var: L, tol: 0.002 }
+        misconceptions:
+          - { var: fullSq, feedback: 'Remember the ½.' }
+    hints:
+      - Each line is equation, then substitution, then result.
+    explanation: |
+      $z_1 = {=z1}$, $z_2 = {=z2}$, $a_1 = {=a1}$, $a_2 = {=a2}$, $\hat y = {=yhat}$, $L = {=L|4}$.
+
+  - id: code-forward
+    type: code-fill
+    skills: [forward-pass]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: forward-pass }
+    prompt: 'Complete the forward pass. `W[i][j]` is the weight from input `i` to hidden unit `j`.'
+    code: |
+      def forward(x, W, b, v, c, y):
+          z, a = [], []
+          for j in range(2):
+              z_j = W[0][j] * x[0] + W[1][j] * x[1] + b[j]
+              z.append(z_j)
+              a.append(__BLANK_1__)
+          y_hat = v[0] * a[0] + v[1] * a[1] + c
+          loss = __BLANK_2__
+          return z, a, y_hat, loss
+    blanks:
+      '1': { accept: ['relu(z_j)', 'max(0.0, z_j)', 'max(0, z_j)', 'max(z_j, 0)'] }
+      '2': { accept: ['0.5 * (y_hat - y) ** 2', '0.5*(y_hat-y)**2', '(y_hat - y) ** 2 / 2', '0.5 * (y - y_hat) ** 2'] }
+    hints:
+      - Each hidden unit stores its ReLU activation.
+    explanation: '`a.append(relu(z_j))` and `loss = 0.5 * (y_hat - y) ** 2`.'
+
+  - id: step-order
+    type: order
+    skills: [forward-pass, gradient-descent]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lab-update }
+    prompt: Put one learning step in order.
+    items:
+      - Forward pass, keeping every $z$ and $a$
+      - Compute the loss
+      - Backward pass, from $\partial L/\partial \hat y$ back to every parameter
+      - Update every parameter with $\theta - \eta\,\partial L/\partial \theta$
+      - Forward pass again with the new parameters
+    explanation: All gradients come from the original network; only then are the parameters changed.
+
+  # ------------------------------------------------------------ chain rule
+  - id: chain-numeric
+    type: numeric
+    skills: [chain-rule]
+    difficulty: 1
+    tags: [math]
+    generator: chainQ
+    lessonRef: { tab: math-code, id: chain-rule }
+    prompt: |
+      Let $y = {=fx}$. Use the [[chain-rule]] to find $\dfrac{dy}{dx}$ at $x = {=x}$.
+    answer: { var: d, tol: 0.01 }
+    hints:
+      - 'Name the inner $u = {=a}x + ({=b})$ and the outer $u^{ {=n} }$.'
+      - 'Outer slope $n u^{n-1}$, times the inner slope ${=a}$.'
+    explanation: |
+      $u = {=u}$. $\dfrac{dy}{du} = {=n}u^{ {=n} - 1} = {=outer}$ and $\dfrac{du}{dx} = {=a}$, so
+      $\dfrac{dy}{dx} = {=outer} \times {=a} = {=d}$.
+
+  - id: chain-inner-outer
+    type: mcq
+    skills: [chain-rule]
+    difficulty: 1
+    tags: [math]
+    lessonRef: { tab: intuition, id: chain-rule }
+    prompt: 'For $y = \ln(1 + x^2)$, which inner and outer functions should you name before differentiating?'
+    options:
+      - 'Inner $u = 1 + x^2$, outer $\ln u$; so $\dfrac{dy}{dx} = \dfrac{2x}{1 + x^2}$'
+      - 'Inner $u = \ln x$, outer $1 + u^2$; so $\dfrac{dy}{dx} = \dfrac{2\ln x}{x}$'
+      - 'Inner $u = x^2$, outer $\ln u$; so $\dfrac{dy}{dx} = \dfrac{2}{x}$'
+      - 'Inner $u = 1 + x^2$, outer $\ln u$; so $\dfrac{dy}{dx} = \dfrac{1}{1 + x^2}$'
+    answer: 0
+    optionFeedback:
+      '1': The logarithm is applied last, so it is the outer function.
+      '2': The 1 belongs inside the logarithm, so it is part of the inner function.
+      '3': You took the outer derivative but forgot to multiply by the inner one, $2x$.
+    explanation: '$\frac{1}{u}\cdot u'' = \frac{1}{1+x^2}\cdot 2x$.'
+
+  # ------------------------------------------------------------ local derivatives
+  - id: relu-slope-q
+    type: numeric
+    skills: [local-derivatives]
+    difficulty: 1
+    tags: [math]
+    generator: reluSlopeQ
+    lessonRef: { tab: intuition, id: lab-backward }
+    prompt: |
+      A ReLU unit has sum $z = {=z}$. What is its local derivative $\dfrac{\partial a}{\partial z} = \text{ReLU}'(z)$?
+    answer: { var: s, tol: 0 }
+    hints:
+      - Picture the ReLU graph at that $z$. Is it the flat part or the rising part?
+    explanation: 'ReLU$''$ is 1 for $z > 0$ and 0 for $z < 0$, whatever the activation is. At $z = {=z}$ it is ${=s}$.'
+
+  - id: local-vs-gradient
+    type: mcq
+    skills: [local-derivatives, backprop]
+    difficulty: 2
+    tags: [math]
+    lessonRef: { tab: math-code, id: backprop }
+    prompt: 'In the lab network, which of these is a **local derivative** rather than a loss gradient?'
+    options:
+      - '$\partial \hat y/\partial a_1 = v_1$, read from the single equation $\hat y = v_1a_1 + v_2a_2 + c$'
+      - '$\partial L/\partial w_{11}$, the product of four factors along the path from $w_{11}$ to the loss'
+      - '$\partial L/\partial z_1$, stored so the three parameters of unit 1 can reuse it'
+      - '$\partial L/\partial v_1$, the product of $\partial L/\partial \hat y$ and $\partial \hat y/\partial v_1$'
+    answer: 0
+    optionFeedback:
+      '1': It ends in $L$, so it is a loss gradient built by the chain rule.
+      '2': Anything of the form $\partial L/\partial(\cdot)$ is a loss gradient.
+      '3': This multiplies two local derivatives, so it is a loss gradient.
+    explanation: A local derivative links two neighbours and comes from one equation. A loss gradient multiplies local derivatives along the whole path to $L$.
+
+  - id: code-relu-slope
+    type: code-fill
+    skills: [local-derivatives]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: backprop }
+    prompt: Fill in the ReLU slope used when the backward pass crosses hidden unit `j`.
+    code: |
+      d_a = d_yhat * v[j]
+      d_z = d_a * (__BLANK_1__)
+    blanks:
+      '1': { accept: ['1.0 if z[j] > 0 else 0.0', '1 if z[j] > 0 else 0', 'z[j] > 0', 'float(z[j] > 0)'] }
+    hints:
+      - The slope depends on the **sum** $z_j$, not on the activation.
+    explanation: '`d_z = d_a * (1.0 if z[j] > 0 else 0.0)`: slope 1 where the unit is on, 0 where it is off.'
+
+  # ------------------------------------------------------------ backpropagation
+  - id: grad-v1
+    type: numeric
+    skills: [backprop]
+    difficulty: 1
+    tags: [math]
+    generator: backwardQ
+    lessonRef: { tab: math-code, id: backprop }
+    prompt: |
+      A 2–2–1 ReLU network gives $\hat y = {=yhat}$ for target $y = {=y}$. Hidden unit 1 has $z_1 = {=z1}$.
+      Compute $\dfrac{\partial L}{\partial v_1}$.
+    answer: { var: gv1, tol: 0.01 }
+    hints:
+      - 'Chain $v_1 \to \hat y \to L$: $\frac{\partial L}{\partial \hat y}\cdot\frac{\partial \hat y}{\partial v_1}$.'
+      - '$\partial L/\partial \hat y = \hat y - y$ and $\partial \hat y/\partial v_1 = a_1$.'
+    explanation: |
+      $\dfrac{\partial L}{\partial v_1} = (\hat y - y)\,a_1 = ({=dyhat})({=a1}) = {=gv1}$.
+
+  - id: grad-w11
+    type: numeric
+    skills: [backprop, local-derivatives]
+    difficulty: 2
+    tags: [math]
+    generator: backwardQ
+    lessonRef: { tab: math-code, id: backprop }
+    prompt: |
+      Same kind of network: input $x_1 = {=x1}$, $z_1 = {=z1}$, $v_1 = {=v1}$, and $\hat y - y = {=dyhat}$.
+      Compute $\dfrac{\partial L}{\partial w_{11}}$.
+    answer: { var: gw11, tol: 0.01 }
+    hints:
+      - 'Chain $w_{11} \to z_1 \to a_1 \to \hat y \to L$: four factors.'
+      - '$(\hat y - y)\cdot v_1 \cdot \text{ReLU}''(z_1)\cdot x_1$.'
+    explanation: |
+      $({=dyhat})({=v1})({=s1})({=x1}) = {=gw11}$. The ReLU slope is ${=s1}$ because $z_1 = {=z1}$.
+
+  - id: backprop-hand
+    type: hand-calc
+    skills: [backprop, gradient-descent]
+    difficulty: 2
+    tags: [math]
+    generator: backwardQ
+    lessonRef: { tab: intuition, id: your-backward }
+    prompt: |
+      Backpropagate through hidden unit 1 and update $v_1$. Input $x = ({=x1}, {=x2})$, target $y = {=y}$,
+      learning rate $\eta = {=eta}$. The forward pass gave $z_1 = {=z1}$, $a_1 = {=a1}$ and $\hat y = {=yhat}$.
+    show:
+      - { id: p, widget: Matrix, props: { data: '@params', rowHeader: 'unit' } }
+    steps:
+      - prompt: '$\partial L/\partial \hat y$'
+        answer: { var: dyhat, tol: 0.01 }
+        hint: Prediction minus target.
+      - prompt: '$\partial L/\partial v_1 = (\partial L/\partial \hat y)\,a_1$'
+        answer: { var: gv1, tol: 0.01 }
+        misconceptions:
+          - { var: flipV1, feedback: 'Sign: use $\hat y - y$.' }
+      - prompt: '$\partial L/\partial a_1 = (\partial L/\partial \hat y)\,v_1$'
+        answer: { var: da1, tol: 0.01 }
+        hint: 'Read $v_1$ from row `output`, column `from1`.'
+      - prompt: '$\partial L/\partial z_1 = (\partial L/\partial a_1)\,\text{ReLU}''(z_1)$'
+        answer: { var: dz1, tol: 0.01 }
+        hint: 'The ReLU slope is 1 because $z_1 > 0$.'
+      - prompt: '$\partial L/\partial w_{21} = (\partial L/\partial z_1)\,x_2$'
+        answer: { var: gw21, tol: 0.01 }
+      - prompt: '$v_1^{\text{new}} = v_1 - \eta\,\partial L/\partial v_1$ (3 decimals if needed)'
+        answer: { var: nv1, tol: 0.002 }
+        misconceptions:
+          - { var: plusUpd, feedback: 'Subtract the step, do not add it.' }
+          - { var: noEta, feedback: 'Multiply the gradient by $\eta$ first.' }
+    hints:
+      - Work backward, storing each result for the next line.
+    explanation: |
+      $\partial L/\partial \hat y = {=dyhat}$, $\partial L/\partial v_1 = {=gv1}$, $\partial L/\partial a_1 = {=da1}$,
+      $\partial L/\partial z_1 = {=dz1}$, $\partial L/\partial w_{21} = {=gw21}$,
+      $v_1^{\text{new}} = {=v1} - ({=eta})({=gv1}) = {=nv1}$.
+
+  - id: deep-hand
+    type: hand-calc
+    skills: [forward-pass, backprop, gradient-descent]
+    difficulty: 3
+    tags: [math]
+    generator: chainQ2
+    lessonRef: { tab: math-code, id: deep-chain }
+    prompt: |
+      One input, two hidden layers of one ReLU unit each, one linear output:
+      $z_1 = w_1x + b_1$, $a_1 = \text{ReLU}(z_1)$, $z_2 = w_2a_1 + b_2$, $a_2 = \text{ReLU}(z_2)$, $\hat y = va_2 + c$.
+      Here $x = {=x}$, $y = {=y}$, $w_1 = {=w1}$, $b_1 = {=b1}$, $w_2 = {=w2}$, $b_2 = {=b2}$, $v = {=v}$, $c = {=c}$,
+      $\eta = {=eta}$.
+    show:
+      - { id: d, widget: Image, props: { src: assets/deep-chain.svg, alt: 'One input, two hidden ReLU units in a row, one linear output and the loss' } }
+    steps:
+      - prompt: '$z_1$'
+        answer: { var: z1, tol: 0.01 }
+      - prompt: '$z_2$'
+        answer: { var: z2, tol: 0.01 }
+      - prompt: '$\hat y$'
+        answer: { var: yhat, tol: 0.01 }
+      - prompt: '$L = \tfrac12(\hat y - y)^2$ (3 decimals if needed)'
+        answer: { var: L, tol: 0.002 }
+        misconceptions:
+          - { var: fullSq, feedback: 'Remember the ½.' }
+      - prompt: '$\partial L/\partial z_2 = (\hat y - y)\cdot v\cdot \text{ReLU}''(z_2)$'
+        answer: { var: dz2, tol: 0.01 }
+      - prompt: '$\partial L/\partial z_1 = (\partial L/\partial z_2)\cdot w_2 \cdot \text{ReLU}''(z_1)$'
+        answer: { var: dz1, tol: 0.01 }
+      - prompt: '$\partial L/\partial w_1 = (\partial L/\partial z_1)\cdot x$'
+        answer: { var: gw1, tol: 0.01 }
+        misconceptions:
+          - { var: noW2, feedback: 'The chain crosses layer 2: multiply by $w_2$.' }
+          - { var: noRelu2, feedback: 'Use the ReLU **slope**, not the activation $a_2$.' }
+      - prompt: '$w_1^{\text{new}} = w_1 - \eta\,\partial L/\partial w_1$ (3 decimals if needed)'
+        answer: { var: nw1, tol: 0.002 }
+        misconceptions:
+          - { var: plusW1, feedback: 'Gradient descent subtracts.' }
+    hints:
+      - Forward first, keeping every value. Then go backward one layer at a time.
+    explanation: |
+      Forward: $z_1 = {=z1}$, $z_2 = {=z2}$, $\hat y = {=yhat}$, $L = {=L|4}$. Backward: $\partial L/\partial z_2 = {=dz2}$,
+      $\partial L/\partial z_1 = {=dz1}$, $\partial L/\partial w_1 = {=gw1}$. Update: $w_1 = {=nw1}$. The chain for $w_1$
+      holds the later weights $w_2$ and $v$ and both ReLU slopes, one factor per operation between $w_1$ and the loss.
+
+  - id: dead-unit
+    type: mcq
+    skills: [backprop]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: your-backward }
+    prompt: 'Hidden unit 2 has a negative sum, $z_2 < 0$, for this example. What happens to $\partial L/\partial w_{12}$, $\partial L/\partial w_{22}$ and $\partial L/\partial b_2$?'
+    options:
+      - All three are 0, because the ReLU slope 0 multiplies every chain that passes through unit 2
+      - They equal the gradients of unit 1, because both units read the same inputs
+      - They have the opposite sign to unit 1's, because unit 2 points the other way
+      - They are left out until unit 2 switches on, then added up later
+    answer: 0
+    optionFeedback:
+      '1': Each unit has its own chain; unit 2's chain runs through its own slope, which is 0.
+      '2': The sign does not matter once a factor of 0 sits in the chain.
+      '3': They are computed now, and they are exactly 0.
+    explanation: 'A [[inactive-relu|switched-off unit]] passes no signal back: $\partial L/\partial z_2 = (\partial L/\partial a_2)(0) = 0$, so its weights do not move this step. $\partial L/\partial v_2 = (\hat y - y)\,a_2$ is also 0, because $a_2 = 0$.'
+
+  - id: code-backward
+    type: code-fill
+    skills: [backprop]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: backprop }
+    prompt: Complete the backward pass through hidden unit `j`.
+    code: |
+      d_yhat = y_hat - y
+      for j in range(2):
+          grads[f"v{j+1}"] = d_yhat * __BLANK_1__
+          d_a = d_yhat * v[j]
+          d_z = d_a * (1.0 if z[j] > 0 else 0.0)
+          grads[f"w1{j+1}"] = d_z * __BLANK_2__
+          grads[f"b{j+1}"] = __BLANK_3__
+    blanks:
+      '1': { accept: ['a[j]'] }
+      '2': { accept: ['x[0]'] }
+      '3': { accept: ['d_z', 'd_z * 1', 'd_z * 1.0'] }
+    hints:
+      - '$\partial \hat y/\partial v_j = a_j$, $\partial z_j/\partial w_{1j} = x_1$, $\partial z_j/\partial b_j = 1$.'
+    explanation: The last link of each chain is read from the equation it ends in.
+
+  # ------------------------------------------------------------ gradient descent
+  - id: update-v1
+    type: numeric
+    skills: [gradient-descent]
+    difficulty: 1
+    tags: [math]
+    generator: backwardQ
+    lessonRef: { tab: math-code, id: gradient-descent }
+    prompt: |
+      $v_1 = {=v1}$, its loss gradient is $\partial L/\partial v_1 = {=gv1}$ and the [[learning-rate]] is
+      $\eta = {=eta}$. What is $v_1$ after one gradient-descent step? (3 decimals if needed)
+    answer: { var: nv1, tol: 0.002 }
+    hints:
+      - '$\theta_{\text{new}} = \theta - \eta\,\partial L/\partial \theta$.'
+    explanation: |
+      $v_1^{\text{new}} = {=v1} - ({=eta})({=gv1}) = {=nv1}$.
+
+  - id: eta-too-big
+    type: mcq
+    skills: [gradient-descent]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lab-update }
+    prompt: On the lab network one step with $\eta = 0.05$ drops the loss from 2 to 0.211, but with $\eta = 0.15$ the loss after the step is about 2.1. Why?
+    options:
+      - The step is so large that the prediction jumps past the target and lands farther away
+      - A larger learning rate flips the gradients, so the parameters move uphill
+      - With a larger learning rate the backward pass uses the new parameters
+      - The loss always rises on the first step and falls only on the later ones
+    answer: 0
+    optionFeedback:
+      '1': The gradients are the same; only the step length changes.
+      '2': The gradients come from the original network whatever $\eta$ is.
+      '3': With $\eta = 0.05$ the very first step lowered the loss.
+    explanation: The gradient only gives the downhill **direction** near the current point. Too long a step overshoots, so the loss can rise.
+
+  - id: same-network
+    type: mcq
+    skills: [gradient-descent, backprop]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: math-code, id: gradient-descent }
+    prompt: Why are all the gradients computed before any parameter is updated?
+    options:
+      - Each gradient describes the original network; updating early would mix old and new parameters in one step
+      - Updating a parameter early would make its own gradient zero for the rest of the step
+      - The biases must always be updated before the weights, so the weights wait
+      - Computing them first is quicker, but the results would be the same either way
+    answer: 0
+    optionFeedback:
+      '1': Its gradient would not become zero; it would just describe a different network.
+      '2': There is no required order between weights and biases.
+      '3': The results would differ, because later chains reuse the old $v$ and $w$ values.
+    explanation: Backpropagation computes gradients; gradient descent updates. The chain for $w_{11}$ uses the old $v_1$, so $v_1$ must not change mid-way.
+
+  - id: code-update
+    type: code-fill
+    skills: [gradient-descent]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: deep-chain }
+    prompt: 'Update the first-layer weight of the one-unit-per-layer chain. `d_w1` holds $\partial L/\partial w_1$.'
+    code: |
+      w1_new = __BLANK_1__
+    blanks:
+      '1': { accept: ['w1 - eta * d_w1', 'w1 - d_w1 * eta', 'w1-eta*d_w1'] }
+    hints:
+      - Step against the gradient, scaled by the learning rate.
+    explanation: '`w1_new = w1 - eta * d_w1`.'
