@@ -17,7 +17,7 @@ describe('module courses', () => {
     await reg.init();
     const list = await reg.list();
     const bdcc = list.filter((m) => m.course === 'BDCC').map((m) => m.id).sort();
-    expect(bdcc).toEqual(['fim', 'lf-cf', 'nb-cf', 'pandas-read-data', 'pandas-select-rows', 'spark-df-basics', 'spark-df-debugging', 'spark-df-formats']);
+    expect(bdcc).toEqual(['fim', 'lf-cf', 'nb-cf', 'pandas-read-data', 'pandas-select-rows', 'spark-df-basics', 'spark-df-debugging', 'spark-df-formats', 'spark-sql-udf']);
     for (const m of list) expect(m.courseSource).toBe('manifest');
   }, 30_000); // list() validates every built-in module in the background
 

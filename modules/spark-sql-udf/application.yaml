@@ -1,0 +1,348 @@
+intro: |
+  Analysts often think in SQL, but some rules only fit in Python: a label, a hash, a per-mile price. Spark lets you
+  mix both. You register a DataFrame as a view and a Python function as a UDF, and SQL calls them. Every mistake in
+  this case is one a real run made. When you pick a wrong line, you see what Spark really printed, and you try again.
+case:
+  id: lia-report
+  title: "Lia's per-mile report"
+  story: |
+    Lia, a junior analyst, is preparing a short report on the twelve lesson trips for her team lead. She wants three
+    things: each trip labelled `long` (over 5 miles) or `short`, the mean fare of each label, and the trips that cost
+    the most per mile. She writes it as SQL with a few Python helpers. Her notebook already imported `numpy as np`,
+    `pandas as pd`, `Iterator`, `Tuple`, `udf` and `pandas_udf`. Each cell below is a real run; the first try of
+    most cells fails.
+  data: [taxi12]
+  derive:
+    - { fn: realCell, in: { key: app.c1 }, out: c1 }
+    - { fn: realCell, in: { key: app.c1.taxi }, out: c1taxi }
+    - { fn: realCell, in: { key: app.c1.register }, out: c1reg }
+    - { fn: realCell, in: { key: app.c1.table }, out: c1tab }
+    - { fn: realCell, in: { key: app.c1.fixed }, out: c1ok }
+    - { fn: realCell, in: { key: app.c2 }, out: c2 }
+    - { fn: realCell, in: { key: app.c2.udf }, out: c2udf }
+    - { fn: realCell, in: { key: app.c2.othername }, out: c2name }
+    - { fn: realCell, in: { key: app.c2.bool }, out: c2bool }
+    - { fn: realCell, in: { key: app.c2.fixed }, out: c2ok }
+    - { fn: realCell, in: { key: app.c3 }, out: c3 }
+    - { fn: realCell, in: { key: app.c3.single }, out: c3single }
+    - { fn: realCell, in: { key: app.c3.double }, out: c3double }
+    - { fn: realCell, in: { key: app.c3.dash }, out: c3dash }
+    - { fn: realCell, in: { key: app.c3.fixed }, out: c3ok }
+    - { fn: realCell, in: { key: app.c4 }, out: c4 }
+    - { fn: realCell, in: { key: app.c4.list }, out: c4list }
+    - { fn: realCell, in: { key: app.c4.means }, out: c4means }
+    - { fn: realCell, in: { key: app.c5 }, out: c5 }
+    - { fn: realCell, in: { key: app.c5.typed }, out: c5ok }
+    - { fn: tripsView, in: { cols: [PULocationID, trip_distance, fare_amount] }, out: tv }
+    - { fn: realCell, in: { key: app.c6.def }, out: c6 }
+    - { fn: realCell, in: { key: app.c6.half }, out: c7half }
+    - { fn: realCell, in: { key: app.c6.band }, out: c7band }
+    - { fn: realCell, in: { key: app.c6.fixed }, out: c7ok }
+    - { fn: realCell, in: { key: app.c6.builtin }, out: c7avg }
+  cells:
+    - id: the-view
+      title: 'Cell 1: a table SQL can find'
+      say: |
+        Lia reads the trips and asks SQL to count them. The count fails with an [[analysis-exception]]:
+        `TABLE_OR_VIEW_NOT_FOUND`. The Python variable `trips` exists, yet SQL cannot see it. She needs one line
+        between the read and the query.
+      stage:
+        - id: cell-1
+          widget: Code
+          props: { source: '@c1.code', lang: python, title: Cell 1 }
+        - id: out-1
+          widget: Text
+          props: { body: '@c1.out' }
+      decision:
+        prompt: Which line, placed between the two, makes the query work?
+        type: mcq
+        options:
+          - "`trips.createOrReplaceTempView('taxi')`"
+          - "`spark.udf.register('trips', trips)`"
+          - "`trips.createOrReplaceTempView('trips')`"
+          - "`trips = spark.table('trips')`"
+        answer: 2
+        outcomes:
+          0:
+            say: 'The view exists now, but it is called `taxi`. The query still says `FROM trips`, and the real run fails the same way.'
+            stage:
+              - { id: out-1-taxi, widget: Text, props: { body: '@c1taxi.out' } }
+          1:
+            say: '`register` is for functions. The real run stops at once: it expected something callable and got a DataFrame.'
+            stage:
+              - { id: out-1-reg, widget: Text, props: { body: '@c1reg.out' } }
+          2:
+            say: 'The real run counts all twelve trips.'
+            stage:
+              - { id: out-1-ok, widget: Text, props: { body: '@c1ok.out' } }
+          3:
+            say: '`spark.table` looks the name up in the same catalog SQL uses, so it fails with the same error before the query runs.'
+            stage:
+              - { id: out-1-tab, widget: Text, props: { body: '@c1tab.out' } }
+        model: |
+          `createOrReplaceTempView('trips')` gives the DataFrame the name the query uses, a [[temp-view]]. A view
+          named `taxi` would work only with `FROM taxi`. `spark.udf.register` takes functions, not tables, and
+          `spark.table('trips')` reads a view that does not exist yet. Each wrong line was run for real.
+
+    - id: band-in-sql
+      title: 'Cell 2: a Python label inside SQL'
+      say: |
+        Lia writes `band`, a plain Python function that returns `'long'` for a trip over 5 miles and `'short'`
+        otherwise, and calls it inside SQL. The real run fails with `UNRESOLVED_ROUTINE`: SQL knows no function
+        called `band`. One line before the query should fix it.
+      stage:
+        - id: cell-2
+          widget: Code
+          props: { source: '@c2.code', lang: python, title: Cell 2 }
+        - id: out-2
+          widget: Text
+          props: { body: '@c2.out' }
+      decision:
+        prompt: Which line, placed before the query, makes it print a label for every trip?
+        type: mcq
+        options:
+          - '`band = udf(band)`'
+          - "`spark.udf.register('band_label', band)`"
+          - "`spark.udf.register('band', band, 'BOOLEAN')`"
+          - "`spark.udf.register('band', band)`"
+        answer: 3
+        outcomes:
+          0:
+            say: '`udf(band)` makes a UDF for Python code, but SQL still has no name for it. Same error.'
+            stage:
+              - { id: out-2-udf, widget: Text, props: { body: '@c2udf.out' } }
+          1:
+            say: 'It is registered, but as `band_label`. The query asks for `band`.'
+            stage:
+              - { id: out-2-name, widget: Text, props: { body: '@c2name.out' } }
+          2:
+            say: 'It runs, with no error. But `''long''` and `''short''` do not fit BOOLEAN (true or false), so every label is NULL.'
+            stage:
+              - { id: out-2-bool, widget: Text, props: { body: '@c2bool.out' } }
+          3:
+            say: Registered under the name the query uses, with the default string type. Four trips are long.
+            stage:
+              - { id: out-2-ok, widget: Text, props: { body: '@c2ok.out' } }
+        model: |
+          [[udf-registration]] with the name the SQL uses is the fix. The default return type, string, fits text
+          labels. `udf(band)` works in DataFrame code only; a different name leaves `band` unknown; and declaring
+          BOOLEAN gives a column of silent NULLs, the most dangerous result, because nothing fails.
+
+    - id: mean-fare-alias
+      title: 'Cell 3: the mean fare per label'
+      say: |
+        Now the mean fare of each label. Lia groups by `band(trip_distance)` and averages `fare_amount`. Her team lead
+        wants the column called `mean fare`, with a space. The real run stops with `PARSE_SYNTAX_ERROR` near `fare`:
+        SQL read the alias as `mean` and did not know what to do with the next word.
+      stage:
+        - id: cell-3
+          widget: Code
+          props: { source: '@c3.code', lang: python, title: Cell 3 }
+        - id: out-3
+          widget: Text
+          props: { body: '@c3.out' }
+      decision:
+        prompt: How should the alias be written?
+        type: mcq
+        options:
+          - "`AS 'mean fare'`"
+          - '`AS "mean fare"`'
+          - '`AS mean-fare`'
+          - '`` AS `mean fare` ``'
+        answer: 3
+        outcomes:
+          0:
+            say: Single quotes make a text value, not a name. The real run fails the same way.
+            stage:
+              - { id: out-3-single, widget: Text, props: { body: '@c3single.out' } }
+          1:
+            say: Double quotes are text in Spark SQL too.
+            stage:
+              - { id: out-3-double, widget: Text, props: { body: '@c3double.out' } }
+          2:
+            say: 'A dash is not allowed in a bare name either; this error even suggests the fix.'
+            stage:
+              - { id: out-3-dash, widget: Text, props: { body: '@c3dash.out' } }
+          3:
+            say: The real output.
+            stage:
+              - { id: out-3-ok, widget: Text, props: { body: '@c3ok.out' } }
+        model: |
+          [[backticks]] turn `mean fare`, space included, into one name. Quotes of either kind make text, and a dash
+          needs backticks too: the real runs fail with PARSE_SYNTAX_ERROR or INVALID_IDENTIFIER.
+
+    - id: per-mile
+      title: 'Cell 4: dollars per mile, batch by batch'
+      say: |
+        For the per-mile price, Lia writes an [[iterator]] pandas UDF over two columns, registers it and calls it in
+        SQL. The real run fails: `UDF_RETURN_TYPE`, the return type "should be iterator of pandas.Series, but is
+        Series". Only the line inside the loop needs to change.
+      stage:
+        - id: cell-4
+          widget: Code
+          props: { source: '@c4.code', lang: python, title: Cell 4 }
+        - id: out-4
+          widget: Text
+          props: { body: '@c4.out' }
+      decision:
+        prompt: Which line belongs inside the loop?
+        type: mcq
+        options:
+          - '`return [fare / dist]`'
+          - '`yield fare.mean() / dist.mean()`'
+          - '`yield fare / dist`'
+        answer: 2
+        outcomes:
+          0:
+            say: A list is still not an iterator of Series. The real run names it.
+            stage:
+              - { id: out-4-list, widget: Text, props: { body: '@c4list.out' } }
+          1:
+            say: '`yield` is right, but `.mean()` squeezes each batch into one number. The real run wants a Series per batch.'
+            stage:
+              - { id: out-4-means, widget: Text, props: { body: '@c4means.out' } }
+        model: |
+          An iterator UDF must [[yield]] one Series per batch, with one value per row. `fare / dist` divides the two
+          Series row by row, so each trip gets its own dollars per mile. `return` stops after one batch, a list is not
+          an iterator, and `.mean()` gives one number instead of a Series.
+
+    - id: top-rate
+      title: 'Cell 5: the most expensive trips per mile'
+      say: |
+        To rank trips, Lia registers a lambda this time, `lambda fare, dist: fare / dist`, without a return type, and
+        sorts with `ORDER BY rate DESC LIMIT 3`. The real output runs, but the order looks odd: a rate starting with
+        6 is on top. The fix is the third argument `'DOUBLE'`. Use the trip table to find what should come first.
+      stage:
+        - id: cell-5
+          widget: Code
+          props: { source: '@c5.code', lang: python, title: Cell 5 }
+        - id: out-5
+          widget: Text
+          props: { body: '@c5.out' }
+        - id: trips-5
+          widget: Matrix
+          props: { rows: '@tv.rows', cols: '@tv.cols', values: '@tv.values', rowHeader: trip, title: The 12 trips }
+        - id: out-5-ok
+          widget: Text
+          hidden: true
+          props:
+            body: |
+              Real output with `'DOUBLE'`:
+              {=c5ok.out}
+      decision:
+        prompt: With `'DOUBLE'` added, which row comes first?
+        type: mcq
+        options:
+          - 'Zone 7, rate 10.81'
+          - 'Zone 7, rate 0.09'
+          - 'Zone 7, rate 3.52'
+          - 'Zone 74, rate 6.0'
+        answer: 0
+        optionFeedback:
+          '1': 'That is miles per dollar, distance divided by fare (0.37 / 4.0). The rate is fare divided by distance.'
+          '2': 'Trip 3 has the biggest fare (34.5), but over 9.8 miles that is only 3.52 per mile.'
+          '3': 'Trip 10 (6.0 / 1.0) is third once the rates are numbers.'
+        model: |
+          Without a type the rates are text, so "6.8…" sorts above "10.8…". As numbers, trip 4 wins: a fare of 4.0 for
+          0.37 miles is $4.0 / 0.37 = 10.81$ dollars per mile. Short trips with a minimum fare cost the most per mile.
+
+    - id: band-means
+      title: 'Cells 6 and 7: her own average'
+      say: |
+        Lia's cell 6 registers two pandas UDFs, `mean_udf` (Series to scalar) and `half` (Series to Series), next to
+        `band`. Cell 7 groups by `band(trip_distance)` and should put one of them in the blank to average the fares.
+        Only one of the three registered names can sit there.
+      stage:
+        - id: cell-6
+          widget: Code
+          props: { source: '@c6.code', lang: python, title: Cell 6 }
+        - id: cell-7
+          widget: Code
+          props:
+            lang: python
+            title: Cell 7
+            source: |
+              spark.sql("""
+              SELECT band(trip_distance) AS band, ____(fare_amount) AS `mean fare`
+              FROM trips
+              GROUP BY band(trip_distance)
+              ORDER BY band
+              """).show()
+      decision:
+        prompt: Which function fills the blank?
+        type: mcq
+        options:
+          - '`half`'
+          - '`mean_udf`'
+          - '`band`'
+        answer: 1
+        outcomes:
+          0:
+            say: '`half` returns one value per row, so the group has no single value. The real run: `MISSING_AGGREGATION`.'
+            stage:
+              - { id: out-7-half, widget: Text, props: { body: '@c7half.out' } }
+          1:
+            say: One mean per band, the same numbers as cell 3.
+            stage:
+              - { id: out-7-ok, widget: Text, props: { body: '@c7ok.out' } }
+          2:
+            say: '`band` labels a single value; it is not a summary either.'
+            stage:
+              - { id: out-7-band, widget: Text, props: { body: '@c7band.out' } }
+        model: |
+          A `GROUP BY` query needs an [[aggregation]]: one value per group. `mean_udf`, typed `pd.Series -> float`,
+          is one; `half` and `band` give a value per row and fail with MISSING_AGGREGATION. Built-in `AVG(fare_amount)`
+          gives the same answer, and it stays inside Spark, so it is faster than any Python UDF.
+atScale:
+  title: The same report on the full quarter
+  body: |
+    The course notebook reads the full fourth quarter of 2017, three monthly files of NYC green-taxi trips (19
+    columns, millions of rows), from the course server. The SQL and the UDFs stay exactly the same; only the read
+    changes. What changes is the cost:
+
+    - **Built-in functions first.** `AVG`, `CAST`, `HOUR` and `CASE WHEN` run inside Spark's Java engine. A Python
+      UDF makes every row cross to Python and back.
+    - **Pandas UDFs over row UDFs.** They cross in Arrow batches of up to 10,000 rows and work on whole Series.
+    - **Iterator UDFs for setup.** Reading seeds or loading a model once per call, not once per batch.
+    - **Watch memory.** `applyInPandas` and Series-to-scalar UDFs load a whole group into one Python process; one
+      huge group can run it out of memory.
+    - **SQL or methods.** Both are turned into a [[plan]] that Spark optimizes; `explain()` prints it, so you can compare
+      the two versions of a query yourself.
+  code:
+    - lang: python
+      title: The course notebook's read of the full quarter, then Lia's cells unchanged
+      source: |
+        trips = spark.read.csv(
+            '/mnt/data/public/nyctaxi/all/green_tripdata_2017-1*.csv',
+            sep=',', header=True, inferSchema=True
+        )
+        trips.createOrReplaceTempView('trips')
+        spark.udf.register('band', band)
+        spark.sql("""
+        SELECT band(trip_distance) AS band, AVG(fare_amount) AS `mean fare`
+        FROM trips
+        GROUP BY band(trip_distance)
+        """).show()
+tradeoffs:
+  title: Which tool for which job
+  columns: [Tool, Runs where, Good for, Watch out for]
+  rows:
+    - ['Built-in SQL function (`AVG`, `CASE WHEN`)', 'Inside Spark', 'Anything Spark already offers', 'Nothing; use it first']
+    - ['Row UDF, `@udf`', 'Python, one row per call', 'Small custom rules on a few columns', 'Slow on big data; the return type decides NULLs or errors']
+    - ['Pandas UDF, Series to Series', 'Python, one batch per call', 'Vectorized maths such as `np.clip`', 'Must return a Series of the same length']
+    - ['Iterator pandas UDF', 'Python, one call for many batches', 'Expensive setup done once', '`yield`, not `return`']
+    - ['Series to scalar / `applyInPandas`', 'Python, one group per call', 'Custom summaries per group', 'A big group must fit in memory']
+    - ['`spark.sql` on a view', 'Same plan as DataFrame code', 'Readable queries for SQL people', 'Needs a view and registered functions']
+connections:
+  - module: spark-df-formats
+    note: 'Its average per group with `groupBy(...).agg(F.mean(...).alias(...))` is the same plan as `GROUP BY` with `AVG ... AS` here.'
+  - module: spark-df-debugging
+    note: 'Reading tracebacks last line first works the same for SQL errors: the class in capitals names the problem.'
+explainBack:
+  prompt: Explain to a classmate how a Python function ends up being called from a SQL statement on a Spark table, and what can silently go wrong.
+  rubric:
+    - The DataFrame needs a temporary view so SQL can name the table
+    - The function needs spark.udf.register so SQL can name the function
+    - Spark calls the function per row (or per batch for a pandas UDF), sending values to Python and back
+    - The declared return type decides what Spark stores; a mismatch can give NULLs without an error
+    - Built-in SQL functions are faster than Python UDFs when they can do the job
