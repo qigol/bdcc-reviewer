@@ -17,23 +17,37 @@ import { ExamGuide, ProblemHint, ScratchPad } from './ExamTools';
 type Phase = 'intro' | 'running' | 'grading' | 'done';
 interface TestState { pass: boolean; result: CellResult }
 
+// an attempt in progress survives a reload: same seed (so the same data and saved code), same clock
+interface SavedAttempt { seed: number; startedAt: number }
+const attemptKey = (moduleId: string) => `kodigo-coding-attempt:${moduleId}`;
+function readAttempt(moduleId: string): SavedAttempt | null {
+  try { return JSON.parse(sessionStorage.getItem(attemptKey(moduleId)) ?? 'null'); } catch { return null; }
+}
+
 export function CodingExam() {
   const { mod } = useModuleCtx();
   const coding = mod.parsed.exam!.coding!;
-  const [seed, setSeed] = useState(randomSeed);
+  const [resumed] = useState(() => readAttempt(mod.id));
+  const [seed, setSeed] = useState(() => resumed?.seed ?? randomSeed());
   const [vars, setVars] = useState<Record<string, any> | null>(null);
   const [varsError, setVarsError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>('intro');
+  const [phase, setPhase] = useState<Phase>(resumed ? 'running' : 'intro');
   const [stage, setStage] = useState('Loading Python…');
   const [code, setCode] = useState<Record<string, string>>({});
   const [outputs, setOutputs] = useState<Record<string, CellResult>>({});
   const [running, setRunning] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
-  const [startedAt, setStartedAt] = useState(0);
+  const [startedAt, setStartedAt] = useState(() => resumed?.startedAt ?? 0);
   const [now, setNow] = useState(Date.now());
   const [notesOpen, setNotesOpen] = useState(false);
   const kernel = useRef<PythonKernel | null>(null);
   const storeKey = `kodigo-coding:${mod.id}:${seed}`;
+  const start = () => {
+    const t = Date.now();
+    setStartedAt(t); setNow(t); setPhase('running');
+    try { sessionStorage.setItem(attemptKey(mod.id), JSON.stringify({ seed, startedAt: t } satisfies SavedAttempt)); } catch { /* no resume in private mode */ }
+  };
+  const clearAttempt = () => { try { sessionStorage.removeItem(attemptKey(mod.id)); } catch { /* nothing saved */ } };
 
   // one Python kernel per visit; start loading at once, so the download doesn't eat exam time
   useEffect(() => {
@@ -94,20 +108,36 @@ export function CodingExam() {
   };
   const restart = async () => { await kernel.current?.restart(); setOutputs({}); };
 
-  // grade like a grader: fresh kernel, every cell top to bottom, then every test cell
+  // grade like a grader: fresh kernel, every cell top to bottom, then every test cell. A run that times out replaces the
+  // kernel, so the cells that ran fine are run again before going on: one endless loop costs only its own problem.
   const submit = async () => {
     if (!kernel.current || phase !== 'running') return;
     setPhase('grading');
-    await kernel.current.restart();
+    clearAttempt();
+    const k = kernel.current;
     const outs: Record<string, CellResult> = {};
     const res: Record<string, TestState> = {};
-    for (const key of ['setup', ...coding.problems.map((p) => p.id)]) outs[key] = await kernel.current.run(code[key] ?? '', files);
-    for (const p of coding.problems) for (let i = 0; i < p.tests.length; i++) {
-      const r = await kernel.current.run(testCode(p.id, i), files);
-      outs[`${p.id}:test${i}`] = r;
-      res[`${p.id}:test${i}`] = { pass: !r.err, result: r };
+    const safeRun = async (src: string): Promise<CellResult> => {
+      try { return await k.run(src, files); } catch (e: any) { return { out: '', err: String(e?.message ?? e), ms: 0 }; }
+    };
+    const good: string[] = [];
+    const rerunGood = async () => { for (const g of good) await safeRun(code[g] ?? ''); };
+    try {
+      await k.restart().catch(() => {});
+      for (const key of ['setup', ...coding.problems.map((p) => p.id)]) {
+        const r = await safeRun(code[key] ?? '');
+        outs[key] = r;
+        if (r.timedOut) await rerunGood(); else good.push(key);
+      }
+      for (const p of coding.problems) for (let i = 0; i < p.tests.length; i++) {
+        const r = await safeRun(testCode(p.id, i));
+        outs[`${p.id}:test${i}`] = r;
+        res[`${p.id}:test${i}`] = { pass: !r.err && !r.timedOut, result: r };
+        if (r.timedOut) await rerunGood();
+      }
+    } finally {
+      setOutputs(outs); setTests(res); setPhase('done');
     }
-    setOutputs(outs); setTests(res); setPhase('done');
   };
 
   const limitMs = coding.timeLimitMin ? coding.timeLimitMin * 60_000 : null;
@@ -140,7 +170,7 @@ export function CodingExam() {
           </span>
           {phase === 'intro' && <>
             <button className="btn-ghost btn-sm" onClick={() => setSeed(randomSeed())} title="A new dataset"><Dices size={13} /> Different data</button>
-            <button className="btn-primary ml-auto" disabled={!vars} onClick={() => { setStartedAt(Date.now()); setNow(Date.now()); setPhase('running'); }} data-testid="coding-start"><Play size={14} /> Start the exam</button>
+            <button className="btn-primary ml-auto" disabled={!vars} onClick={start} data-testid="coding-start"><Play size={14} /> Start the exam</button>
           </>}
           {phase === 'running' && leftMs !== null && <span className={cn('ml-auto font-mono font-semibold', leftMs < 10 * 60_000 ? 'text-bad' : 'text-ink')}><Clock size={14} className="inline" /> {fmtTime(leftMs)}</span>}
         </div>
@@ -155,7 +185,7 @@ export function CodingExam() {
               <tr key={p.id} className="border-t border-line"><td className="py-1.5">{p.title}</td><td className="py-1.5 text-right font-mono">{p.got} / {p.max}</td></tr>
             ))}</tbody></table>
             <p className="mt-2 text-sm text-muted">Graded in a fresh kernel: cells top to bottom, then the tests. Each test cell's output is below.</p>
-            <button className="btn mt-2" onClick={() => { setPhase('intro'); setSeed(randomSeed()); }}><Dices size={14} /> New exam</button>
+            <button className="btn mt-2" onClick={() => { clearAttempt(); setPhase('intro'); setSeed(randomSeed()); }}><Dices size={14} /> New exam</button>
           </>}
         </div>
       )}
