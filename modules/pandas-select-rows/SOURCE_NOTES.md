@@ -83,7 +83,8 @@
   formula so they come out exactly equal and the antecedent breaks them.
 - Reference check (2026-11-03): a reference solution written from the spec, run in Python 3.12.12 with pandas 2.2.3
   on 40 seeds, passed every test cell. In the browser (Pyodide 0.27.8: Python 3.12.7, pandas 2.2.3) the same
-  solution scored 50/50 and a `>` for `>=` slip in 1a failed with ACTUAL/DESIRED. The reference is not shipped.
+  solution scored 50/50 and a `>` for `>=` slip in 1a failed with ACTUAL/DESIRED. Since 1.3.0 the reference ships as
+  the walkthrough steps, shown after submit (see below).
 
 ## Walkthrough and twists (1.3.0)
 - After submit, each coding problem has a walkthrough (its steps end with the full function and the test, so the steps
