@@ -18,7 +18,9 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 
 | Path | Role |
 |---|---|
-| `apps/server/src/index.ts` | Fastify API and static hosting of the built SPA; reads every env var |
+| `apps/server/src/index.ts` | Entry: `loadConfig()` → `buildApp()` → listen → warm the health cache |
+| `apps/server/src/config.ts` | `loadConfig(env)`: the only place that reads env vars |
+| `apps/server/src/app.ts` | `buildApp(cfg, deps)`: Fastify API, hooks, error handler and static hosting of the built SPA, without listening (tests use `app.inject`; fixture in `apps/server/test/fixtures.ts`) |
 | `apps/server/src/registry.ts` | Module registry: built-ins (`MODULES_BUILTIN`) plus imports in `DATA_DIR/modules/<id>@<version>/`; enabled/order/current/course in `DATA_DIR/state.json`; keeps the newest 3 imported versions |
 | `apps/server/src/christmas/` | 12-day Christmas countdown quiz: `days.ts` (content), `schedule.ts` (which days are open) |
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
@@ -106,7 +108,7 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
   draw; see `docs/MODULE_AUTHORING_GUIDE.md` §5.11. A coding version adds `coding` to `exam.yaml` and a generator
   for its files and test values, plus walkthrough steps and twists per problem; run `scripts/exam-check` in real pandas
   before shipping (§5.11).
-- **An API route:** `apps/server/src/index.ts` (admin routes call `requireAdmin`), client in `apps/web/src/lib/api.ts`.
+- **An API route:** `apps/server/src/app.ts` (admin routes call `requireAdmin`; a new env var goes in `config.ts`), client in `apps/web/src/lib/api.ts`.
 - **A rule implied by a module fix:** add it to `docs/MODULE_AUTHORING_GUIDE.md`.
 
 ## Commands and checks

@@ -139,3 +139,8 @@ export async function saveNote(moduleId: string, anchor: string, text: string) {
 export function useNote(moduleId: string, anchor: string) {
   return useLiveQuery(() => db.notes.where('moduleId').equals(moduleId).filter((n) => n.anchor === anchor).first(), [moduleId, anchor]);
 }
+
+/** Mastery as displayed at `now` (stored `score` is never changed by display). */
+export function effectiveMastery(score: number, _updatedAt: number, _now: number): number {
+  return score;
+}

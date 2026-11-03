@@ -5,7 +5,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { validateModule, type FileMap, type ValidationReport, type ParsedModule } from '@kodigo/schema';
+import { validateModule, type FileMap, type ValidationReport, type ParsedModule, type LogicHostFactory } from '@kodigo/schema';
 import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
 
 export interface ModuleState { enabled: boolean; order?: number; current?: string; /** admin override of manifest.course */ course?: string }
@@ -53,7 +53,11 @@ export class Registry {
   private healthCache = new Map<string, { hash: string; report: ValidationReport }>();
   private pending = new Map<string, Promise<ValidationReport>>();
 
-  constructor(private builtinDir: string, private dataDir: string, private log: (msg: string) => void = () => {}) {}
+  private hostFactory: LogicHostFactory;
+
+  constructor(private builtinDir: string, private dataDir: string, private log: (msg: string) => void = () => {}, opts: { hostFactory?: LogicHostFactory } = {}) {
+    this.hostFactory = opts.hostFactory ?? ((src) => createNodeHost(src));
+  }
 
   get importedDir() { return path.join(this.dataDir, 'modules'); }
   get statePath() { return path.join(this.dataDir, 'state.json'); }
@@ -120,7 +124,7 @@ export class Registry {
   }
 
   async validate(files: FileMap): Promise<ValidationReport & { module?: ParsedModule }> {
-    return validateModule(files, { hostFactory: (src) => createNodeHost(src) });
+    return validateModule(files, { hostFactory: this.hostFactory });
   }
 
   /** Cached full report for the module currently serving `id`. */

@@ -11,6 +11,7 @@ import { recordAttempt } from '../storage/progress';
 import { CONFIDENCE_LABEL, calibration, type Confidence } from '../storage/confidence';
 import { cn } from '../lib/util';
 import { usePopup } from '../lib/popup';
+import { summarize } from './summary';
 
 /** `seed` is set once the learner asks for new numbers; otherwise the session item's seed is used. */
 interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number; confidence?: Confidence }
@@ -220,9 +221,7 @@ function Runner({ session }: { session: QuizSession }) {
 }
 
 function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slot[]; onRetry: () => void }) {
-  const graded = slots.filter((s) => s.graded && s.inst);
-  const score = graded.reduce((a, s) => a + s.graded!.score, 0);
-  const pct = graded.length ? score / graded.length : 0;
+  const { graded, score, pct } = summarize(slots);
   const bySkill: Record<string, { label: string; sum: number; n: number }> = {};
   for (const s of graded) {
     for (const k of s.inst!.skills.length ? s.inst!.skills : ['(glossary)']) {

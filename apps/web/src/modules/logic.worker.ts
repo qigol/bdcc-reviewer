@@ -6,11 +6,9 @@
 import * as Comlink from 'comlink';
 import { sdk, createRng } from '@kodigo/sdk';
 import { transformLogicSource } from '@kodigo/schema/logic-source';
+import { hardenWorkerGlobal } from './harden';
 
-const g = self as any;
-for (const k of ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches']) {
-  try { g[k] = undefined; } catch { /* ignore */ }
-}
+hardenWorkerGlobal(self, ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches']);
 
 let api: { fns: Record<string, (a: any) => any>; generators: Record<string, (c: any) => any> } | null = null;
 
