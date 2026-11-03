@@ -692,7 +692,13 @@ function checkExam(ctx: Ctx) {
     ctx.genRefs.push({ gen: c.story, file, path: 'coding.story' });
     uniqueIds(c.problems, 'coding problem', file, ctx, 'coding.problems');
     checkText(c.intro, null, file, 'coding.intro', ctx);
-    c.problems.forEach((p, i) => { checkText(p.spec, null, file, `coding.problems[${i}].spec`, ctx); checkText(p.hint, null, file, `coding.problems[${i}].hint`, ctx); });
+    c.problems.forEach((p, i) => {
+      checkText(p.spec, null, file, `coding.problems[${i}].spec`, ctx);
+      checkText(p.hint, null, file, `coding.problems[${i}].hint`, ctx);
+      (p.walkthrough ?? []).forEach((s, j) => checkText(s.say, null, file, `coding.problems[${i}].walkthrough[${j}].say`, ctx));
+      uniqueIds(p.twists ?? [], 'twist', file, ctx, `coding.problems[${i}].twists`);
+      (p.twists ?? []).forEach((t, j) => { checkText(t.change, null, file, `coding.problems[${i}].twists[${j}].change`, ctx); checkText(t.spec, null, file, `coding.problems[${i}].twists[${j}].spec`, ctx); });
+    });
   }
 }
 
@@ -1230,7 +1236,11 @@ export async function runLogicChecks(
           if (typeof vars[v] !== 'string') problems.add(`file ${p}: story var "${v}" is not text`);
           for (const m of interpolate(p, vars, { mode: 'md' }).missing) problems.add(`file path: unresolved {=${m}}`);
         }
-        const texts = [c.intro, c.setup, ...c.problems.flatMap((p) => [p.spec, p.hint ?? '', p.stub, ...p.tests.map((t) => t.code)])];
+        const texts = [c.intro, c.setup, ...c.problems.flatMap((p) => [
+          p.spec, p.hint ?? '', p.stub, ...p.tests.map((t) => t.code),
+          ...(p.walkthrough ?? []).flatMap((s) => [s.say, s.code]),
+          ...(p.twists ?? []).flatMap((t) => [t.change, t.spec, t.stub, t.solution, ...t.tests]),
+        ])];
         for (const tx of texts) for (const m of interpolate(tx, vars, { mode: 'md', labels: mod.labels }).missing) problems.add(`unresolved {=${m}} (coding story vars)`);
       }
       for (const pr of problems) E('quiz', 'exam.yaml', 'coding', pr);

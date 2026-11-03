@@ -1097,14 +1097,71 @@ export default function register(sdk) {
       for (const f of freq) if (f.S.length >= 2) for (const b of f.S) {
         const A = f.S.filter((x) => x !== b);
         const conf = f.sup / cnt.get(A.join('\u0000'));
-        if (conf >= 0.8) rules.push({ A, b, lift: conf / (cnt.get(b) / n) });
+        if (conf >= 0.8) rules.push({ A, b, conf, lift: conf / (cnt.get(b) / n) });
       }
-      rules.sort((x, y) => y.lift - x.lift || lt(x.A.join('\u0000'), y.A.join('\u0000')));
+      const byA = (x, y) => lt(x.A.join('\u0000'), y.A.join('\u0000'));
+      rules.sort((x, y) => y.lift - x.lift || byA(x, y));
       // exact lift ties are fine (the spec's formula gives identical floats, and the antecedent breaks the tie);
       // a near-tie that is not exact could flip with another formula's rounding, so redraw it
-      const lifts = rules.slice(0, 6).map((r) => r.lift);
-      if (rules.length < 10 || lifts.some((x, i) => i > 0 && x !== lifts[i - 1] && Math.abs(x - lifts[i - 1]) < 1e-9)) continue;
-      return { fileRows, recipeIds, userIds, tags, nMin, keep, p, k, m, topN, d, fit, ...pickUser, largest, rules, n };
+      const nearTie = (xs) => xs.some((x, i) => i > 0 && x !== xs[i - 1] && Math.abs(x - xs[i - 1]) < 1e-9);
+      if (rules.length < 10 || nearTie(rules.slice(0, 6).map((r) => r.lift))) continue;
+      // the midterm's wording breaks lift ties by antecedent only: two tested rules with the same lift AND antecedent
+      // (different consequents) have no defined order, so redraw
+      const ambiguous = (rs, t, key) => rs.slice(0, t + 1).some((r, i) => i > 0 && key(r) === key(rs[i - 1]) && byA(r, rs[i - 1]) === 0);
+      if (ambiguous(rules, 6, (r) => r.lift)) continue;
+
+      // ---- twists (the walkthrough's variations): the same files, answers that must differ from the originals ----
+      const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      // 1a: "more than", and users with at least uMin ratings in the matrix
+      const keepGt = counts.filter((c) => c[1] > nMin).map((c) => c[0]);
+      const pGt = pivotOf(fileRows.filter((r) => keepGt.includes(r[1])));
+      const perUser = p.users.map((u, i) => [u, p.values[i].filter((v) => v !== null).length]);
+      const uMin = [5, 4, 6, 3].find((t) => { const dropped = perUser.filter(([, c]) => c < t).length; return dropped >= 2 && dropped <= 12; });
+      if (!uMin) continue;
+      const active = perUser.filter(([, c]) => c >= uMin).map(([u]) => u);
+      // 1b: user-based, same k and m (m now counts common recipes)
+      const ui = p.users.indexOf(pickUser.u), urow = p.values[ui];
+      const ucand = p.items.filter((_, j) => urow[j] === null);
+      const ub = [];
+      let ubUnsafe = false;
+      for (const it of ucand) {
+        const pr = predict({ matrix: M, user: pickUser.u, item: it, k, mode: 'user', minCommon: m });
+        if (pr.cutGap < 1e-6) ubUnsafe = true;
+        if (!pr.blank) ub.push({ id: it, est: pr.rating });
+      }
+      if (ubUnsafe || ub.length < topN + 1) continue;
+      ub.sort((a, b) => b.est - a.est || a.id - b.id);
+      if (!gapsOk(ub.slice(0, topN + 1).map((e) => e.est))) continue;
+      const userRec = ub.slice(0, topN).map((e) => e.id);
+      if (same(userRec, pickUser.ib)) continue;
+      // 1c: four fixed sweeps; two factors with a 0.05 stop
+      const cdOf = (f) => ucand.map((it) => ({ id: it, est: f.P[ui][p.items.indexOf(it)] })).sort((a, b) => b.est - a.est || a.id - b.id);
+      const fit4 = cgdFit({ R: M, d, sweeps: 4 }), cd4 = cdOf(fit4);
+      const fit2 = cgdFit({ R: M, d: 2, stopFrac: 0.05 }), cd2 = cdOf(fit2);
+      if (fit2.fracs.some((f) => Math.abs(f - 0.05) < 1e-6)) continue;
+      // these twists return numbers rounded to 3 decimals: redraw a value within reach of a rounding boundary
+      const nearHalf = (x) => Math.abs(((x * 1000) % 1 + 1) % 1 - 0.5) < 1e-3;
+      const sse4 = fit4.history;
+      if (sse4.some(nearHalf) || !gapsOk(cd2.slice(0, 2).map((e) => e.est))) continue;
+      const top2Est = cd2[0].est, topOrig = cdOf(fit)[0].est;
+      if (nearHalf(top2Est) || top2Est.toFixed(3) === topOrig.toFixed(3)) continue;
+      const cdTwo = { id: cd2[0].id, est: top2Est };
+      // 2a: at least 40%; every frequent pair
+      const freq40 = subsets(tagNames).map((S) => ({ S, sup: supOf(S) })).filter((f) => f.sup >= n * 0.4);
+      const max40 = Math.max(...freq40.map((f) => f.S.length));
+      const largest40 = freq40.filter((f) => f.S.length === max40).sort((a, b) => b.sup - a.sup || lt(a.S.join('\u0000'), b.S.join('\u0000')));
+      const pairs = freq.filter((f) => f.S.length === 2).sort((a, b) => b.sup - a.sup || lt(a.S.join('\u0000'), b.S.join('\u0000')));
+      if (same(largest40.slice(0, 2).map((f) => f.S), largest.slice(0, 2).map((f) => f.S)) || pairs.length < 3) continue;
+      // 2b: by confidence; single-tag antecedents only
+      // this twist's own spec adds the consequent as a last tie-break
+      const byConf = rules.slice().sort((x, y) => y.conf - x.conf || byA(x, y) || lt(x.b, y.b));
+      const single = rules.filter((r) => r.A.length === 1);
+      if (ambiguous(single, 4, (r) => r.lift)) continue;
+      if (nearTie(byConf.slice(0, 6).map((r) => r.conf)) || single.length < 3) continue;
+      const key5 = (rs, t) => rs.slice(0, t).map((r) => [r.A, r.b]);
+      if (same(key5(byConf, 5), key5(rules, 5)) || same(key5(single, 3), key5(rules, 3))) continue;
+      const tw = { keepGt, pGt, uMin, active, userRec, sse4, cdTwo, largest40, pairs, byConf, single };
+      return { fileRows, recipeIds, userIds, tags, nMin, keep, p, k, m, topN, d, fit, ...pickUser, largest, rules, n, tw };
     }
     throw new Error('codeData: no draw');
   }
@@ -1131,6 +1188,15 @@ export default function register(sdk) {
         itemRecPy: pyIntList(D.ib), cdRecPy: pyIntList(D.cd), sweeps: D.fit.sweepsRun,
         largestPy: '[' + D.largest.slice(0, 2).map((f) => pyStrList(f.S)).join(', ') + ']', nLargest: D.largest.length,
         liftsPy: '[' + D.rules.slice(0, 5).map(pyTuple).join(', ') + ']',
+        // twists
+        gtShapePy: '(' + D.tw.pGt.users.length + ', ' + D.tw.keepGt.length + ')', gtColsPy: pyIntList(D.tw.keepGt.slice(0, 10)),
+        uMin: D.tw.uMin, activeShapePy: '(' + D.tw.active.length + ', ' + D.keep.length + ')', activeIndexPy: pyIntList(D.tw.active.slice(0, 10)),
+        userRecPy: pyIntList(D.tw.userRec), sse4Py: '[' + D.tw.sse4.map((x) => x.toFixed(3)).join(', ') + ']',
+        cdTwoId: D.tw.cdTwo.id, cdTwoEst: D.tw.cdTwo.est.toFixed(3),
+        largest40Py: '[' + D.tw.largest40.slice(0, 2).map((f) => pyStrList(f.S)).join(', ') + ']',
+        pairsPy: '[' + D.tw.pairs.slice(0, 3).map((f) => pyStrList(f.S)).join(', ') + ']',
+        byConfPy: '[' + D.tw.byConf.slice(0, 5).map(pyTuple).join(', ') + ']',
+        singlePy: '[' + D.tw.single.slice(0, 3).map(pyTuple).join(', ') + ']',
       },
     };
   }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clock, Dices, Flag, Loader2, NotebookPen, Play, RotateCcw, Trophy } from 'lucide-react';
+import { BookOpen, Clock, Dices, Flag, ListChecks, Loader2, NotebookPen, Play, RotateCcw, Trophy } from 'lucide-react';
 import { interpolate } from '@kodigo/schema';
 import { useModuleCtx } from '../tabs/ModulePage';
 import { Markdown } from '../lib/md';
@@ -8,6 +8,7 @@ import { randomSeed } from '../quiz/session';
 import { PythonKernel, type CellResult } from '../py/python';
 import { CodeCell } from './CodeCell';
 import { ExamGuide, ProblemHint, ScratchPad } from './ExamTools';
+import { ProblemWalkthrough } from './ExamWalkthrough';
 
 /**
  * The coding mock exam (exam.yaml `coding`): the learner writes each function in Python, which runs in the browser.
@@ -40,6 +41,8 @@ export function CodingExam() {
   const [startedAt, setStartedAt] = useState(() => resumed?.startedAt ?? 0);
   const [now, setNow] = useState(Date.now());
   const [notesOpen, setNotesOpen] = useState(false);
+  // after submit: walk through every problem, or only those that lost points
+  const [review, setReview] = useState<'all' | 'missed' | null>(null);
   const kernel = useRef<PythonKernel | null>(null);
   const storeKey = `kodigo-coding:${mod.id}:${seed}`;
   const start = () => {
@@ -152,6 +155,7 @@ export function CodingExam() {
   const per = coding.problems.map((p) => ({ id: p.id, title: p.title, max: p.tests.reduce((a, t) => a + t.points, 0),
     got: p.tests.reduce((a, t, i) => a + (tests[`${p.id}:test${i}`]?.pass ? t.points : 0), 0) }));
   const total = { max: per.reduce((a, p) => a + p.max, 0), got: per.reduce((a, p) => a + p.got, 0) };
+  const missed = per.filter((p) => p.got < p.max).map((p) => p.id);
   const fmtTime = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
   const locked = phase === 'grading' || phase === 'done';
 
@@ -185,7 +189,17 @@ export function CodingExam() {
               <tr key={p.id} className="border-t border-line"><td className="py-1.5">{p.title}</td><td className="py-1.5 text-right font-mono">{p.got} / {p.max}</td></tr>
             ))}</tbody></table>
             <p className="mt-2 text-sm text-muted">Graded in a fresh kernel: cells top to bottom, then the tests. Each test cell's output is below.</p>
-            <button className="btn mt-2" onClick={() => { clearAttempt(); setPhase('intro'); setSeed(randomSeed()); }}><Dices size={14} /> New exam</button>
+            <div className="mt-3 rounded-xl border border-accent/40 bg-accent/5 p-3" data-testid="walkthrough-choice">
+              <div className="mb-1 font-semibold">Walk through it</div>
+              <p className="mb-2 text-sm text-muted">Each problem is rebuilt step by step on your data, then twisted so the code has to change.</p>
+              <div className="flex flex-wrap gap-2">
+                <button className={cn('btn btn-sm', review === 'missed' && 'border-accent text-accent')} disabled={!missed.length} onClick={() => setReview('missed')} data-testid="walk-missed">
+                  <ListChecks size={13} /> Only the ones I missed ({missed.length})
+                </button>
+                <button className={cn('btn btn-sm', review === 'all' && 'border-accent text-accent')} onClick={() => setReview('all')} data-testid="walk-all"><BookOpen size={13} /> Every problem</button>
+              </div>
+            </div>
+            <button className="btn mt-3" onClick={() => { clearAttempt(); setReview(null); setPhase('intro'); setSeed(randomSeed()); }}><Dices size={14} /> New exam</button>
           </>}
         </div>
       )}
@@ -210,7 +224,7 @@ export function CodingExam() {
               onRun={() => runCell('scratch', code.scratch ?? '')} result={outputs.scratch} running={running === 'scratch'} disabled={!ready} testId="cell-scratch" />}
           </section>
 
-          {coding.problems.map((p) => (
+          {coding.problems.filter((p) => review !== 'missed' || missed.includes(p.id)).map((p) => (
             <section key={p.id} className="card mb-4 flex flex-col gap-3 p-5" data-coding-problem={p.id}>
               <h3 className="text-lg font-semibold">{p.title}</h3>
               <Markdown text={p.spec} scope={vars} />
@@ -224,6 +238,9 @@ export function CodingExam() {
                     result={outputs[key]} running={running === key} disabled={!ready || locked} status={tests[key] ? (tests[key].pass ? 'pass' : 'fail') : null} testId={`test-${p.id}-${i}`} />
                 );
               })}
+              {phase === 'done' && review && (
+                <ProblemWalkthrough problem={p} vars={vars} fill={fill} run={runCell} outputs={outputs} running={running} ready={ready} />
+              )}
             </section>
           ))}
         </>

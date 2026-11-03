@@ -28,7 +28,7 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `modules/<id>/` | Built-in modules. List them with `ls modules`; course per module: `grep -H "^course:" modules/*/manifest.yaml` |
 | `animations/` | HyperFrames source for `Animation` widget clips. Not shipped; renders go to `modules/<id>/assets/anim/` |
 | `docker/` | `Dockerfile` (build stage runs `kodigo validate modules` and fetches Pyodide through the web build; runtime has no node_modules) and `compose.yml` |
-| `scripts/` | `fetch-pyodide.mjs`: the pinned Pyodide release for the coding exam, checked by sha256 |
+| `scripts/` | `fetch-pyodide.mjs`: the pinned Pyodide release for the coding exam, checked by sha256 · `exam-check/`: runs a coding exam's shipped cells (walkthrough steps, tests, twists) in real pandas for many seeds (see its README) |
 | `data/` | Local DATA_DIR (imported modules + `state.json`); mounted at `/data` in Docker |
 
 ### `packages/schema/src` (one file per concern)
@@ -49,7 +49,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage`, `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
 | `modules/` | `store.tsx` loads and caches modules from the API; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker with network APIs removed; `courses.ts`/`courseGroups.ts` group modules by course |
 | `tabs/` | `ModulePage` (module route shell; adds a "Mock exam" tab when the module has `exam.yaml`), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` (notebook cells; a decision option's `outcomes` show what running it does) |
-| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamTools` (guide, hints, scratchpad, row marking) |
+| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
 | `py/` | Python in the browser: `pyodide.worker.ts` (Pyodide in a module Worker, notebook-style cells) and `python.ts` (`PythonKernel`: run, restart, 20 s timeout). Pyodide's files are served from `/pyodide/` |
 | `engine/` | Scenes: `useScope.ts` (datasets + state + derive), `Stage.tsx` (lays out widgets by region), `Gate.tsx` (practice/predict/reflect gates), `trace.ts`/`marks.ts` (step-through commands) |
 | `widgets/` | One `<Name>.tsx` per catalog widget, lazy-loaded through `registry.ts` |
@@ -82,7 +82,8 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 - **Coding exam:** `exam.yaml` `coding` → `exam/CodingExam` gets the attempt's files and test values from the
   `coding.story` generator → `py/python.ts` runs each cell in `py/pyodide.worker.ts` (files written to Python's file
   system before each run) → on submit: restart, every cell top to bottom, then the test cells; a test scores when it
-  raises nothing. Not saved to `attempts`. Pyodide 0.27.8 (Python 3.12 + pandas 2.2) is fetched into
+  raises nothing. Not saved to `attempts`. After submit, `exam/ExamWalkthrough` runs each problem's walkthrough steps
+  and twists in the same kernel (every problem, or only those that lost points). Pyodide 0.27.8 (Python 3.12 + pandas 2.2) is fetched into
   `apps/web/public/pyodide/` (gitignored) by `scripts/fetch-pyodide.mjs`, which `pnpm dev` and the web build run.
 - **Progress:** Dexie DB `kodigo`, tables `progress`, `attempts`, `srs`, `mastery`, `notes`, `bookmarks`, `settings`
   (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Export/import
@@ -103,7 +104,8 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
   `packages/schema/test/qtypes.test.ts` and `apps/web/e2e/smoke.spec.ts` → document it in the authoring guide.
 - **A mock exam:** `exam.yaml` in a module plus `case` templates in its `quiz.yaml` whose generators share one data
   draw; see `docs/MODULE_AUTHORING_GUIDE.md` §5.11. A coding version adds `coding` to `exam.yaml` and a generator
-  for its files and test values; check it against a reference solution in real pandas before shipping (§5.11).
+  for its files and test values, plus walkthrough steps and twists per problem; run `scripts/exam-check` in real pandas
+  before shipping (§5.11).
 - **An API route:** `apps/server/src/index.ts` (admin routes call `requireAdmin`), client in `apps/web/src/lib/api.ts`.
 - **A rule implied by a module fix:** add it to `docs/MODULE_AUTHORING_GUIDE.md`.
 

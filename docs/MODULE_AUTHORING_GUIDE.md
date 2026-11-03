@@ -777,9 +777,19 @@ coding?: {
   rule, tie-breaks, the lift formula). The learner cannot ask; an unstated convention fails correct code.
 - **Make expected values robust to float noise**: redraw seeds whose ranking, neighbour cut-off or stopping test sits
   within 1e-6 of a tie, and allow only exact ties where the spec gives a tie-break.
-- **Check with a reference solution before shipping**: export the files and expected values for 25+ seeds, run a
-  reference solution written from the spec in real pandas (the course's version), and require every test to pass.
-  Note the result in SOURCE_NOTES; don't ship the reference (no answer keys in modules).
+- **Walkthrough and twists (per problem, shown only after submit).** `walkthrough: [{ say, code }]` rebuilds the
+  solution step by step on the attempt's data; its last step defines the function and runs the test, so the steps
+  *are* the reference solution. `twists: [{ id, title, change, spec, stub, solution, tests }]` change the spec so the
+  code must change ("more than", user-based, a fixed number of sweeps, 40% support, ranking by confidence…). The
+  learner picks "Every problem" or "Only the ones I missed". Solutions appear only here, after submit, never as a file.
+- **Twists must really change the answer**: the generator computes each twist's expected values on the same files and
+  redraws seeds where a twist's tested value equals the original's. If a ranking rarely changes, test something that
+  does (an SSE history, an estimate rounded to 3 decimals) instead. Give every sort a full tie-break in the spec, down
+  to the consequent if two rules can share an antecedent; where the real exam's wording leaves a tie undefined, keep the
+  wording and redraw such seeds.
+- **Check in real pandas before shipping**: `scripts/exam-check/` exports every seed's files with the exact shipped
+  cells (setup, walkthrough steps, tests, twist solutions and tests) and runs them with the course's pandas. Every seed
+  must pass. Note the result in SOURCE_NOTES. The scripts stay outside `modules/`, so learners can't download them.
 - A test cell scores its points when it runs without an error. On submit the kernel restarts and every cell runs top to
   bottom before the tests, as a grader would.
 

@@ -367,6 +367,24 @@ export const ExamFile = z
                 stub: z.string(),
                 /** test cells, as in the midterm notebooks; a cell scores its points when it runs without an error */
                 tests: z.array(z.object({ code: z.string(), points: z.number().positive() }).strict()).min(1),
+                /** after submit: the solution built step by step; the steps together are the checked reference */
+                walkthrough: z.array(z.object({ say: Markdown, code: z.string() }).strict()).optional(),
+                /** after submit: the same problem with a twist in the spec that forces a code change */
+                twists: z
+                  .array(
+                    z
+                      .object({
+                        id: Id, title: z.string(),
+                        /** what changed, in one sentence */
+                        change: Markdown,
+                        spec: Markdown, stub: z.string(),
+                        /** shown on request after the learner tries; checked like the walkthrough */
+                        solution: z.string(),
+                        tests: z.array(z.string()).min(1),
+                      })
+                      .strict(),
+                  )
+                  .optional(),
               })
               .strict(),
           )

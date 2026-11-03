@@ -84,3 +84,17 @@
 - Reference check (2026-11-03): a reference solution written from the spec, run in Python 3.12.12 with pandas 2.2.3
   on 40 seeds, passed every test cell. In the browser (Pyodide 0.27.8: Python 3.12.7, pandas 2.2.3) the same
   solution scored 50/50 and a `>` for `>=` slip in 1a failed with ACTUAL/DESIRED. The reference is not shipped.
+
+## Walkthrough and twists (1.3.0)
+- After submit, each coding problem has a walkthrough (its steps end with the full function and the test, so the steps
+  are the reference solution) and twists: 1a "more than" and a cut on users; 1b user-based; 1c exactly 4 sweeps with
+  the SSE history, and 2 factors with a 0.05 stop returning the top estimate; 2a 40% support and frequent pairs;
+  2b ranked by confidence (ties by antecedent, then consequent) and single-tag antecedents.
+- The generator computes every twist's answer on the same files and redraws seeds where a tested twist value equals the
+  original's, sits near a rounding boundary (1c twists, 3 decimals) or ties in an order the spec leaves open. The 1c
+  twists return numbers rather than a ranking because a ranking rarely changed (31 and 37 of 40 seeds matched).
+- The original 2b keeps the midterm's wording ("then by antecedent"); seeds where two tested rules share both lift and
+  antecedent are redrawn, since that order is undefined.
+- Check (2026-11-03): `scripts/exam-check` on 60 seeds, Python 3.12.12 and pandas 2.2.3: 60/60 seeds pass, 2340 shipped
+  cells run (setup, walkthrough steps, tests, twist solutions and tests). In the browser every walkthrough step and twist
+  test passed on one attempt.

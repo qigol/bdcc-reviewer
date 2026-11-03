@@ -69,7 +69,8 @@ coding:
     and DESIRED when it fails.
 
     Python 3.12 and pandas 2.2 run in your browser. The files are at `{=dataDir}`. When you submit, the kernel restarts
-    and your cells run top to bottom before the tests, as a grader would run them.
+    and your cells run top to bottom before the tests, as a grader would run them. Afterwards, walk through every
+    problem or only the ones you missed, then try its twists.
   files:
     '{=dataDir}/RAW_interactions.csv': interactionsCsv
     '{=dataDir}/RAW_recipes.csv': recipesCsv
@@ -78,6 +79,7 @@ coding:
     import pandas as pd
     from numpy.testing import assert_equal
   problems:
+    # ======================================================================== 1a
     - id: c1a
       title: 'Problem 1a [10 pts]'
       spec: |
@@ -104,6 +106,89 @@ coding:
             ratings = df_utility.iloc[0][df_utility.iloc[0].notnull()]
             assert_equal(ratings.tolist(), {=firstRatingsPy})
             assert_equal(ratings.index.tolist(), {=firstItemsPy})
+      walkthrough:
+        - say: |
+            Start where the spec points: read the file and look at it before you write the function. The rating column
+            is `rating`, and the ids are whole numbers.
+          code: |
+            df = pd.read_csv("{=dataDir}/RAW_interactions.csv")
+            print(df.shape)
+            df.head()
+        - say: |
+            "At least {=nMin} ratings" is a count per recipe, then a cut with `>=`. Look at the counts near the cut-off:
+            recipes with exactly {=nMin} must stay.
+          code: |
+            counts = df.groupby("recipe_id")["rating"].count()
+            keep = counts[counts >= {=nMin}].index
+            print(len(keep), "recipes kept")
+            counts.sort_values().head(8)
+        - say: |
+            `isin` keeps only the rows of those recipes. `pivot` puts users in rows and recipes in columns, sorted by id.
+          code: |
+            rated = df[df["recipe_id"].isin(keep)]
+            util = rated.pivot(index="user_id", columns="recipe_id", values="rating")
+            util.shape
+        - say: |
+            Wrap the steps in the function the spec names. It reads the file itself, so it works in a fresh kernel.
+            Then the test cell.
+          code: |
+            def create_utility_matrix():
+                df = pd.read_csv("{=dataDir}/RAW_interactions.csv")
+                counts = df.groupby("recipe_id")["rating"].count()
+                keep = counts[counts >= {=nMin}].index
+                rated = df[df["recipe_id"].isin(keep)]
+                return rated.pivot(index="user_id", columns="recipe_id", values="rating")
+
+            df_utility = create_utility_matrix()
+            assert_equal(df_utility.shape, {=shapePy})
+            assert_equal(df_utility.columns[:10].tolist(), {=colsPy})
+            assert_equal(df_utility.index[:10].tolist(), {=indexPy})
+            print("passed")
+      twists:
+        - id: gt
+          title: 'More than, not at least'
+          change: '"at least {=nMin}" becomes "more than {=nMin}": recipes with exactly {=nMin} ratings now drop out.'
+          spec: |
+            Create a function `create_utility_matrix_gt` like `create_utility_matrix`, but considering only items with
+            **more than** {=nMin} ratings.
+          stub: |
+            def create_utility_matrix_gt():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def create_utility_matrix_gt():
+                df = pd.read_csv("{=dataDir}/RAW_interactions.csv")
+                counts = df.groupby("recipe_id")["rating"].count()
+                keep = counts[counts > {=nMin}].index
+                rated = df[df["recipe_id"].isin(keep)]
+                return rated.pivot(index="user_id", columns="recipe_id", values="rating")
+          tests:
+            - |
+              u = create_utility_matrix_gt()
+              assert_equal(u.shape, {=gtShapePy})
+              assert_equal(u.columns[:10].tolist(), {=gtColsPy})
+        - id: active
+          title: 'A cut on the users too'
+          change: 'A second cut, on the rows: after building the matrix, keep only users with at least {=uMin} ratings in it.'
+          spec: |
+            Create a function `create_active_matrix` that returns the utility matrix of Problem 1a, keeping only the users
+            with **at least {=uMin} ratings in that matrix**.
+          stub: |
+            def create_active_matrix():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def create_active_matrix():
+                util = create_utility_matrix()
+                per_user = util.notna().sum(axis=1)
+                return util[per_user >= {=uMin}]
+          tests:
+            - |
+              a = create_active_matrix()
+              assert_equal(a.shape, {=activeShapePy})
+              assert_equal(a.index[:10].tolist(), {=activeIndexPy})
+
+    # ======================================================================== 1b
     - id: c1b
       title: 'Problem 1b [10 pts]'
       spec: |
@@ -130,6 +215,99 @@ coding:
         - points: 10
           code: |
             assert_equal(item_recommend({=user}), {=itemRecPy})
+      walkthrough:
+        - say: |
+            Build the matrix with the Problem 1a function, centre each user's ratings by that user's own mean, and split
+            the user's row into candidates (NaN) and rated recipes.
+          code: |
+            util = create_utility_matrix()
+            centered = util.sub(util.mean(axis=1), axis=0)
+            row = util.loc[{=user}]
+            candidates = row[row.isna()].index.tolist()
+            rated = row[row.notna()].index.tolist()
+            print("candidates:", candidates)
+            print("rated:", rated)
+        - say: |
+            For one candidate, go through the recipes the user rated. A neighbor needs at least {=m} users who rated
+            both; the similarity is the cosine of the centred ratings over exactly those users.
+          code: |
+            j = candidates[0]
+            for r in rated:
+                both = util[j].notna() & util[r].notna()
+                if both.sum() < {=m}:
+                    print(r, "skipped:", both.sum(), "common raters")
+                    continue
+                a, b = centered.loc[both, j], centered.loc[both, r]
+                den = np.sqrt((a ** 2).sum()) * np.sqrt((b ** 2).sum())
+                print(r, "sim =", round((a * b).sum() / den, 3) if den > 1e-12 else 0.0)
+        - say: |
+            Keep the top {=k} by similarity (ties by recipe ID), drop non-positive ones, and average the neighbors'
+            centred ratings weighted by similarity, plus the user's mean. Do it for every candidate, then rank.
+          code: |
+            def item_recommend(user):
+                util = create_utility_matrix()
+                centered = util.sub(util.mean(axis=1), axis=0)
+                row = util.loc[user]
+                est = {}
+                for j in row[row.isna()].index:
+                    sims = []
+                    for r in row[row.notna()].index:
+                        both = util[j].notna() & util[r].notna()
+                        if both.sum() < {=m}:
+                            continue
+                        a, b = centered.loc[both, j], centered.loc[both, r]
+                        den = np.sqrt((a ** 2).sum()) * np.sqrt((b ** 2).sum())
+                        sims.append(((a * b).sum() / den if den > 1e-12 else 0.0, r))
+                    sims.sort(key=lambda x: (-x[0], x[1]))
+                    used = [(s, r) for s, r in sims[:{=k}] if s > 1e-12]
+                    if used:
+                        est[j] = row.mean() + sum(s * centered.loc[user, r] for s, r in used) / sum(s for s, _ in used)
+                out = pd.DataFrame({"recipe_id": list(est), "estimate": list(est.values())})
+                out = out.sort_values(["estimate", "recipe_id"], ascending=[False, True])
+                return out["recipe_id"].head({=topN}).tolist()
+
+            assert_equal(item_recommend({=user}), {=itemRecPy})
+            print("passed")
+      twists:
+        - id: user-based
+          title: 'User-based instead of item-based'
+          change: 'Neighbors are now other users who rated the candidate, compared over the recipes both rated; m now counts common recipes.'
+          spec: |
+            Create a function `user_recommend` that returns the {=topN} best recipe IDs for a user ID by a **user-based**
+            recommender: for each candidate recipe, the neighbors are the other users who rated it, using (up to) {=k}
+            nearest neighbors with at least {=m} commonly rated recipes. Same centring, similarity, tie-breaks and
+            estimate as in class. Sort by decreasing estimate, then increasing recipe ID.
+          stub: |
+            def user_recommend(user):
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def user_recommend(user):
+                util = create_utility_matrix()
+                centered = util.sub(util.mean(axis=1), axis=0)
+                row = util.loc[user]
+                est = {}
+                for j in row[row.isna()].index:
+                    sims = []
+                    for v in util.index[util[j].notna()]:
+                        both = util.loc[user].notna() & util.loc[v].notna()
+                        if v == user or both.sum() < {=m}:
+                            continue
+                        a, b = centered.loc[user, both], centered.loc[v, both]
+                        den = np.sqrt((a ** 2).sum()) * np.sqrt((b ** 2).sum())
+                        sims.append(((a * b).sum() / den if den > 1e-12 else 0.0, v))
+                    sims.sort(key=lambda x: (-x[0], x[1]))
+                    used = [(s, v) for s, v in sims[:{=k}] if s > 1e-12]
+                    if used:
+                        est[j] = row.mean() + sum(s * centered.loc[v, j] for s, v in used) / sum(s for s, _ in used)
+                out = pd.DataFrame({"recipe_id": list(est), "estimate": list(est.values())})
+                out = out.sort_values(["estimate", "recipe_id"], ascending=[False, True])
+                return out["recipe_id"].head({=topN}).tolist()
+          tests:
+            - |
+              assert_equal(user_recommend({=user}), {=userRecPy})
+
+    # ======================================================================== 1c
     - id: c1c
       title: 'Problem 1c [10 pts]'
       spec: |
@@ -155,6 +333,162 @@ coding:
         - points: 10
           code: |
             assert_equal(cd_recommend({=user}), {=cdRecPy})
+      walkthrough:
+        - say: |
+            Turn the matrix into an array and keep a mask of the observed cells: the SSE counts only those. U and V start
+            as all ones.
+          code: |
+            util = create_utility_matrix()
+            R = util.to_numpy(dtype=float)
+            mask = ~np.isnan(R)
+            nu, ni = R.shape
+            U, V = np.ones((nu, {=d})), np.ones(({=d}, ni))
+            sse = lambda: float(((R - U @ V)[mask] ** 2).sum())
+            print("SSE before any sweep:", round(sse(), 3))
+        - say: |
+            One sweep: every u (user by user, factor by factor), then every v (factor by factor, recipe by recipe).
+            Each entry jumps to its exact minimiser, Σ factor × (rating − rest) / Σ factor², over the observed cells.
+          code: |
+            def sweep(U, V):
+                for i in range(nu):
+                    for s in range({=d}):
+                        obs = mask[i]
+                        rest = U[i] @ V[:, obs] - U[i, s] * V[s, obs]
+                        den = (V[s, obs] ** 2).sum()
+                        U[i, s] = (V[s, obs] * (R[i, obs] - rest)).sum() / den if den != 0 else 0.0
+                for s in range({=d}):
+                    for j in range(ni):
+                        obs = mask[:, j]
+                        rest = U[obs] @ V[:, j] - U[obs, s] * V[s, j]
+                        den = (U[obs, s] ** 2).sum()
+                        V[s, j] = (U[obs, s] * (R[obs, j] - rest)).sum() / den if den != 0 else 0.0
+
+            sweep(U, V)
+            print("SSE after one sweep:", round(sse(), 3))
+        - say: |
+            Sweep until the improvement fraction drops below 0.1, keep the factors from that last sweep, and rank the
+            user's NaN cells by U @ V.
+          code: |
+            def cd_recommend(user):
+                util = create_utility_matrix()
+                R = util.to_numpy(dtype=float)
+                mask = ~np.isnan(R)
+                nu, ni = R.shape
+                U, V = np.ones((nu, {=d})), np.ones(({=d}, ni))
+                sse = lambda: float(((R - U @ V)[mask] ** 2).sum())
+                prev = sse()
+                while True:
+                    for i in range(nu):
+                        for s in range({=d}):
+                            obs = mask[i]
+                            rest = U[i] @ V[:, obs] - U[i, s] * V[s, obs]
+                            den = (V[s, obs] ** 2).sum()
+                            U[i, s] = (V[s, obs] * (R[i, obs] - rest)).sum() / den if den != 0 else 0.0
+                    for s in range({=d}):
+                        for j in range(ni):
+                            obs = mask[:, j]
+                            rest = U[obs] @ V[:, j] - U[obs, s] * V[s, j]
+                            den = (U[obs, s] ** 2).sum()
+                            V[s, j] = (U[obs, s] * (R[obs, j] - rest)).sum() / den if den != 0 else 0.0
+                    cur = sse()
+                    if (prev - cur) / prev < 0.1:
+                        break
+                    prev = cur
+                P = pd.DataFrame(U @ V, index=util.index, columns=util.columns)
+                row = util.loc[user]
+                out = P.loc[user, row[row.isna()].index].reset_index()
+                out.columns = ["recipe_id", "estimate"]
+                out = out.sort_values(["estimate", "recipe_id"], ascending=[False, True])
+                return out["recipe_id"].head({=topN}).tolist()
+
+            assert_equal(cd_recommend({=user}), {=cdRecPy})
+            print("passed")
+      twists:
+        - id: fixed-sweeps
+          title: 'A fixed number of sweeps'
+          change: 'No stopping rule: run exactly 4 sweeps, and report the SSE as you go.'
+          spec: |
+            Create a function `cd_sse_history` that runs coordinate descent on the Problem 1a matrix with {=d} latent
+            components for **exactly 4 sweeps** and returns the SSE before any sweep and after each sweep (5 numbers),
+            each rounded to 3 decimals.
+          stub: |
+            def cd_sse_history():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def cd_sse_history():
+                util = create_utility_matrix()
+                R = util.to_numpy(dtype=float)
+                mask = ~np.isnan(R)
+                nu, ni = R.shape
+                U, V = np.ones((nu, {=d})), np.ones(({=d}, ni))
+                sse = lambda: float(((R - U @ V)[mask] ** 2).sum())
+                history = [round(sse(), 3)]
+                for _ in range(4):
+                    for i in range(nu):
+                        for s in range({=d}):
+                            obs = mask[i]
+                            rest = U[i] @ V[:, obs] - U[i, s] * V[s, obs]
+                            den = (V[s, obs] ** 2).sum()
+                            U[i, s] = (V[s, obs] * (R[i, obs] - rest)).sum() / den if den != 0 else 0.0
+                    for s in range({=d}):
+                        for j in range(ni):
+                            obs = mask[:, j]
+                            rest = U[obs] @ V[:, j] - U[obs, s] * V[s, j]
+                            den = (U[obs, s] ** 2).sum()
+                            V[s, j] = (U[obs, s] * (R[obs, j] - rest)).sum() / den if den != 0 else 0.0
+                    history.append(round(sse(), 3))
+                return history
+          tests:
+            - |
+              assert_equal(cd_sse_history(), {=sse4Py})
+        - id: two-factors
+          title: 'Two factors and a tighter stop'
+          change: 'Two latent components, stop below 0.05 instead of 0.1, and return the top estimate itself.'
+          spec: |
+            Create a function `cd_top` that runs the same coordinate descent with **2 latent components** and a
+            stopping fraction of **0.05**, and returns `(recipe_id, estimate)` for the user's best unrated recipe, the
+            estimate rounded to 3 decimals.
+          stub: |
+            def cd_top(user):
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def cd_top(user):
+                util = create_utility_matrix()
+                R = util.to_numpy(dtype=float)
+                mask = ~np.isnan(R)
+                nu, ni = R.shape
+                U, V = np.ones((nu, 2)), np.ones((2, ni))
+                sse = lambda: float(((R - U @ V)[mask] ** 2).sum())
+                prev = sse()
+                while True:
+                    for i in range(nu):
+                        for s in range(2):
+                            obs = mask[i]
+                            rest = U[i] @ V[:, obs] - U[i, s] * V[s, obs]
+                            den = (V[s, obs] ** 2).sum()
+                            U[i, s] = (V[s, obs] * (R[i, obs] - rest)).sum() / den if den != 0 else 0.0
+                    for s in range(2):
+                        for j in range(ni):
+                            obs = mask[:, j]
+                            rest = U[obs] @ V[:, j] - U[obs, s] * V[s, j]
+                            den = (U[obs, s] ** 2).sum()
+                            V[s, j] = (U[obs, s] * (R[obs, j] - rest)).sum() / den if den != 0 else 0.0
+                    cur = sse()
+                    if (prev - cur) / prev < 0.05:
+                        break
+                    prev = cur
+                P = pd.DataFrame(U @ V, index=util.index, columns=util.columns)
+                row = util.loc[user]
+                cand = P.loc[user, row[row.isna()].index]
+                best = cand.reset_index().sort_values([user, "recipe_id"], ascending=[False, True]).iloc[0]
+                return int(best["recipe_id"]), round(float(best[user]), 3)
+          tests:
+            - |
+              assert_equal(cd_top({=user}), ({=cdTwoId}, {=cdTwoEst}))
+
+    # ======================================================================== 2a
     - id: c2a
       title: 'Problem 2a [10 pts]'
       spec: |
@@ -178,6 +512,109 @@ coding:
           code: |
             lb = largest_baskets()
             assert_equal(lb[:2], {=largestPy})
+      walkthrough:
+        - say: |
+            The tags column holds text that looks like a list. Convert it while reading, then look at how often each tag
+            appears.
+          code: |
+            import ast
+            recipes = pd.read_csv("{=dataDir}/RAW_recipes.csv", converters={"tags": ast.literal_eval})
+            print(len(recipes), "recipes;", type(recipes.loc[0, "tags"]))
+            recipes["tags"].explode().value_counts()
+        - say: |
+            "At least 25%" as a count is `0.25 × n`. Count every combination of tags and keep those that reach it.
+          code: |
+            from itertools import combinations
+
+            def frequent(frac=0.25):
+                recipes = pd.read_csv("{=dataDir}/RAW_recipes.csv", converters={"tags": ast.literal_eval})
+                baskets = [set(t) for t in recipes["tags"]]
+                n = len(baskets)
+                tags = sorted(set().union(*baskets))
+                freq = {}
+                for size in range(1, len(tags) + 1):
+                    for s in combinations(tags, size):
+                        c = sum(1 for b in baskets if set(s) <= b)
+                        if c >= frac * n:
+                            freq[s] = c
+                return freq, n
+
+            freq, n = frequent()
+            print(len(freq), "frequent sets; minimum count", 0.25 * n)
+        - say: |
+            "All largest" keeps every frequent set whose size equals the maximum, ties included. Sort by decreasing
+            support, then by the tag list.
+          code: |
+            def largest_baskets():
+                freq, _ = frequent()
+                biggest = max(len(s) for s in freq)
+                largest = sorted((s for s in freq if len(s) == biggest), key=lambda s: (-freq[s], list(s)))
+                return [list(s) for s in largest]
+
+            lb = largest_baskets()
+            assert_equal(lb[:2], {=largestPy})
+            print("passed")
+      twists:
+        - id: forty
+          title: 'At least 40%'
+          change: 'The support threshold rises from 25% to 40% of the recipes, so the largest frequent sets get smaller.'
+          spec: |
+            Create a function `largest_baskets_40` like `largest_baskets`, but a set of tags is frequent if it is found
+            in **at least 40%** of the recipes.
+          stub: |
+            def largest_baskets_40():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            import ast
+            from itertools import combinations
+
+            def largest_baskets_40():
+                recipes = pd.read_csv("{=dataDir}/RAW_recipes.csv", converters={"tags": ast.literal_eval})
+                baskets = [set(t) for t in recipes["tags"]]
+                n = len(baskets)
+                tags = sorted(set().union(*baskets))
+                freq = {}
+                for size in range(1, len(tags) + 1):
+                    for s in combinations(tags, size):
+                        c = sum(1 for b in baskets if set(s) <= b)
+                        if c >= 0.4 * n:
+                            freq[s] = c
+                biggest = max(len(s) for s in freq)
+                return [list(s) for s in sorted((s for s in freq if len(s) == biggest), key=lambda s: (-freq[s], list(s)))]
+          tests:
+            - |
+              assert_equal(largest_baskets_40()[:2], {=largest40Py})
+        - id: pairs
+          title: 'Frequent pairs'
+          change: 'Not the largest sets: every frequent set of exactly two tags.'
+          spec: |
+            Create a function `frequent_pairs` that returns every frequent set (at least 25% of the recipes) with
+            **exactly two tags**, sorted by decreasing support, then by the tag list; tags in each pair sorted.
+          stub: |
+            def frequent_pairs():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            import ast
+            from itertools import combinations
+
+            def frequent_pairs():
+                recipes = pd.read_csv("{=dataDir}/RAW_recipes.csv", converters={"tags": ast.literal_eval})
+                baskets = [set(t) for t in recipes["tags"]]
+                n = len(baskets)
+                tags = sorted(set().union(*baskets))
+                pairs = {}
+                for s in combinations(tags, 2):
+                    c = sum(1 for b in baskets if set(s) <= b)
+                    if c >= 0.25 * n:
+                        pairs[s] = c
+                return [list(s) for s in sorted(pairs, key=lambda s: (-pairs[s], list(s)))]
+          tests:
+            - |
+              assert_equal(frequent_pairs()[:3], {=pairsPy})
+
+    # ======================================================================== 2b
     - id: c2b
       title: 'Problem 2b [10 pts]'
       spec: |
@@ -201,3 +638,104 @@ coding:
           code: |
             hl = highest_lifts()
             assert_equal(hl[:5], {=liftsPy})
+      walkthrough:
+        - say: |
+            Rules come from the frequent sets with two or more tags: each tag can be the consequent, the rest is the
+            antecedent. Support is already at least 25%, because the whole set is frequent.
+          code: |
+            import ast
+            from itertools import combinations
+
+            def frequent(frac=0.25):
+                recipes = pd.read_csv("{=dataDir}/RAW_recipes.csv", converters={"tags": ast.literal_eval})
+                baskets = [set(t) for t in recipes["tags"]]
+                n = len(baskets)
+                tags = sorted(set().union(*baskets))
+                freq = {}
+                for size in range(1, len(tags) + 1):
+                    for s in combinations(tags, size):
+                        c = sum(1 for b in baskets if set(s) <= b)
+                        if c >= frac * n:
+                            freq[s] = c
+                return freq, n
+
+            freq, n = frequent()
+            candidates = [(s, b) for s in freq if len(s) >= 2 for b in s]
+            print(len(candidates), "candidate rules")
+        - say: |
+            Confidence = count(A ∪ {b}) / count(A); keep it at 0.8 or more. Lift = confidence / (count(b) / n). Sort by
+            decreasing lift, then by the antecedent list.
+          code: |
+            def highest_lifts():
+                freq, n = frequent()
+                rules = []
+                for s, c in freq.items():
+                    if len(s) < 2:
+                        continue
+                    for b in s:
+                        a = tuple(x for x in s if x != b)
+                        conf = c / freq[a]
+                        if conf >= 0.8:
+                            rules.append((conf / (freq[(b,)] / n), list(a), b))
+                rules.sort(key=lambda x: (-x[0], x[1]))
+                return [(a, b) for _, a, b in rules[:10]]
+
+            hl = highest_lifts()
+            assert_equal(hl[:5], {=liftsPy})
+            print("passed")
+      twists:
+        - id: by-confidence
+          title: 'Ranked by confidence'
+          change: 'Same rules, but ranked by decreasing confidence instead of lift (ties by antecedent, then consequent).'
+          spec: |
+            Create a function `highest_confidence` that returns the 10 rules (support at least 25%, confidence at least
+            0.8, one-tag consequent) with the **highest confidence**, as (antecedent, consequent) tuples, sorted by
+            decreasing confidence, then by antecedent, then by consequent.
+          stub: |
+            def highest_confidence():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def highest_confidence():
+                freq, n = frequent()
+                rules = []
+                for s, c in freq.items():
+                    if len(s) < 2:
+                        continue
+                    for b in s:
+                        a = tuple(x for x in s if x != b)
+                        conf = c / freq[a]
+                        if conf >= 0.8:
+                            rules.append((conf, list(a), b))
+                rules.sort(key=lambda x: (-x[0], x[1], x[2]))
+                return [(a, b) for _, a, b in rules[:10]]
+          tests:
+            - |
+              assert_equal(highest_confidence()[:5], {=byConfPy})
+        - id: single
+          title: 'One-tag antecedents'
+          change: 'Only rules whose antecedent is a single tag: pair rules only.'
+          spec: |
+            Create a function `single_tag_lifts` that returns the rules of Problem 2b whose **antecedent has exactly one
+            tag**, sorted by decreasing lift, then by antecedent.
+          stub: |
+            def single_tag_lifts():
+                # YOUR CODE HERE
+                raise NotImplementedError()
+          solution: |
+            def single_tag_lifts():
+                freq, n = frequent()
+                rules = []
+                for s, c in freq.items():
+                    if len(s) != 2:
+                        continue
+                    for b in s:
+                        a = tuple(x for x in s if x != b)
+                        conf = c / freq[a]
+                        if conf >= 0.8:
+                            rules.append((conf / (freq[(b,)] / n), list(a), b))
+                rules.sort(key=lambda x: (-x[0], x[1]))
+                return [(a, b) for _, a, b in rules]
+          tests:
+            - |
+              assert_equal(single_tag_lifts()[:3], {=singlePy})
