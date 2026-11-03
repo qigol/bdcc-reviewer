@@ -11,16 +11,17 @@ export function ExamGuide({ coding = false, defaultOpen = true, className }: { c
         {coding ? (
           <>
             <p><b className="text-ink">You write the code.</b> Each problem gives a spec and a stub, as in the midterm. Write the function, press Run, and the test cell checks it with <code>assert_equal</code>, printing ACTUAL and DESIRED when it fails.</p>
-            <p>Python and pandas run in your browser. The data files are at the path the spec gives, so start by reading them.</p>
+            <p>Python and pandas run in your browser. The data files are at the path the spec gives, so start by reading them. All problems are open at once, like a notebook; the scratch cell is for exploring, and the scratchpad keeps notes for this attempt.</p>
+            <p><b className="text-ink">After you submit:</b> walk through every problem, or only the ones you missed. Each is rebuilt step by step on your data, then twisted so the code has to change.</p>
           </>
         ) : (
           <>
             <p><b className="text-ink">Each question asks for what a correct function would return.</b> In the midterm you write the function and a hidden test checks its output. Here nothing runs, so you work out that output from the tables shown.</p>
             <p>If you can say what the right answer is, you know which rows the code must select. Open a problem's hint to see which pandas step it checks.</p>
+            <p>Items open one at a time and lock when you move on, because later items show results that would give earlier answers away. Submit at any point; then every answer and worked solution is shown.</p>
+            <p><b className="text-ink">Tools:</b> click a row in any table to mark it while you count; the scratchpad keeps notes for this attempt.</p>
           </>
         )}
-        <p>Items open one at a time and lock when you move on, because later items show results that would give earlier answers away. Submit at any point; then every answer and worked solution is shown.</p>
-        <p><b className="text-ink">Tools:</b> click a row in any table to mark it while you count; the scratchpad keeps notes for this attempt.</p>
       </div>
     </details>
   );

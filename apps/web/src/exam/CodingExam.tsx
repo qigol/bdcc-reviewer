@@ -91,11 +91,33 @@ export function CodingExam() {
   const testCode = (pid: string, i: number) => fill(coding.problems.find((p) => p.id === pid)!.tests[i].code);
   const ready = stage === 'ready';
 
+  // Review mode: a fresh kernel with setup and every problem's walkthrough steps already run, so each reference
+  // function exists whatever the learner's own cells left behind (the same sequence scripts/exam-check verifies).
+  const [preparing, setPreparing] = useState(false);
+  const prepareReview = async () => {
+    const k = kernel.current;
+    if (!k) return;
+    setPreparing(true);
+    try {
+      await k.restart().catch(() => {});
+      const quiet = (src: string) => k.run(fill(src), files).catch(() => null);
+      await quiet(coding.setup);
+      for (const p of coding.problems) for (const s of p.walkthrough ?? []) await quiet(s.code);
+    } finally { setPreparing(false); }
+  };
+  const startReview = (mode: 'all' | 'missed') => { setReview(mode); void prepareReview(); };
+
   const runCell = async (key: string, src: string) => {
     if (!kernel.current) return null;
     setRunning(key);
     try {
-      const r = await kernel.current.run(src, files);
+      let r = await kernel.current.run(src, files);
+      if (r.timedOut && review) {
+        r = { ...r, err: 'Stopped after 20 s (an endless loop?). The walkthrough kernel was reset: every reference step is defined again, so run this cell again once it is fixed.' };
+        setOutputs((o) => ({ ...o, [key]: r }));
+        await prepareReview();
+        return r;
+      }
       setOutputs((o) => ({ ...o, [key]: r }));
       return r;
     } catch (e: any) {
@@ -193,11 +215,12 @@ export function CodingExam() {
               <div className="mb-1 font-semibold">Walk through it</div>
               <p className="mb-2 text-sm text-muted">Each problem is rebuilt step by step on your data, then twisted so the code has to change.</p>
               <div className="flex flex-wrap gap-2">
-                <button className={cn('btn btn-sm', review === 'missed' && 'border-accent text-accent')} disabled={!missed.length} onClick={() => setReview('missed')} data-testid="walk-missed">
+                <button className={cn('btn btn-sm', review === 'missed' && 'border-accent text-accent')} disabled={!missed.length || preparing} onClick={() => startReview('missed')} data-testid="walk-missed">
                   <ListChecks size={13} /> Only the ones I missed ({missed.length})
                 </button>
-                <button className={cn('btn btn-sm', review === 'all' && 'border-accent text-accent')} onClick={() => setReview('all')} data-testid="walk-all"><BookOpen size={13} /> Every problem</button>
+                <button className={cn('btn btn-sm', review === 'all' && 'border-accent text-accent')} disabled={preparing} onClick={() => startReview('all')} data-testid="walk-all"><BookOpen size={13} /> Every problem</button>
               </div>
+              {preparing && <div className="mt-2 flex items-center gap-2 text-sm text-muted" data-testid="walk-preparing"><Loader2 size={14} className="animate-spin" /> Preparing the walkthrough…</div>}
             </div>
             <button className="btn mt-3" onClick={() => { clearAttempt(); setReview(null); setPhase('intro'); setSeed(randomSeed()); }}><Dices size={14} /> New exam</button>
           </>}
@@ -239,7 +262,7 @@ export function CodingExam() {
                 );
               })}
               {phase === 'done' && review && (
-                <ProblemWalkthrough problem={p} vars={vars} fill={fill} run={runCell} outputs={outputs} running={running} ready={ready} />
+                <ProblemWalkthrough problem={p} vars={vars} fill={fill} run={runCell} outputs={outputs} running={running} ready={ready && !preparing} />
               )}
             </section>
           ))}

@@ -781,7 +781,10 @@ coding?: {
   solution step by step on the attempt's data; its last step defines the function and runs the test, so the steps
   *are* the reference solution. `twists: [{ id, title, change, spec, stub, solution, tests }]` change the spec so the
   code must change ("more than", user-based, a fixed number of sweeps, 40% support, ranking by confidence…). The
-  learner picks "Every problem" or "Only the ones I missed". Solutions appear only here, after submit, never as a file.
+  learner picks "Every problem" or "Only the ones I missed". The interface shows solutions only after submit, but this
+  is a soft gate: `exam.yaml` is served to the browser, so a determined learner can read it (the test cells show the
+  expected values anyway, as in a real exam notebook). Review mode first restarts the kernel and quietly runs the
+  setup and every problem's walkthrough steps, so each reference function exists whatever the learner's cells did.
 - **Twists must really change the answer**: the generator computes each twist's expected values on the same files and
   redraws seeds where a twist's tested value equals the original's. If a ranking rarely changes, test something that
   does (an SSE history, an estimate rounded to 3 decimals) instead. Give every sort a full tie-break in the spec, down

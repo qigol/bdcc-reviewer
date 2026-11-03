@@ -2,13 +2,14 @@
 // the cells to run in order, exactly as shipped in exam.yaml: the setup cell, then for every problem its walkthrough
 // steps and test cells, then every twist's solution and tests. Nothing here is shown to learners.
 //
-//   npx tsx scripts/exam-check/export.mts <module dir> [seeds=25] > cases.json
+//   npx tsx scripts/exam-check/export.mts <module dir> [seeds=25] [out=exam-cases.json]
+// (writes a UTF-8 file itself: a shell redirect in Windows PowerShell would write UTF-16)
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseModule, interpolate, type FileMap } from '../../packages/schema/src/index.ts';
 import { createNodeHost } from '../../packages/schema/src/node.ts';
 
-const [dir, seedsArg] = process.argv.slice(2);
+const [dir, seedsArg, outArg] = process.argv.slice(2);
 if (!dir) throw new Error('usage: export.mts <module dir> [seeds]');
 const files: FileMap = {};
 async function walk(rel: string) {
@@ -43,4 +44,6 @@ for (let seed = 1; seed <= seeds; seed++) {
   cases.push({ seed, dataDir: String(vars.dataDir ?? ''), files: dataFiles, cells });
 }
 host.dispose?.();
-process.stdout.write(JSON.stringify({ module: mod.manifest.id, version: mod.manifest.version, cases }));
+const out = outArg ?? 'exam-cases.json';
+await fs.writeFile(out, JSON.stringify({ module: mod.manifest.id, version: mod.manifest.version, cases }), 'utf8');
+console.log(`wrote ${cases.length} seeds to ${out}`);

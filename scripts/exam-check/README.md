@@ -8,7 +8,7 @@ seed must pass. Run it after any change to a coding exam's text or to its genera
 
 ```bash
 uv venv --python 3.12 .venv-exam && uv pip install --python .venv-exam "pandas==2.2.3"
-npx tsx scripts/exam-check/export.mts modules/pandas-select-rows 40 > exam-cases.json
+npx tsx scripts/exam-check/export.mts modules/pandas-select-rows 40 exam-cases.json
 .venv-exam/Scripts/python -I scripts/exam-check/check.py exam-cases.json   # .venv-exam/bin/python on macOS/Linux
 ```
 
