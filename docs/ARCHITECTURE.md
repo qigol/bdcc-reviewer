@@ -47,7 +47,8 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 |---|---|
 | `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage`, `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
 | `modules/` | `store.tsx` loads and caches modules from the API; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker with network APIs removed; `courses.ts`/`courseGroups.ts` group modules by course |
-| `tabs/` | `ModulePage` (module route shell), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` |
+| `tabs/` | `ModulePage` (module route shell; adds a "Mock exam" tab when the module has `exam.yaml`), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` (notebook cells; a decision option's `outcomes` show what running it does) |
+| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit) |
 | `engine/` | Scenes: `useScope.ts` (datasets + state + derive), `Stage.tsx` (lays out widgets by region), `Gate.tsx` (practice/predict/reflect gates), `trace.ts`/`marks.ts` (step-through commands) |
 | `widgets/` | One `<Name>.tsx` per catalog widget, lazy-loaded through `registry.ts` |
 | `quiz/` | `QuizBuilder` → `session.ts` (builds course-scoped sessions) → `QuizRunner` → `Question.tsx` (renders every question type); `ReviewPage` (SRS), `Calculator`, `PracticeBox` |
@@ -58,7 +59,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `admin/` | `AdminPage`, `ImportPanel` (zip/folder/paste), `ReportView` |
 | `lib/` | `api.ts` (every server call + response types), `md.tsx`, `calc.ts`, shared UI bits |
 
-Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sectionId],application}`,
+Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sectionId],application,exam}`,
 `/preview/m/:id/...` (admin preview), `/quiz`, `/quiz/run/:sessionId`, `/review`, `/glossary/*`, `/cheatsheet`, `/plan`,
 `/christmas`, `/settings`, `/admin`.
 
@@ -72,6 +73,10 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 - **Quiz:** `quiz/session.ts` picks templates from one course, then per item calls `mod.logic.generate(...)` and
   `buildInstance` (or `buildGlossaryInstance`) from `packages/schema/src/quiz.ts` → `Question.tsx` grades with the
   schema's `check*` functions → saves `attempts`, `srs`, `mastery` rows (`confidence.ts` shapes the SM-2 grade).
+- **Mock exam:** optional `exam.yaml` (`ExamFile` in `schemas.ts`, parsed into `ParsedModule.exam`) → `exam/ExamTab`
+  draws one seed, calls the `story` generator and `instantiate` for every item with that seed → grades on submit and
+  saves `attempts` with mode `exam`. The validator checks over 25 seeds that every item's generator returns the story's
+  `storyKey` (one dataset per attempt).
 - **Progress:** Dexie DB `kodigo`, tables `progress`, `attempts`, `srs`, `mastery`, `notes`, `bookmarks`, `settings`
   (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Export/import
   merges by key with the later `updatedAt` winning. The study plan is recomputed from progress, never stored.
@@ -89,6 +94,8 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 - **A question type:** `type` literal in `packages/schema/src/schemas.ts` → build and `check*` in `quiz.ts` → render in
   `apps/web/src/quiz/Question.tsx` → wire in `quiz/session.ts` → validator quiz smoke (`validate.ts`) → tests in
   `packages/schema/test/qtypes.test.ts` and `apps/web/e2e/smoke.spec.ts` → document it in the authoring guide.
+- **A mock exam:** `exam.yaml` in a module plus `case` templates in its `quiz.yaml` whose generators share one data
+  draw; see `docs/MODULE_AUTHORING_GUIDE.md` §5.11.
 - **An API route:** `apps/server/src/index.ts` (admin routes call `requireAdmin`), client in `apps/web/src/lib/api.ts`.
 - **A rule implied by a module fix:** add it to `docs/MODULE_AUTHORING_GUIDE.md`.
 
