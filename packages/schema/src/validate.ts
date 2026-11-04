@@ -123,10 +123,14 @@ interface YamlDoc { doc: YAML.Document; lc: LineCounter }
 
 function zodIssues(err: ZodError, file: string, ydoc?: YamlDoc): Issue[] {
   return err.issues.map((i) => {
-    const pos = ydoc ? posOf(ydoc, i.path) : undefined;
-    return { level: 'error', step: 'schema', file, path: fmtPath(i.path), line: pos?.line, col: pos?.col, message: i.message };
+    const at = issuePath(i.path);
+    const pos = ydoc ? posOf(ydoc, at) : undefined;
+    return { level: 'error', step: 'schema', file, path: fmtPath(at), line: pos?.line, col: pos?.col, message: i.message };
   });
 }
+
+/** zod paths may hold symbols in theory; module documents never have symbol keys */
+const issuePath = (p: readonly PropertyKey[]) => p.filter((x): x is string | number => typeof x !== 'symbol');
 
 function fmtPath(path: (string | number)[]): string {
   return path.map((p, i) => (typeof p === 'number' ? `[${p}]` : i === 0 ? p : `.${p}`)).join('');
@@ -349,7 +353,7 @@ function checkStage(stage: StageWidget[], scope: Set<string> | null, stateKeys: 
       }
       if (hasRefDeep(v)) continue;
       const r = shape.safeParse(v);
-      if (!r.success) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.props.${k}`, message: `${w.widget}.${k}: ${r.error.issues[0]?.message ?? 'invalid'} (${fmtPath(r.error.issues[0]?.path ?? [])})` });
+      if (!r.success) ctx.issues.push({ level: 'error', step: 'refs', file, path: `${p}.props.${k}`, message: `${w.widget}.${k}: ${r.error.issues[0]?.message ?? 'invalid'} (${fmtPath(issuePath(r.error.issues[0]?.path ?? []))})` });
     }
     for (const [k, s] of Object.entries(meta.props)) {
       if ((s as ZodTypeAny).isOptional()) continue;
