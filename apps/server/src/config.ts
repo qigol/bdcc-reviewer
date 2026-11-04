@@ -10,7 +10,10 @@ export interface ServerConfig {
   webDir: string;
   maxUploadMb: number;
   prod: boolean;
-  admin: { token: string };
+  /** token is '' when admin is disabled; disabledReason says why (never contains the token) */
+  admin: { token: string; disabledReason?: string };
+  /** Fastify trustProxy: true, or a comma-separated list of proxy addresses/CIDRs (set when behind a reverse proxy) */
+  trustProxy: boolean | string;
   christmas: { mode: ChristmasMode; tz: string; now?: string };
   logLevel: string;
   defaultCourse: string;
@@ -26,10 +29,28 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     webDir: path.resolve(env.WEB_DIR ?? './web'),
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 30),
     prod,
-    admin: { token: env.ADMIN_TOKEN ?? (prod ? '' : 'dev') },
+    admin: adminConfig(env.ADMIN_TOKEN, prod),
+    trustProxy: parseTrustProxy(env.TRUST_PROXY),
     // Christmas countdown: auto (calendar) | on (open everything now) | off; CHRISTMAS_NOW=YYYY-MM-DD fakes the date
     christmas: { mode: parseMode(env.CHRISTMAS_QUIZ), tz: env.CHRISTMAS_TZ || 'Asia/Manila', now: env.CHRISTMAS_NOW },
     logLevel: env.LOG_LEVEL ?? 'info',
     defaultCourse: (env.DEFAULT_COURSE ?? '').trim() || 'BDCC',
   };
+}
+
+export const WEAK_TOKEN_REASON = 'ADMIN_TOKEN is too weak (min 16 chars, not the example value)';
+
+/** In production a missing, example or short token disables admin; outside production `dev` is the default. */
+function adminConfig(raw: string | undefined, prod: boolean): ServerConfig['admin'] {
+  const token = raw ?? (prod ? '' : 'dev');
+  if (!token) return { token: '', disabledReason: 'ADMIN_TOKEN is not set' };
+  if (prod && (token.trim().toLowerCase() === 'change-me' || token.length < 16)) return { token: '', disabledReason: WEAK_TOKEN_REASON };
+  return { token };
+}
+
+function parseTrustProxy(v: string | undefined): boolean | string {
+  const t = (v ?? '').trim();
+  if (!t || t === '0' || t.toLowerCase() === 'false') return false;
+  if (t === '1' || t.toLowerCase() === 'true') return true;
+  return t;
 }

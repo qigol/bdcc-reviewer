@@ -3,7 +3,7 @@
  * and the admin API. Re-validates every import with the same validator the browser uses.
  * `buildApp` wires everything without listening, so tests drive it with `app.inject`.
  */
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyServerOptions, type FastifyReply, type FastifyRequest } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
 import fs from 'node:fs';
@@ -12,10 +12,12 @@ import crypto from 'node:crypto';
 import { readZip, writeZip, widgetsMarkdown, normalizePath, isTextPath, type FileMap, type LogicHostFactory } from '@kodigo/schema';
 import { Registry } from './registry';
 import { christmasStatus } from './christmas/schedule';
-import type { ServerConfig } from './config';
+import { securityHeaders } from './headers';
+import { WEAK_TOKEN_REASON, type ServerConfig } from './config';
+import { createFailureLimiter } from './rateLimit';
 
 export interface AppDeps {
-  /** runs logic.js during validation (default: the in-process node:vm host) */
+  /** runs logic.js during validation (default: an isolated child process per module) */
   hostFactory?: LogicHostFactory;
   /** current time (Christmas schedule) */
   now?: () => Date;
@@ -27,14 +29,24 @@ export interface AppDeps {
 
 export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
   const now = deps.now ?? (() => new Date());
-  const app = Fastify({ logger: deps.logger ?? { level: cfg.logLevel }, bodyLimit: cfg.maxUploadMb * 1024 * 1024 });
+  const opts: FastifyServerOptions = { logger: deps.logger ?? { level: cfg.logLevel }, bodyLimit: cfg.maxUploadMb * 1024 * 1024, trustProxy: cfg.trustProxy };
+  const app = Fastify(opts);
+  const limiter = createFailureLimiter({ now: () => now().getTime() });
+  if (cfg.admin.disabledReason && cfg.prod) app.log.warn(`admin is disabled: ${cfg.admin.disabledReason}`);
   const registry = new Registry(cfg.modulesBuiltin, cfg.dataDir, (m) => app.log.info(m), { hostFactory: deps.hostFactory });
 
   await app.register(multipart, { limits: { fileSize: cfg.maxUploadMb * 1024 * 1024, files: 1 } });
 
   function requireAdmin(req: FastifyRequest, reply: FastifyReply): boolean {
     if (!cfg.admin.token) {
-      reply.code(503).send({ error: 'ADMIN_TOKEN is not set on the server; admin is disabled.' });
+      const error = cfg.admin.disabledReason === WEAK_TOKEN_REASON ? `admin is disabled: ${WEAK_TOKEN_REASON}` :'ADMIN_TOKEN is not set on the server; admin is disabled.';
+      reply.code(503).send({ error });
+      return false;
+    }
+    // once an IP has 10 failures in 15 min even a correct token gets 429, so the reply doesn't reveal a right guess
+    const wait = limiter.blocked(req.ip);
+    if (wait) {
+      reply.code(429).header('retry-after', String(wait)).send({ error: 'Too many failed admin attempts; try again later' });
       return false;
     }
     const h = req.headers.authorization ?? '';
@@ -42,29 +54,16 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
     const a = Buffer.from(token);
     const b = Buffer.from(cfg.admin.token);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      limiter.fail(req.ip);
       reply.code(401).send({ error: 'Invalid admin token' });
       return false;
     }
     return true;
   }
 
-  const CSP = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' blob:",
-    "worker-src 'self' blob:",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "media-src 'self' blob:",
-    "font-src 'self' data:",
-    "connect-src 'self'",
-    "frame-src 'self'",
-    "object-src 'self'",
-  ].join('; ');
-
   app.addHook('onSend', async (req, reply, payload) => {
     const type = String(reply.getHeader('content-type') ?? '');
-    if (type.includes('text/html')) reply.header('content-security-policy', CSP);
-    reply.header('x-content-type-options', 'nosniff');
+    reply.headers(securityHeaders({ path: req.url.split('?')[0], contentType: type, status: reply.statusCode }));
     return payload;
   });
 
@@ -101,7 +100,7 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
     const types: Record<string, string> = {
       '.pdf': 'application/pdf', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
       '.apng': 'image/apng', '.webm': 'video/webm', '.mp4': 'video/mp4', '.m4v': 'video/mp4',
-      '.yaml': 'text/yaml; charset=utf-8', '.yml': 'text/yaml; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json',
+      '.yaml': 'text/yaml; charset=utf-8', '.yml': 'text/yaml; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.js': 'text/plain; charset=utf-8', '.json': 'application/json',
     };
     reply.header('content-type', types[ext] ?? (isTextPath(full) ? 'text/plain; charset=utf-8' : 'application/octet-stream'));
     // byte ranges: browsers seek video with them, and Safari won't play an .mp4 without them
@@ -212,5 +211,5 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
   }
 
   await registry.init();
-  return { app, registry, close: () => app.close() };
+  return { app, registry, close: async () => { registry.close(); await app.close(); } };
 }

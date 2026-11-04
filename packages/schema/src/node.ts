@@ -1,8 +1,9 @@
 /**
  * Node-side LogicHost: runs a module's logic.js inside a node:vm context with timeouts.
  * Used by the server (import re-validation, health) and the CLI. The vm context has no
- * require/process/fs; Math.random throws (logic must be deterministic). It is not a hard
- * security boundary, which is why import is admin-only.
+ * require/process/fs; Math.random throws (logic must be deterministic). Microtasks drain inside each
+ * runInContext call, so its timeout bounds them too. It is not a hard security boundary: the server runs
+ * it inside an isolated child process (apps/server/src/logic/), and import is admin-only.
  */
 import vm from 'node:vm';
 import { sdk, createRng } from '@kodigo/sdk';
@@ -12,7 +13,7 @@ export async function createNodeHost(source: string, opts: { timeoutMs?: number 
   const timeout = opts.timeoutMs ?? 2000;
   const body = transformLogicSource(source);
   const noop = () => {};
-  const ctx = vm.createContext({ console: { log: noop, warn: noop, error: noop, info: noop, debug: noop }, __sdk: sdk });
+  const ctx = vm.createContext({ console: { log: noop, warn: noop, error: noop, info: noop, debug: noop }, __sdk: sdk }, { microtaskMode: 'afterEvaluate' });
   vm.runInContext(
     `Math.random = function () { throw new Error('Math.random is not allowed in logic.js; use the seeded rng passed to generators'); };`,
     ctx,

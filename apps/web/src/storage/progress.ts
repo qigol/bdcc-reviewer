@@ -12,7 +12,6 @@ export interface Settings {
   exams: Exam[];
   /** daily study budget for the exam plan */
   studyHoursPerDay: number;
-  adminToken: string | null;
   lastLocation: { moduleId: string; tab: string; id?: string; beat?: number; path: string; title?: string; at: number } | null;
   showBeyond: boolean;
   /** the course you were last studying (default for the quiz builder and cheat sheet) */
@@ -24,7 +23,6 @@ export const DEFAULT_SETTINGS: Settings = {
   reducedMotion: false,
   exams: [],
   studyHoursPerDay: 2,
-  adminToken: null,
   lastLocation: null,
   showBeyond: true,
   course: null,

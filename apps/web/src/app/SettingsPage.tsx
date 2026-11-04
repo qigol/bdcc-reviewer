@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useSetting, type Exam } from '../storage/progress';
+import { useAdminToken } from '../admin/token';
 import { useCourses } from '../modules/courses';
 import { toYmd } from '../plan/studyPlan';
 import { exportProgress, importProgress, resetProgress } from '../storage/exportImport';
@@ -12,7 +13,7 @@ export function SettingsPage() {
   const [theme, setTheme] = useSetting('theme');
   const [narration, setNarration] = useSetting('narration');
   const [reduced, setReduced] = useSetting('reducedMotion');
-  const [, setToken] = useSetting('adminToken');
+  const [, setToken] = useAdminToken();
   const { list } = useModuleStore();
   const [msg, setMsg] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState('');
@@ -50,7 +51,7 @@ export function SettingsPage() {
           await resetProgress(resetTarget || undefined);
           setMsg('Progress reset.');
         }}><RotateCcw size={15} /> Reset progress</button>
-        <button className="btn ml-auto" onClick={() => { setToken(null); setMsg('Admin token forgotten on this device.'); }}>Forget admin token</button>
+        <button className="btn ml-auto" onClick={() => { setToken(null); setMsg('Admin token forgotten in this tab.'); }}>Forget admin token</button>
       </div>
     </div>
   );

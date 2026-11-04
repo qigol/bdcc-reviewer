@@ -11,12 +11,16 @@ import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
 import { builtinIds, sampleModule } from './hostSamples';
 import { repoModules } from './fixtures';
 import { reportShape } from './baseline/shape';
+import { createIsolatedHost } from '../src/logic/isolatedHost';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const hostBaseline = JSON.parse(fs.readFileSync(path.join(here, 'baseline/host-outputs.json'), 'utf8'));
 const reportBaseline = JSON.parse(fs.readFileSync(path.join(here, 'baseline/validate-reports.json'), 'utf8'));
 
-export const FACTORIES: [string, LogicHostFactory][] = [['in-process', (src) => createNodeHost(src)]];
+export const FACTORIES: [string, LogicHostFactory][] = [
+  ['in-process', (src) => createNodeHost(src)],
+  ['isolated', (src) => createIsolatedHost(src)],
+];
 
 describe.each(FACTORIES)('%s host', (_name, factory) => {
   it.each(builtinIds())('%s: outputs and report match the baseline', async (id) => {

@@ -6,7 +6,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { validateModule, type FileMap, type ValidationReport, type ParsedModule, type LogicHostFactory } from '@kodigo/schema';
-import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
+import { readModuleDir } from '@kodigo/schema/node';
+import { createIsolatedHost, killAllLogicChildren } from './logic/isolatedHost';
 
 export interface ModuleState { enabled: boolean; order?: number; current?: string; /** admin override of manifest.course */ course?: string }
 export interface State { modules: Record<string, ModuleState> }
@@ -56,8 +57,12 @@ export class Registry {
   private hostFactory: LogicHostFactory;
 
   constructor(private builtinDir: string, private dataDir: string, private log: (msg: string) => void = () => {}, opts: { hostFactory?: LogicHostFactory } = {}) {
-    this.hostFactory = opts.hostFactory ?? ((src) => createNodeHost(src));
+    // logic.js runs in an isolated child process by default (tests may inject the in-process host)
+    this.hostFactory = opts.hostFactory ?? ((src) => createIsolatedHost(src));
   }
+
+  /** Stop live logic child processes. */
+  close() { killAllLogicChildren(); }
 
   get importedDir() { return path.join(this.dataDir, 'modules'); }
   get statePath() { return path.join(this.dataDir, 'state.json'); }

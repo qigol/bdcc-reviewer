@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router-dom';
 import './styles.css';
 import { App } from './app/App';
 import { ModuleStoreProvider } from './modules/store';
+import { purgeLegacyAdminToken } from './admin/token';
+
+purgeLegacyAdminToken().catch(() => {});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

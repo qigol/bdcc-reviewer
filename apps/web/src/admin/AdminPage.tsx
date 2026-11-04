@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileCode2, FileText, GraduationCap, GripVertical, KeyRound, Loader2, PlayCircle, RotateCcw, Shield, Trash2, Upload, XCircle } from 'lucide-react';
 import { formatBundle, validateModule, type ValidationReport } from '@kodigo/schema';
 import { useModuleStore } from '../modules/store';
-import { useSetting } from '../storage/progress';
+import { useAdminToken } from './token';
 import { api, type ModuleListEntry } from '../lib/api';
 import { download, cn } from '../lib/util';
 import { ImportPanel } from './ImportPanel';
@@ -55,7 +55,7 @@ function TokenGate({ onOk }: { onOk: (t: string) => void }) {
     <div className="mx-auto max-w-md px-4 py-16">
       <div className="card p-6">
         <div className="mb-2 flex items-center gap-2 font-semibold"><KeyRound size={18} /> Admin</div>
-        <p className="mb-3 text-sm text-muted">Enter the server's <code>ADMIN_TOKEN</code>. It's stored in this browser only. (Meant for use behind Tailscale, not the open internet.)</p>
+        <p className="mb-3 text-sm text-muted">Enter the server's <code>ADMIN_TOKEN</code>. It's kept in this tab only and forgotten when the tab closes.</p>
         <form onSubmit={async (e) => { e.preventDefault(); setBusy(true); setErr(null); try { await api.checkAdmin(t); onOk(t); } catch (x: any) { setErr(x.message); } finally { setBusy(false); } }} className="flex gap-2">
           <input className="input flex-1" type="password" value={t} onChange={(e) => setT(e.target.value)} placeholder="ADMIN_TOKEN" autoFocus data-testid="admin-token" />
           <button className="btn-primary" disabled={!t || busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : 'Unlock'}</button>
@@ -108,7 +108,7 @@ function Row({ m, token, onChange, onReport }: { m: ModuleListEntry; token: stri
 }
 
 export function AdminPage() {
-  const [token, setToken] = useSetting('adminToken');
+  const [token, setToken] = useAdminToken();
   const store = useModuleStore();
   const [report, setReport] = useState<{ r: ValidationReport; title: string } | null>(null);
   const [tab, setTab] = useState<'modules' | 'import'>('modules');

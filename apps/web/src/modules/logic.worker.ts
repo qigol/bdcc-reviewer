@@ -1,14 +1,17 @@
 /// <reference lib="webworker" />
 /**
  * Logic Worker: runs one module's logic.js isolated from the DOM and storage.
- * Network APIs are removed before the module code runs (defence in depth; CSP connect-src 'self' too).
+ * Network, storage and nested-worker globals are removed before the module code runs (harden.ts), and the
+ * built server sends this file with connect-src 'none' and worker-src 'none' (headers.ts).
  */
 import * as Comlink from 'comlink';
 import { sdk, createRng } from '@kodigo/sdk';
 import { transformLogicSource } from '@kodigo/schema/logic-source';
-import { hardenWorkerGlobal } from './harden';
+import { BLOCKED, hardenWorkerGlobal } from './harden';
 
-hardenWorkerGlobal(self, ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches']);
+// fail closed: if hardening didn't take, load() refuses to run module code
+let hardenError: Error | null = null;
+try { hardenWorkerGlobal(self, BLOCKED); } catch (e: any) { hardenError = e; }
 
 let api: { fns: Record<string, (a: any) => any>; generators: Record<string, (c: any) => any> } | null = null;
 
@@ -16,9 +19,11 @@ const clean = (v: unknown) => JSON.parse(JSON.stringify(v === undefined ? null :
 
 const impl = {
   load(source: string) {
+    if (hardenError) throw hardenError;
     const body = transformLogicSource(source);
+    // the blocked names are also parameters (all undefined), so bare identifiers can't reach them
     // eslint-disable-next-line no-new-func
-    const register = new Function(body)();
+    const register = new Function(...BLOCKED, body)(...BLOCKED.map(() => undefined));
     if (typeof register !== 'function') throw new Error('logic.js default export must be a function register(sdk)');
     api = register(sdk);
     if (!api || typeof api !== 'object') throw new Error('register(sdk) must return { fns, generators }');

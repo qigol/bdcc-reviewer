@@ -12,6 +12,7 @@ export async function exportProgress(): Promise<string> {
       mastery: await db.mastery.toArray(),
       notes: await db.notes.toArray(),
       bookmarks: await db.bookmarks.toArray(),
+      // adminToken: no longer stored here, but older databases and export files may still hold it
       settings: (await db.settings.toArray()).filter((s) => s.key !== 'adminToken'),
     },
   };
