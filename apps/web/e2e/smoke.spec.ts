@@ -339,7 +339,7 @@ test('modules are grouped by course: top-bar course menu and course-scoped quizz
   await expect(page.getByTestId('quiz-course').getByRole('radio', { checked: true })).toContainText(course);
   await page.getByTestId('start-quiz').click();
   await expect(page.getByTestId('question')).toBeVisible({ timeout: 15_000 });
-  const sessions = await page.evaluate(() => JSON.parse(sessionStorage.getItem('kodigo-sessions') ?? '{}'));
+  const sessions = await page.evaluate(() => JSON.parse(localStorage.getItem('kodigo-sessions') ?? '{}'));
   const latest: any = Object.values(sessions).sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
   expect(latest.course).toBe(course);
   const ids = new Set(inCourse.map((m) => m.id));
