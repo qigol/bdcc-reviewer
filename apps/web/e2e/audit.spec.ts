@@ -117,3 +117,26 @@ test('KaTeX renders math-code anchors through the \\htmlClass trust rule', async
   await expect(page.locator('.katex [class*="kanc-"]').first()).toBeAttached({ timeout: 15_000 });
   await expect(page.locator('.katex-error')).toHaveCount(0);
 });
+
+test('admin: sign in with a per-tab token, validate a zip in the browser and server, preview it with its logic', async ({ page, request }) => {
+  test.setTimeout(3 * 60_000);
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  await page.goto('/admin');
+  await page.getByTestId('admin-token').fill('smoke');
+  await page.getByTestId('admin-token').press('Enter');
+  await expect(page.getByRole('button', { name: 'Lock' })).toBeVisible({ timeout: 15_000 });
+  expect(await page.evaluate(() => sessionStorage.getItem('kodigo-admin-token'))).toBe('smoke');
+  expect((await rows(page, 'settings')).some((r) => r.key === 'adminToken')).toBe(false);
+
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+  const zip = await (await request.get('/api/modules/cost-concepts/export')).body();
+  await page.locator('input[type=file][accept*=zip]').setInputFiles({ name: 'cost-concepts.zip', mimeType: 'application/zip', buffer: zip });
+  await expect(page.getByTestId('install')).toBeEnabled({ timeout: 120_000 }); // the report came back clean
+  await page.getByRole('button', { name: 'Preview' }).click();
+  await expect(page).toHaveURL(/\/preview\/m\/cost-concepts\/intuition/);
+  await page.getByRole('tab', { name: /Math/ }).first().click();
+  await expect(page.locator('.katex:visible').first()).toBeVisible({ timeout: 15_000 });
+  expect(problems).toEqual([]);
+});
+
