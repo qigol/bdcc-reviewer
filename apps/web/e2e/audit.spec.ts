@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 // Browser checks from the webapp audit: pages load what they need, attempts survive leaving, results are saved.
 
 const EXAM_MODULE = 'pandas-select-rows';
+const ANCHOR_PAGE = '/m/abc/math-code/abc-rates';
 
 /** Rows of one IndexedDB table in the app's Dexie database. */
 const rows = (page: Page, table: string) => page.evaluate((t) => new Promise<any[]>((resolve, reject) => {
@@ -108,4 +109,11 @@ test('the built app runs with no CSP violations: logic worker, KaTeX and Pyodide
   await page.getByRole('button', { name: /^Run/ }).first().click();
   await page.waitForTimeout(3000);
   expect(problems).toEqual([]);
+});
+
+test('KaTeX renders math-code anchors through the \\htmlClass trust rule', async ({ page }) => {
+  await page.goto(ANCHOR_PAGE);
+  await expect(page.locator('.katex:visible').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.katex [class*="kanc-"]').first()).toBeAttached({ timeout: 15_000 });
+  await expect(page.locator('.katex-error')).toHaveCount(0);
 });
