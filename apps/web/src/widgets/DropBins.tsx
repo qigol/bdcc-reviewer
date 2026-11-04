@@ -42,7 +42,9 @@ function Bin({ id, label, children, onClick, tone }: { id: string; label?: strin
   );
 }
 
-export default function DropBins({ id, props, cmds, marks, bind, emit, isBound }: WidgetRenderProps<P>) {
+export default function DropBins({ id, props: raw, cmds, marks, bind, emit, isBound }: WidgetRenderProps<P>) {
+  // chips and bins may come from `derive`, which is null until the logic worker first answers
+  const props = { ...raw, chips: raw.chips ?? [], bins: raw.bins ?? [] };
   const [local, setLocal] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export default function DropBins({ id, props, cmds, marks, bind, emit, isBound }
     if (cmdPlacement && lastCmd.current !== cmdPlacement) { lastCmd.current = cmdPlacement; setLocal(cmdPlacement); if (isBound('placement')) bind('placement', cmdPlacement); }
   }, [cmdPlacement]);
   const placement = (isBound('placement') ? props.placement : local) ?? {};
-  const order = useMemo(() => (props.shuffle === false ? props.chips : createRng(hashSeed(id)).shuffle(props.chips)), [props.chips, props.shuffle, id]);
+  const order = useMemo(() => (props.shuffle === false ? props.chips : createRng(hashSeed(id)).shuffle(props.chips)), [raw.chips, props.shuffle, id]);
   const check = props.check ?? 'instant';
   const sol = props.solution;
   const solved = !!sol && props.chips.every((c) => placement[c.id] === sol[c.id]);

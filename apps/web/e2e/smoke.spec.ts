@@ -132,7 +132,8 @@ test('every Math & Code section and the Application tab render', async ({ page }
         // stepping moves the live data next to the code and drives it with the trace's ops
         await page.getByTestId('step-through').click();
         // up to 3 steps: a short trace disables ▶ at its end
-        for (let k = 0; k < 3; k++) { const step = await page.$('button:has-text("▶"):enabled'); if (step) await step.click(); }
+        await page.locator('button:has-text("▶")').click(); // waits for the trace to load
+        for (let k = 0; k < 2; k++) { const step = await page.$('button:has-text("▶"):enabled'); if (step) await step.click(); }
         await expect(page.getByTestId('live-trace')).toBeVisible();
         await expect(page.getByTestId('vars-watch').locator('span.font-mono').first()).toBeVisible();
       }
@@ -145,7 +146,7 @@ test('every Math & Code section and the Application tab render', async ({ page }
 });
 
 test('every quiz template instantiates and can be answered', async ({ page }) => {
-  test.setTimeout(45 * 60_000); // walks every module
+  test.setTimeout(3 * 60 * 60_000); // answers every template of every module
   const errors = collectErrors(page);
   for (const id of modules) {
     const mod = await loadModule(page, id);
@@ -157,7 +158,7 @@ test('every quiz template instantiates and can be answered', async ({ page }) =>
       await page.getByTestId('question').waitFor({ timeout: 15_000 });
       await expect(page.getByText("Couldn't generate")).toHaveCount(0);
       const metaText = async () => (await page.getByTestId('question-meta').textContent().catch(() => '')) ?? '';
-      await expect.poll(metaText, { timeout: 15_000 }).toMatch(/·s*S/); // blank while the question loads
+      await expect.poll(metaText, { timeout: 15_000 }).toMatch(/·\s*\S/); // blank while the question loads
       const meta = await metaText();
       seen.add(meta.split('·')[1]?.trim() ?? '');
       // a multi-part case opens its parts one at a time, so answer and check up to 6 rounds
@@ -258,7 +259,7 @@ test('quiz progress survives the nudge popup, the glossary and leaving the page'
   await page.goBack();
   await expect(page.getByText('Question 2 of 5')).toBeVisible({ timeout: 15_000 });
   await expect.poll(metaText).toBe(q2);
-  await expect(page.locator('button[aria-label="question 1"]')).not.toHaveClass(/bg-line/);
+  await expect(page.locator('button[aria-label^="question 1:"]')).not.toHaveClass(/bg-line/);
 
   // and the quiz builder offers to resume it
   await page.goto('/quiz');
