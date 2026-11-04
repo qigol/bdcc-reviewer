@@ -12,6 +12,8 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: { baseURL: url, actionTimeout: 5_000, navigationTimeout: 20_000, viewport: { width: 1400, height: 1000 } },
+  // `pnpm smoke` runs chromium; CI also runs the CSP check on the other engines
+  projects: ['chromium', 'firefox', 'webkit'].map((name) => ({ name, use: { browserName: name as 'chromium' | 'firefox' | 'webkit' } })),
   webServer: process.env.KODIGO_URL
     ? undefined
     : {

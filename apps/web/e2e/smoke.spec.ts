@@ -62,7 +62,9 @@ async function playScene(page: Page, beats: number) {
 let modules: string[] = [];
 test.beforeAll(async ({ request }) => {
   const list: ModInfo[] = await (await request.get('/api/modules')).json();
-  modules = list.filter((m) => m.enabled).map((m) => m.id);
+  // KODIGO_SMOKE_MODULES=a,b limits the whole-catalog walks to a sample
+  const only = process.env.KODIGO_SMOKE_MODULES?.split(',');
+  modules = list.filter((m) => m.enabled && (!only || only.includes(m.id))).map((m) => m.id);
   expect(modules.length).toBeGreaterThan(0);
 });
 
@@ -94,6 +96,7 @@ test('glossary notes: old ?term= links redirect, links open notes, graph mode re
 });
 
 test('every scene plays through every beat', async ({ page }) => {
+  test.setTimeout(45 * 60_000); // walks every module
   const errors = collectErrors(page);
   for (const id of modules) {
     const mod = await loadModule(page, id);
@@ -124,11 +127,13 @@ test('every Math & Code section and the Application tab render', async ({ page }
     for (const s of mod.mathCode) {
       await page.goto(`/m/${id}/math-code/${s.id}`);
       await expect(page.getByRole('heading', { name: s.title }).first()).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator('.katex').first()).toBeVisible();
+      await expect(page.locator('.katex:visible').first()).toBeVisible(); // a term's hover card can hold a hidden .katex first
       if (s.trace) {
         // stepping moves the live data next to the code and drives it with the trace's ops
         await page.getByTestId('step-through').click();
-        for (let k = 0; k < 3; k++) await page.locator('button:has-text("▶")').click();
+        // up to 3 steps: a short trace disables ▶ at its end
+        await page.locator('button:has-text("▶")').click(); // waits for the trace to load
+        for (let k = 0; k < 2; k++) { const step = await page.$('button:has-text("▶"):enabled'); if (step) await step.click(); }
         await expect(page.getByTestId('live-trace')).toBeVisible();
         await expect(page.getByTestId('vars-watch').locator('span.font-mono').first()).toBeVisible();
       }
@@ -141,6 +146,7 @@ test('every Math & Code section and the Application tab render', async ({ page }
 });
 
 test('every quiz template instantiates and can be answered', async ({ page }) => {
+  test.setTimeout(3 * 60 * 60_000); // answers every template of every module
   const errors = collectErrors(page);
   for (const id of modules) {
     const mod = await loadModule(page, id);
@@ -152,6 +158,7 @@ test('every quiz template instantiates and can be answered', async ({ page }) =>
       await page.getByTestId('question').waitFor({ timeout: 15_000 });
       await expect(page.getByText("Couldn't generate")).toHaveCount(0);
       const metaText = async () => (await page.getByTestId('question-meta').textContent().catch(() => '')) ?? '';
+      await expect.poll(metaText, { timeout: 15_000 }).toMatch(/·\s*\S/); // blank while the question loads
       const meta = await metaText();
       seen.add(meta.split('·')[1]?.trim() ?? '');
       // a multi-part case opens its parts one at a time, so answer and check up to 6 rounds
@@ -217,12 +224,7 @@ test('quiz progress survives the nudge popup, the glossary and leaving the page'
 
   // answer question 1 and move on to question 2
   const q1 = await metaText();
-  const radio = await page.$('[role=radio]'); if (radio) await radio.click();
-  const check = await page.$('[role=checkbox]'); if (check) await check.click();
-  const num = await page.$('input[aria-label=answer]'); if (num) await num.fill('1');
-  for (const b of await page.$$('input[aria-label^="blank"]')) await b.fill('x');
-  for (let k = 0; k < 8; k++) { const s = await page.$('button:has-text("Show step")'); if (!s) break; await s.click(); await page.waitForTimeout(100); }
-  for (const s of await page.$$('input[aria-label$="answer"]')) if (!(await s.inputValue())) await s.fill('1');
+  await answerVisible(page); // the first question's type is random
   await page.getByTestId('submit-answer').click();
   await page.getByTestId('next-question').click();
   await expect(page.getByText('Question 2 of 5')).toBeVisible();
@@ -257,7 +259,7 @@ test('quiz progress survives the nudge popup, the glossary and leaving the page'
   await page.goBack();
   await expect(page.getByText('Question 2 of 5')).toBeVisible({ timeout: 15_000 });
   await expect.poll(metaText).toBe(q2);
-  await expect(page.locator('button[aria-label="question 1"]')).not.toHaveClass(/bg-line/);
+  await expect(page.locator('button[aria-label^="question 1:"]')).not.toHaveClass(/bg-line/);
 
   // and the quiz builder offers to resume it
   await page.goto('/quiz');
@@ -338,7 +340,7 @@ test('modules are grouped by course: top-bar course menu and course-scoped quizz
   await expect(page.getByTestId('quiz-course').getByRole('radio', { checked: true })).toContainText(course);
   await page.getByTestId('start-quiz').click();
   await expect(page.getByTestId('question')).toBeVisible({ timeout: 15_000 });
-  const sessions = await page.evaluate(() => JSON.parse(sessionStorage.getItem('kodigo-sessions') ?? '{}'));
+  const sessions = await page.evaluate(() => JSON.parse(localStorage.getItem('kodigo-sessions') ?? '{}'));
   const latest: any = Object.values(sessions).sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
   expect(latest.course).toBe(course);
   const ids = new Set(inCourse.map((m) => m.id));

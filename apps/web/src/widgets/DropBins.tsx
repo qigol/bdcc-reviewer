@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { motion } from 'framer-motion';
-import { Check, RotateCcw } from 'lucide-react';
+import { Check, RotateCcw, X } from 'lucide-react';
+import { plainText } from '@kodigo/schema';
 import type { WidgetRenderProps } from '../engine/types';
 import { ownCmds } from '../engine/marks';
 import { Markdown } from '../lib/md';
@@ -20,9 +21,12 @@ function DragChip({ chip, state, selected, onClick }: { chip: Item; state?: 'goo
       {...attributes}
       {...listeners}
       onClick={onClick}
+      aria-label={state ? `${plainText(chip.label)}: ${state === 'good' ? 'correct' : 'incorrect'}` : undefined}
       style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 30 } : undefined}
       className={cn('rounded-lg border px-2.5 py-1 text-sm shadow-sm transition', state ? `tone-${state} mark-bg` : 'border-line bg-panel', selected && 'ring-2 ring-accent', isDragging && 'shadow-lg')}
     >
+      {state === 'good' && <Check size={13} className="mr-1 inline" aria-hidden />}
+      {state === 'bad' && <X size={13} className="mr-1 inline" aria-hidden />}
       <Markdown text={chip.label} inline />
     </motion.button>
   );
@@ -38,7 +42,9 @@ function Bin({ id, label, children, onClick, tone }: { id: string; label?: strin
   );
 }
 
-export default function DropBins({ id, props, cmds, marks, bind, emit, isBound }: WidgetRenderProps<P>) {
+export default function DropBins({ id, props: raw, cmds, marks, bind, emit, isBound }: WidgetRenderProps<P>) {
+  // chips and bins may come from `derive`, which is null until the logic worker first answers
+  const props = { ...raw, chips: raw.chips ?? [], bins: raw.bins ?? [] };
   const [local, setLocal] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -55,7 +61,7 @@ export default function DropBins({ id, props, cmds, marks, bind, emit, isBound }
     if (cmdPlacement && lastCmd.current !== cmdPlacement) { lastCmd.current = cmdPlacement; setLocal(cmdPlacement); if (isBound('placement')) bind('placement', cmdPlacement); }
   }, [cmdPlacement]);
   const placement = (isBound('placement') ? props.placement : local) ?? {};
-  const order = useMemo(() => (props.shuffle === false ? props.chips : createRng(hashSeed(id)).shuffle(props.chips)), [props.chips, props.shuffle, id]);
+  const order = useMemo(() => (props.shuffle === false ? props.chips : createRng(hashSeed(id)).shuffle(props.chips)), [raw.chips, props.shuffle, id]);
   const check = props.check ?? 'instant';
   const sol = props.solution;
   const solved = !!sol && props.chips.every((c) => placement[c.id] === sol[c.id]);

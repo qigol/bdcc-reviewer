@@ -354,7 +354,7 @@ export default function register(sdk) {
 ```
 
 **Rules for `fns`:**
-1. **Pure and deterministic.** No `Math.random`, `Date`, `fetch`, DOM, timers, or state shared between calls.
+1. **Pure and deterministic.** No `Math.random`, `Date`, `fetch`, DOM, timers, or state shared between calls. `logic.js` runs with no network or storage in the browser (a hardened Web Worker) and in an isolated process on the server, so code that reaches for them fails.
 2. **One object argument in, one plain object out.** Never return a bare number: FunctionPlot fns return `{ y }`. Output must be JSON-serializable (no `Set`/`Map`/`undefined`; use `null`).
 3. **Canonical outputs:** itemsets are arrays sorted by a stated order (use `sdk.sortSet`); lists of results are sorted deterministically.
 4. **Full precision.** Never round inside fns (display formatting and example tolerances handle it). *Exception:* if the lecture explicitly rounds intermediates and that changes a result, add an option such as `roundIntermediate: 2` and document it in SOURCE_NOTES.

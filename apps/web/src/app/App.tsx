@@ -1,31 +1,57 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { BookMarked, CalendarDays, Dumbbell, FileText, Moon, Repeat, Search, Settings as SettingsIcon, Shield, Sun } from 'lucide-react';
 import { useCourses } from '../modules/courses';
 import { CourseMenu } from './CourseMenu';
-import { getSession } from '../quiz/session';
-import { ModulePage } from '../tabs/ModulePage';
-import { IntuitionTab } from '../tabs/IntuitionTab';
-import { PathTab } from '../tabs/PathTab';
-import { MathCodeTab } from '../tabs/MathCodeTab';
-import { ApplicationTab } from '../tabs/ApplicationTab';
-import { ExamTab } from '../exam/ExamTab';
-import { Dashboard } from './Dashboard';
-import { GlossaryPage } from './GlossaryPage';
-import { CheatsheetPage } from './CheatsheetPage';
-import { SettingsPage } from './SettingsPage';
-import { PlanPage } from './PlanPage';
-import { CommandPalette } from './CommandPalette';
-import { QuizBuilder } from '../quiz/QuizBuilder';
-import { QuizRunner } from '../quiz/QuizRunner';
-import { ReviewPage } from '../quiz/ReviewPage';
-import { AdminPage } from '../admin/AdminPage';
-import { ChristmasPage } from '../christmas/ChristmasPage';
+import { getSession } from '../quiz/sessionStore';
 import { Decorations } from '../christmas/Decorations';
 import { migrateExamDate, useDueReviews, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
 import { useReducedMotion } from '../lib/reducedMotion';
 import { PopupProvider, isEmbedded, useEmbeddedEscape, usePopup } from '../lib/popup';
+
+/**
+ * Route-level code splitting. A failed chunk load usually means a rebuild replaced the hashed files
+ * this page knew about, so reload once to get the new asset list.
+ */
+function page<K extends string>(load: () => Promise<Record<K, ComponentType<any>>>, name: K) {
+  return lazy(async () => {
+    try {
+      const m = await load();
+      try { sessionStorage.removeItem('kodigo-chunk-reload'); } catch {}
+      return { default: m[name] };
+    } catch (e) {
+      let first = false;
+      try { first = !sessionStorage.getItem('kodigo-chunk-reload'); sessionStorage.setItem('kodigo-chunk-reload', '1'); } catch {}
+      if (first) {
+        location.reload();
+        return new Promise<never>(() => {});
+      }
+      throw e;
+    }
+  });
+}
+const ModulePage = page(() => import('../tabs/ModulePage'), 'ModulePage');
+const IntuitionTab = page(() => import('../tabs/IntuitionTab'), 'IntuitionTab');
+const PathTab = page(() => import('../tabs/PathTab'), 'PathTab');
+const MathCodeTab = page(() => import('../tabs/MathCodeTab'), 'MathCodeTab');
+const ApplicationTab = page(() => import('../tabs/ApplicationTab'), 'ApplicationTab');
+const ExamTab = page(() => import('../exam/ExamTab'), 'ExamTab');
+const Dashboard = page(() => import('./Dashboard'), 'Dashboard');
+const GlossaryPage = page(() => import('./GlossaryPage'), 'GlossaryPage');
+const CheatsheetPage = page(() => import('./CheatsheetPage'), 'CheatsheetPage');
+const SettingsPage = page(() => import('./SettingsPage'), 'SettingsPage');
+const PlanPage = page(() => import('./PlanPage'), 'PlanPage');
+const CommandPalette = page(() => import('./CommandPalette'), 'CommandPalette');
+const QuizBuilder = page(() => import('../quiz/QuizBuilder'), 'QuizBuilder');
+const QuizRunner = page(() => import('../quiz/QuizRunner'), 'QuizRunner');
+const ReviewPage = page(() => import('../quiz/ReviewPage'), 'ReviewPage');
+const AdminPage = page(() => import('../admin/AdminPage'), 'AdminPage');
+const ChristmasPage = page(() => import('../christmas/ChristmasPage'), 'ChristmasPage');
+
+function PageSkeleton() {
+  return <div className="p-10 text-center text-sm text-muted" role="status">Loading…</div>;
+}
 
 function useTheme() {
   const [theme, setTheme] = useSetting('theme');
@@ -114,6 +140,7 @@ function Shell() {
       {!isEmbedded && <TopBar onSearch={() => setPalette(true)} />}
       {!isEmbedded && <Decorations />}
       <main className="flex flex-1 flex-col">
+        <Suspense fallback={<PageSkeleton />}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/m/:id" element={<ModulePage />}>{moduleRoutes}</Route>
@@ -129,8 +156,9 @@ function Shell() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<div className="p-10 text-center text-muted">Page not found. <Link className="text-accent underline" to="/">Home</Link></div>} />
         </Routes>
+        </Suspense>
       </main>
-      {!isEmbedded && <CommandPalette open={palette} onClose={() => setPalette(false)} />}
+      {!isEmbedded && palette && <Suspense fallback={null}><CommandPalette open onClose={() => setPalette(false)} /></Suspense>}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 /**
  * Node-side LogicHost: runs a module's logic.js inside a node:vm context with timeouts.
  * Used by the server (import re-validation, health) and the CLI. The vm context has no
- * require/process/fs; Math.random throws (logic must be deterministic). It is not a hard
- * security boundary, which is why import is admin-only.
+ * require/process/fs; Math.random throws (logic must be deterministic). Microtasks drain inside each
+ * runInContext call, so its timeout bounds them too. It is not a hard security boundary: the server runs
+ * it inside an isolated child process (apps/server/src/logic/), and import is admin-only.
  */
 import vm from 'node:vm';
 import { sdk, createRng } from '@kodigo/sdk';
@@ -12,7 +13,7 @@ export async function createNodeHost(source: string, opts: { timeoutMs?: number 
   const timeout = opts.timeoutMs ?? 2000;
   const body = transformLogicSource(source);
   const noop = () => {};
-  const ctx = vm.createContext({ console: { log: noop, warn: noop, error: noop, info: noop, debug: noop }, __sdk: sdk });
+  const ctx = vm.createContext({ console: { log: noop, warn: noop, error: noop, info: noop, debug: noop }, __sdk: sdk }, { microtaskMode: 'afterEvaluate' });
   vm.runInContext(
     `Math.random = function () { throw new Error('Math.random is not allowed in logic.js; use the seeded rng passed to generators'); };`,
     ctx,
@@ -60,19 +61,42 @@ export async function createNodeHost(source: string, opts: { timeoutMs?: number 
 
 /** Read a module folder from disk into a FileMap. */
 export async function readModuleDir(dir: string): Promise<Record<string, string | Uint8Array>> {
+  const { isTextPath } = await import('./bundle');
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
-  const { isTextPath } = await import('./bundle');
   const files: Record<string, string | Uint8Array> = {};
+  for (const r of await walkModuleDir(dir)) files[r] = isTextPath(r) ? await fs.readFile(path.join(dir, r), 'utf8') : new Uint8Array(await fs.readFile(path.join(dir, r)));
+  return files;
+}
+
+/** Like readModuleDir, but binary files are only listed, never read. */
+export async function listModuleDir(dir: string): Promise<{ files: Record<string, string>; binary: string[] }> {
+  const { isTextPath } = await import('./bundle');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const files: Record<string, string> = {};
+  const binary: string[] = [];
+  for (const r of await walkModuleDir(dir)) {
+    if (isTextPath(r)) files[r] = await fs.readFile(path.join(dir, r), 'utf8');
+    else binary.push(r);
+  }
+  return { files, binary };
+}
+
+/** Relative paths of a module's files (skips dotfiles and node_modules). */
+export async function walkModuleDir(dir: string): Promise<string[]> {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const out: string[] = [];
   async function walk(rel: string) {
     const entries = await fs.readdir(path.join(dir, rel), { withFileTypes: true });
     for (const e of entries) {
       if (e.name.startsWith('.') || e.name === 'node_modules') continue;
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) await walk(r);
-      else files[r] = isTextPath(r) ? await fs.readFile(path.join(dir, r), 'utf8') : new Uint8Array(await fs.readFile(path.join(dir, r)));
+      else out.push(r);
     }
   }
   await walk('');
-  return files;
+  return out;
 }

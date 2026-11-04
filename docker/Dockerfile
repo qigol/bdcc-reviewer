@@ -25,11 +25,12 @@ RUN pnpm kodigo validate modules \
  && pnpm --filter @kodigo/server build
 
 # ---- runtime ----
-# The server is bundled by esbuild into a single file, so the runtime image needs no node_modules.
+# The server is bundled by esbuild (index.js plus the isolated logic host's logic-child.mjs), so the runtime image needs no node_modules.
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080 HOST=0.0.0.0 DATA_DIR=/data MODULES_BUILTIN=/app/modules WEB_DIR=/app/web
 COPY --from=build /src/apps/server/dist/index.js ./server/index.js
+COPY --from=build /src/apps/server/dist/logic-child.mjs ./server/logic-child.mjs
 COPY --from=build /src/apps/web/dist ./web
 COPY --from=build /src/modules ./modules
 RUN mkdir -p /data && chown node:node /data

@@ -1,4 +1,9 @@
-import { db, DB_VERSION } from './db';
+import { db, DB_VERSION, type Note } from './db';
+import { setSetting } from './progress';
+import { validRows, type TableName } from './rows';
+
+/** per-device settings: never exported, ignored on import */
+const DEVICE_LOCAL = new Set(['adminToken', 'firstUseAt', 'persistRequestedAt', 'lastExportAt']);
 
 export async function exportProgress(): Promise<string> {
   const data = {
@@ -12,21 +17,31 @@ export async function exportProgress(): Promise<string> {
       mastery: await db.mastery.toArray(),
       notes: await db.notes.toArray(),
       bookmarks: await db.bookmarks.toArray(),
-      settings: (await db.settings.toArray()).filter((s) => s.key !== 'adminToken'),
+      settings: (await db.settings.toArray()).filter((s) => !DEVICE_LOCAL.has(s.key)),
     },
   };
+  await setSetting('lastExportAt', Date.now());
   return JSON.stringify(data, null, 1);
 }
 
-/** Merge by key; on conflicts the later updatedAt wins. Attempts and notes are de-duplicated. */
-export async function importProgress(json: string): Promise<{ added: number; updated: number }> {
+/**
+ * Merge by key; on conflicts the later updatedAt wins. Attempts are de-duplicated and notes keep one per anchor.
+ * The file's version is checked before anything is written, and rows that don't match their table are skipped.
+ */
+export async function importProgress(json: string): Promise<{ added: number; updated: number; skipped: number }> {
   const data = JSON.parse(json);
   if (data?.app !== 'kodigo' || !data.tables) throw new Error('Not a Qdigo progress file');
-  let added = 0, updated = 0;
-  const t = data.tables;
+  if (typeof data.dbVersion !== 'number') throw new Error('This progress file is missing its format version');
+  if (data.dbVersion > DB_VERSION) throw new Error(`This progress file is from a newer version of Qdigo (format ${data.dbVersion}); update the app first`);
+  let added = 0, updated = 0, skipped = 0;
+  const valid = (table: TableName) => { const v = validRows(table, data.tables[table]); skipped += v.skipped; return v.rows; };
+  const t = {
+    progress: valid('progress'), srs: valid('srs'), mastery: valid('mastery'), bookmarks: valid('bookmarks'), attempts: valid('attempts'), notes: valid('notes'),
+    settings: valid('settings').filter((s) => !DEVICE_LOCAL.has(s.key)),
+  };
   await db.transaction('rw', [db.progress, db.attempts, db.srs, db.mastery, db.notes, db.bookmarks, db.settings], async () => {
     const mergeKeyed = async (table: any, rows: any[], keyOf: (r: any) => any, time = (r: any) => r.updatedAt ?? r.createdAt ?? 0) => {
-      for (const r of rows ?? []) {
+      for (const r of rows) {
         const cur = await table.get(keyOf(r));
         if (!cur) { await table.put(r); added++; }
         else if (time(r) > time(cur)) { await table.put(r); updated++; }
@@ -36,25 +51,43 @@ export async function importProgress(json: string): Promise<{ added: number; upd
     await mergeKeyed(db.srs, t.srs, (r) => r.templateId);
     await mergeKeyed(db.mastery, t.mastery, (r) => r.skillKey);
     await mergeKeyed(db.bookmarks, t.bookmarks, (r) => [r.moduleId, r.ref]);
-    await mergeKeyed(db.settings, (t.settings ?? []).filter((s: any) => s.key !== 'adminToken'), (r) => r.key);
+    await mergeKeyed(db.settings, t.settings, (r) => r.key);
     const seen = new Set((await db.attempts.toArray()).map((a) => `${a.key}|${a.seed}|${a.at}`));
-    for (const a of t.attempts ?? []) {
+    for (const a of t.attempts) {
       const k = `${a.key}|${a.seed}|${a.at}`;
       if (seen.has(k)) continue;
+      seen.add(k);
       const { id: _id, ...rest } = a;
       await db.attempts.add(rest);
       added++;
     }
-    const notes = new Set((await db.notes.toArray()).map((n) => `${n.moduleId}|${n.anchor}|${n.createdAt}`));
-    for (const n of t.notes ?? []) {
-      const k = `${n.moduleId}|${n.anchor}|${n.createdAt}`;
-      if (notes.has(k)) continue;
-      const { id: _id, ...rest } = n;
-      await db.notes.add(rest);
-      added++;
-    }
+    await mergeNotes(t.notes, (kind) => { if (kind === 'added') added++; else updated++; });
   });
-  return { added, updated };
+  return { added, updated, skipped };
+}
+
+/** One note per (moduleId, anchor): the newest text wins, ties go to local; also cleans duplicates left by older imports. */
+async function mergeNotes(imported: any[], count: (kind: 'added' | 'updated') => void) {
+  const time = (n: { updatedAt?: number; createdAt: number }) => n.updatedAt ?? n.createdAt;
+  const key = (n: { moduleId: string; anchor: string }) => `${n.moduleId}|${n.anchor}`;
+  const groups = new Map<string, { local: Note[]; incoming: any[] }>();
+  const group = (k: string) => { let g = groups.get(k); if (!g) groups.set(k, (g = { local: [], incoming: [] })); return g; };
+  for (const n of await db.notes.toArray()) group(key(n)).local.push(n);
+  for (const n of imported) group(key(n)).incoming.push(n);
+  for (const { local, incoming } of groups.values()) {
+    const newestLocal = local.reduce<Note | null>((best, n) => (!best || time(n) > time(best) ? n : best), null);
+    const newestIn = incoming.reduce<any>((best, n) => (!best || time(n) > time(best) ? n : best), null);
+    const importWins = !!newestIn && (!newestLocal || time(newestIn) > time(newestLocal));
+    const keepId = local[0]?.id;
+    if (importWins) {
+      const { id: _id, ...rest } = newestIn;
+      if (keepId === undefined) { await db.notes.add(rest); count('added'); }
+      else { await db.notes.put({ ...rest, id: keepId }); count('updated'); }
+    } else if (newestLocal && newestLocal.id !== keepId) {
+      await db.notes.put({ ...newestLocal, id: keepId }); // the newest text moves to the anchor's first row
+    }
+    for (const n of local.slice(1)) await db.notes.delete(n.id!);
+  }
 }
 
 export async function resetProgress(moduleId?: string) {

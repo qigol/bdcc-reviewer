@@ -12,11 +12,14 @@ export interface Settings {
   exams: Exam[];
   /** daily study budget for the exam plan */
   studyHoursPerDay: number;
-  adminToken: string | null;
   lastLocation: { moduleId: string; tab: string; id?: string; beat?: number; path: string; title?: string; at: number } | null;
   showBeyond: boolean;
   /** the course you were last studying (default for the quiz builder and cheat sheet) */
   course: string | null;
+  /** device-local, never exported: first start, when persistent storage was requested, last progress download */
+  firstUseAt: number | null;
+  persistRequestedAt: number | null;
+  lastExportAt: number | null;
 }
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
@@ -24,10 +27,12 @@ export const DEFAULT_SETTINGS: Settings = {
   reducedMotion: false,
   exams: [],
   studyHoursPerDay: 2,
-  adminToken: null,
   lastLocation: null,
   showBeyond: true,
   course: null,
+  firstUseAt: null,
+  persistRequestedAt: null,
+  lastExportAt: null,
 };
 
 /** One-time move of the old single `examDate` setting into `exams`, on the last-studied course or the only one. */
@@ -78,6 +83,8 @@ export function useAttempts(filter?: (a: Attempt) => boolean) {
 
 // ------------------------------------------------------------ mastery (plan §9.4)
 export const ALPHA = 0.3;
+/** self-graded answers move mastery half as far */
+export const W_SELF = 0.5;
 const W_D: Record<number, number> = { 1: 0.8, 2: 1, 3: 1.2 };
 export type Level = 'new' | 'learning' | 'shaky' | 'solid' | 'mastered';
 export function levelOf(score: number, n: number): Level {
@@ -89,23 +96,25 @@ export function levelOf(score: number, n: number): Level {
 }
 export const LEVEL_COLOR: Record<Level, string> = { new: 'bg-muted/40', learning: 'bg-bad', shaky: 'bg-warn', solid: 'bg-accent', mastered: 'bg-good' };
 
-export async function updateMastery(moduleId: string, skills: string[], score: number, difficulty = 2) {
+export async function updateMastery(moduleId: string, skills: string[], score: number, difficulty = 2, now = Date.now(), weight = 1) {
   for (const s of skills) {
     const skillKey = `${moduleId}:${s}`;
     const cur = (await db.mastery.get(skillKey)) ?? { skillKey, score: 0, n: 0, updatedAt: 0 };
     const w = W_D[difficulty] ?? 1;
-    const m = Math.min(1, Math.max(0, cur.score + ALPHA * w * (score - cur.score)));
-    await db.mastery.put({ skillKey, score: m, n: cur.n + 1, updatedAt: Date.now() });
+    const m = Math.min(1, Math.max(0, cur.score + ALPHA * weight * w * (score - cur.score)));
+    await db.mastery.put({ skillKey, score: m, n: cur.n + 1, updatedAt: now });
   }
 }
+/** Stored rows plus `effective`, the decayed score that displays, the plan and weak-spot quizzes use. */
 export function useMastery() {
-  return useLiveQuery(() => db.mastery.toArray(), []) ?? [];
+  const rows = useLiveQuery(() => db.mastery.toArray(), []) ?? [];
+  const now = Date.now();
+  return rows.map((m) => ({ ...m, effective: effectiveMastery(m.score, m.updatedAt, now) }));
 }
 
 // ------------------------------------------------------------ SRS (SM-2-lite on templates)
 const DAY = 86400000;
-export async function updateSrs(key: string, moduleId: string, score: number, confidence?: Confidence) {
-  const now = Date.now();
+export async function updateSrs(key: string, moduleId: string, score: number, confidence?: Confidence, now = Date.now()) {
   const cur = (await db.srs.get(key)) ?? { templateId: key, moduleId, ease: 2.5, interval: 0, due: now, reps: 0, lapses: 0, updatedAt: now };
   const grade = srsGrade(score, confidence);
   let { ease, interval, reps, lapses } = cur;
@@ -124,11 +133,17 @@ export function useDueReviews() {
   return useLiveQuery(async () => (await db.srs.where('due').belowOrEqual(Date.now()).toArray()), []) ?? [];
 }
 
+/** One transaction: the attempt, mastery and SRS all land or none do, and overlapping answers can't lose updates. */
 export async function recordAttempt(a: Omit<Attempt, 'id' | 'at'>) {
-  await db.attempts.add({ ...a, at: Date.now() });
-  const isGlossary = a.templateId.startsWith('glossary-');
-  if (a.skills.length) await updateMastery(a.moduleId, a.skills, a.score, a.difficulty);
-  if (!isGlossary || a.mode === 'review') await updateSrs(a.key, a.moduleId, a.score, a.confidence);
+  const now = Date.now();
+  await db.transaction('rw', db.attempts, db.mastery, db.srs, async () => {
+    const selfGraded = a.type === 'explain';
+    await db.attempts.add({ ...a, ...(selfGraded ? { selfGraded: true as const } : {}), at: now });
+    if (a.mode === 'exam-coding' || a.postSolution) return; // a whole-exam record, or an answer after seeing the solution
+    const isGlossary = a.templateId.startsWith('glossary-');
+    if (a.skills.length) await updateMastery(a.moduleId, a.skills, a.score, a.difficulty, now, selfGraded ? W_SELF : 1);
+    if (!isGlossary || a.mode === 'review') await updateSrs(a.key, a.moduleId, a.score, a.confidence, now);
+  });
 }
 
 export async function saveNote(moduleId: string, anchor: string, text: string) {
@@ -138,4 +153,11 @@ export async function saveNote(moduleId: string, anchor: string, text: string) {
 }
 export function useNote(moduleId: string, anchor: string) {
   return useLiveQuery(() => db.notes.where('moduleId').equals(moduleId).filter((n) => n.anchor === anchor).first(), [moduleId, anchor]);
+}
+
+const GRACE_MS = 7 * 86_400_000;
+const HALF_LIFE_MS = 30 * 86_400_000;
+/** Mastery as displayed at `now`: full for 7 days after practice, then halving every 30 days. The stored `score` never changes. */
+export function effectiveMastery(score: number, updatedAt: number, now: number): number {
+  return score * 2 ** (-Math.max(0, now - updatedAt - GRACE_MS) / HALF_LIFE_MS);
 }

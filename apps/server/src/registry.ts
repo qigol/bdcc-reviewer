@@ -5,8 +5,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { validateModule, type FileMap, type ValidationReport, type ParsedModule } from '@kodigo/schema';
-import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
+import { buildModuleIndex, parseModule, validateModule, type FileMap, type ModuleIndex, type ValidationReport, type ParsedModule, type LogicHostFactory } from '@kodigo/schema';
+import { listModuleDir, readModuleDir, walkModuleDir } from '@kodigo/schema/node';
+import { createIsolatedHost, killAllLogicChildren } from './logic/isolatedHost';
 
 export interface ModuleState { enabled: boolean; order?: number; current?: string; /** admin override of manifest.course */ course?: string }
 export interface State { modules: Record<string, ModuleState> }
@@ -35,6 +36,8 @@ export interface ModuleEntry {
   health: Health;
 }
 
+const FP_TTL_MS = 500;
+
 const cmpSemver = (a: string, b: string) => {
   const pa = a.split(/[.-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : x));
   const pb = b.split(/[.-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : x));
@@ -50,10 +53,20 @@ export const normCourse = (c: unknown) => (typeof c === 'string' ? c.trim().repl
 
 export class Registry {
   private state: State = { modules: {} };
-  private healthCache = new Map<string, { hash: string; report: ValidationReport }>();
+  /** per module id, keyed by fingerprint: list() and report() read no file contents while it matches */
+  private snapshots = new Map<string, { fp: string; manifest?: any; report?: ValidationReport; index?: ModuleIndex | { id: string; error: string } }>();
+  private fpMemo = new Map<string, { at: number; fp: string }>();
   private pending = new Map<string, Promise<ValidationReport>>();
 
-  constructor(private builtinDir: string, private dataDir: string, private log: (msg: string) => void = () => {}) {}
+  private hostFactory: LogicHostFactory;
+
+  constructor(private builtinDir: string, private dataDir: string, private log: (msg: string) => void = () => {}, opts: { hostFactory?: LogicHostFactory } = {}) {
+    // logic.js runs in an isolated child process by default (tests may inject the in-process host)
+    this.hostFactory = opts.hostFactory ?? ((src) => createIsolatedHost(src));
+  }
+
+  /** Stop live logic child processes. */
+  close() { killAllLogicChildren(); }
 
   get importedDir() { return path.join(this.dataDir, 'modules'); }
   get statePath() { return path.join(this.dataDir, 'state.json'); }
@@ -97,14 +110,17 @@ export class Registry {
 
   /** Resolve the directory currently serving a module id. */
   async resolve(id: string): Promise<{ dir: string; origin: 'builtin' | 'imported'; version?: string } | null> {
-    const imported = await this.importedVersions();
+    return this.resolveFrom(id, await this.builtinIds(), await this.importedVersions());
+  }
+
+  private resolveFrom(id: string, builtin: Record<string, string>, imported: Record<string, string[]>): { dir: string; origin: 'builtin' | 'imported'; version?: string } | null {
     const vs = imported[id];
     if (vs?.length) {
       const cur = this.state.modules[id]?.current;
       const version = cur && vs.includes(cur) ? cur : vs[vs.length - 1];
       return { dir: path.join(this.importedDir, `${id}@${version}`), origin: 'imported', version };
     }
-    const b = (await this.builtinIds())[id];
+    const b = builtin[id];
     return b ? { dir: b, origin: 'builtin' } : null;
   }
 
@@ -113,41 +129,93 @@ export class Registry {
     return r ? readModuleDir(r.dir) : null;
   }
 
-  private hash(files: FileMap): string {
+  /** The module's lightweight index, from its text files only; cached by fingerprint. */
+  async index(id: string): Promise<{ fp: string; index: ModuleIndex | { id: string; error: string } } | null> {
+    const r = await this.resolve(id);
+    if (!r) return null;
+    const fp = await this.fingerprint(r.dir);
+    const snap = this.snapshots.get(id);
+    if (snap?.fp === fp && snap.index) return { fp, index: snap.index };
+    const { files, binary } = await listModuleDir(r.dir);
+    const all: FileMap = { ...files };
+    for (const p of binary) all[p] = new Uint8Array(0); // the parser only needs to see that they exist
+    const { module, issues } = parseModule(all);
+    const index = module ? buildModuleIndex(module) : { id, error: issues.find((i) => i.level === 'error')?.message ?? 'failed to parse' };
+    this.remember(id, fp, { index });
+    return { fp, index };
+  }
+
+  /** Every module's index, with an ETag over all fingerprints. */
+  async indexes(): Promise<{ etag: string; modules: (ModuleIndex | { id: string; error: string })[] }> {
+    const ids = [...new Set([...Object.keys(await this.builtinIds()), ...Object.keys(await this.importedVersions())])].sort();
     const h = crypto.createHash('sha1');
-    for (const k of Object.keys(files).sort()) { h.update(k); h.update(typeof files[k] === 'string' ? (files[k] as string) : Buffer.from(files[k] as Uint8Array)); }
-    return h.digest('hex');
+    const modules: (ModuleIndex | { id: string; error: string })[] = [];
+    for (const id of ids) {
+      const got = await this.index(id);
+      if (!got) continue;
+      h.update(id).update(got.fp);
+      modules.push(got.index);
+    }
+    return { etag: `W/"${h.digest('hex')}"`, modules };
+  }
+
+  /** Text files plus a list of binary paths; binaries are not read. */
+  async listing(id: string): Promise<{ files: Record<string, string>; binary: string[]; fp: string } | null> {
+    const r = await this.resolve(id);
+    if (!r) return null;
+    return { ...(await listModuleDir(r.dir)), fp: await this.fingerprint(r.dir) };
+  }
+
+  /** Content identity of a module folder from a stat-only walk: path, size and mtime of every file. Memoized for 500 ms. */
+  async fingerprint(dir: string): Promise<string> {
+    const memo = this.fpMemo.get(dir);
+    if (memo && Date.now() - memo.at < FP_TTL_MS) return memo.fp;
+    const rows: string[] = [];
+    for (const rel of await walkModuleDir(dir)) {
+      const st = await fs.stat(path.join(dir, rel));
+      rows.push(`${rel}\0${st.size}\0${st.mtimeMs}`);
+    }
+    const fp = crypto.createHash('sha1').update(dir).update(rows.sort().join('\n')).digest('hex');
+    this.fpMemo.set(dir, { at: Date.now(), fp });
+    return fp;
   }
 
   async validate(files: FileMap): Promise<ValidationReport & { module?: ParsedModule }> {
-    return validateModule(files, { hostFactory: (src) => createNodeHost(src) });
+    return validateModule(files, { hostFactory: this.hostFactory });
   }
 
   /** Cached full report for the module currently serving `id`. */
   async report(id: string, wait = true): Promise<ValidationReport | null> {
-    const files = await this.files(id);
-    if (!files) return null;
-    const hash = this.hash(files);
-    const cached = this.healthCache.get(id);
-    if (cached && cached.hash === hash) return cached.report;
-    const key = `${id}:${hash}`;
+    const r = await this.resolve(id);
+    if (!r) return null;
+    const fp = await this.fingerprint(r.dir);
+    const snap = this.snapshots.get(id);
+    if (snap?.fp === fp && snap.report) return snap.report;
+    const key = `${id}:${fp}`;
     let p = this.pending.get(key);
     if (!p) {
-      p = this.validate(files).then((r) => {
-        const { module: _m, ...report } = r as any;
-        this.healthCache.set(id, { hash, report });
+      // validation is the only path that reads binaries, once per fingerprint change
+      p = readModuleDir(r.dir).then((files) => this.validate(files)).then((v) => {
+        const { module: _m, ...report } = v as any;
+        this.remember(id, fp, { report });
         this.pending.delete(key);
         this.log(`validated ${id}: ${report.ok ? 'ok' : 'errors'} (${report.issues.length} issues)`);
         return report as ValidationReport;
       }).catch((e) => {
         this.pending.delete(key);
         const report: ValidationReport = { ok: false, issues: [{ level: 'error', step: 'logic', message: String(e?.message ?? e) }], steps: [] };
-        this.healthCache.set(id, { hash, report });
+        this.remember(id, fp, { report });
         return report;
       });
       this.pending.set(key, p);
     }
     return wait ? p : null;
+  }
+
+  /** Merge into the id's snapshot; a new fingerprint starts it over. */
+  private remember(id: string, fp: string, part: { manifest?: any; report?: ValidationReport; index?: ModuleIndex | { id: string; error: string } }) {
+    const cur = this.snapshots.get(id);
+    this.snapshots.set(id, { ...(cur?.fp === fp ? cur : {}), fp, ...part });
   }
 
   private healthOf(r: ValidationReport | null): Health {
@@ -163,13 +231,19 @@ export class Registry {
     const ids = [...new Set([...Object.keys(builtin), ...Object.keys(imported)])];
     const out: ModuleEntry[] = [];
     for (const id of ids) {
-      const r = await this.resolve(id);
+      const r = this.resolveFrom(id, builtin, imported);
       if (!r) continue;
-      let manifest: any = {};
-      try {
-        const YAML = await import('yaml');
-        manifest = YAML.parse(await fs.readFile(path.join(r.dir, 'manifest.yaml'), 'utf8')) ?? {};
-      } catch {}
+      const fp = await this.fingerprint(r.dir);
+      const snap = this.snapshots.get(id);
+      let manifest: any = snap?.fp === fp ? snap.manifest : undefined;
+      if (manifest === undefined) {
+        manifest = {};
+        try {
+          const YAML = await import('yaml');
+          manifest = YAML.parse(await fs.readFile(path.join(r.dir, 'manifest.yaml'), 'utf8')) ?? {};
+        } catch {}
+        this.remember(id, fp, { manifest });
+      }
       const st = this.state.modules[id];
       const report = await this.report(id, false);
       out.push({
@@ -204,7 +278,8 @@ export class Registry {
   async patch(id: string, p: { enabled?: boolean; order?: number; current?: string; course?: string | null }) {
     const r = await this.resolve(id);
     if (!r) throw Object.assign(new Error(`no module ${id}`), { statusCode: 404 });
-    const st = (this.state.modules[id] ??= { enabled: true });
+    // work on a copy, so a rejected patch leaves memory and state.json untouched
+    const st: ModuleState = { ...(this.state.modules[id] ?? { enabled: true }) };
     if (p.enabled !== undefined) st.enabled = !!p.enabled;
     if (p.order !== undefined) st.order = Number(p.order);
     if (p.course !== undefined) {
@@ -218,6 +293,7 @@ export class Registry {
       if (!vs.includes(p.current)) throw Object.assign(new Error(`version ${p.current} is not stored`), { statusCode: 400 });
       st.current = p.current;
     }
+    this.state.modules[id] = st;
     await this.saveState();
   }
 
@@ -254,7 +330,8 @@ export class Registry {
     const vs = (await this.importedVersions())[id] ?? [];
     const keep = new Set([...vs.slice(-3), version]);
     for (const v of vs) if (!keep.has(v)) await fs.rm(path.join(this.importedDir, `${id}@${v}`), { recursive: true, force: true });
-    this.healthCache.set(id, { hash: this.hash(files), report: rest });
+    this.fpMemo.clear();
+    this.remember(id, await this.fingerprint(dir), { report: rest });
     return { ok: true as const, status: 200, report: rest, id, version, upgradedFrom: current?.version };
   }
 
@@ -275,7 +352,8 @@ export class Registry {
     const hasBuiltin = !!(await this.builtinIds())[id];
     if (!hasBuiltin) delete this.state.modules[id];
     else if (this.state.modules[id]) delete this.state.modules[id].current;
-    this.healthCache.delete(id);
+    this.snapshots.delete(id);
+    this.fpMemo.clear();
     await this.saveState();
   }
 }

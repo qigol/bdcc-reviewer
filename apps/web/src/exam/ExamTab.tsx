@@ -5,7 +5,7 @@ import { useModuleCtx } from '../tabs/ModulePage';
 import { Markdown } from '../lib/md';
 import { cn } from '../lib/util';
 import { instantiate, randomSeed } from '../quiz/session';
-import { QuestionView, emptyResponse, grade, type Graded } from '../quiz/Question';
+import { QuestionView, emptyResponse, grade, isAnswered, type Graded } from '../quiz/Question';
 import { Calculator } from '../quiz/Calculator';
 import { recordAttempt } from '../storage/progress';
 import { ExamGuide, ProblemHint, ScratchPad, useRowMarking } from './ExamTools';
@@ -21,7 +21,8 @@ type Phase = 'intro' | 'running' | 'done';
 
 export function ExamTab() {
   const { mod } = useModuleCtx();
-  const [mode, setMode] = useState<'code' | 'hand'>('code');
+  // reopen on the hand-worked exam when an attempt at it is still running
+  const [mode, setMode] = useState<'code' | 'hand'>(() => (loadAttempt(mod.id, mod.version, mod.preview) ? 'hand' : 'code'));
   if (!mod.parsed.exam) return <div className="p-10 text-center text-muted">This module has no mock exam.</div>;
   if (!mod.parsed.exam.coding) return <ExamRunner />;
   return (
@@ -37,17 +38,31 @@ export function ExamTab() {
   );
 }
 
+/** A running attempt, in localStorage so leaving, reloading or closing the tab resumes it. */
+interface SavedAttempt { v: 1; moduleVersion: string; seed: number; phase: 'running'; current: number; startedAt: number; responses: unknown[] }
+const attemptKey = (moduleId: string) => `kodigo-exam-attempt:${moduleId}`;
+function loadAttempt(moduleId: string, version: string, preview?: boolean): SavedAttempt | null {
+  if (preview) return null;
+  try {
+    const a = JSON.parse(localStorage.getItem(attemptKey(moduleId)) ?? 'null') as SavedAttempt | null;
+    if (a?.v === 1 && a.moduleVersion === version) return a;
+    if (a) localStorage.removeItem(attemptKey(moduleId));
+  } catch { /* storage blocked: no resume */ }
+  return null;
+}
+
 function ExamRunner() {
   const { mod } = useModuleCtx();
   const exam = mod.parsed.exam!;
-  const [seed, setSeed] = useState(randomSeed);
+  const [saved] = useState(() => loadAttempt(mod.id, mod.version, mod.preview));
+  const [seed, setSeed] = useState(() => saved?.seed ?? randomSeed());
   const [story, setStory] = useState<Record<string, any> | null>(null);
   const [storyError, setStoryError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [phase, setPhase] = useState<Phase>('intro');
+  const [phase, setPhase] = useState<Phase>(saved ? 'running' : 'intro');
   // items are revealed and locked in order: later prompts may show earlier results (the matrix, the estimates)
-  const [current, setCurrent] = useState(0);
-  const [startedAt, setStartedAt] = useState(0);
+  const [current, setCurrent] = useState(saved?.current ?? 0);
+  const [startedAt, setStartedAt] = useState(saved?.startedAt ?? 0);
   const [now, setNow] = useState(Date.now());
   // note-taking tools: scratchpad, calculator (types into the last answer box clicked), row marking
   const [notesOpen, setNotesOpen] = useState(false);
@@ -71,7 +86,7 @@ function ExamRunner() {
       (e) => alive && setStoryError(String(e?.message ?? e)),
     );
     list.forEach((it, i) => instantiate(mod, { moduleId: mod.id, templateId: it.template, seed }).then(
-      (inst) => alive && setItems((s) => { const n = s.slice(); n[i] = { ...n[i], inst, response: emptyResponse(inst) }; return n; }),
+      (inst) => alive && setItems((s) => { const n = s.slice(); n[i] = { ...n[i], inst, response: saved?.seed === seed && saved.responses[i] !== undefined ? saved.responses[i] : emptyResponse(inst) }; return n; }),
       (e) => alive && setItems((s) => { const n = s.slice(); n[i] = { ...n[i], error: String(e?.message ?? e) }; return n; }),
     ));
     return () => { alive = false; };
@@ -85,7 +100,9 @@ function ExamRunner() {
     return () => clearInterval(t);
   }, [phase, limitMs]);
 
+  const clearAttempt = () => { try { localStorage.removeItem(attemptKey(mod.id)); } catch { /* nothing saved */ } };
   const submit = () => {
+    clearAttempt();
     const timeMs = Date.now() - startedAt;
     const graded = items.map((it) => (it.inst ? { ...it, graded: grade(it.inst, it.response) } : it));
     setItems(graded);
@@ -96,9 +113,33 @@ function ExamRunner() {
       score: it.graded.score, response: it.graded.response, timeMs: Math.round(timeMs / graded.length), mode: 'exam', difficulty: it.inst.difficulty,
     });
   };
-  useEffect(() => { if (leftMs === 0) submit(); }, [leftMs]); // time is up
-
   const ready = !!story && items.every((it) => it.inst || it.error);
+  useEffect(() => { if (leftMs === 0 && ready) submit(); }, [leftMs, ready]); // time is up (a resumed attempt may expire while its items rebuild)
+
+  // keep the running attempt, once its items exist so a resume never overwrites saved answers with blanks
+  const responses = items.map((it) => it.response);
+  useEffect(() => {
+    if (phase !== 'running' || mod.preview || !ready) return;
+    const t = setTimeout(() => {
+      try { localStorage.setItem(attemptKey(mod.id), JSON.stringify({ v: 1, moduleVersion: mod.version, seed, phase: 'running', current, startedAt, responses } satisfies SavedAttempt)); } catch { /* no resume */ }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [phase, ready, current, seed, startedAt, JSON.stringify(responses)]);
+
+  // leaving mid-exam asks first; the attempt is saved either way
+  useEffect(() => {
+    if (phase !== 'running') return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [phase]);
+
+  /** The Submit button: blanks score 0, so confirm them. The timer submits without asking. */
+  const askSubmit = () => {
+    const blank = items.filter((it) => it.inst && !isAnswered(it.inst, it.response)).length;
+    if (blank && !confirm(`${blank} item${blank === 1 ? ' is' : 's are'} unanswered and will score 0. Submit anyway?`)) return;
+    submit();
+  };
   const score = useMemo(() => {
     const per = exam.problems.map((p) => {
       const its = items.filter((it) => it.problemId === p.id);
@@ -107,7 +148,7 @@ function ExamRunner() {
     return { per, max: per.reduce((a, p) => a + p.max, 0), got: per.reduce((a, p) => a + p.got, 0) };
   }, [items, exam]);
 
-  const newExam = () => { setPhase('intro'); setCurrent(0); setSeed(randomSeed()); };
+  const newExam = () => { clearAttempt(); setPhase('intro'); setCurrent(0); setSeed(randomSeed()); };
   const fmtTime = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
   const pts = (x: number) => (Math.round(x * 10) / 10).toString();
 
@@ -189,7 +230,7 @@ function ExamRunner() {
       {phase === 'running' && (
         <div className="flex items-center justify-end gap-3">
           <span className="text-sm text-muted">Item {current + 1} of {items.length}{current < items.length - 1 && ' · unanswered items score 0'}</span>
-          <button className={current === items.length - 1 ? 'btn-primary' : 'btn'} onClick={submit} data-testid="exam-submit"><Flag size={14} /> Submit the exam</button>
+          <button className={current === items.length - 1 ? 'btn-primary' : 'btn'} onClick={askSubmit} data-testid="exam-submit"><Flag size={14} /> Submit the exam</button>
         </div>
       )}
     </div>

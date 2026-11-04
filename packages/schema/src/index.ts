@@ -10,3 +10,4 @@ export * from './validate';
 export * from './jsonSchema';
 export * from './journal';
 export * from './guided';
+export * from './moduleIndex';

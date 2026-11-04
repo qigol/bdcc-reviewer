@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { parseModule, checkIntegrity, allDatasetPayloads, type ParsedModule, type Issue, type FileMap } from '@kodigo/schema';
+import type { ParsedModule, Issue, FileMap } from '@kodigo/schema';
 import { api, type ModuleListEntry } from '../lib/api';
 import { LogicClient } from './logic';
 
@@ -25,7 +25,7 @@ interface Store {
   refresh: () => Promise<void>;
   load: (id: string) => Promise<LoadedModule>;
   get: (id: string) => LoadedModule | undefined;
-  setPreview: (files: FileMap) => LoadedModule;
+  setPreview: (files: FileMap) => Promise<LoadedModule>;
   clearPreview: () => void;
   preview: LoadedModule | null;
 }
@@ -39,7 +39,9 @@ const BLOB_TYPES: Record<string, string> = {
 const cache = new Map<string, Promise<LoadedModule>>();
 const loadedMap = new Map<string, LoadedModule>();
 
-export function buildLoaded(files: FileMap, opts: { preview?: boolean; binary?: string[]; fileUrl?: (p: string) => string } = {}): LoadedModule {
+export async function buildLoaded(files: FileMap, opts: { preview?: boolean; binary?: string[]; fileUrl?: (p: string) => string } = {}): Promise<LoadedModule> {
+  // zod and yaml load on demand, not in the main chunk
+  const { parseModule, checkIntegrity, allDatasetPayloads } = await import('@kodigo/schema/parse');
   const { module, issues } = parseModule(files);
   if (!module) {
     const msg = issues.filter((i) => i.level === 'error').slice(0, 5).map((i) => `${i.file ?? ''} ${i.path ?? ''} ${i.message}`).join('\n');
@@ -103,12 +105,12 @@ export function ModuleStoreProvider({ children }: { children: ReactNode }) {
     if (preview && preview.id === id && location.pathname.startsWith('/preview')) return Promise.resolve(preview);
     let p = cache.get(id);
     if (!p) {
-      p = api.files(id).then(({ files, binary }) => {
+      p = api.files(id).then(async ({ files, binary }) => {
         // binary files (animation clips, images, the PDF) stay on the server; list them as empty placeholders so the
         // in-browser integrity check sees that they exist
         const all: FileMap = { ...files };
         for (const p of binary) if (!(p in all)) all[p] = new Uint8Array(0);
-        const m = buildLoaded(all, { binary, fileUrl: (path) => api.fileUrl(id, path) });
+        const m = await buildLoaded(all, { binary, fileUrl: (path) => api.fileUrl(id, path) });
         loadedMap.set(id, m);
         force((x) => x + 1);
         return m;
@@ -119,9 +121,9 @@ export function ModuleStoreProvider({ children }: { children: ReactNode }) {
     return p;
   }, [preview]);
 
-  const setPreview = useCallback((files: FileMap) => {
+  const setPreview = useCallback(async (files: FileMap) => {
     preview?.logic.dispose();
-    const m = buildLoaded(files, { preview: true });
+    const m = await buildLoaded(files, { preview: true });
     setPreviewState(m);
     return m;
   }, [preview]);

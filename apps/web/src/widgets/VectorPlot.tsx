@@ -20,12 +20,28 @@ export default function VectorPlot({ props, marks, bind, emit, isBound }: Widget
     if (!drag || !svg.current) return;
     const r = svg.current.getBoundingClientRect();
     const p = inv(((e.clientX - r.left) / r.width) * S, ((e.clientY - r.top) / r.height) * S);
+    moveTo(drag, p.x, p.y);
+  };
+  const moveTo = (id: string, x: number, y: number) => {
     const snap = (v: number) => Math.max(lo, Math.min(hi, Math.round(v * 10) / 10));
-    const next = vecs.map((v) => (v.id === drag ? { ...v, x: snap(p.x), y: snap(p.y) } : v));
+    const next = vecs.map((v) => (v.id === id ? { ...v, x: snap(x), y: snap(y) } : v));
     setLocal(next);
     bind('vectors', next);
     emit('change', next);
+    const m = next.find((v) => v.id === id)!;
+    setAnnounce(`${m.label ?? m.id} at ${fmtNum(m.x, 1)}, ${fmtNum(m.y, 1)}`);
   };
+  const [announce, setAnnounce] = useState('');
+  // arrows move a tip by 0.1 (Shift: 1)
+  const onKey = (e: React.KeyboardEvent, v: Vec) => {
+    const step = e.shiftKey ? 1 : 0.1;
+    const d = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] } as Record<string, number[]>)[e.key];
+    if (!d) return;
+    e.preventDefault();
+    moveTo(v.id, v.x + d[0], v.y + d[1]);
+  };
+  const name = `Vector plot: ${vecs.map((v) => `${v.label ?? v.id} at ${fmtNum(v.x, 1)}, ${fmtNum(v.y, 1)}`).join('; ')}`;
+  const interactive = vecs.some((v) => v.draggable);
   const get = (id?: string) => vecs.find((v) => v.id === id);
   const [a, b] = (props.angleBetween ?? []).map(get);
   const cos = a && b ? (a.x * b.x + a.y * b.y) / ((Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y)) || NaN) : NaN;
@@ -53,7 +69,7 @@ export default function VectorPlot({ props, marks, bind, emit, isBound }: Widget
   const ticks = Array.from({ length: Math.floor(hi) - Math.ceil(lo) + 1 }, (_, i) => Math.ceil(lo) + i);
   return (
     <div className="card p-2">
-      <svg ref={svg} viewBox={`0 0 ${S} ${S}`} className="mx-auto block w-full max-w-[400px] touch-none select-none overflow-visible" onPointerMove={move} onPointerUp={() => setDrag(null)} onPointerLeave={() => setDrag(null)} role="img" aria-label="vector plot">
+      <svg ref={svg} viewBox={`0 0 ${S} ${S}`} className="mx-auto block w-full max-w-[400px] touch-none select-none overflow-visible" onPointerMove={move} onPointerUp={() => setDrag(null)} onPointerLeave={() => setDrag(null)} role={interactive ? 'group' : 'img'} aria-label={name}>
         <defs>
           {COLORS.concat(['muted']).map((c) => (
             <marker key={c} id={`arr-${c}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill={TONE_FILL[c]} /></marker>
@@ -73,11 +89,13 @@ export default function VectorPlot({ props, marks, bind, emit, isBound }: Widget
             <g key={v.id}>
               <line x1={sx(0)} y1={sy(0)} x2={sx(v.x)} y2={sy(v.y)} stroke={TONE_FILL[tone]} strokeWidth={marks.tone(`vec:${v.id}`) ? 4 : 2.6} markerEnd={`url(#arr-${tone})`} />
               <text x={labels[v.id].x} y={labels[v.id].y} textAnchor={labels[v.id].anchor as 'start' | 'end'} fontSize={12} fontWeight={600} fill={TONE_FILL[tone]} stroke="rgb(var(--panel))" strokeWidth={3} paintOrder="stroke">{labels[v.id].text}</text>
-              {v.draggable && <circle cx={sx(v.x)} cy={sy(v.y)} r={9} fill={TONE_FILL[tone]} fillOpacity={0.2} stroke={TONE_FILL[tone]} className="cursor-grab" onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag(v.id); }} />}
+              {v.draggable && <circle cx={sx(v.x)} cy={sy(v.y)} r={9} fill={TONE_FILL[tone]} fillOpacity={0.2} stroke={TONE_FILL[tone]} className="cursor-grab kbd-handle" onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag(v.id); }}
+                tabIndex={0} role="button" aria-roledescription="draggable point" aria-label={`${v.label ?? v.id} at ${fmtNum(v.x, 1)}, ${fmtNum(v.y, 1)}`} onKeyDown={(e) => onKey(e, v)} />}
             </g>
           );
         })}
       </svg>
+      <div className="sr-only" aria-live="polite">{announce}</div>
       {props.showCosine && a && b && (
         <div className="mt-1 text-center text-sm">
           cos θ = <b className="font-mono text-accent">{Number.isFinite(cos) ? fmtNum(cos, 2) : '0 (zero vector)'}</b>

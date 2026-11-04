@@ -1,0 +1,248 @@
+/**
+ * Qdigo server app: serves the SPA, built-in modules (read-only) and imported modules (volume),
+ * and the admin API. Re-validates every import with the same validator the browser uses.
+ * `buildApp` wires everything without listening, so tests drive it with `app.inject`.
+ */
+import Fastify, { type FastifyInstance, type FastifyServerOptions, type FastifyReply, type FastifyRequest } from 'fastify';
+import compress from '@fastify/compress';
+import fastifyStatic from '@fastify/static';
+import multipart from '@fastify/multipart';
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import crypto from 'node:crypto';
+import { readZip, writeZip, widgetsMarkdown, normalizePath, isTextPath, type FileMap, type LogicHostFactory } from '@kodigo/schema';
+import { Registry } from './registry';
+import { christmasStatus } from './christmas/schedule';
+import { securityHeaders } from './headers';
+import { WEAK_TOKEN_REASON, type ServerConfig } from './config';
+import { createFailureLimiter } from './rateLimit';
+import { ModulePatch, bodyError } from './validation';
+
+export interface AppDeps {
+  /** runs logic.js during validation (default: an isolated child process per module) */
+  hostFactory?: LogicHostFactory;
+  /** current time (Christmas schedule) */
+  now?: () => Date;
+  /** Fastify logger option; tests pass false */
+  logger?: boolean | Record<string, unknown>;
+  /** extra routes registered before the error handler (tests) */
+  routes?: (app: FastifyInstance) => void;
+}
+
+/** If-None-Match may be a comma list of weak or strong tags, or *. */
+export function etagMatches(header: string | undefined, etag: string): boolean {
+  if (!header) return false;
+  const bare = (t: string) => t.trim().replace(/^W\//, '');
+  return header.split(',').some((t) => t.trim() === '*' || bare(t) === bare(etag));
+}
+
+export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
+  const now = deps.now ?? (() => new Date());
+  const opts: FastifyServerOptions = { logger: deps.logger ?? { level: cfg.logLevel }, bodyLimit: cfg.maxUploadMb * 1024 * 1024, trustProxy: cfg.trustProxy };
+  const app = Fastify(opts);
+  const limiter = createFailureLimiter({ now: () => now().getTime() });
+  if (cfg.admin.disabledReason && cfg.prod) app.log.warn(`admin is disabled: ${cfg.admin.disabledReason}`);
+  const registry = new Registry(cfg.modulesBuiltin, cfg.dataDir, (m) => app.log.info(m), { hostFactory: deps.hostFactory });
+
+  // brotli quality 5: good ratio without slowing every response; images and video are skipped as non-compressible
+  await app.register(compress, { global: true, encodings: ['br', 'gzip'], threshold: 1024, brotliOptions: { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } });
+  await app.register(multipart, { limits: { fileSize: cfg.maxUploadMb * 1024 * 1024, files: 1 } });
+
+  function requireAdmin(req: FastifyRequest, reply: FastifyReply): boolean {
+    if (!cfg.admin.token) {
+      const error = cfg.admin.disabledReason === WEAK_TOKEN_REASON ? `admin is disabled: ${WEAK_TOKEN_REASON}` :'ADMIN_TOKEN is not set on the server; admin is disabled.';
+      reply.code(503).send({ error });
+      return false;
+    }
+    // once an IP has 10 failures in 15 min even a correct token gets 429, so the reply doesn't reveal a right guess
+    const wait = limiter.blocked(req.ip);
+    if (wait) {
+      reply.code(429).header('retry-after', String(wait)).send({ error: 'Too many failed admin attempts; try again later' });
+      return false;
+    }
+    const h = req.headers.authorization ?? '';
+    const token = h.startsWith('Bearer ') ? h.slice(7) : '';
+    const a = Buffer.from(token);
+    const b = Buffer.from(cfg.admin.token);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      limiter.fail(req.ip);
+      reply.code(401).send({ error: 'Invalid admin token' });
+      return false;
+    }
+    return true;
+  }
+
+  app.addHook('onSend', async (req, reply, payload) => {
+    const type = String(reply.getHeader('content-type') ?? '');
+    const urlPath = req.url.split('?')[0];
+    reply.headers(securityHeaders({ path: urlPath, contentType: type, status: reply.statusCode, hsts: cfg.hsts }));
+    // hashed assets never change; index.html must be revalidated so a rebuild's new asset list is seen
+    if (type.includes('text/html')) reply.header('cache-control', 'no-cache');
+    else if (req.method === 'GET' && reply.statusCode === 200 && urlPath.startsWith('/assets/')) reply.header('cache-control', 'public, max-age=31536000, immutable');
+    return payload;
+  });
+
+  // ------------------------------------------------------------ API
+  app.get('/api/health', async () => ({ ok: true, time: new Date().toISOString() }));
+
+  app.get('/api/christmas', async (_req, reply) => {
+    reply.header('cache-control', 'no-store');
+    return christmasStatus(now(), cfg.christmas.mode, cfg.christmas.tz, cfg.christmas.now);
+  });
+
+  app.get('/api/modules', async () => {
+    const list = await registry.list();
+    return list.map(({ dir: _dir, ...m }) => m);
+  });
+
+  app.get('/api/index', async (req, reply) => {
+    const { etag, modules } = await registry.indexes();
+    reply.header('etag', etag).header('cache-control', 'no-cache');
+    if (etagMatches(req.headers['if-none-match'], etag)) return reply.code(304).send();
+    return { modules };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/modules/:id/files', async (req, reply) => {
+    const r = await registry.resolve(req.params.id);
+    if (!r) return reply.code(404).send({ error: 'not found' });
+    // binaries are listed, not read; the browser revalidates with the fingerprint as a weak ETag
+    const etag = `W/"${await registry.fingerprint(r.dir)}"`;
+    reply.header('etag', etag).header('cache-control', 'no-cache');
+    if (etagMatches(req.headers['if-none-match'], etag)) return reply.code(304).send();
+    const listing = await registry.listing(req.params.id);
+    if (!listing) return reply.code(404).send({ error: 'not found' });
+    return { files: listing.files, binary: listing.binary };
+  });
+
+  // not compressed: content-length and byte ranges must stay exact (video seeking)
+  app.get<{ Params: { id: string; '*': string } }>('/api/modules/:id/files/*', { compress: false }, async (req, reply) => {
+    const r = await registry.resolve(req.params.id);
+    if (!r) return reply.code(404).send({ error: 'not found' });
+    const rel = normalizePath(req.params['*'] ?? '');
+    const full = path.resolve(r.dir, rel);
+    if (!full.startsWith(path.resolve(r.dir) + path.sep)) return reply.code(400).send({ error: 'bad path' });
+    if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return reply.code(404).send({ error: 'not found' });
+    const ext = path.extname(full).toLowerCase();
+    const types: Record<string, string> = {
+      '.pdf': 'application/pdf', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+      '.apng': 'image/apng', '.webm': 'video/webm', '.mp4': 'video/mp4', '.m4v': 'video/mp4',
+      '.yaml': 'text/yaml; charset=utf-8', '.yml': 'text/yaml; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.js': 'text/plain; charset=utf-8', '.json': 'application/json',
+    };
+    reply.header('content-type', types[ext] ?? (isTextPath(full) ? 'text/plain; charset=utf-8' : 'application/octet-stream'));
+    // byte ranges: browsers seek video with them, and Safari won't play an .mp4 without them
+    const size = fs.statSync(full).size;
+    reply.header('accept-ranges', 'bytes');
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+    if (range && (range[1] || range[2])) {
+      // "bytes=a-b", "bytes=a-" (to the end) or "bytes=-n" (the last n bytes)
+      const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+      if (start >= size || start > end) return reply.code(416).header('content-range', `bytes */${size}`).send();
+      reply.code(206).header('content-range', `bytes ${start}-${end}/${size}`).header('content-length', end - start + 1);
+      return reply.send(fs.createReadStream(full, { start, end }));
+    }
+    reply.header('content-length', size);
+    return reply.send(fs.createReadStream(full));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/modules/:id/report', async (req, reply) => {
+    const r = await registry.report(req.params.id, true);
+    if (!r) return reply.code(404).send({ error: 'not found' });
+    return r;
+  });
+
+  app.get<{ Params: { id: string } }>('/api/modules/:id/export', async (req, reply) => {
+    const files = await registry.files(req.params.id);
+    if (!files) return reply.code(404).send({ error: 'not found' });
+    const list = await registry.list();
+    const m = list.find((x) => x.id === req.params.id);
+    const zip = await writeZip(files, req.params.id);
+    reply.header('content-type', 'application/zip');
+    reply.header('content-disposition', `attachment; filename="${req.params.id}@${m?.version ?? 'current'}.zip"`);
+    return reply.send(Buffer.from(zip));
+  });
+
+  app.get('/api/widgets.md', async (_req, reply) => {
+    reply.header('content-type', 'text/markdown; charset=utf-8');
+    reply.header('content-disposition', 'attachment; filename="WIDGETS.md"');
+    return widgetsMarkdown();
+  });
+
+  app.get('/api/admin/check', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    return { ok: true };
+  });
+
+  async function filesFromRequest(req: FastifyRequest): Promise<FileMap> {
+    if (req.isMultipart()) {
+      const part = await req.file();
+      if (!part) throw Object.assign(new Error('no file uploaded'), { statusCode: 400 });
+      const buf = await part.toBuffer();
+      return readZip(buf);
+    }
+    const body = req.body as { files?: Record<string, string | { base64: string }> };
+    if (!body?.files || typeof body.files !== 'object') throw Object.assign(new Error('expected multipart zip or JSON {files: {path: content}}'), { statusCode: 400 });
+    const files: FileMap = {};
+    for (const [p, c] of Object.entries(body.files)) {
+      const np = normalizePath(p);
+      if (np.includes('..')) continue;
+      files[np] = typeof c === 'string' ? c : new Uint8Array(Buffer.from(c.base64, 'base64'));
+    }
+    return files;
+  }
+
+  // keepAssets=1: a re-import from pasted bundle text keeps the installed version's assets/ and sources/ (guide §9a.2)
+  app.post<{ Querystring: { allowDowngrade?: string; dryRun?: string; keepAssets?: string } }>('/api/modules', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    let files = await filesFromRequest(req);
+    const keepAssets = !!req.query.keepAssets;
+    if (req.query.dryRun) {
+      if (keepAssets) files = await registry.withInstalledAssets(files);
+      const { module: _m, ...report } = await registry.validate(files);
+      return { ok: report.ok, report };
+    }
+    const r = await registry.install(files, { allowDowngrade: !!req.query.allowDowngrade, keepAssets });
+    return reply.code(r.status).send(r);
+  });
+
+  app.patch<{ Params: { id: string } }>('/api/modules/:id', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const body = ModulePatch.safeParse(req.body ?? {});
+    if (!body.success) return reply.code(400).send({ error: bodyError(body.error) });
+    await registry.patch(req.params.id, body.data);
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/modules/:id', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    await registry.remove(req.params.id);
+    return { ok: true };
+  });
+
+  deps.routes?.(app);
+
+  app.setErrorHandler((err: any, req, reply) => {
+    const code = err.statusCode ?? 500;
+    // 5xx details (paths, stack) go to the log only; the client gets an id to quote
+    if (code >= 500) {
+      req.log.error({ err, reqId: req.id, url: req.url }, 'request failed');
+      return reply.code(code).send({ error: 'Internal server error', requestId: req.id });
+    }
+    reply.code(code).send({ error: err.message ?? String(err) });
+  });
+
+  // ------------------------------------------------------------ SPA
+  if (fs.existsSync(path.join(cfg.webDir, 'index.html'))) {
+    await app.register(fastifyStatic, { root: cfg.webDir, prefix: '/', wildcard: true, index: ['index.html'] });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.url.startsWith('/api/')) return reply.code(404).send({ error: 'not found' });
+      return reply.type('text/html').sendFile('index.html');
+    });
+  } else {
+    app.log.warn(`No web build at ${cfg.webDir} (API only). Run the Vite dev server for the UI.`);
+  }
+
+  await registry.init();
+  return { app, registry, close: async () => { registry.close(); await app.close(); } };
+}

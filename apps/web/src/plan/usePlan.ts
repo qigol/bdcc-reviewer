@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { learningPath } from '@kodigo/schema';
 import { db } from '../storage/db';
 import { useAllProgress, useAttempts, useMastery, useSetting } from '../storage/progress';
-import { useAllModules } from '../modules/useAll';
+import { useModuleIndex } from '../modules/useIndex';
 import { useCourses } from '../modules/courses';
 import { buildPlan, estimateMinutes, toYmd, type Plan, type PlanTask } from './studyPlan';
 import { stepHref, stepStatus } from './stepStatus';
@@ -12,7 +11,7 @@ import { stepHref, stepStatus } from './stepStatus';
 export function usePlan(): { plan: Plan; loading: boolean } {
   const [exams] = useSetting('exams');
   const [hours] = useSetting('studyHoursPerDay');
-  const { mods, loading } = useAllModules();
+  const { mods, loading } = useModuleIndex();
   const { courses, courseOf } = useCourses();
   const progress = useAllProgress();
   const attempts = useAttempts();
@@ -36,16 +35,16 @@ export function usePlan(): { plan: Plan; loading: boolean } {
         if (!mod) continue;
         const p = progress.filter((x) => x.moduleId === id);
         const a = attempts.filter((x) => x.moduleId === id);
-        const skills = mod.parsed.manifest.skills;
-        const mm = skills.length ? skills.reduce((acc, s) => acc + (mastery.find((x) => x.skillKey === `${id}:${s.id}`)?.score ?? 0), 0) / skills.length : 0;
-        for (const step of learningPath(mod.parsed)) {
+        const skills = mod.manifest.skills;
+        const mm = skills.length ? skills.reduce((acc, s) => acc + (mastery.find((x) => x.skillKey === `${id}:${s.id}`)?.effective ?? 0), 0) / skills.length : 0;
+        for (const step of mod.path) {
           if (stepStatus(step, p, a, mm) === 'done') continue;
           const size =
-            step.kind === 'scene' ? { beats: mod.parsed.intuition.find((s) => s.id === step.id)?.beats.length }
-            : step.kind === 'section' ? { derivationSteps: mod.parsed.mathCode.find((s) => s.id === step.id)?.steps.length }
-            : step.kind === 'case' ? { decisions: mod.parsed.application.case.cells.filter((c) => c.decision).length }
+            step.kind === 'scene' ? { beats: mod.scenes.find((s) => s.id === step.id)?.beats }
+            : step.kind === 'section' ? { derivationSteps: mod.sections.find((s) => s.id === step.id)?.steps }
+            : step.kind === 'case' ? { decisions: mod.application.decisions.length }
             : {};
-          tasks.push({ moduleId: id, moduleTitle: mod.parsed.manifest.shortTitle, step, minutes: estimateMinutes(step, size), href: stepHref(step, `/m/${id}`, id) });
+          tasks.push({ moduleId: id, moduleTitle: mod.manifest.shortTitle, step, minutes: estimateMinutes(step, size), href: stepHref(step, `/m/${id}`, id) });
         }
       }
       return { exam, tasks };

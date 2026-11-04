@@ -129,9 +129,9 @@ export function ImportPanel({ token, onInstalled }: { token: string; onInstalled
     finally { setBusy(null); }
   };
 
-  const preview = () => {
+  const preview = async () => {
     if (!files) return;
-    try { const m = store.setPreview(files); nav(`/preview/m/${m.id}/intuition`); } catch (e: any) { setMsg({ tone: 'bad', text: String(e?.message ?? e) }); }
+    try { const m = await store.setPreview(files); nav(`/preview/m/${m.id}/intuition`); } catch (e: any) { setMsg({ tone: 'bad', text: String(e?.message ?? e) }); }
   };
 
   const tabs: { id: Src; label: string; icon: any }[] = [

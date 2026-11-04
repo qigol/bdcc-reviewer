@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm kodigo validate modules --warnings
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/public/pyodide
+          key: pyodide-${{ hashFiles('scripts/fetch-pyodide.mjs') }}
+      - run: pnpm build
+      - run: node scripts/check-bundle-size.mjs
+      # these two check build output, so they skip during the earlier pnpm test
+      - run: pnpm vitest run apps/web/test/workerBundle.test.ts apps/web/test/docs.test.ts
+      - run: pnpm audit --prod --audit-level=moderate
+      - run: pnpm --filter @kodigo/web exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm smoke
+      # the CSP matrix must hold in every engine: the page has no 'unsafe-eval', the logic worker does
+      - run: pnpm --filter @kodigo/web exec playwright test e2e/audit.spec.ts -g "no CSP violations" --project=firefox --project=webkit
+
+  docker:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f docker/Dockerfile -t kodigo:ci .
+      - name: Runtime image has the logic child and no node_modules
+        run: |
+          docker run --rm kodigo:ci sh -c 'test -f server/logic-child.mjs && test ! -e node_modules && test ! -e server/node_modules'
+      - name: Container answers its health check
+        run: |
+          docker run -d --name kodigo-ci -p 8080:8080 -e ADMIN_TOKEN=ci-token-0123456789 kodigo:ci
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8080/api/health && exit 0; sleep 1; done
+          docker logs kodigo-ci
+          exit 1

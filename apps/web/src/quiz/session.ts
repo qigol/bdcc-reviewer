@@ -1,7 +1,9 @@
-import { buildInstance, buildGlossaryInstance, glossaryKind, glossaryTemplateIds, glossaryWithHomes, type QuizInstance, type Template } from '@kodigo/schema';
+import { buildInstance, buildGlossaryInstance, glossaryKind, glossaryTemplateIds, glossaryWithHomes, type ModuleIndex, type QuizInstance, type Template } from '@kodigo/schema';
 import type { LoadedModule } from '../modules/store';
+import { saveSession, type Mode, type QuizSession, type SessionItem } from './sessionStore';
 
-export type Mode = 'practice' | 'exam' | 'review' | 'weak' | 'interleaved' | 'retry';
+export * from './sessionStore';
+
 export const MODE_LABEL: Record<Mode, string> = {
   practice: 'Practice (instant feedback)',
   exam: 'Exam simulation (timed, feedback at the end)',
@@ -12,18 +14,6 @@ export const MODE_LABEL: Record<Mode, string> = {
 };
 export const QTYPES = ['mcq', 'multi', 'two-tier', 'numeric', 'code-fill', 'match', 'order', 'find-error', 'hand-calc', 'case', 'journal-entry', 'schedule-fill', 'explain'] as const;
 export const QTYPE_LABEL: Record<string, string> = { mcq: 'Multiple choice', multi: 'Select all', numeric: 'Numeric', 'code-fill': 'Fill in the blanks', match: 'Matching', order: 'Ordering', 'hand-calc': 'Hand calculation', 'journal-entry': 'Journal entry', 'schedule-fill': 'Complete the schedule', 'find-error': 'Spot the error', 'two-tier': 'Answer + reason', explain: 'Explain it', case: 'Multi-part case' };
-
-export interface SessionItem { moduleId: string; templateId: string; seed: number }
-export interface QuizSession {
-  id: string;
-  createdAt: number;
-  mode: Mode;
-  items: SessionItem[];
-  /** every item comes from a module of this course */
-  course?: string;
-  timeLimitSec?: number;
-  title?: string;
-}
 
 export interface SessionConfig {
   /** quizzes are course-based: only modules of this course are used */
@@ -44,70 +34,24 @@ export function randomSeed(): number {
   return a[0] % 2147483647 || 1;
 }
 
-const KEY = 'kodigo-sessions';
-function loadAll(): Record<string, QuizSession> {
-  try { return JSON.parse(sessionStorage.getItem(KEY) ?? '{}'); } catch { return {}; }
-}
-export function saveSession(s: QuizSession) {
-  const all = loadAll();
-  all[s.id] = s;
-  const ids = Object.keys(all).sort((a, b) => all[b].createdAt - all[a].createdAt).slice(0, 20);
-  try { sessionStorage.setItem(KEY, JSON.stringify(Object.fromEntries(ids.map((i) => [i, all[i]])))); } catch {}
-}
-export function getSession(id: string): QuizSession | undefined {
-  return loadAll()[id];
-}
-
-/**
- * In-progress answers for a running quiz, so leaving the quiz page (lesson, glossary, browser
- * back, reload) and coming back resumes where you were instead of starting over.
- * Question instances aren't stored: they're regenerated deterministically from each item's seed.
- */
-export interface SavedSlot { response?: unknown; graded?: unknown; startedAt?: number; timeMs?: number; seed?: number; confidence?: 1 | 2 | 3 }
-export interface SavedRun { idx: number; finished: boolean; deadline: number | null; slots: SavedSlot[]; updatedAt: number }
-
-const RUN_KEY = 'kodigo-quiz-progress';
-function loadRuns(): Record<string, SavedRun> {
-  try { return JSON.parse(sessionStorage.getItem(RUN_KEY) ?? '{}'); } catch { return {}; }
-}
-export function getRunState(id: string): SavedRun | undefined {
-  return loadRuns()[id];
-}
-export function saveRunState(id: string, run: Omit<SavedRun, 'updatedAt'>) {
-  const sessions = loadAll();
-  const runs = loadRuns();
-  runs[id] = { ...run, updatedAt: Date.now() };
-  // only keep progress for sessions that still exist
-  const kept = Object.fromEntries(Object.entries(runs).filter(([k]) => k === id || sessions[k]));
-  try { sessionStorage.setItem(RUN_KEY, JSON.stringify(kept)); } catch {}
-}
-/** Most recent quiz that was started but not finished, if any. */
-export function latestUnfinished(): { session: QuizSession; run: SavedRun } | undefined {
-  const sessions = loadAll();
-  const best = Object.entries(loadRuns())
-    .filter(([id, r]) => !r.finished && sessions[id] && r.slots.some((s) => s.graded || s.response !== undefined))
-    .sort((a, b) => b[1].updatedAt - a[1].updatedAt)[0];
-  return best ? { session: sessions[best[0]], run: best[1] } : undefined;
-}
-
 export interface Candidate { moduleId: string; templateId: string; type: string; skills: string[]; difficulty: number; glossary?: boolean }
 
-export function candidates(mods: LoadedModule[], cfg: Pick<SessionConfig, 'modules' | 'types' | 'skills' | 'difficulties' | 'glossary'>): Candidate[] {
+export function candidates(mods: Pick<ModuleIndex, 'id' | 'quiz' | 'glossary'>[], cfg: Pick<SessionConfig, 'modules' | 'types' | 'skills' | 'difficulties' | 'glossary'>): Candidate[] {
   const out: Candidate[] = [];
   for (const m of mods) {
     if (!cfg.modules.includes(m.id)) continue;
-    for (const t of m.parsed.quiz) {
+    for (const t of m.quiz) {
       if (cfg.types.length && !cfg.types.includes(t.type)) continue;
       if (cfg.difficulties.length && !cfg.difficulties.includes(t.difficulty)) continue;
       if (cfg.skills.length && !t.skills.some((s) => cfg.skills.includes(`${m.id}:${s}`))) continue;
       out.push({ moduleId: m.id, templateId: t.id, type: t.type, skills: t.skills, difficulty: t.difficulty });
     }
     if (cfg.glossary) {
-      for (const id of glossaryTemplateIds(m.parsed.glossary)) {
+      for (const id of glossaryTemplateIds(m.glossary)) {
         const kind = glossaryKind(id);
         if (cfg.types.length && !cfg.types.includes(kind.type)) continue;
         if (cfg.difficulties.length && !cfg.difficulties.includes(kind.difficulty)) continue;
-        const term = m.parsed.glossary.find((g) => id.endsWith(`-${g.id}`));
+        const term = m.glossary.find((g) => id.endsWith(`-${g.id}`));
         const skills = term?.skills ?? [];
         if (cfg.skills.length && !skills.some((s) => cfg.skills.includes(`${m.id}:${s}`))) continue;
         out.push({ moduleId: m.id, templateId: id, type: kind.type, skills, difficulty: kind.difficulty, glossary: true });

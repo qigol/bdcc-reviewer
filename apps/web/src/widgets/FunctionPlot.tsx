@@ -60,16 +60,28 @@ export default function FunctionPlot({ props, cmds, marks, ctx, bind, emit, isBo
     const r = svg.current.getBoundingClientRect();
     const px = ((e.clientX - r.left) / r.width) * W;
     const nx = Math.max(a, Math.min(b, a + ((px - L) / (W - L - R)) * (b - a)));
-    const snapped = Math.round(nx * 100) / 100;
-    setLocalX(snapped);
-    bind('x', snapped);
-    emit('change', snapped);
+    setTo(Math.round(nx * 100) / 100);
   };
+  const setTo = (v: number) => {
+    setLocalX(v);
+    bind('x', v);
+    emit('change', v);
+  };
+  // arrows move 1/100 of the domain (Shift: 10×), Home and End jump to its bounds
+  const onKey = (e: React.KeyboardEvent) => {
+    if (typeof x !== 'number') return;
+    const step = ((b - a) / 100) * (e.shiftKey ? 10 : 1);
+    const to = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? x + step : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? x - step : e.key === 'Home' ? a : e.key === 'End' ? b : null;
+    if (to === null) return;
+    e.preventDefault();
+    setTo(Number(Math.max(a, Math.min(b, to)).toFixed(4)));
+  };
+  const name = `Plot of ${props.fn} from ${fmtNum(a, 2)} to ${fmtNum(b, 2)}`;
   const path = pts.filter((p) => Number.isFinite(p.y)).map((p, i) => `${i ? 'L' : 'M'} ${sx(p.x)} ${sy(p.y)}`).join(' ');
   const tangent = props.showTangent && yAt && typeof x === 'number' ? (() => { const dx = (b - a) * 0.18; return [x - dx, yAt.y - yAt.slope * dx, x + dx, yAt.y + yAt.slope * dx]; })() : null;
   return (
     <div className="card p-3">
-      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="w-full touch-none select-none" onPointerMove={onMove} onPointerUp={() => setDrag(false)} onPointerLeave={() => setDrag(false)} role="img" aria-label="function plot">
+      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="w-full touch-none select-none" onPointerMove={onMove} onPointerUp={() => setDrag(false)} onPointerLeave={() => setDrag(false)} role={props.draggable ? 'group' : 'img'} aria-label={name}>
         <line x1={L} x2={W - R} y1={H - B} y2={H - B} stroke="rgb(var(--muted))" />
         <line x1={L} x2={L} y1={T} y2={H - B} stroke="rgb(var(--muted))" />
         {[0, 0.25, 0.5, 0.75, 1].map((t) => { const v = yMin + t * (yMax - yMin); return <text key={t} x={L - 6} y={sy(v) + 4} textAnchor="end" fontSize={10} fill="rgb(var(--muted))">{fmtNum(v, 1)}</text>; })}
@@ -85,11 +97,13 @@ export default function FunctionPlot({ props, cmds, marks, ctx, bind, emit, isBo
         {tangent && <line x1={sx(tangent[0])} y1={sy(tangent[1])} x2={sx(tangent[2])} y2={sy(tangent[3])} stroke="rgb(var(--warn))" strokeWidth={2} />}
         {typeof x === 'number' && yAt && (
           <g>
-            <circle cx={sx(x)} cy={sy(yAt.y)} r={props.draggable ? 8 : 5.5} fill="rgb(var(--accent))" stroke="white" strokeWidth={2} className={props.draggable ? 'cursor-grab' : undefined} onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag(true); }} />
+            <circle cx={sx(x)} cy={sy(yAt.y)} r={props.draggable ? 8 : 5.5} fill="rgb(var(--accent))" stroke="white" strokeWidth={2} className={props.draggable ? 'cursor-grab kbd-handle' : undefined} onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag(true); }}
+              {...(props.draggable ? { tabIndex: 0, role: 'slider', 'aria-label': `${props.fn}: move x`, 'aria-valuemin': a, 'aria-valuemax': b, 'aria-valuenow': x, 'aria-valuetext': `x = ${fmtNum(x, 2)}, f = ${fmtNum(yAt.y, 2)}`, onKeyDown: onKey } : {})} />
             <text x={sx(x) + 10} y={sy(yAt.y) + 16} fontSize={11} fill="rgb(var(--ink))">x = {fmtNum(x, 2)}, f = {fmtNum(yAt.y, 2)}{props.showTangent ? `, slope ${fmtNum(yAt.slope, 2)}` : ''}</text>
           </g>
         )}
       </svg>
+      <p className="sr-only">{name}.{ys.length ? ` Values range from ${fmtNum(yMin, 2)} to ${fmtNum(yMax, 2)}.` : ''}{(props.showMin || showMinCmd) && min ? ` Minimum about ${fmtNum(min.y, 2)} at x = ${fmtNum(min.x, 2)}.` : ''}</p>
       <div className="flex justify-between px-2 text-xs text-muted">
         {props.xLabel ? <Tex tex={props.xLabel} display={false} /> : <span />}
         {props.yLabel ? <span>y: <Tex tex={props.yLabel} display={false} /></span> : <span />}

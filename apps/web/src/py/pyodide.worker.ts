@@ -52,7 +52,6 @@ def _reset():
     _CODES.clear()
 `;
 
-let pyodide: any = null;
 let loading: Promise<any> | null = null;
 
 function load(): Promise<any> {
@@ -66,7 +65,6 @@ function load(): Promise<any> {
     if (failed.length) throw new Error(failed.join('; '));
     py.runPython(KERNEL);
     py.runPython('import pandas, numpy');
-    pyodide = py;
     postMessage({ type: 'progress', stage: 'ready' });
     return py;
   })();

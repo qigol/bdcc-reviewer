@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookMarked, Calculator as CalcIcon, Clock, Dices, Flag, RotateCcw, Trophy } from 'lucide-react';
+import { ArrowRight, BookMarked, Calculator as CalcIcon, Check, Clock, Dices, Flag, Minus, RotateCcw, Trophy, X } from 'lucide-react';
 import { calculatorMode, variantCount, type QuizInstance } from '@kodigo/schema';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
@@ -11,9 +11,10 @@ import { recordAttempt } from '../storage/progress';
 import { CONFIDENCE_LABEL, calibration, type Confidence } from '../storage/confidence';
 import { cn } from '../lib/util';
 import { usePopup } from '../lib/popup';
+import { summarize } from './summary';
 
 /** `seed` is set once the learner asks for new numbers; otherwise the session item's seed is used. */
-interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number; confidence?: Confidence }
+interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number; confidence?: Confidence; /** "New numbers" after the solution was shown */ retryAfterReveal?: boolean }
 
 export function QuizRunner() {
   const { sessionId } = useParams();
@@ -32,7 +33,7 @@ function Runner({ session }: { session: QuizSession }) {
   const [saved] = useState(() => getRunState(session.id));
   const [slots, setSlots] = useState<Slot[]>(() => session.items.map((_, i) => {
     const sv = saved?.slots[i];
-    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed, confidence: sv.confidence } : {};
+    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed, confidence: sv.confidence, retryAfterReveal: sv.retryAfterReveal } : {};
   }));
   const [idx, setIdx] = useState(() => Math.min(saved?.idx ?? 0, session.items.length - 1));
   const [finished, setFinished] = useState(() => saved?.finished ?? false);
@@ -44,7 +45,7 @@ function Runner({ session }: { session: QuizSession }) {
   useEffect(() => {
     saveRunState(session.id, {
       idx, finished, deadline,
-      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed, confidence: s.confidence })),
+      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed, confidence: s.confidence, retryAfterReveal: s.retryAfterReveal })),
     });
   }, [slots, idx, finished]);
 
@@ -106,7 +107,7 @@ function Runner({ session }: { session: QuizSession }) {
     if (!sl.inst || !sl.mod || sl.mod.preview) return;
     await recordAttempt({
       key: sl.inst.key, templateId: sl.inst.templateId, moduleId: sl.inst.moduleId, seed: sl.inst.seed, type: sl.inst.type,
-      skills: sl.inst.skills, score: g.score, response: g.response, timeMs: sl.timeMs ?? (sl.startedAt ? Date.now() - sl.startedAt : 0), mode: session.mode, difficulty: sl.inst.difficulty, confidence: sl.confidence,
+      skills: sl.inst.skills, score: g.score, response: g.response, timeMs: sl.timeMs ?? (sl.startedAt ? Date.now() - sl.startedAt : 0), mode: session.mode, difficulty: sl.inst.difficulty, confidence: sl.confidence, ...(sl.retryAfterReveal ? { postSolution: true as const } : {}),
     });
   };
 
@@ -128,7 +129,7 @@ function Runner({ session }: { session: QuizSession }) {
     const seed = randomSeed();
     try {
       const inst = await instantiate(slot.mod, { ...session.items[at], seed });
-      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined, confidence: undefined }; return n; });
+      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], retryAfterReveal: n[at].retryAfterReveal || !!n[at].graded, inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined, confidence: undefined }; return n; });
     } catch (e: any) {
       setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], error: String(e?.message ?? e) }; return n; });
     }
@@ -169,8 +170,10 @@ function Runner({ session }: { session: QuizSession }) {
         <div className="text-xs font-medium uppercase tracking-wide text-muted">{session.course && <span className="text-ink">{session.course} · </span>}{MODE_LABEL[session.mode] ?? session.mode}</div>
         <div className="flex flex-1 gap-1">
           {session.items.map((_, i) => (
-            <button key={i} onClick={() => (exam || slots[i].graded || i <= answered) && setIdx(i)} aria-label={`question ${i + 1}`}
-              className={cn('h-1.5 flex-1 rounded-full transition', i === idx ? 'bg-accent' : slots[i].graded ? (exam ? 'bg-accent/40' : slots[i].graded!.correct ? 'bg-good' : slots[i].graded!.score > 0 || (slots[i].inst && solutionShown(slots[i].inst!, slots[i].graded)) ? 'bg-warn' : 'bg-bad') : 'bg-line')} />
+            <button key={i} onClick={() => (exam || slots[i].graded || i <= answered) && setIdx(i)} aria-label={`question ${i + 1}: ${exam ? (slots[i].graded ? 'saved' : 'not answered') : STATUS_LABEL[slotStatus(slots[i])]}`} data-testid="quiz-dot"
+              className={cn('flex h-3 flex-1 items-center justify-center rounded-full text-[9px] font-bold leading-none text-white transition', i === idx ? 'bg-accent' : slots[i].graded ? (exam ? 'bg-accent/40' : STATUS_BG[slotStatus(slots[i])]) : 'bg-line')}>
+              {!exam && slots[i].graded && <span aria-hidden>{STATUS_GLYPH[slotStatus(slots[i])]}</span>}
+            </button>
           ))}
         </div>
         {remaining !== null && <span className={cn('flex items-center gap-1 font-mono text-sm', remaining < 60 && 'text-bad')}><Clock size={14} /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</span>}
@@ -219,10 +222,18 @@ function Runner({ session }: { session: QuizSession }) {
   );
 }
 
+/** How a slot went, as words and a glyph as well as a colour. */
+function slotStatus(s: Slot): 'correct' | 'partial' | 'incorrect' | 'none' {
+  if (!s.graded) return 'none';
+  if (s.graded.correct) return 'correct';
+  return s.graded.score > 0 || (s.inst && solutionShown(s.inst, s.graded)) ? 'partial' : 'incorrect';
+}
+const STATUS_LABEL = { correct: 'correct', partial: 'partly correct', incorrect: 'incorrect', none: 'not answered' };
+const STATUS_GLYPH = { correct: '✓', partial: '~', incorrect: '✗', none: '' };
+const STATUS_BG = { correct: 'bg-good', partial: 'bg-warn', incorrect: 'bg-bad', none: 'bg-line' };
+
 function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slot[]; onRetry: () => void }) {
-  const graded = slots.filter((s) => s.graded && s.inst);
-  const score = graded.reduce((a, s) => a + s.graded!.score, 0);
-  const pct = graded.length ? score / graded.length : 0;
+  const { graded, failed, score, pct, note } = summarize(slots, session.items);
   const bySkill: Record<string, { label: string; sum: number; n: number }> = {};
   for (const s of graded) {
     for (const k of s.inst!.skills.length ? s.inst!.skills : ['(glossary)']) {
@@ -241,7 +252,7 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
         <Trophy size={36} className={pct >= 0.8 ? 'text-good' : pct >= 0.5 ? 'text-warn' : 'text-bad'} />
         <div className="flex-1">
           <div className="text-2xl font-semibold">{Math.round(pct * 100)}%</div>
-          <div className="text-sm text-muted">{score.toFixed(1)} / {graded.length} points · {MODE_LABEL[session.mode]}</div>
+          <div className="text-sm text-muted">{score.toFixed(1)} / {graded.length} points{note && <> · <span data-testid="summary-failed-note">{note}</span></>} · {MODE_LABEL[session.mode]}</div>
         </div>
         {wrong > 0 && <button className="btn" onClick={onRetry}><RotateCcw size={15} /> Retry {wrong} missed with new numbers</button>}
         <Link to="/quiz" className="btn-primary">New quiz</Link>
@@ -257,12 +268,23 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
           </div>
         ))}
       </div>
+      {failed.length > 0 && (
+        <>
+          <h3 className="mb-2 mt-6 font-semibold">Not generated</h3>
+          <ul className="card flex flex-col gap-1 p-4 text-sm" data-testid="summary-failed">
+            {failed.map((f) => <li key={f.index}><b>Q{f.index + 1}</b> <span className="text-muted">{f.moduleId} · {f.templateId}:</span> {f.error}</li>)}
+          </ul>
+        </>
+      )}
       <h3 className="mb-2 mt-6 font-semibold">Questions</h3>
       <div className="flex flex-col gap-2">
         {slots.map((s, i) => s.inst && (
           <div key={i} className="card">
             <button className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm" onClick={() => setOpen(open === i ? null : i)}>
-              <span className={cn('h-2.5 w-2.5 rounded-full', s.graded?.correct ? 'bg-good' : (s.graded?.score ?? 0) > 0 || solutionShown(s.inst, s.graded) ? 'bg-warn' : 'bg-bad')} />
+              <span className={cn('flex', { correct: 'text-good', partial: 'text-warn', incorrect: 'text-bad', none: 'text-bad' }[slotStatus(s)])} data-testid="summary-status">
+                {{ correct: <Check size={14} aria-hidden />, partial: <Minus size={14} aria-hidden />, incorrect: <X size={14} aria-hidden />, none: <X size={14} aria-hidden /> }[slotStatus(s)]}
+                <span className="sr-only">{STATUS_LABEL[slotStatus(s)]}</span>
+              </span>
               <span className="font-medium">Q{i + 1}</span>
               <span className="truncate text-muted">{QTYPE_LABEL[s.inst.type]} · {s.mod?.parsed.manifest.shortTitle} · {s.inst.templateId}</span>
               <span className="ml-auto font-mono text-xs">{Math.round((s.graded?.score ?? 0) * 100)}%</span>

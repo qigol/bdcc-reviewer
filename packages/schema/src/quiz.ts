@@ -195,7 +195,7 @@ export function buildInstance(ctx: BuildContext, t0: Template, seed: number, gen
     case 'mcq':
     case 'multi': {
       const options = (gen?.options ?? t.options ?? []).slice();
-      let answer: any = gen?.answer ?? t.answer;
+      const answer: any = gen?.answer ?? t.answer;
       if (!options.length) problems.push('no options');
       if (t.type === 'mcq' && typeof answer !== 'number') problems.push('mcq needs a numeric answer index');
       if (t.type === 'multi' && !Array.isArray(answer)) problems.push('multi needs an array of answer indexes');
@@ -440,8 +440,8 @@ export function buildGlossaryInstance(moduleId: string, terms: Term[], templateI
   const others = rng.sample(pool, 3);
   const all = rng.shuffle([term, ...others]);
   const answer = all.indexOf(term);
-  let prompt = '';
-  let options: string[] = [];
+  let prompt: string;
+  let options: string[];
   if (kind === 'def') {
     prompt = `Which definition matches **${term.term}**?`;
     options = all.map((t) => t.short);

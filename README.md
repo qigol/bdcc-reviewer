@@ -36,18 +36,24 @@ are kept **on the server**, so every device sees the same topics.
 ## Quick start (Docker)
 
 ```bash
-cp .env.example docker/.env        # then edit ADMIN_TOKEN
+cp .env.example docker/.env        # then set ADMIN_TOKEN: at least 16 characters (openssl rand -hex 24)
 docker compose -f docker/compose.yml up -d --build
 # open http://localhost:8080   (Admin: the shield icon, top right)
 ```
 
+compose publishes the port on `127.0.0.1` only. To reach the site from other machines, put a TLS reverse proxy in
+front of it (see [Running behind TLS](#running-behind-tls--a-reverse-proxy)), or publish it on your Tailscale address
+with `ports: ["${TS_IP}:8080:8080"]`.
+
 Imported modules and module settings (enabled flags, order, course overrides) go in `./data`, which is mounted at `/data`. The image build runs
 `kodigo validate` on the built-in modules and **fails if any of them is invalid**. The runtime image contains no
-`node_modules`, because esbuild bundles the server into a single file.
+`node_modules`, because esbuild bundles the server (`index.js`, plus `logic-child.mjs` for the isolated logic host).
 
 | Env var | Default | |
 |---|---|---|
-| `ADMIN_TOKEN` | (required in production) | bearer token for the admin API/panel. The admin panel is meant to sit behind Tailscale, not the open internet. |
+| `ADMIN_TOKEN` | (required in production) | bearer token for the admin API/panel. In production a token shorter than 16 characters, or the example `change-me`, keeps admin disabled (503, with the reason in the log). 10 wrong tokens from one IP within 15 minutes block that IP for the rest of the window (429). The panel keeps the token in the tab's `sessionStorage`, so each new tab asks for it. |
+| `TRUST_PROXY` | (unset) | set to `true` (or the proxy's address list) behind a reverse proxy, so the admin rate limit counts per client IP instead of per proxy |
+| `HSTS` | (unset) | `1` sends `strict-transport-security: max-age=31536000`; set it only when every client reaches the site over HTTPS |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | |
 | `DATA_DIR` | `/data` | imported modules (`modules/<id>@<version>/`, last 3 versions kept) + `state.json` |
 | `MAX_UPLOAD_MB` | `30` | zip/paste upload limit |
@@ -56,6 +62,30 @@ Imported modules and module settings (enabled flags, order, course overrides) go
 | `CHRISTMAS_QUIZ` | `auto` | Christmas countdown quiz: `auto` (one day opens at a time from Dec 13) · `on` (all open now) · `off` |
 | `CHRISTMAS_TZ` / `CHRISTMAS_NOW` | `Asia/Manila` / (unset) | time zone for the countdown · fake today's date (`YYYY-MM-DD`) to preview a day |
 | `LOG_LEVEL` | `info` | Fastify log level |
+
+### Running behind TLS / a reverse proxy
+
+Never expose port 8080 directly: the admin token travels in a header, so it needs HTTPS. Keep compose's
+`127.0.0.1:8080` binding and let a proxy on the same host terminate TLS, for example with Caddy:
+
+```
+study.example.com {
+  reverse_proxy 127.0.0.1:8080
+}
+```
+
+or nginx (`proxy_pass http://127.0.0.1:8080;` with `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`).
+Then set `TRUST_PROXY=true` and `HSTS=1`: without it every request seems to come from the proxy, so all clients share one admin
+rate-limit counter and one person's typos can lock everyone out.
+
+### How imported module code is contained
+
+`logic.js` comes from module authors, so it never runs with the server's privileges. On the server, validation (import,
+dry run, health check) runs it in a short-lived child process with an empty environment (no `ADMIN_TOKEN`), the Node
+permission model (no file reads beyond its own script, no child processes or workers), a 128 MB heap and a watchdog
+that kills it after 2.5 s. In the browser it runs in a Web Worker with network, storage and nested-worker APIs removed
+and a CSP that allows none of them. Node's permission model is a seat belt, not a hard sandbox, so import stays
+admin-only: validate an untrusted bundle first with `pnpm kodigo validate` in a throwaway container.
 
 ## Development
 
@@ -66,6 +96,7 @@ pnpm install
 pnpm dev            # Vite on :5173 (proxies /api) + the API server on :8080 with ADMIN_TOKEN=dev
 pnpm test           # vitest: sdk, checkers, parser, bundles, validator, and all built-in modules
 pnpm typecheck
+pnpm lint           # ESLint
 pnpm build          # web (Vite) + server (esbuild bundle → apps/server/dist/index.js)
 pnpm pyodide:fetch  # Python 3.12 + pandas for the coding mock exam (~23 MB into apps/web/public/pyodide,
                     # sha256-checked; `pnpm dev` and the web build run it, so the first build needs network)
@@ -73,14 +104,14 @@ pnpm smoke          # Playwright: every scene plays to its takeaway, every secti
                     # every quiz template instantiates (starts the built server itself)
 ```
 
-Running the production build locally:
+Running the production build locally (the preview config `qdigo-built` in `.claude/launch.json` does the same on :8095):
 
 ```bash
 pnpm build
 cd apps/server && MODULES_BUILTIN=../../modules WEB_DIR=../web/dist DATA_DIR=../../data ADMIN_TOKEN=dev node dist/index.js
 ```
 
-After rebuilding the web app, restart the server so it picks up the new asset list.
+Rebuilding the web app while the server runs is fine: static files are resolved per request.
 
 ## Repository layout
 
@@ -107,7 +138,8 @@ docker/           Dockerfile, compose.yml
 |---|---|---|---|
 | GET | `/api/health` | | liveness |
 | GET | `/api/modules` | | list with meta, course, enabled, order, health, stored versions |
-| GET | `/api/modules/:id/files` · `/files/*` | | all files as JSON · one raw file |
+| GET | `/api/index` | | lightweight index of every module for cross-module pages (ETag, 304) |
+| GET | `/api/modules/:id/files` · `/files/*` | | text files plus a list of binaries as JSON (ETag, 304) · one raw file |
 | GET | `/api/modules/:id/report` | | server-side validation report |
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |
@@ -116,6 +148,12 @@ docker/           Dockerfile, compose.yml
 | POST | `/api/modules` | admin | multipart zip, or JSON `{files: {path: text \| {base64}}}`; `?dryRun=1`, `?allowDowngrade=1` (a downgrade otherwise returns 409), `?keepAssets=1` (keep the installed version's `assets/` and `sources/` when re-importing pasted bundle text) |
 | PATCH | `/api/modules/:id` | admin | `{enabled?, order?, current?, course?}` (`current` rolls back to a stored version; `course` overrides the manifest's course, `""` clears the override) |
 | DELETE | `/api/modules/:id` | admin | imported modules only; built-ins can only be disabled |
+
+Admin routes answer 503 when admin is disabled, 401 for a wrong token and 429 (with `retry-after`) after too many
+failed attempts from one IP. A PATCH body that doesn't match `{enabled?: boolean, order?: number, current?: string,
+course?: string | null}` gets 400 and changes nothing (unknown keys are ignored). A server error answers
+`{error: 'Internal server error', requestId}`; the details are in the log under that id. Raw files under `/files/*` are served with a sandboxing CSP (PDFs excepted), and `.js`
+files as `text/plain`.
 
 ## Writing a new module
 

@@ -1,4 +1,4 @@
-import type { ValidationReport } from '@kodigo/schema';
+import type { ModuleIndex, ValidationReport } from '@kodigo/schema';
 
 export interface ModuleListEntry {
   id: string; version: string; title: string; shortTitle: string; summary: string; order: number;
@@ -25,6 +25,7 @@ async function j<T>(res: Response): Promise<T> {
 
 export const api = {
   list: () => fetch('/api/modules').then((r) => j<ModuleListEntry[]>(r)),
+  index: () => fetch('/api/index').then((r) => j<{ modules: (ModuleIndex | { id: string; error: string })[] }>(r)),
   christmas: () => fetch('/api/christmas').then((r) => j<ChristmasStatus>(r)),
   files: (id: string) => fetch(`/api/modules/${id}/files`).then((r) => j<{ files: Record<string, string>; binary: string[] }>(r)),
   report: (id: string) => fetch(`/api/modules/${id}/report`).then((r) => j<ValidationReport>(r)),

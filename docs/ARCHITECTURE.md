@@ -18,16 +18,24 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 
 | Path | Role |
 |---|---|
-| `apps/server/src/index.ts` | Fastify API and static hosting of the built SPA; reads every env var |
-| `apps/server/src/registry.ts` | Module registry: built-ins (`MODULES_BUILTIN`) plus imports in `DATA_DIR/modules/<id>@<version>/`; enabled/order/current/course in `DATA_DIR/state.json`; keeps the newest 3 imported versions |
+| `apps/server/src/index.ts` | Entry: `loadConfig()` → `buildApp()` → listen → warm the health cache |
+| `apps/server/src/config.ts` | `loadConfig(env)`: the only place that reads env vars |
+| `apps/server/src/app.ts` | `buildApp(cfg, deps)`: Fastify API, hooks, compression (never on `/files/*`), cache policy, error handler and static hosting of the built SPA, without listening (tests use `app.inject`; fixture in `apps/server/test/fixtures.ts`) |
+| `apps/server/src/registry.ts` | Module registry (a stat-only fingerprint per folder drives its manifest, health and index caches and the `/files` ETag; only validation reads binaries): built-ins (`MODULES_BUILTIN`) plus imports in `DATA_DIR/modules/<id>@<version>/`; enabled/order/current/course in `DATA_DIR/state.json`; keeps the newest 3 imported versions; validates through a `LogicHostFactory` (default: the isolated host) |
+| `apps/server/src/logic/` | Isolated logic host: `isolatedHost.ts` forks `child.ts` (built as `dist/logic-child.mjs`) per validation with an empty env, the Node permission model, a 128 MB heap, a watchdog and at most 2 at once |
+| `apps/server/src/headers.ts` | `securityHeaders()`: the CSP and security headers per response (page without `'unsafe-eval'`, logic worker, Pyodide worker, module files, API; HSTS when `HSTS=1`), applied in one `onSend` hook. 5xx bodies are generic with a `requestId` |
+| `apps/server/src/rateLimit.ts` | Failed-admin-auth limiter (10 per IP per 15 min, then 429) |
+| `apps/server/src/validation.ts` | zod schemas for admin request bodies (`ModulePatch`) |
 | `apps/server/src/christmas/` | 12-day Christmas countdown quiz: `days.ts` (content), `schedule.ts` (which days are open) |
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
 | `packages/sdk/src/index.ts` | The `sdk` given to `logic.js` as `register(sdk)`: seeded RNG, formatting, vectors, matrices, least squares, sets |
 | `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`) |
-| `apps/web/src/` | React SPA (Vite, Tailwind, react-router, framer-motion, KaTeX, Shiki, Dexie) (see below) |
+| `apps/web/src/` | React SPA, one lazy chunk per route (Vite, Tailwind, react-router, framer-motion, KaTeX, Shiki, Dexie) (see below) |
 | `modules/<id>/` | Built-in modules. List them with `ls modules`; course per module: `grep -H "^course:" modules/*/manifest.yaml` |
 | `animations/` | HyperFrames source for `Animation` widget clips. Not shipped; renders go to `modules/<id>/assets/anim/` |
-| `docker/` | `Dockerfile` (build stage runs `kodigo validate modules` and fetches Pyodide through the web build; runtime has no node_modules) and `compose.yml` |
+| `.github/workflows/ci.yml` | CI: install, lint, typecheck, test, module validation, build, bundle size, audit, smoke, the CSP check on Firefox and WebKit, and a Docker job on the default branch |
+| `docker/` | `Dockerfile` (build stage runs `kodigo validate modules` and fetches Pyodide through the web build; runtime has `index.js` and `logic-child.mjs` and no node_modules) and `compose.yml` |
+| `apps/web/docsPlugin.ts` | Serves `/docs/*.md` from `docs/` in dev and emits them into the build (no copies in `public/`) |
 | `scripts/` | `fetch-pyodide.mjs`: the pinned Pyodide release for the coding exam, checked by sha256 · `exam-check/`: runs a coding exam's shipped cells (walkthrough steps, tests, twists) in real pandas for many seeds (see its README) |
 | `data/` | Local DATA_DIR (imported modules + `state.json`); mounted at `/data` in Docker |
 
@@ -36,10 +44,10 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 `schemas.ts` zod schemas for the module format · `validate.ts` the 7-step validator (structure, YAML, schema,
 references, logic/examples, quiz smoke, lints) · `quiz.ts` quiz instances (`buildInstance`, glossary questions) and
 every answer checker (`check*`) · `widgets.ts` widget catalog (the contract every widget must honor; source of
-`docs/WIDGETS.md`) · `node.ts` Node `LogicHost` (`node:vm`, `Math.random` throws) · `logicSource.ts` turns `logic.js`
+`docs/WIDGETS.md`) · `node.ts` Node `LogicHost` (`node:vm`, `Math.random` throws, microtasks bounded by the timeout; not a security boundary on its own) · `logicSource.ts` turns `logic.js`
 into a callable body · `interpolate.ts` scope paths, `@refs`, `{=path|format}` · `expr.ts` safe `when` expressions
 (no eval) · `anchors.ts` math⇄code anchors · `live.ts` Math & Code live widgets · `journal.ts` journal workbench
-(entries, schedules, T-accounts) · `guided.ts` where terms are introduced, learning path · `bundle.ts` bundle text and
+(entries, schedules, T-accounts) · `guided.ts` where terms are introduced, learning path · `moduleIndex.ts` `buildModuleIndex` (the lightweight index cross-module pages use) · `parse.ts` the parser as its own entry (`@kodigo/schema/parse`, loaded on demand by the web app) · `bundle.ts` bundle text and
 zip I/O · `jsonSchema.ts` JSON Schema export.
 
 ### `apps/web/src`
@@ -47,18 +55,18 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | Folder | Owns |
 |---|---|
 | `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage`, `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
-| `modules/` | `store.tsx` loads and caches modules from the API; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker with network APIs removed; `courses.ts`/`courseGroups.ts` group modules by course |
+| `modules/` | `store.tsx` loads and caches full modules from the API; `useIndex.ts` `useModuleIndex()` gives cross-module pages `GET /api/index` instead; `logicPool.ts` caps live workers (4, 60 s idle), and `logic.ts` starts a worker only on its first call; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker; `harden.ts` removes network, storage and nested-worker globals first and fails closed; `courses.ts`/`courseGroups.ts` group modules by course |
 | `tabs/` | `ModulePage` (module route shell; adds a "Mock exam" tab when the module has `exam.yaml`), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` (notebook cells; a decision option's `outcomes` show what running it does) |
-| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
+| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit; a running attempt resumes from `localStorage` and warns before leaving) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
 | `py/` | Python in the browser: `pyodide.worker.ts` (Pyodide in a module Worker, notebook-style cells) and `python.ts` (`PythonKernel`: run, restart, 20 s timeout). Pyodide's files are served from `/pyodide/` |
 | `engine/` | Scenes: `useScope.ts` (datasets + state + derive), `Stage.tsx` (lays out widgets by region), `Gate.tsx` (practice/predict/reflect gates), `trace.ts`/`marks.ts` (step-through commands) |
 | `widgets/` | One `<Name>.tsx` per catalog widget, lazy-loaded through `registry.ts` |
-| `quiz/` | `QuizBuilder` → `session.ts` (builds course-scoped sessions) → `QuizRunner` → `Question.tsx` (renders every question type); `ReviewPage` (SRS), `Calculator`, `PracticeBox` |
-| `storage/` | `db.ts` (Dexie), `progress.ts` (progress, settings, exams), `confidence.ts` (confidence → SM-2 grade), `exportImport.ts` |
+| `quiz/` | `QuizBuilder` → `session.ts` (builds course-scoped sessions; storage in `sessionStore.ts`, `summary.ts` the summary math) → `QuizRunner` → `Question.tsx` (renders every question type); `ReviewPage` (SRS), `Calculator`, `PracticeBox` |
+| `storage/` | `db.ts` (Dexie), `progress.ts` (progress, settings, exams), `confidence.ts` (confidence → SM-2 grade); displays use decayed mastery (`effectiveMastery`), and self-graded or post-solution answers count less or not at all, `exportImport.ts` (validates rows and the format version; one note per anchor), `rows.ts` (row shapes), `persist.ts` (asks for persistent storage, backup reminder) |
 | `plan/` | Exam study plan: `studyPlan.ts` (pure scheduler), `usePlan.ts`, `stepStatus.ts` (shared with PathTab) |
 | `glossary/` | `notes.ts` (one note per term id across modules), `ForceGraph.tsx` |
 | `christmas/` | `ChristmasPage`, `useChristmas.ts`, `banner.ts`, `Decorations.tsx` |
-| `admin/` | `AdminPage`, `ImportPanel` (zip/folder/paste), `ReportView` |
+| `admin/` | `AdminPage`, `ImportPanel` (zip/folder/paste), `ReportView`, `token.ts` (admin token in `sessionStorage`, never IndexedDB) |
 | `lib/` | `api.ts` (every server call + response types), `md.tsx`, `calc.ts`, shared UI bits |
 
 Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sectionId],application,exam}`,
@@ -68,8 +76,9 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 ## Main flows
 
 - **Module import:** files (zip / folder / pasted bundle) → `POST /api/modules` → `registry.ts` → `validateModule()` in
-  `packages/schema/src/validate.ts` (steps 5–6 run `logic.js` through `node.ts`) → stored as `<id>@<version>`. Import is
+  `packages/schema/src/validate.ts` (steps 5–6 run `logic.js` in a child process: `logic/isolatedHost.ts` → `node.ts`) → stored as `<id>@<version>`. Import is
   blocked if any lecture example in `examples.yaml` fails to reproduce. The admin import panel also validates in the browser first (`browserHostFactory` in `modules/logic.ts`).
+- **Cross-module pages** (Dashboard, Glossary, Cheatsheet, QuizBuilder, Plan, command palette): `GET /api/index` → `useModuleIndex()`. They download no module and start no worker. Quiz runs, module pages, exams and admin load full modules.
 - **Rendering a module:** `GET /api/modules` and `/api/modules/:id/files` → `modules/store.tsx` parses with
   `@kodigo/schema` → `tabs/*` → `engine/Stage.tsx` → `widgets/registry.ts`. `derive` and generators run in the logic worker.
 - **Quiz:** `quiz/session.ts` picks templates from one course, then per item calls `mod.logic.generate(...)` and
@@ -82,12 +91,12 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 - **Coding exam:** `exam.yaml` `coding` → `exam/CodingExam` gets the attempt's files and test values from the
   `coding.story` generator → `py/python.ts` runs each cell in `py/pyodide.worker.ts` (files written to Python's file
   system before each run) → on submit: restart, every cell top to bottom, then the test cells; a test scores when it
-  raises nothing. Not saved to `attempts`. After submit, `exam/ExamWalkthrough` runs each problem's walkthrough steps
+  raises nothing. Saved as one `attempts` row with mode `exam-coding` (no mastery or SRS change). After submit, `exam/ExamWalkthrough` runs each problem's walkthrough steps
   and twists in the same kernel (every problem, or only those that lost points). Pyodide 0.27.8 (Python 3.12 + pandas 2.2) is fetched into
   `apps/web/public/pyodide/` (gitignored) by `scripts/fetch-pyodide.mjs`, which `pnpm dev` and the web build run.
 - **Progress:** Dexie DB `kodigo`, tables `progress`, `attempts`, `srs`, `mastery`, `notes`, `bookmarks`, `settings`
-  (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Export/import
-  merges by key with the later `updatedAt` winning. The study plan is recomputed from progress, never stored.
+  (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Answers are recorded in one transaction. Export/import
+  merges by key with the later `updatedAt` winning, skips invalid rows, and rejects files from a newer format. Quiz sessions and runs live in `localStorage`. The study plan is recomputed from progress, never stored.
 - **Christmas:** `CHRISTMAS_QUIZ` (`auto`|`on`|`off`), `CHRISTMAS_TZ` (default Asia/Manila), `CHRISTMAS_NOW`
   (fake date) → `GET /api/christmas`. Only unlocked days' content leaves the server. Answers are kept apart from study stats.
 
@@ -106,16 +115,16 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
   draw; see `docs/MODULE_AUTHORING_GUIDE.md` §5.11. A coding version adds `coding` to `exam.yaml` and a generator
   for its files and test values, plus walkthrough steps and twists per problem; run `scripts/exam-check` in real pandas
   before shipping (§5.11).
-- **An API route:** `apps/server/src/index.ts` (admin routes call `requireAdmin`), client in `apps/web/src/lib/api.ts`.
+- **An API route:** `apps/server/src/app.ts` (admin routes call `requireAdmin`; a new env var goes in `config.ts`), client in `apps/web/src/lib/api.ts`.
 - **A rule implied by a module fix:** add it to `docs/MODULE_AUTHORING_GUIDE.md`.
 
 ## Commands and checks
 
 `pnpm dev` (Vite :5173 proxying `/api` to the server on :8080, `ADMIN_TOKEN=dev`) · `pnpm test` (vitest:
 `packages/*/test`, `apps/*/test`, including every built-in module in `packages/schema/test/modules.test.ts`) ·
-`pnpm typecheck` · `pnpm build` · `pnpm smoke` (Playwright `apps/web/e2e`, needs a build) · `pnpm kodigo <cmd>` ·
+`pnpm typecheck` · `pnpm lint` · `pnpm build` · `node scripts/check-bundle-size.mjs` (main chunk ≤ 450 KB) · `pnpm smoke` (Playwright `apps/web/e2e`, needs a build; `KODIGO_SMOKE_MODULES=a,b` limits the whole-catalog walks) · `pnpm kodigo <cmd>` ·
 `pnpm pyodide:fetch` (download and sha256-check Pyodide; the web build and `pnpm dev` run it, so the build needs network
-once). Preview configs in `.claude/launch.json`: `qdigo-dev`. After rebuilding the web app, restart the server. The
+once). Preview configs in `.claude/launch.json`: `qdigo-dev`, `qdigo-built` (the built server on :8095, where CSP applies). The
 Docker build fails on any invalid module. CSP and MIME types are only applied by the Fastify server, never by Vite dev, so
 check Pyodide changes on the built app served by the server.
 

@@ -1,9 +1,9 @@
 /** JSON Schema export of the module format (handy for LLMs and editors). */
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod';
 import { Manifest, Dataset, ExamplesFile, GlossaryFile, IntuitionFile, MathCodeFile, ApplicationFile, QuizFile, ExamFile } from './schemas';
 
 export function moduleJsonSchemas(): Record<string, unknown> {
-  const entries: [string, any][] = [
+  const entries: [string, z.ZodType][] = [
     ['manifest.yaml', Manifest],
     ['datasets/<id>.yaml', Dataset],
     ['examples.yaml', ExamplesFile],
@@ -14,5 +14,5 @@ export function moduleJsonSchemas(): Record<string, unknown> {
     ['quiz.yaml', QuizFile],
     ['exam.yaml (optional)', ExamFile],
   ];
-  return Object.fromEntries(entries.map(([k, s]) => [k, zodToJsonSchema(s, { $refStrategy: 'none' })]));
+  return Object.fromEntries(entries.map(([k, s]) => [k, z.toJSONSchema(s, { unrepresentable: 'any', cycles: 'ref' })]));
 }
