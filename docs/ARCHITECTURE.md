@@ -23,8 +23,9 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `apps/server/src/app.ts` | `buildApp(cfg, deps)`: Fastify API, hooks, error handler and static hosting of the built SPA, without listening (tests use `app.inject`; fixture in `apps/server/test/fixtures.ts`) |
 | `apps/server/src/registry.ts` | Module registry: built-ins (`MODULES_BUILTIN`) plus imports in `DATA_DIR/modules/<id>@<version>/`; enabled/order/current/course in `DATA_DIR/state.json`; keeps the newest 3 imported versions; validates through a `LogicHostFactory` (default: the isolated host) |
 | `apps/server/src/logic/` | Isolated logic host: `isolatedHost.ts` forks `child.ts` (built as `dist/logic-child.mjs`) per validation with an empty env, the Node permission model, a 128 MB heap, a watchdog and at most 2 at once |
-| `apps/server/src/headers.ts` | `securityHeaders()`: the CSP and security headers per response (page, logic worker, module files), applied in one `onSend` hook |
+| `apps/server/src/headers.ts` | `securityHeaders()`: the CSP and security headers per response (page without `'unsafe-eval'`, logic worker, Pyodide worker, module files, API; HSTS when `HSTS=1`), applied in one `onSend` hook. 5xx bodies are generic with a `requestId` |
 | `apps/server/src/rateLimit.ts` | Failed-admin-auth limiter (10 per IP per 15 min, then 429) |
+| `apps/server/src/validation.ts` | zod schemas for admin request bodies (`ModulePatch`) |
 | `apps/server/src/christmas/` | 12-day Christmas countdown quiz: `days.ts` (content), `schedule.ts` (which days are open) |
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
 | `packages/sdk/src/index.ts` | The `sdk` given to `logic.js` as `register(sdk)`: seeded RNG, formatting, vectors, matrices, least squares, sets |

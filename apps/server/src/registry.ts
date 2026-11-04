@@ -213,7 +213,8 @@ export class Registry {
   async patch(id: string, p: { enabled?: boolean; order?: number; current?: string; course?: string | null }) {
     const r = await this.resolve(id);
     if (!r) throw Object.assign(new Error(`no module ${id}`), { statusCode: 404 });
-    const st = (this.state.modules[id] ??= { enabled: true });
+    // work on a copy, so a rejected patch leaves memory and state.json untouched
+    const st: ModuleState = { ...(this.state.modules[id] ?? { enabled: true }) };
     if (p.enabled !== undefined) st.enabled = !!p.enabled;
     if (p.order !== undefined) st.order = Number(p.order);
     if (p.course !== undefined) {
@@ -227,6 +228,7 @@ export class Registry {
       if (!vs.includes(p.current)) throw Object.assign(new Error(`version ${p.current} is not stored`), { statusCode: 400 });
       st.current = p.current;
     }
+    this.state.modules[id] = st;
     await this.saveState();
   }
 

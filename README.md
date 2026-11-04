@@ -53,6 +53,7 @@ Imported modules and module settings (enabled flags, order, course overrides) go
 |---|---|---|
 | `ADMIN_TOKEN` | (required in production) | bearer token for the admin API/panel. In production a token shorter than 16 characters, or the example `change-me`, keeps admin disabled (503, with the reason in the log). 10 wrong tokens from one IP within 15 minutes block that IP for the rest of the window (429). The panel keeps the token in the tab's `sessionStorage`, so each new tab asks for it. |
 | `TRUST_PROXY` | (unset) | set to `true` (or the proxy's address list) behind a reverse proxy, so the admin rate limit counts per client IP instead of per proxy |
+| `HSTS` | (unset) | `1` sends `strict-transport-security: max-age=31536000`; set it only when every client reaches the site over HTTPS |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | |
 | `DATA_DIR` | `/data` | imported modules (`modules/<id>@<version>/`, last 3 versions kept) + `state.json` |
 | `MAX_UPLOAD_MB` | `30` | zip/paste upload limit |
@@ -74,7 +75,7 @@ study.example.com {
 ```
 
 or nginx (`proxy_pass http://127.0.0.1:8080;` with `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`).
-Then set `TRUST_PROXY=true`: without it every request seems to come from the proxy, so all clients share one admin
+Then set `TRUST_PROXY=true` and `HSTS=1`: without it every request seems to come from the proxy, so all clients share one admin
 rate-limit counter and one person's typos can lock everyone out.
 
 ### How imported module code is contained
@@ -147,7 +148,9 @@ docker/           Dockerfile, compose.yml
 | DELETE | `/api/modules/:id` | admin | imported modules only; built-ins can only be disabled |
 
 Admin routes answer 503 when admin is disabled, 401 for a wrong token and 429 (with `retry-after`) after too many
-failed attempts from one IP. Raw files under `/files/*` are served with a sandboxing CSP (PDFs excepted), and `.js`
+failed attempts from one IP. A PATCH body that doesn't match `{enabled?: boolean, order?: number, current?: string,
+course?: string | null}` gets 400 and changes nothing (unknown keys are ignored). A server error answers
+`{error: 'Internal server error', requestId}`; the details are in the log under that id. Raw files under `/files/*` are served with a sandboxing CSP (PDFs excepted), and `.js`
 files as `text/plain`.
 
 ## Writing a new module

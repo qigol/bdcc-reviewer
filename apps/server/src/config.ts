@@ -14,6 +14,8 @@ export interface ServerConfig {
   admin: { token: string; disabledReason?: string };
   /** Fastify trustProxy: true, or a comma-separated list of proxy addresses/CIDRs (set when behind a reverse proxy) */
   trustProxy: boolean | string;
+  /** HSTS=1: send strict-transport-security (only when every client reaches the site over HTTPS) */
+  hsts: boolean;
   christmas: { mode: ChristmasMode; tz: string; now?: string };
   logLevel: string;
   defaultCourse: string;
@@ -31,6 +33,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     prod,
     admin: adminConfig(env.ADMIN_TOKEN, prod),
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
+    hsts: env.HSTS === '1' || env.HSTS?.toLowerCase() === 'true',
     // Christmas countdown: auto (calendar) | on (open everything now) | off; CHRISTMAS_NOW=YYYY-MM-DD fakes the date
     christmas: { mode: parseMode(env.CHRISTMAS_QUIZ), tz: env.CHRISTMAS_TZ || 'Asia/Manila', now: env.CHRISTMAS_NOW },
     logLevel: env.LOG_LEVEL ?? 'info',

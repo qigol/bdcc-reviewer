@@ -15,6 +15,7 @@ import { christmasStatus } from './christmas/schedule';
 import { securityHeaders } from './headers';
 import { WEAK_TOKEN_REASON, type ServerConfig } from './config';
 import { createFailureLimiter } from './rateLimit';
+import { ModulePatch, bodyError } from './validation';
 
 export interface AppDeps {
   /** runs logic.js during validation (default: an isolated child process per module) */
@@ -63,7 +64,7 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
 
   app.addHook('onSend', async (req, reply, payload) => {
     const type = String(reply.getHeader('content-type') ?? '');
-    reply.headers(securityHeaders({ path: req.url.split('?')[0], contentType: type, status: reply.statusCode }));
+    reply.headers(securityHeaders({ path: req.url.split('?')[0], contentType: type, status: reply.statusCode, hsts: cfg.hsts }));
     return payload;
   });
 
@@ -179,9 +180,11 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
     return reply.code(r.status).send(r);
   });
 
-  app.patch<{ Params: { id: string }; Body: { enabled?: boolean; order?: number; current?: string; course?: string | null } }>('/api/modules/:id', async (req, reply) => {
+  app.patch<{ Params: { id: string } }>('/api/modules/:id', async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
-    await registry.patch(req.params.id, req.body ?? {});
+    const body = ModulePatch.safeParse(req.body ?? {});
+    if (!body.success) return reply.code(400).send({ error: bodyError(body.error) });
+    await registry.patch(req.params.id, body.data);
     return { ok: true };
   });
 
@@ -193,9 +196,13 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
 
   deps.routes?.(app);
 
-  app.setErrorHandler((err: any, _req, reply) => {
+  app.setErrorHandler((err: any, req, reply) => {
     const code = err.statusCode ?? 500;
-    if (code >= 500) app.log.error(err);
+    // 5xx details (paths, stack) go to the log only; the client gets an id to quote
+    if (code >= 500) {
+      req.log.error({ err, reqId: req.id, url: req.url }, 'request failed');
+      return reply.code(code).send({ error: 'Internal server error', requestId: req.id });
+    }
     reply.code(code).send({ error: err.message ?? String(err) });
   });
 
