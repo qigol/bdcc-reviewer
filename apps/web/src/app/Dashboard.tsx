@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, CalendarClock, CalendarDays, Dumbbell, GraduationCap, PlayCircle, Repeat, Sparkles, Target, X } from 'lucide-react';
 import { HIGHLIGHTS, type Highlight } from './highlights';
+import { useBackupDue } from '../storage/persist';
 import type { ModuleIndex } from '@kodigo/schema';
 import { useModuleStore } from '../modules/store';
 import { useCourses } from '../modules/courses';
@@ -28,6 +29,7 @@ export function Dashboard() {
   const { plan, loading: planLoading } = usePlan();
   const nav = useNavigate();
   const xmas = christmasHighlight(useChristmas());
+  const backup = useBackupDue();
   const weak = mastery
     .filter((m) => m.n >= 1)
     .map((m) => {
@@ -74,7 +76,7 @@ export function Dashboard() {
         <h1 className="text-2xl font-bold">Qdigo</h1>
         <p className="text-muted">Q's got your Qs.</p>
       </div>
-      <Highlights items={[...(xmas ? [xmas] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
+      <Highlights items={[...(xmas ? [xmas] : []), ...(backup ? [BACKUP_HIGHLIGHT] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
           <PlayCircle className="shrink-0 text-accent" size={32} />
@@ -185,6 +187,8 @@ export function Dashboard() {
 
 const DISMISSED_KEY = 'kodigo-dismissed-highlights';
 const readDismissed = (): string[] => { try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]'); } catch { return []; } };
+
+const BACKUP_HIGHLIGHT: Highlight = { id: 'backup-progress', title: 'Back up your progress', blurb: 'Your progress lives only in this browser, which may clear it under storage pressure. Download a copy in Settings.', to: '/settings', badge: 'Today' };
 
 function Highlights({ items }: { items: Highlight[] }) {
   const [dismissed, setDismissed] = useState(readDismissed);

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { CalendarDays, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useSetting, type Exam } from '../storage/progress';
 import { useAdminToken } from '../admin/token';
+import { useBackupDue, usePersisted } from '../storage/persist';
 import { useCourses } from '../modules/courses';
 import { toYmd } from '../plan/studyPlan';
 import { exportProgress, importProgress, resetProgress } from '../storage/exportImport';
@@ -14,6 +15,8 @@ export function SettingsPage() {
   const [narration, setNarration] = useSetting('narration');
   const [reduced, setReduced] = useSetting('reducedMotion');
   const [, setToken] = useAdminToken();
+  const [persisted, askPersist] = usePersisted();
+  const backup = useBackupDue();
   const { list } = useModuleStore();
   const [msg, setMsg] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState('');
@@ -29,13 +32,20 @@ export function SettingsPage() {
       <ExamsEditor />
       <h2 className="mb-2 mt-6 font-semibold">Your progress</h2>
       <p className="mb-2 text-sm text-muted">Progress lives in this browser (IndexedDB). Download it to back it up or move it to another device (e.g. laptop → phone), then import it there. Imports merge; for conflicts, the newer entry wins.</p>
+      {backup && <p className="mb-2 text-sm font-semibold text-warn" data-testid="backup-reminder">Back up your progress: download it below. This browser may clear it under storage pressure.</p>}
+      {persisted !== null && (
+        <p className="mb-2 flex flex-wrap items-center gap-2 text-sm text-muted" data-testid="storage-status">
+          {persisted ? 'Storage: kept by the browser' : 'Storage: may be cleared by the browser'}
+          {!persisted && <button className="btn btn-sm" onClick={askPersist}>Ask the browser to keep it</button>}
+        </p>
+      )}
       <div className="card flex flex-wrap items-center gap-2 p-4">
         <button className="btn" onClick={async () => download(`qdigo-progress-${new Date().toISOString().slice(0, 10)}.json`, await exportProgress(), 'application/json')}><Download size={15} /> Download my progress</button>
         <button className="btn" onClick={() => file.current?.click()}><Upload size={15} /> Import progress</button>
         <input ref={file} type="file" accept="application/json" hidden onChange={async (e) => {
           const f = e.target.files?.[0];
           if (!f) return;
-          try { const r = await importProgress(await f.text()); setMsg(`Imported: ${r.added} added, ${r.updated} updated.`); } catch (err: any) { setMsg(`Import failed: ${err.message}`); }
+          try { const r = await importProgress(await f.text()); setMsg(`Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} skipped (invalid).`); } catch (err: any) { setMsg(`Import failed: ${err.message}`); }
           e.target.value = '';
         }} />
         {msg && <span className="text-sm text-muted">{msg}</span>}

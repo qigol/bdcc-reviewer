@@ -55,12 +55,12 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage`, `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
 | `modules/` | `store.tsx` loads and caches full modules from the API; `useIndex.ts` `useModuleIndex()` gives cross-module pages `GET /api/index` instead; `logicPool.ts` caps live workers (4, 60 s idle), and `logic.ts` starts a worker only on its first call; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker; `harden.ts` removes network, storage and nested-worker globals first and fails closed; `courses.ts`/`courseGroups.ts` group modules by course |
 | `tabs/` | `ModulePage` (module route shell; adds a "Mock exam" tab when the module has `exam.yaml`), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` (notebook cells; a decision option's `outcomes` show what running it does) |
-| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
+| `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit; a running attempt resumes from `localStorage` and warns before leaving) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
 | `py/` | Python in the browser: `pyodide.worker.ts` (Pyodide in a module Worker, notebook-style cells) and `python.ts` (`PythonKernel`: run, restart, 20 s timeout). Pyodide's files are served from `/pyodide/` |
 | `engine/` | Scenes: `useScope.ts` (datasets + state + derive), `Stage.tsx` (lays out widgets by region), `Gate.tsx` (practice/predict/reflect gates), `trace.ts`/`marks.ts` (step-through commands) |
 | `widgets/` | One `<Name>.tsx` per catalog widget, lazy-loaded through `registry.ts` |
 | `quiz/` | `QuizBuilder` → `session.ts` (builds course-scoped sessions; storage in `sessionStore.ts`, `summary.ts` the summary math) → `QuizRunner` → `Question.tsx` (renders every question type); `ReviewPage` (SRS), `Calculator`, `PracticeBox` |
-| `storage/` | `db.ts` (Dexie), `progress.ts` (progress, settings, exams), `confidence.ts` (confidence → SM-2 grade), `exportImport.ts` |
+| `storage/` | `db.ts` (Dexie), `progress.ts` (progress, settings, exams), `confidence.ts` (confidence → SM-2 grade), `exportImport.ts` (validates rows and the format version; one note per anchor), `rows.ts` (row shapes), `persist.ts` (asks for persistent storage, backup reminder) |
 | `plan/` | Exam study plan: `studyPlan.ts` (pure scheduler), `usePlan.ts`, `stepStatus.ts` (shared with PathTab) |
 | `glossary/` | `notes.ts` (one note per term id across modules), `ForceGraph.tsx` |
 | `christmas/` | `ChristmasPage`, `useChristmas.ts`, `banner.ts`, `Decorations.tsx` |
@@ -89,12 +89,12 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 - **Coding exam:** `exam.yaml` `coding` → `exam/CodingExam` gets the attempt's files and test values from the
   `coding.story` generator → `py/python.ts` runs each cell in `py/pyodide.worker.ts` (files written to Python's file
   system before each run) → on submit: restart, every cell top to bottom, then the test cells; a test scores when it
-  raises nothing. Not saved to `attempts`. After submit, `exam/ExamWalkthrough` runs each problem's walkthrough steps
+  raises nothing. Saved as one `attempts` row with mode `exam-coding` (no mastery or SRS change). After submit, `exam/ExamWalkthrough` runs each problem's walkthrough steps
   and twists in the same kernel (every problem, or only those that lost points). Pyodide 0.27.8 (Python 3.12 + pandas 2.2) is fetched into
   `apps/web/public/pyodide/` (gitignored) by `scripts/fetch-pyodide.mjs`, which `pnpm dev` and the web build run.
 - **Progress:** Dexie DB `kodigo`, tables `progress`, `attempts`, `srs`, `mastery`, `notes`, `bookmarks`, `settings`
-  (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Export/import
-  merges by key with the later `updatedAt` winning. The study plan is recomputed from progress, never stored.
+  (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Answers are recorded in one transaction. Export/import
+  merges by key with the later `updatedAt` winning, skips invalid rows, and rejects files from a newer format. Quiz sessions and runs live in `localStorage`. The study plan is recomputed from progress, never stored.
 - **Christmas:** `CHRISTMAS_QUIZ` (`auto`|`on`|`off`), `CHRISTMAS_TZ` (default Asia/Manila), `CHRISTMAS_NOW`
   (fake date) → `GET /api/christmas`. Only unlocked days' content leaves the server. Answers are kept apart from study stats.
 

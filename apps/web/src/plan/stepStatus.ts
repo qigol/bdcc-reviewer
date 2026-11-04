@@ -18,7 +18,7 @@ export function stepStatus(s: PathStep, progress: Progress[], attempts: Attempt[
     const p = progress.filter((x) => x.tab === 'application');
     return p.some((x) => x.status === 'done') ? 'done' : p.length ? 'started' : 'todo';
   }
-  return moduleMastery >= 0.75 ? 'done' : attempts.some((a) => a.mode !== 'lesson' && a.mode !== 'predict') ? 'started' : 'todo';
+  return moduleMastery >= 0.75 ? 'done' : attempts.some((a) => a.mode !== 'lesson' && a.mode !== 'predict' && a.mode !== 'exam-coding') ? 'started' : 'todo';
 }
 
 /** Where a path step lives; `base` is the module route (`/m/:id`, or the preview route). */

@@ -16,6 +16,10 @@ export interface Settings {
   showBeyond: boolean;
   /** the course you were last studying (default for the quiz builder and cheat sheet) */
   course: string | null;
+  /** device-local, never exported: first start, when persistent storage was requested, last progress download */
+  firstUseAt: number | null;
+  persistRequestedAt: number | null;
+  lastExportAt: number | null;
 }
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
@@ -26,6 +30,9 @@ export const DEFAULT_SETTINGS: Settings = {
   lastLocation: null,
   showBeyond: true,
   course: null,
+  firstUseAt: null,
+  persistRequestedAt: null,
+  lastExportAt: null,
 };
 
 /** One-time move of the old single `examDate` setting into `exams`, on the last-studied course or the only one. */
@@ -87,13 +94,13 @@ export function levelOf(score: number, n: number): Level {
 }
 export const LEVEL_COLOR: Record<Level, string> = { new: 'bg-muted/40', learning: 'bg-bad', shaky: 'bg-warn', solid: 'bg-accent', mastered: 'bg-good' };
 
-export async function updateMastery(moduleId: string, skills: string[], score: number, difficulty = 2) {
+export async function updateMastery(moduleId: string, skills: string[], score: number, difficulty = 2, now = Date.now()) {
   for (const s of skills) {
     const skillKey = `${moduleId}:${s}`;
     const cur = (await db.mastery.get(skillKey)) ?? { skillKey, score: 0, n: 0, updatedAt: 0 };
     const w = W_D[difficulty] ?? 1;
     const m = Math.min(1, Math.max(0, cur.score + ALPHA * w * (score - cur.score)));
-    await db.mastery.put({ skillKey, score: m, n: cur.n + 1, updatedAt: Date.now() });
+    await db.mastery.put({ skillKey, score: m, n: cur.n + 1, updatedAt: now });
   }
 }
 export function useMastery() {
@@ -102,8 +109,7 @@ export function useMastery() {
 
 // ------------------------------------------------------------ SRS (SM-2-lite on templates)
 const DAY = 86400000;
-export async function updateSrs(key: string, moduleId: string, score: number, confidence?: Confidence) {
-  const now = Date.now();
+export async function updateSrs(key: string, moduleId: string, score: number, confidence?: Confidence, now = Date.now()) {
   const cur = (await db.srs.get(key)) ?? { templateId: key, moduleId, ease: 2.5, interval: 0, due: now, reps: 0, lapses: 0, updatedAt: now };
   const grade = srsGrade(score, confidence);
   let { ease, interval, reps, lapses } = cur;
@@ -122,11 +128,16 @@ export function useDueReviews() {
   return useLiveQuery(async () => (await db.srs.where('due').belowOrEqual(Date.now()).toArray()), []) ?? [];
 }
 
+/** One transaction: the attempt, mastery and SRS all land or none do, and overlapping answers can't lose updates. */
 export async function recordAttempt(a: Omit<Attempt, 'id' | 'at'>) {
-  await db.attempts.add({ ...a, at: Date.now() });
-  const isGlossary = a.templateId.startsWith('glossary-');
-  if (a.skills.length) await updateMastery(a.moduleId, a.skills, a.score, a.difficulty);
-  if (!isGlossary || a.mode === 'review') await updateSrs(a.key, a.moduleId, a.score, a.confidence);
+  const now = Date.now();
+  await db.transaction('rw', db.attempts, db.mastery, db.srs, async () => {
+    await db.attempts.add({ ...a, at: now });
+    if (a.mode === 'exam-coding') return; // a whole-exam record, not practice of a skill
+    const isGlossary = a.templateId.startsWith('glossary-');
+    if (a.skills.length) await updateMastery(a.moduleId, a.skills, a.score, a.difficulty, now);
+    if (!isGlossary || a.mode === 'review') await updateSrs(a.key, a.moduleId, a.score, a.confidence, now);
+  });
 }
 
 export async function saveNote(moduleId: string, anchor: string, text: string) {

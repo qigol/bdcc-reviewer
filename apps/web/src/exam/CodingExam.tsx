@@ -1,3 +1,6 @@
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../storage/db';
+import { recordAttempt } from '../storage/progress';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Clock, Dices, Flag, ListChecks, Loader2, NotebookPen, Play, RotateCcw, Trophy } from 'lucide-react';
 import { interpolate } from '@kodigo/schema';
@@ -162,6 +165,14 @@ export function CodingExam() {
       }
     } finally {
       setOutputs(outs); setTests(res); setPhase('done');
+      if (!mod.preview) {
+        const perProblem = coding.problems.map((p) => ({ id: p.id, max: p.tests.reduce((a, t) => a + t.points, 0),
+          got: p.tests.reduce((a, t, i) => a + (res[`${p.id}:test${i}`]?.pass ? t.points : 0), 0) }));
+        const max = perProblem.reduce((a, p) => a + p.max, 0);
+        const got = perProblem.reduce((a, p) => a + p.got, 0);
+        void recordAttempt({ key: `${mod.id}/exam-coding`, templateId: 'exam-coding', moduleId: mod.id, seed, type: 'exam-coding', skills: [],
+          score: max ? got / max : 0, mode: 'exam-coding', timeMs: Date.now() - startedAt, response: { perProblem, max, got } });
+      }
     }
   };
 
@@ -200,6 +211,7 @@ export function CodingExam() {
           </>}
           {phase === 'running' && leftMs !== null && <span className={cn('ml-auto font-mono font-semibold', leftMs < 10 * 60_000 ? 'text-bad' : 'text-ink')}><Clock size={14} className="inline" /> {fmtTime(leftMs)}</span>}
         </div>
+        {phase === 'intro' && <PreviousAttempts moduleId={mod.id} />}
         {phase === 'intro' && <ExamGuide coding className="mt-4" />}
       </div>
 
@@ -268,6 +280,24 @@ export function CodingExam() {
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+/** The last 5 submitted attempts at this module's coding exam. */
+function PreviousAttempts({ moduleId }: { moduleId: string }) {
+  const rows = useLiveQuery(() => db.attempts.where('key').equals(`${moduleId}/exam-coding`).toArray(), [moduleId]) ?? [];
+  if (!rows.length) return null;
+  const last = [...rows].sort((a, b) => b.at - a.at).slice(0, 5);
+  return (
+    <div className="mt-3 text-sm" data-testid="coding-previous">
+      <div className="label mb-1">Previous attempts</div>
+      <ul className="flex flex-col gap-0.5">
+        {last.map((a) => {
+          const r = a.response as { got: number; max: number; perProblem: { id: string; got: number; max: number }[] };
+          return <li key={a.id}>{new Date(a.at).toLocaleDateString()} · <b>{r.got} / {r.max}</b> <span className="text-muted">({r.perProblem.map((p) => `${p.id} ${p.got}/${p.max}`).join(', ')})</span></li>;
+        })}
+      </ul>
     </div>
   );
 }

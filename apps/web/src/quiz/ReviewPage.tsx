@@ -20,12 +20,12 @@ export function ReviewPage() {
   const mistakes = useMemo(() => {
     const seen = new Map<string, (typeof attempts)[number]>();
     for (const a of attempts) {
-      if (a.mode === 'predict' || a.score >= 1) continue;
+      if (a.mode === 'predict' || a.mode === 'exam-coding' || a.score >= 1) continue;
       if (!seen.has(a.key)) seen.set(a.key, a);
     }
     // drop mistakes that were later answered correctly
     const latestByKey = new Map<string, number>();
-    for (const a of attempts) if (!latestByKey.has(a.key) && a.mode !== 'predict') latestByKey.set(a.key, a.score);
+    for (const a of attempts) if (!latestByKey.has(a.key) && a.mode !== 'predict' && a.mode !== 'exam-coding') latestByKey.set(a.key, a.score);
     return [...seen.values()].filter((a) => (latestByKey.get(a.key) ?? 0) < 1);
   }, [attempts]);
   const title = (moduleId: string) => list.find((m) => m.id === moduleId)?.shortTitle ?? moduleId;
