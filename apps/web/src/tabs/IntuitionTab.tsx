@@ -243,6 +243,7 @@ function KeyboardControls({ onNext, onBack, onReplay }: { onNext: () => void; on
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (t?.closest?.('.kbd-handle')) return; // arrows on a plot's handle move the handle, not the beat
       if (e.key === 'ArrowRight') { e.preventDefault(); ref.current.onNext(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); ref.current.onBack(); }
       else if (e.key === 'r' || e.key === 'R') ref.current.onReplay();

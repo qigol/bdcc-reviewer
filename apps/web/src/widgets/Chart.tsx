@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WidgetRenderProps } from '../engine/types';
 import { fmtNum } from './common';
+import { plainText } from '@kodigo/schema';
 import { Markdown } from '../lib/md';
 
 interface S { name: string; x?: (number | string)[]; y: number[] }
@@ -54,7 +55,7 @@ export default function Chart({ props, marks }: WidgetRenderProps<P>) {
   return (
     <div ref={box} className="card p-3">
       {props.title && <div className="mb-1 text-xs font-semibold text-muted"><Markdown text={props.title} inline /></div>}
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={props.title ?? 'chart'}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={props.title ? plainText(props.title) : `${props.kind} chart of ${series.map((s) => s.name).join(', ')}`}>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={L} x2={W - R} y1={sy(props.logY ? Math.pow(10, t) : t)} y2={sy(props.logY ? Math.pow(10, t) : t)} stroke="rgb(var(--line))" strokeDasharray="3 3" />
@@ -86,11 +87,35 @@ export default function Chart({ props, marks }: WidgetRenderProps<P>) {
         {props.xLabel && <text x={(L + W - R) / 2} y={H - 6} textAnchor="middle" fontSize={11} fill="rgb(var(--muted))">{props.xLabel}</text>}
         {props.yLabel && <text x={12} y={(T + H - B) / 2} textAnchor="middle" fontSize={11} fill="rgb(var(--muted))" transform={`rotate(-90 12 ${(T + H - B) / 2})`}>{props.yLabel}</text>}
       </svg>
+      <DataTable series={series} xs={xs} xLabel={props.xLabel} />
       {series.length > 1 && (
         <div className="flex flex-wrap justify-center gap-3 text-xs text-muted">
           {series.map((s, i) => <span key={s.name} className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />{s.name}</span>)}
         </div>
       )}
     </div>
+  );
+}
+
+/** The chart's numbers as text, for screen readers and anyone who wants the exact values. */
+function DataTable({ series, xs, xLabel }: { series: S[]; xs: (s: S) => (number | string)[]; xLabel?: string }) {
+  const rows = [...new Set(series.flatMap((s) => xs(s).map(String)))];
+  return (
+    <details className="no-print mt-1 text-xs text-muted">
+      <summary className="cursor-pointer">Data table</summary>
+      <div className="scrollbar-thin mt-1 max-h-48 overflow-auto">
+        <table className="w-full text-left">
+          <thead><tr><th className="pr-3 font-semibold">{xLabel ? plainText(xLabel) : 'x'}</th>{series.map((s) => <th key={s.name} className="pr-3 font-semibold">{s.name}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((x) => (
+              <tr key={x}>
+                <td className="pr-3">{x}</td>
+                {series.map((s) => { const i = xs(s).map(String).indexOf(x); return <td key={s.name} className="pr-3 font-mono">{i >= 0 && Number.isFinite(s.y[i]) ? fmtNum(s.y[i], 3) : ''}</td>; })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }

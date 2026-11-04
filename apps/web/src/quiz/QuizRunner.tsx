@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookMarked, Calculator as CalcIcon, Clock, Dices, Flag, RotateCcw, Trophy } from 'lucide-react';
+import { ArrowRight, BookMarked, Calculator as CalcIcon, Check, Clock, Dices, Flag, Minus, RotateCcw, Trophy, X } from 'lucide-react';
 import { calculatorMode, variantCount, type QuizInstance } from '@kodigo/schema';
 import { useModuleStore, type LoadedModule } from '../modules/store';
 import { useCourses } from '../modules/courses';
@@ -170,8 +170,10 @@ function Runner({ session }: { session: QuizSession }) {
         <div className="text-xs font-medium uppercase tracking-wide text-muted">{session.course && <span className="text-ink">{session.course} · </span>}{MODE_LABEL[session.mode] ?? session.mode}</div>
         <div className="flex flex-1 gap-1">
           {session.items.map((_, i) => (
-            <button key={i} onClick={() => (exam || slots[i].graded || i <= answered) && setIdx(i)} aria-label={`question ${i + 1}`}
-              className={cn('h-1.5 flex-1 rounded-full transition', i === idx ? 'bg-accent' : slots[i].graded ? (exam ? 'bg-accent/40' : slots[i].graded!.correct ? 'bg-good' : slots[i].graded!.score > 0 || (slots[i].inst && solutionShown(slots[i].inst!, slots[i].graded)) ? 'bg-warn' : 'bg-bad') : 'bg-line')} />
+            <button key={i} onClick={() => (exam || slots[i].graded || i <= answered) && setIdx(i)} aria-label={`question ${i + 1}: ${exam ? (slots[i].graded ? 'saved' : 'not answered') : STATUS_LABEL[slotStatus(slots[i])]}`} data-testid="quiz-dot"
+              className={cn('flex h-3 flex-1 items-center justify-center rounded-full text-[9px] font-bold leading-none text-white transition', i === idx ? 'bg-accent' : slots[i].graded ? (exam ? 'bg-accent/40' : STATUS_BG[slotStatus(slots[i])]) : 'bg-line')}>
+              {!exam && slots[i].graded && <span aria-hidden>{STATUS_GLYPH[slotStatus(slots[i])]}</span>}
+            </button>
           ))}
         </div>
         {remaining !== null && <span className={cn('flex items-center gap-1 font-mono text-sm', remaining < 60 && 'text-bad')}><Clock size={14} /> {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</span>}
@@ -219,6 +221,16 @@ function Runner({ session }: { session: QuizSession }) {
     </div>
   );
 }
+
+/** How a slot went, as words and a glyph as well as a colour. */
+function slotStatus(s: Slot): 'correct' | 'partial' | 'incorrect' | 'none' {
+  if (!s.graded) return 'none';
+  if (s.graded.correct) return 'correct';
+  return s.graded.score > 0 || (s.inst && solutionShown(s.inst, s.graded)) ? 'partial' : 'incorrect';
+}
+const STATUS_LABEL = { correct: 'correct', partial: 'partly correct', incorrect: 'incorrect', none: 'not answered' };
+const STATUS_GLYPH = { correct: '✓', partial: '~', incorrect: '✗', none: '' };
+const STATUS_BG = { correct: 'bg-good', partial: 'bg-warn', incorrect: 'bg-bad', none: 'bg-line' };
 
 function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slot[]; onRetry: () => void }) {
   const { graded, failed, score, pct, note } = summarize(slots, session.items);
@@ -269,7 +281,10 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
         {slots.map((s, i) => s.inst && (
           <div key={i} className="card">
             <button className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm" onClick={() => setOpen(open === i ? null : i)}>
-              <span className={cn('h-2.5 w-2.5 rounded-full', s.graded?.correct ? 'bg-good' : (s.graded?.score ?? 0) > 0 || solutionShown(s.inst, s.graded) ? 'bg-warn' : 'bg-bad')} />
+              <span className={cn('flex', { correct: 'text-good', partial: 'text-warn', incorrect: 'text-bad', none: 'text-bad' }[slotStatus(s)])} data-testid="summary-status">
+                {{ correct: <Check size={14} aria-hidden />, partial: <Minus size={14} aria-hidden />, incorrect: <X size={14} aria-hidden />, none: <X size={14} aria-hidden /> }[slotStatus(s)]}
+                <span className="sr-only">{STATUS_LABEL[slotStatus(s)]}</span>
+              </span>
               <span className="font-medium">Q{i + 1}</span>
               <span className="truncate text-muted">{QTYPE_LABEL[s.inst.type]} · {s.mod?.parsed.manifest.shortTitle} · {s.inst.templateId}</span>
               <span className="ml-auto font-mono text-xs">{Math.round((s.graded?.score ?? 0) * 100)}%</span>
