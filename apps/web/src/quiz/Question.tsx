@@ -228,7 +228,6 @@ function MatchRows({ pairs, ids, onMove, locked, toneOf }: { pairs: [string, str
 export function QuestionView({ inst, mod, response, setResponse, graded, reveal, practice }: {
   inst: QuizInstance; mod: LoadedModule; response: any; setResponse: (r: any) => void; graded: Graded | null; reveal: boolean; practice: boolean;
 }) {
-  const locked = !!graded;
   const popup = usePopup();
   const [hintsShown, setHintsShown] = useState(0);
   const hints = inst.hints ?? [];

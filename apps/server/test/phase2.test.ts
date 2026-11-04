@@ -95,7 +95,7 @@ describe('PATCH validation (Property 8)', () => {
   const readState = () => fs.readFile(statePath(), 'utf8').catch(() => '');
 
   const val = fc.oneof(
-    fc.double(), fc.constantFrom(-0, 1e309, 'abc', 'NaN', '', null, true, false, [], {}, [1], { a: 1 }),
+    fc.double(), fc.constantFrom(-0, Infinity, 'abc', 'NaN', '', null, true, false, [], {}, [1], { a: 1 }),
     fc.string({ maxLength: 90 }), fc.integer(), fc.boolean(),
   );
   it('valid bodies apply; invalid ones answer 400 and leave state.json byte-for-byte unchanged', async () => {

@@ -52,7 +52,7 @@ describe('journal-workbench fixture (guide 2)', () => {
   it('a section without its workbench pane is an error under guide 2', async () => {
     const f = await load();
     const src = f['math-code.yaml'] as string;
-    f['math-code.yaml'] = src.replace(/    journal:\n      title: Overhead budget\n[\s\S]*?(?=    links:)/, "    code: { source: 'rate = est_oh / est_base' }\n");
+    f['math-code.yaml'] = src.replace(/ {4}journal:\n {6}title: Overhead budget\n[\s\S]*?(?= {4}links:)/, "    code: { source: 'rate = est_oh / est_base' }\n");
     const errs = await errorsOf(f);
     expect(errs.some((e) => /needs a `journal` pane/.test(e.message))).toBe(true);
   });

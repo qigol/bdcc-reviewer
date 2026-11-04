@@ -52,7 +52,6 @@ export default function Matrix({ props, cmds, marks, ctx, bind, emit, isBound }:
   const get = (i: number, j: number) => (transposed ? valueAt(j, i) : valueAt(i, j));
   const labelRow = (i: number) => R[i];
   const labelCol = (j: number) => C[j];
-  const cellKey = (i: number, j: number) => (transposed ? `${colsL[j] ?? ''},${rowsL[i] ?? ''}` : `${rowsL[i]},${colsL[j]}`);
   const origRC = (i: number, j: number) => (transposed ? [C[j], R[i]] : [R[i], C[j]]);
 
   const allNums = values0.flat().filter(isNum);

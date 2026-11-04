@@ -47,7 +47,7 @@ with `ports: ["${TS_IP}:8080:8080"]`.
 
 Imported modules and module settings (enabled flags, order, course overrides) go in `./data`, which is mounted at `/data`. The image build runs
 `kodigo validate` on the built-in modules and **fails if any of them is invalid**. The runtime image contains no
-`node_modules`, because esbuild bundles the server into a single file.
+`node_modules`, because esbuild bundles the server (`index.js`, plus `logic-child.mjs` for the isolated logic host).
 
 | Env var | Default | |
 |---|---|---|
@@ -96,6 +96,7 @@ pnpm install
 pnpm dev            # Vite on :5173 (proxies /api) + the API server on :8080 with ADMIN_TOKEN=dev
 pnpm test           # vitest: sdk, checkers, parser, bundles, validator, and all built-in modules
 pnpm typecheck
+pnpm lint           # ESLint
 pnpm build          # web (Vite) + server (esbuild bundle → apps/server/dist/index.js)
 pnpm pyodide:fetch  # Python 3.12 + pandas for the coding mock exam (~23 MB into apps/web/public/pyodide,
                     # sha256-checked; `pnpm dev` and the web build run it, so the first build needs network)

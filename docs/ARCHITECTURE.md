@@ -33,7 +33,9 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `apps/web/src/` | React SPA, one lazy chunk per route (Vite, Tailwind, react-router, framer-motion, KaTeX, Shiki, Dexie) (see below) |
 | `modules/<id>/` | Built-in modules. List them with `ls modules`; course per module: `grep -H "^course:" modules/*/manifest.yaml` |
 | `animations/` | HyperFrames source for `Animation` widget clips. Not shipped; renders go to `modules/<id>/assets/anim/` |
+| `.github/workflows/ci.yml` | CI: install, lint, typecheck, test, module validation, build, bundle size, audit, smoke, the CSP check on Firefox and WebKit, and a Docker job on the default branch |
 | `docker/` | `Dockerfile` (build stage runs `kodigo validate modules` and fetches Pyodide through the web build; runtime has `index.js` and `logic-child.mjs` and no node_modules) and `compose.yml` |
+| `apps/web/docsPlugin.ts` | Serves `/docs/*.md` from `docs/` in dev and emits them into the build (no copies in `public/`) |
 | `scripts/` | `fetch-pyodide.mjs`: the pinned Pyodide release for the coding exam, checked by sha256 · `exam-check/`: runs a coding exam's shipped cells (walkthrough steps, tests, twists) in real pandas for many seeds (see its README) |
 | `data/` | Local DATA_DIR (imported modules + `state.json`); mounted at `/data` in Docker |
 
@@ -120,7 +122,7 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 
 `pnpm dev` (Vite :5173 proxying `/api` to the server on :8080, `ADMIN_TOKEN=dev`) · `pnpm test` (vitest:
 `packages/*/test`, `apps/*/test`, including every built-in module in `packages/schema/test/modules.test.ts`) ·
-`pnpm typecheck` · `pnpm build` · `node scripts/check-bundle-size.mjs` (main chunk ≤ 450 KB) · `pnpm smoke` (Playwright `apps/web/e2e`, needs a build; `KODIGO_SMOKE_MODULES=a,b` limits the whole-catalog walks) · `pnpm kodigo <cmd>` ·
+`pnpm typecheck` · `pnpm lint` · `pnpm build` · `node scripts/check-bundle-size.mjs` (main chunk ≤ 450 KB) · `pnpm smoke` (Playwright `apps/web/e2e`, needs a build; `KODIGO_SMOKE_MODULES=a,b` limits the whole-catalog walks) · `pnpm kodigo <cmd>` ·
 `pnpm pyodide:fetch` (download and sha256-check Pyodide; the web build and `pnpm dev` run it, so the build needs network
 once). Preview configs in `.claude/launch.json`: `qdigo-dev`, `qdigo-built` (the built server on :8095, where CSP applies). The
 Docker build fails on any invalid module. CSP and MIME types are only applied by the Fastify server, never by Vite dev, so
