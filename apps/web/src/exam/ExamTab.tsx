@@ -21,7 +21,8 @@ type Phase = 'intro' | 'running' | 'done';
 
 export function ExamTab() {
   const { mod } = useModuleCtx();
-  const [mode, setMode] = useState<'code' | 'hand'>('code');
+  // reopen on the hand-worked exam when an attempt at it is still running
+  const [mode, setMode] = useState<'code' | 'hand'>(() => (loadAttempt(mod.id, mod.version, mod.preview) ? 'hand' : 'code'));
   if (!mod.parsed.exam) return <div className="p-10 text-center text-muted">This module has no mock exam.</div>;
   if (!mod.parsed.exam.coding) return <ExamRunner />;
   return (

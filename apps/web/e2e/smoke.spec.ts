@@ -62,7 +62,9 @@ async function playScene(page: Page, beats: number) {
 let modules: string[] = [];
 test.beforeAll(async ({ request }) => {
   const list: ModInfo[] = await (await request.get('/api/modules')).json();
-  modules = list.filter((m) => m.enabled).map((m) => m.id);
+  // KODIGO_SMOKE_MODULES=a,b limits the whole-catalog walks to a sample
+  const only = process.env.KODIGO_SMOKE_MODULES?.split(',');
+  modules = list.filter((m) => m.enabled && (!only || only.includes(m.id))).map((m) => m.id);
   expect(modules.length).toBeGreaterThan(0);
 });
 
@@ -155,6 +157,7 @@ test('every quiz template instantiates and can be answered', async ({ page }) =>
       await page.getByTestId('question').waitFor({ timeout: 15_000 });
       await expect(page.getByText("Couldn't generate")).toHaveCount(0);
       const metaText = async () => (await page.getByTestId('question-meta').textContent().catch(() => '')) ?? '';
+      await expect.poll(metaText, { timeout: 15_000 }).toMatch(/·s*S/); // blank while the question loads
       const meta = await metaText();
       seen.add(meta.split('·')[1]?.trim() ?? '');
       // a multi-part case opens its parts one at a time, so answer and check up to 6 rounds

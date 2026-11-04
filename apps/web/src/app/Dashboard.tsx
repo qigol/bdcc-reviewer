@@ -38,7 +38,7 @@ export function Dashboard() {
       return { ...m, mid, sid, label: mod?.manifest.skills.find((s) => s.id === sid)?.label ?? sid, mod };
     })
     .filter((m) => m.mod)
-    .sort((a, b) => a.score - b.score)
+    .sort((a, b) => a.effective - b.effective)
     .slice(0, 6)
     .map((m) => ({ ...m, course: courseOf(m.mid) ?? '' }));
   const weakCourses = [...new Set(weak.map((w) => w.course))];
@@ -63,7 +63,7 @@ export function Dashboard() {
   }, [focused]);
   const courseMastery = (g: (typeof courses)[number]) => {
     const skills = g.modules.flatMap((e) => (mods.find((m) => m.id === e.id)?.manifest.skills ?? []).map((s) => mastery.find((x) => x.skillKey === `${e.id}:${s.id}`)));
-    return skills.reduce((a, s) => a + (s?.score ?? 0), 0) / (skills.length || 1);
+    return skills.reduce((a, s) => a + (s?.effective ?? 0), 0) / (skills.length || 1);
   };
 
   if (store.listError) return (
@@ -167,12 +167,12 @@ export function Dashboard() {
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {weak.map((w) => {
-              const lvl = levelOf(w.score, w.n);
+              const lvl = levelOf(w.effective, w.n);
               return (
                 <div key={w.skillKey} className="card flex items-center gap-3 px-3 py-2">
                   <span className="h-2 w-2 rounded-full" style={{ background: w.mod!.manifest.color }} />
                   <span className="flex-1 text-sm"><b>{w.label}</b> <span className="text-muted">· {multiCourse ? `${w.course} · ` : ''}{w.mod!.manifest.shortTitle}</span></span>
-                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-line"><div className={cn('h-full', LEVEL_COLOR[lvl])} style={{ width: `${w.score * 100}%` }} /></div>
+                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-line"><div className={cn('h-full', LEVEL_COLOR[lvl])} style={{ width: `${w.effective * 100}%` }} /></div>
                   <span className="w-16 text-right text-xs text-muted">{lvl}</span>
                   <Link className="btn btn-sm" to={`/quiz?modules=${w.mid}&skills=${w.mid}:${w.sid}&start=1`}>Drill</Link>
                 </div>
@@ -239,7 +239,7 @@ function ModuleCard({ mod, progress, mastery }: { mod: ModuleIndex; progress: Re
   const decisions = mod.application.decisions;
   const appDone = p.filter((x) => x.tab === 'application' && x.status === 'done' && (decisions.includes(x.itemId) || x.itemId === 'explain-back')).length / (decisions.length + 1);
   const skills = m.skills.map((s) => mastery.find((x) => x.skillKey === `${mod.id}:${s.id}`));
-  const quiz = skills.reduce((a, s) => a + (s?.score ?? 0), 0) / (skills.length || 1);
+  const quiz = skills.reduce((a, s) => a + (s?.effective ?? 0), 0) / (skills.length || 1);
   return (
     <div className="card flex flex-col overflow-hidden">
       <div className="h-1.5" style={{ background: m.color }} />
@@ -261,7 +261,7 @@ function ModuleCard({ mod, progress, mastery }: { mod: ModuleIndex; progress: Re
         <div className="mt-3 flex flex-wrap gap-1" title="skill mastery">
           {m.skills.map((s, i) => {
             const sk = skills[i];
-            const lvl = levelOf(sk?.score ?? 0, sk?.n ?? 0);
+            const lvl = levelOf(sk?.effective ?? 0, sk?.n ?? 0);
             return <span key={s.id} title={`${s.label}: ${lvl}`} className={cn('h-1.5 flex-1 rounded-full', LEVEL_COLOR[lvl])} />;
           })}
         </div>

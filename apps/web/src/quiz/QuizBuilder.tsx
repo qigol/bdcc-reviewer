@@ -5,7 +5,7 @@ import { useModuleIndex } from '../modules/useIndex';
 import { useCourses } from '../modules/courses';
 import { candidates, latestUnfinished, MODE_LABEL, newSession, pickItems, QTYPE_LABEL, QTYPES, type Mode, type SessionConfig } from './session';
 import { db } from '../storage/db';
-import { useSetting } from '../storage/progress';
+import { effectiveMastery, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
 
 export function QuizBuilder() {
@@ -88,7 +88,7 @@ export function QuizBuilder() {
       items = pickItems(pool, Math.min(c.count, pool.length), { mode: 'practice' });
     } else if (c.mode === 'weak') {
       const mastery = Object.fromEntries((await db.mastery.toArray()).map((m) => [m.skillKey, m]));
-      items = pickItems(list, c.count, { mode: 'weak', weight: (x) => { const ms = x.skills.map((s) => mastery[`${x.moduleId}:${s}`]); return ms.length ? Math.max(...ms.map((m) => (m ? (m.n < 3 ? 0.8 : 1 - m.score) : 1))) : 0.5; } });
+      items = pickItems(list, c.count, { mode: 'weak', weight: (x) => { const ms = x.skills.map((s) => mastery[`${x.moduleId}:${s}`]); return ms.length ? Math.max(...ms.map((m) => (m ? (m.n < 3 ? 0.8 : 1 - effectiveMastery(m.score, m.updatedAt, Date.now())) : 1))) : 0.5; } });
     } else items = pickItems(list, c.count, { mode: c.mode });
     if (!items.length) { setMsg('No questions match these filters.'); return; }
     try {

@@ -60,7 +60,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `engine/` | Scenes: `useScope.ts` (datasets + state + derive), `Stage.tsx` (lays out widgets by region), `Gate.tsx` (practice/predict/reflect gates), `trace.ts`/`marks.ts` (step-through commands) |
 | `widgets/` | One `<Name>.tsx` per catalog widget, lazy-loaded through `registry.ts` |
 | `quiz/` | `QuizBuilder` → `session.ts` (builds course-scoped sessions; storage in `sessionStore.ts`, `summary.ts` the summary math) → `QuizRunner` → `Question.tsx` (renders every question type); `ReviewPage` (SRS), `Calculator`, `PracticeBox` |
-| `storage/` | `db.ts` (Dexie), `progress.ts` (progress, settings, exams), `confidence.ts` (confidence → SM-2 grade), `exportImport.ts` (validates rows and the format version; one note per anchor), `rows.ts` (row shapes), `persist.ts` (asks for persistent storage, backup reminder) |
+| `storage/` | `db.ts` (Dexie), `progress.ts` (progress, settings, exams), `confidence.ts` (confidence → SM-2 grade); displays use decayed mastery (`effectiveMastery`), and self-graded or post-solution answers count less or not at all, `exportImport.ts` (validates rows and the format version; one note per anchor), `rows.ts` (row shapes), `persist.ts` (asks for persistent storage, backup reminder) |
 | `plan/` | Exam study plan: `studyPlan.ts` (pure scheduler), `usePlan.ts`, `stepStatus.ts` (shared with PathTab) |
 | `glossary/` | `notes.ts` (one note per term id across modules), `ForceGraph.tsx` |
 | `christmas/` | `ChristmasPage`, `useChristmas.ts`, `banner.ts`, `Decorations.tsx` |
@@ -120,7 +120,7 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 
 `pnpm dev` (Vite :5173 proxying `/api` to the server on :8080, `ADMIN_TOKEN=dev`) · `pnpm test` (vitest:
 `packages/*/test`, `apps/*/test`, including every built-in module in `packages/schema/test/modules.test.ts`) ·
-`pnpm typecheck` · `pnpm build` · `node scripts/check-bundle-size.mjs` (main chunk ≤ 450 KB) · `pnpm smoke` (Playwright `apps/web/e2e`, needs a build) · `pnpm kodigo <cmd>` ·
+`pnpm typecheck` · `pnpm build` · `node scripts/check-bundle-size.mjs` (main chunk ≤ 450 KB) · `pnpm smoke` (Playwright `apps/web/e2e`, needs a build; `KODIGO_SMOKE_MODULES=a,b` limits the whole-catalog walks) · `pnpm kodigo <cmd>` ·
 `pnpm pyodide:fetch` (download and sha256-check Pyodide; the web build and `pnpm dev` run it, so the build needs network
 once). Preview configs in `.claude/launch.json`: `qdigo-dev`, `qdigo-built` (the built server on :8095, where CSP applies). The
 Docker build fails on any invalid module. CSP and MIME types are only applied by the Fastify server, never by Vite dev, so

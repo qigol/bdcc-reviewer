@@ -14,7 +14,7 @@ import { usePopup } from '../lib/popup';
 import { summarize } from './summary';
 
 /** `seed` is set once the learner asks for new numbers; otherwise the session item's seed is used. */
-interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number; confidence?: Confidence }
+interface Slot { inst?: QuizInstance; mod?: LoadedModule; error?: string; response?: any; graded?: Graded | null; startedAt?: number; timeMs?: number; seed?: number; confidence?: Confidence; /** "New numbers" after the solution was shown */ retryAfterReveal?: boolean }
 
 export function QuizRunner() {
   const { sessionId } = useParams();
@@ -33,7 +33,7 @@ function Runner({ session }: { session: QuizSession }) {
   const [saved] = useState(() => getRunState(session.id));
   const [slots, setSlots] = useState<Slot[]>(() => session.items.map((_, i) => {
     const sv = saved?.slots[i];
-    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed, confidence: sv.confidence } : {};
+    return sv ? { response: sv.response, graded: (sv.graded as Graded | null | undefined) ?? undefined, startedAt: sv.startedAt, timeMs: sv.timeMs, seed: sv.seed, confidence: sv.confidence, retryAfterReveal: sv.retryAfterReveal } : {};
   }));
   const [idx, setIdx] = useState(() => Math.min(saved?.idx ?? 0, session.items.length - 1));
   const [finished, setFinished] = useState(() => saved?.finished ?? false);
@@ -45,7 +45,7 @@ function Runner({ session }: { session: QuizSession }) {
   useEffect(() => {
     saveRunState(session.id, {
       idx, finished, deadline,
-      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed, confidence: s.confidence })),
+      slots: slots.map((s) => ({ response: s.response, graded: s.graded ?? undefined, startedAt: s.startedAt, timeMs: s.timeMs, seed: s.seed, confidence: s.confidence, retryAfterReveal: s.retryAfterReveal })),
     });
   }, [slots, idx, finished]);
 
@@ -107,7 +107,7 @@ function Runner({ session }: { session: QuizSession }) {
     if (!sl.inst || !sl.mod || sl.mod.preview) return;
     await recordAttempt({
       key: sl.inst.key, templateId: sl.inst.templateId, moduleId: sl.inst.moduleId, seed: sl.inst.seed, type: sl.inst.type,
-      skills: sl.inst.skills, score: g.score, response: g.response, timeMs: sl.timeMs ?? (sl.startedAt ? Date.now() - sl.startedAt : 0), mode: session.mode, difficulty: sl.inst.difficulty, confidence: sl.confidence,
+      skills: sl.inst.skills, score: g.score, response: g.response, timeMs: sl.timeMs ?? (sl.startedAt ? Date.now() - sl.startedAt : 0), mode: session.mode, difficulty: sl.inst.difficulty, confidence: sl.confidence, ...(sl.retryAfterReveal ? { postSolution: true as const } : {}),
     });
   };
 
@@ -129,7 +129,7 @@ function Runner({ session }: { session: QuizSession }) {
     const seed = randomSeed();
     try {
       const inst = await instantiate(slot.mod, { ...session.items[at], seed });
-      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined, confidence: undefined }; return n; });
+      setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], retryAfterReveal: n[at].retryAfterReveal || !!n[at].graded, inst, seed, response: emptyResponse(inst), graded: null, startedAt: Date.now(), timeMs: undefined, confidence: undefined }; return n; });
     } catch (e: any) {
       setSlots((s) => { const n = s.slice(); n[at] = { ...n[at], error: String(e?.message ?? e) }; return n; });
     }
@@ -221,7 +221,7 @@ function Runner({ session }: { session: QuizSession }) {
 }
 
 function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slot[]; onRetry: () => void }) {
-  const { graded, score, pct } = summarize(slots);
+  const { graded, failed, score, pct, note } = summarize(slots, session.items);
   const bySkill: Record<string, { label: string; sum: number; n: number }> = {};
   for (const s of graded) {
     for (const k of s.inst!.skills.length ? s.inst!.skills : ['(glossary)']) {
@@ -240,7 +240,7 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
         <Trophy size={36} className={pct >= 0.8 ? 'text-good' : pct >= 0.5 ? 'text-warn' : 'text-bad'} />
         <div className="flex-1">
           <div className="text-2xl font-semibold">{Math.round(pct * 100)}%</div>
-          <div className="text-sm text-muted">{score.toFixed(1)} / {graded.length} points · {MODE_LABEL[session.mode]}</div>
+          <div className="text-sm text-muted">{score.toFixed(1)} / {graded.length} points{note && <> · <span data-testid="summary-failed-note">{note}</span></>} · {MODE_LABEL[session.mode]}</div>
         </div>
         {wrong > 0 && <button className="btn" onClick={onRetry}><RotateCcw size={15} /> Retry {wrong} missed with new numbers</button>}
         <Link to="/quiz" className="btn-primary">New quiz</Link>
@@ -256,6 +256,14 @@ function Summary({ session, slots, onRetry }: { session: QuizSession; slots: Slo
           </div>
         ))}
       </div>
+      {failed.length > 0 && (
+        <>
+          <h3 className="mb-2 mt-6 font-semibold">Not generated</h3>
+          <ul className="card flex flex-col gap-1 p-4 text-sm" data-testid="summary-failed">
+            {failed.map((f) => <li key={f.index}><b>Q{f.index + 1}</b> <span className="text-muted">{f.moduleId} · {f.templateId}:</span> {f.error}</li>)}
+          </ul>
+        </>
+      )}
       <h3 className="mb-2 mt-6 font-semibold">Questions</h3>
       <div className="flex flex-col gap-2">
         {slots.map((s, i) => s.inst && (

@@ -17,7 +17,7 @@ export function PathTab() {
   const steps = useMemo(() => learningPath(mod.parsed), [mod]);
   const journal = m.workbench === 'journal';
   const terms = useMemo(() => Object.fromEntries(mod.parsed.glossary.map((t) => [t.id, t.term])), [mod]);
-  const skillScore = (id: string) => mastery.find((x) => x.skillKey === `${mod.id}:${id}`)?.score ?? 0;
+  const skillScore = (id: string) => mastery.find((x) => x.skillKey === `${mod.id}:${id}`)?.effective ?? 0;
   const moduleMastery = m.skills.length ? m.skills.reduce((a, s) => a + skillScore(s.id), 0) / m.skills.length : 0;
 
   const hrefOf = (s: PathStep) => stepHref(s, base, m.id);

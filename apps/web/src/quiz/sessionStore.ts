@@ -72,7 +72,7 @@ export function getSession(id: string): QuizSession | undefined {
  * Two tabs on the same run write last-wins.
  * Question instances aren't stored: they're regenerated deterministically from each item's seed.
  */
-export interface SavedSlot { response?: unknown; graded?: unknown; startedAt?: number; timeMs?: number; seed?: number; confidence?: 1 | 2 | 3 }
+export interface SavedSlot { response?: unknown; graded?: unknown; startedAt?: number; timeMs?: number; seed?: number; confidence?: 1 | 2 | 3; retryAfterReveal?: boolean }
 export interface SavedRun { idx: number; finished: boolean; deadline: number | null; slots: SavedSlot[]; updatedAt: number }
 
 function loadRuns(): Record<string, SavedRun> {

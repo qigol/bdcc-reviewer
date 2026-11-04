@@ -26,6 +26,10 @@ export interface Attempt {
   difficulty?: number;
   /** how sure the learner said they were before checking (1 guessing · 2 fairly sure · 3 certain); not indexed, so no schema bump */
   confidence?: 1 | 2 | 3;
+  /** an `explain` answer the learner graded themselves: counts at half weight toward mastery */
+  selfGraded?: true;
+  /** answered after seeing the solution ("New numbers"): saved, but moves neither mastery nor SRS */
+  postSolution?: true;
 }
 export interface Srs { templateId: string; moduleId: string; ease: number; interval: number; due: number; reps: number; lapses: number; updatedAt: number }
 export interface Mastery { skillKey: string; score: number; n: number; updatedAt: number }

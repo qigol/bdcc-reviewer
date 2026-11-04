@@ -36,7 +36,7 @@ export function usePlan(): { plan: Plan; loading: boolean } {
         const p = progress.filter((x) => x.moduleId === id);
         const a = attempts.filter((x) => x.moduleId === id);
         const skills = mod.manifest.skills;
-        const mm = skills.length ? skills.reduce((acc, s) => acc + (mastery.find((x) => x.skillKey === `${id}:${s.id}`)?.score ?? 0), 0) / skills.length : 0;
+        const mm = skills.length ? skills.reduce((acc, s) => acc + (mastery.find((x) => x.skillKey === `${id}:${s.id}`)?.effective ?? 0), 0) / skills.length : 0;
         for (const step of mod.path) {
           if (stepStatus(step, p, a, mm) === 'done') continue;
           const size =
