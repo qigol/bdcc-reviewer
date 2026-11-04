@@ -1,5 +1,4 @@
-import { collectTermLinks, glossaryWithHomes, type Term } from '@kodigo/schema';
-import type { LoadedModule } from '../modules/store';
+import { linkedTermIds, type ModuleIndex, type Term } from '@kodigo/schema';
 
 /**
  * The glossary as a set of linked notes (guide §5.6). A note is one term id across every module:
@@ -7,10 +6,10 @@ import type { LoadedModule } from '../modules/store';
  */
 
 /** One module's definition of a note's term (lessonRef defaults to the scene that introduces it). */
-export interface NoteDef { mod: LoadedModule; term: Term }
+export interface NoteDef { mod: ModuleIndex; term: Term }
 
 /** A lesson place whose text links the term with [[id]] or introduces it with `define:`. */
-export interface Mention { mod: LoadedModule; kind: 'scene' | 'section' | 'case'; title: string; to: string }
+export interface Mention { mod: ModuleIndex; kind: 'scene' | 'section' | 'case'; title: string; to: string }
 
 export interface Note {
   id: string;
@@ -36,22 +35,13 @@ export interface NoteIndex {
 
 export const noteHref = (id: string) => `/glossary/${id}`;
 
-/** Every string inside a YAML-shaped value. */
-function strings(v: unknown, out: string[] = []): string[] {
-  if (typeof v === 'string') out.push(v);
-  else if (Array.isArray(v)) v.forEach((x) => strings(x, out));
-  else if (v && typeof v === 'object') Object.values(v).forEach((x) => strings(x, out));
-  return out;
-}
-const linkedIds = (v: unknown) => new Set(strings(v).flatMap((s) => collectTermLinks(s).map((l) => l.id)));
-
 function mostCommon(names: string[]): string {
   const n = new Map<string, number>();
   names.forEach((x) => n.set(x, (n.get(x) ?? 0) + 1));
   return [...n.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
 }
 
-export function buildNotes(mods: LoadedModule[]): NoteIndex {
+export function buildNotes(mods: ModuleIndex[]): NoteIndex {
   const defs = new Map<string, NoteDef[]>();
   const mentions = new Map<string, Mention[]>();
   const out = new Map<string, Set<string>>();
@@ -62,21 +52,18 @@ export function buildNotes(mods: LoadedModule[]): NoteIndex {
   };
 
   for (const mod of mods) {
-    const p = mod.parsed;
-    const known = new Set(p.glossary.map((t) => t.id));
-    for (const term of glossaryWithHomes(p.glossary, p.intuition)) {
+    const known = new Set(mod.glossary.map((t) => t.id));
+    for (const term of mod.glossary) {
       defs.set(term.id, [...(defs.get(term.id) ?? []), { mod, term }]);
       const to = out.get(term.id) ?? new Set();
-      for (const r of [...(term.related ?? []), ...linkedIds([term.short, term.long])]) if (r !== term.id && known.has(r)) to.add(r);
+      for (const r of [...(term.related ?? []), ...linkedTermIds([term.short, term.long])]) if (r !== term.id && known.has(r)) to.add(r);
       out.set(term.id, to);
     }
-    for (const s of p.intuition) {
-      const ids = linkedIds(s);
-      s.beats.forEach((b) => b.define?.forEach((d) => ids.add(d)));
-      for (const id of ids) if (known.has(id)) mention(id, { mod, kind: 'scene', title: s.title, to: `/m/${mod.id}/intuition/${s.id}` });
+    for (const s of mod.scenes) {
+      for (const id of s.termLinks) if (known.has(id)) mention(id, { mod, kind: 'scene', title: s.title, to: `/m/${mod.id}/intuition/${s.id}` });
     }
-    for (const s of p.mathCode) for (const id of linkedIds(s)) if (known.has(id)) mention(id, { mod, kind: 'section', title: s.title, to: `/m/${mod.id}/math-code/${s.id}` });
-    for (const id of linkedIds(p.application)) if (known.has(id)) mention(id, { mod, kind: 'case', title: 'Application case', to: `/m/${mod.id}/application` });
+    for (const s of mod.sections) for (const id of s.termLinks) if (known.has(id)) mention(id, { mod, kind: 'section', title: s.title, to: `/m/${mod.id}/math-code/${s.id}` });
+    for (const id of mod.application.termLinks) if (known.has(id)) mention(id, { mod, kind: 'case', title: 'Application case', to: `/m/${mod.id}/application` });
   }
 
   const back = new Map<string, Set<string>>();

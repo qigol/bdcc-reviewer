@@ -94,6 +94,7 @@ test('glossary notes: old ?term= links redirect, links open notes, graph mode re
 });
 
 test('every scene plays through every beat', async ({ page }) => {
+  test.setTimeout(45 * 60_000); // walks every module
   const errors = collectErrors(page);
   for (const id of modules) {
     const mod = await loadModule(page, id);
@@ -124,11 +125,12 @@ test('every Math & Code section and the Application tab render', async ({ page }
     for (const s of mod.mathCode) {
       await page.goto(`/m/${id}/math-code/${s.id}`);
       await expect(page.getByRole('heading', { name: s.title }).first()).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator('.katex').first()).toBeVisible();
+      await expect(page.locator('.katex:visible').first()).toBeVisible(); // a term's hover card can hold a hidden .katex first
       if (s.trace) {
         // stepping moves the live data next to the code and drives it with the trace's ops
         await page.getByTestId('step-through').click();
-        for (let k = 0; k < 3; k++) await page.locator('button:has-text("▶")').click();
+        // up to 3 steps: a short trace disables ▶ at its end
+        for (let k = 0; k < 3; k++) { const step = await page.$('button:has-text("▶"):enabled'); if (step) await step.click(); }
         await expect(page.getByTestId('live-trace')).toBeVisible();
         await expect(page.getByTestId('vars-watch').locator('span.font-mono').first()).toBeVisible();
       }
@@ -141,6 +143,7 @@ test('every Math & Code section and the Application tab render', async ({ page }
 });
 
 test('every quiz template instantiates and can be answered', async ({ page }) => {
+  test.setTimeout(45 * 60_000); // walks every module
   const errors = collectErrors(page);
   for (const id of modules) {
     const mod = await loadModule(page, id);
@@ -217,12 +220,7 @@ test('quiz progress survives the nudge popup, the glossary and leaving the page'
 
   // answer question 1 and move on to question 2
   const q1 = await metaText();
-  const radio = await page.$('[role=radio]'); if (radio) await radio.click();
-  const check = await page.$('[role=checkbox]'); if (check) await check.click();
-  const num = await page.$('input[aria-label=answer]'); if (num) await num.fill('1');
-  for (const b of await page.$$('input[aria-label^="blank"]')) await b.fill('x');
-  for (let k = 0; k < 8; k++) { const s = await page.$('button:has-text("Show step")'); if (!s) break; await s.click(); await page.waitForTimeout(100); }
-  for (const s of await page.$$('input[aria-label$="answer"]')) if (!(await s.inputValue())) await s.fill('1');
+  await answerVisible(page); // the first question's type is random
   await page.getByTestId('submit-answer').click();
   await page.getByTestId('next-question').click();
   await expect(page.getByText('Question 2 of 5')).toBeVisible();

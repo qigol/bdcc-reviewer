@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, CalendarClock, CalendarDays, Dumbbell, GraduationCap, PlayCircle, Repeat, Sparkles, Target, X } from 'lucide-react';
 import { HIGHLIGHTS, type Highlight } from './highlights';
-import { useModuleStore, type LoadedModule } from '../modules/store';
+import type { ModuleIndex } from '@kodigo/schema';
+import { useModuleStore } from '../modules/store';
 import { useCourses } from '../modules/courses';
-import { useAllModules } from '../modules/useAll';
+import { useModuleIndex } from '../modules/useIndex';
 import { levelOf, LEVEL_COLOR, useAllProgress, useDueReviews, useMastery, useSetting } from '../storage/progress';
 import { workbenchShortLabel } from '@kodigo/schema';
 import { Ring } from './Ring';
@@ -18,7 +19,7 @@ import { christmasHighlight } from '../christmas/banner';
 
 export function Dashboard() {
   const store = useModuleStore();
-  const { mods, loading, errors } = useAllModules();
+  const { mods, loading, errors } = useModuleIndex();
   const { courses, courseOf } = useCourses();
   const progress = useAllProgress();
   const mastery = useMastery();
@@ -32,7 +33,7 @@ export function Dashboard() {
     .map((m) => {
       const [mid, sid] = m.skillKey.split(':');
       const mod = mods.find((x) => x.id === mid);
-      return { ...m, mid, sid, label: mod?.parsed.manifest.skills.find((s) => s.id === sid)?.label ?? sid, mod };
+      return { ...m, mid, sid, label: mod?.manifest.skills.find((s) => s.id === sid)?.label ?? sid, mod };
     })
     .filter((m) => m.mod)
     .sort((a, b) => a.score - b.score)
@@ -59,7 +60,7 @@ export function Dashboard() {
     panel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [focused]);
   const courseMastery = (g: (typeof courses)[number]) => {
-    const skills = g.modules.flatMap((e) => (mods.find((m) => m.id === e.id)?.parsed.manifest.skills ?? []).map((s) => mastery.find((x) => x.skillKey === `${e.id}:${s.id}`)));
+    const skills = g.modules.flatMap((e) => (mods.find((m) => m.id === e.id)?.manifest.skills ?? []).map((s) => mastery.find((x) => x.skillKey === `${e.id}:${s.id}`)));
     return skills.reduce((a, s) => a + (s?.score ?? 0), 0) / (skills.length || 1);
   };
 
@@ -136,7 +137,7 @@ export function Dashboard() {
       </div>
       {focusGroup && (() => {
         const g = focusGroup;
-        const loaded = g.modules.map((e) => mods.find((m) => m.id === e.id)).filter((m): m is LoadedModule => !!m);
+        const loaded = g.modules.map((e) => mods.find((m) => m.id === e.id)).filter((m): m is ModuleIndex => !!m);
         return (
           <section ref={panel} id="course-panel" key={g.course} className="mt-6" aria-label={`${g.course} modules`} data-testid={`course-${g.course}`}>
             <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-line pb-2">
@@ -167,8 +168,8 @@ export function Dashboard() {
               const lvl = levelOf(w.score, w.n);
               return (
                 <div key={w.skillKey} className="card flex items-center gap-3 px-3 py-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: w.mod!.parsed.manifest.color }} />
-                  <span className="flex-1 text-sm"><b>{w.label}</b> <span className="text-muted">· {multiCourse ? `${w.course} · ` : ''}{w.mod!.parsed.manifest.shortTitle}</span></span>
+                  <span className="h-2 w-2 rounded-full" style={{ background: w.mod!.manifest.color }} />
+                  <span className="flex-1 text-sm"><b>{w.label}</b> <span className="text-muted">· {multiCourse ? `${w.course} · ` : ''}{w.mod!.manifest.shortTitle}</span></span>
                   <div className="h-1.5 w-24 overflow-hidden rounded-full bg-line"><div className={cn('h-full', LEVEL_COLOR[lvl])} style={{ width: `${w.score * 100}%` }} /></div>
                   <span className="w-16 text-right text-xs text-muted">{lvl}</span>
                   <Link className="btn btn-sm" to={`/quiz?modules=${w.mid}&skills=${w.mid}:${w.sid}&start=1`}>Drill</Link>
@@ -225,13 +226,13 @@ function Highlights({ items }: { items: Highlight[] }) {
   );
 }
 
-function ModuleCard({ mod, progress, mastery }: { mod: LoadedModule; progress: ReturnType<typeof useAllProgress>; mastery: ReturnType<typeof useMastery> }) {
-  const m = mod.parsed.manifest;
+function ModuleCard({ mod, progress, mastery }: { mod: ModuleIndex; progress: ReturnType<typeof useAllProgress>; mastery: ReturnType<typeof useMastery> }) {
+  const m = mod.manifest;
   const p = progress.filter((x) => x.moduleId === mod.id);
-  const scenes = mod.parsed.intuition.length || 1;
+  const scenes = mod.scenes.length || 1;
   const intuition = p.filter((x) => x.tab === 'intuition' && x.status === 'done').length / scenes;
-  const math = p.filter((x) => x.tab === 'math-code').length / (mod.parsed.mathCode.length || 1);
-  const decisions = mod.parsed.application.case.cells.filter((c) => c.decision).map((c) => c.id);
+  const math = p.filter((x) => x.tab === 'math-code').length / (mod.sections.length || 1);
+  const decisions = mod.application.decisions;
   const appDone = p.filter((x) => x.tab === 'application' && x.status === 'done' && (decisions.includes(x.itemId) || x.itemId === 'explain-back')).length / (decisions.length + 1);
   const skills = m.skills.map((s) => mastery.find((x) => x.skillKey === `${mod.id}:${s.id}`));
   const quiz = skills.reduce((a, s) => a + (s?.score ?? 0), 0) / (skills.length || 1);

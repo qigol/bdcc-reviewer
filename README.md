@@ -110,7 +110,7 @@ pnpm build
 cd apps/server && MODULES_BUILTIN=../../modules WEB_DIR=../web/dist DATA_DIR=../../data ADMIN_TOKEN=dev node dist/index.js
 ```
 
-After rebuilding the web app, restart the server so it picks up the new asset list.
+Rebuilding the web app while the server runs is fine: static files are resolved per request.
 
 ## Repository layout
 
@@ -137,7 +137,8 @@ docker/           Dockerfile, compose.yml
 |---|---|---|---|
 | GET | `/api/health` | | liveness |
 | GET | `/api/modules` | | list with meta, course, enabled, order, health, stored versions |
-| GET | `/api/modules/:id/files` · `/files/*` | | all files as JSON · one raw file |
+| GET | `/api/index` | | lightweight index of every module for cross-module pages (ETag, 304) |
+| GET | `/api/modules/:id/files` · `/files/*` | | text files plus a list of binaries as JSON (ETag, 304) · one raw file |
 | GET | `/api/modules/:id/report` | | server-side validation report |
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |

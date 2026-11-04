@@ -2,7 +2,7 @@ import { workbenchTabLabel } from '@kodigo/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BookMarked, Clapperboard, FunctionSquare, Search, Sigma } from 'lucide-react';
-import { useAllModules } from '../modules/useAll';
+import { useModuleIndex } from '../modules/useIndex';
 import { useCourses } from '../modules/courses';
 import { renderTex } from '../lib/md';
 import { cn } from '../lib/util';
@@ -11,7 +11,7 @@ import { usePopup } from '../lib/popup';
 interface Entry { kind: 'term' | 'section' | 'scene' | 'formula'; title: string; sub: string; to: string; tex?: string }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { mods } = useAllModules();
+  const { mods } = useModuleIndex();
   const { courses, courseOf } = useCourses();
   const nav = useNavigate();
   const loc = useLocation();
@@ -21,12 +21,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const input = useRef<HTMLInputElement>(null);
   const entries = useMemo<Entry[]>(() => mods.flatMap((m) => {
     // with several courses, results say which course they're from (and the course name is searchable)
-    const t = courses.length > 1 ? `${courseOf(m.id) ?? ''} · ${m.parsed.manifest.shortTitle}` : m.parsed.manifest.shortTitle;
+    const t = courses.length > 1 ? `${courseOf(m.id) ?? ''} · ${m.manifest.shortTitle}` : m.manifest.shortTitle;
     return [
-      ...m.parsed.intuition.map((s) => ({ kind: 'scene' as const, title: s.title, sub: `${t} · Intuition · ${s.goal}`, to: `/m/${m.id}/intuition/${s.id}` })),
-      ...m.parsed.mathCode.map((s) => ({ kind: 'section' as const, title: s.title, sub: `${t} · ${workbenchTabLabel(m.parsed.manifest)}`, to: `/m/${m.id}/math-code/${s.id}` })),
-      ...m.parsed.mathCode.filter((s) => s.keyFormula).map((s) => ({ kind: 'formula' as const, title: s.title, sub: `${t} · formula`, to: `/m/${m.id}/math-code/${s.id}`, tex: s.keyFormula })),
-      ...m.parsed.glossary.map((g) => ({ kind: 'term' as const, title: g.term, sub: `${t} · ${g.short}`, to: `/glossary/${g.id}` })),
+      ...m.scenes.map((s) => ({ kind: 'scene' as const, title: s.title, sub: `${t} · Intuition · ${s.goal}`, to: `/m/${m.id}/intuition/${s.id}` })),
+      ...m.sections.map((s) => ({ kind: 'section' as const, title: s.title, sub: `${t} · ${workbenchTabLabel(m.manifest)}`, to: `/m/${m.id}/math-code/${s.id}` })),
+      ...m.sections.filter((s) => s.keyFormula).map((s) => ({ kind: 'formula' as const, title: s.title, sub: `${t} · formula`, to: `/m/${m.id}/math-code/${s.id}`, tex: s.keyFormula })),
+      ...m.glossary.map((g) => ({ kind: 'term' as const, title: g.term, sub: `${t} · ${g.short}`, to: `/glossary/${g.id}` })),
     ];
   }), [mods, courses]);
   const ql = q.toLowerCase().trim();

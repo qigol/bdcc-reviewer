@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Dumbbell, GraduationCap, Play, RotateCw } from 'lucide-react';
-import { useAllModules } from '../modules/useAll';
+import { useModuleIndex } from '../modules/useIndex';
 import { useCourses } from '../modules/courses';
 import { candidates, latestUnfinished, MODE_LABEL, newSession, pickItems, QTYPE_LABEL, QTYPES, type Mode, type SessionConfig } from './session';
 import { db } from '../storage/db';
@@ -9,7 +9,7 @@ import { useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
 
 export function QuizBuilder() {
-  const { mods, loading } = useAllModules();
+  const { mods, loading } = useModuleIndex();
   const { courses, courseOf } = useCourses();
   const [savedCourse, setSavedCourse] = useSetting('course');
   const [params] = useSearchParams();
@@ -65,7 +65,7 @@ export function QuizBuilder() {
 
   const courseMods = useMemo(() => mods.filter((m) => courseOf(m.id) === cfg.course), [mods, cfg.course, courseOf]);
   // only offer the question types this course's modules actually have (e.g. journal entries for accounting)
-  const courseTypes = useMemo(() => new Set<string>(['mcq', 'code-fill', ...courseMods.flatMap((m) => m.parsed.quiz.map((t) => t.type))]), [courseMods]);
+  const courseTypes = useMemo(() => new Set<string>(['mcq', 'code-fill', ...courseMods.flatMap((m) => m.quiz.map((t) => t.type))]), [courseMods]);
   const effective = (c: SessionConfig): SessionConfig => {
     const ids = courseMods.map((m) => m.id);
     const chosen = c.modules.filter((id) => ids.includes(id));
@@ -131,7 +131,7 @@ export function QuizBuilder() {
         </Field>
         <Field label="Modules" hint={cfg.course ? `from ${cfg.course}` : undefined}>
           <div className="flex flex-wrap gap-1.5">
-            {courseMods.map((m) => <Toggle key={m.id} on={cfg.modules.includes(m.id)} onClick={() => toggle('modules', m.id)} color={m.parsed.manifest.color}>{m.parsed.manifest.shortTitle}</Toggle>)}
+            {courseMods.map((m) => <Toggle key={m.id} on={cfg.modules.includes(m.id)} onClick={() => toggle('modules', m.id)} color={m.manifest.color}>{m.manifest.shortTitle}</Toggle>)}
             {!loading && !courseMods.length && <span className="text-sm text-muted">No modules in this course yet.</span>}
           </div>
         </Field>
@@ -152,8 +152,8 @@ export function QuizBuilder() {
           <div className="flex flex-col gap-2">
             {courseMods.filter((m) => cfg.modules.includes(m.id)).map((m) => (
               <div key={m.id} className="flex flex-wrap items-center gap-1.5">
-                <span className="w-14 text-xs font-semibold text-muted">{m.parsed.manifest.shortTitle}</span>
-                {m.parsed.manifest.skills.map((s) => <Toggle key={s.id} small on={cfg.skills.includes(`${m.id}:${s.id}`)} onClick={() => toggle('skills', `${m.id}:${s.id}`)}>{s.label}</Toggle>)}
+                <span className="w-14 text-xs font-semibold text-muted">{m.manifest.shortTitle}</span>
+                {m.manifest.skills.map((s) => <Toggle key={s.id} small on={cfg.skills.includes(`${m.id}:${s.id}`)} onClick={() => toggle('skills', `${m.id}:${s.id}`)}>{s.label}</Toggle>)}
               </div>
             ))}
           </div>

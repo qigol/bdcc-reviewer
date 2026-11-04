@@ -4,10 +4,12 @@
  * `buildApp` wires everything without listening, so tests drive it with `app.inject`.
  */
 import Fastify, { type FastifyInstance, type FastifyServerOptions, type FastifyReply, type FastifyRequest } from 'fastify';
+import compress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { readZip, writeZip, widgetsMarkdown, normalizePath, isTextPath, type FileMap, type LogicHostFactory } from '@kodigo/schema';
 import { Registry } from './registry';
@@ -28,6 +30,13 @@ export interface AppDeps {
   routes?: (app: FastifyInstance) => void;
 }
 
+/** If-None-Match may be a comma list of weak or strong tags, or *. */
+export function etagMatches(header: string | undefined, etag: string): boolean {
+  if (!header) return false;
+  const bare = (t: string) => t.trim().replace(/^W\//, '');
+  return header.split(',').some((t) => t.trim() === '*' || bare(t) === bare(etag));
+}
+
 export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
   const now = deps.now ?? (() => new Date());
   const opts: FastifyServerOptions = { logger: deps.logger ?? { level: cfg.logLevel }, bodyLimit: cfg.maxUploadMb * 1024 * 1024, trustProxy: cfg.trustProxy };
@@ -36,6 +45,8 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
   if (cfg.admin.disabledReason && cfg.prod) app.log.warn(`admin is disabled: ${cfg.admin.disabledReason}`);
   const registry = new Registry(cfg.modulesBuiltin, cfg.dataDir, (m) => app.log.info(m), { hostFactory: deps.hostFactory });
 
+  // brotli quality 5: good ratio without slowing every response; images and video are skipped as non-compressible
+  await app.register(compress, { global: true, encodings: ['br', 'gzip'], threshold: 1024, brotliOptions: { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } });
   await app.register(multipart, { limits: { fileSize: cfg.maxUploadMb * 1024 * 1024, files: 1 } });
 
   function requireAdmin(req: FastifyRequest, reply: FastifyReply): boolean {
@@ -64,7 +75,11 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
 
   app.addHook('onSend', async (req, reply, payload) => {
     const type = String(reply.getHeader('content-type') ?? '');
-    reply.headers(securityHeaders({ path: req.url.split('?')[0], contentType: type, status: reply.statusCode, hsts: cfg.hsts }));
+    const urlPath = req.url.split('?')[0];
+    reply.headers(securityHeaders({ path: urlPath, contentType: type, status: reply.statusCode, hsts: cfg.hsts }));
+    // hashed assets never change; index.html must be revalidated so a rebuild's new asset list is seen
+    if (type.includes('text/html')) reply.header('cache-control', 'no-cache');
+    else if (req.method === 'GET' && reply.statusCode === 200 && urlPath.startsWith('/assets/')) reply.header('cache-control', 'public, max-age=31536000, immutable');
     return payload;
   });
 
@@ -81,16 +96,27 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
     return list.map(({ dir: _dir, ...m }) => m);
   });
 
-  app.get<{ Params: { id: string } }>('/api/modules/:id/files', async (req, reply) => {
-    const files = await registry.files(req.params.id);
-    if (!files) return reply.code(404).send({ error: 'not found' });
-    const text: Record<string, string> = {};
-    const binary: string[] = [];
-    for (const [p, c] of Object.entries(files)) typeof c === 'string' ? (text[p] = c) : binary.push(p);
-    return { files: text, binary };
+  app.get('/api/index', async (req, reply) => {
+    const { etag, modules } = await registry.indexes();
+    reply.header('etag', etag).header('cache-control', 'no-cache');
+    if (etagMatches(req.headers['if-none-match'], etag)) return reply.code(304).send();
+    return { modules };
   });
 
-  app.get<{ Params: { id: string; '*': string } }>('/api/modules/:id/files/*', async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/api/modules/:id/files', async (req, reply) => {
+    const r = await registry.resolve(req.params.id);
+    if (!r) return reply.code(404).send({ error: 'not found' });
+    // binaries are listed, not read; the browser revalidates with the fingerprint as a weak ETag
+    const etag = `W/"${await registry.fingerprint(r.dir)}"`;
+    reply.header('etag', etag).header('cache-control', 'no-cache');
+    if (etagMatches(req.headers['if-none-match'], etag)) return reply.code(304).send();
+    const listing = await registry.listing(req.params.id);
+    if (!listing) return reply.code(404).send({ error: 'not found' });
+    return { files: listing.files, binary: listing.binary };
+  });
+
+  // not compressed: content-length and byte ranges must stay exact (video seeking)
+  app.get<{ Params: { id: string; '*': string } }>('/api/modules/:id/files/*', { compress: false }, async (req, reply) => {
     const r = await registry.resolve(req.params.id);
     if (!r) return reply.code(404).send({ error: 'not found' });
     const rel = normalizePath(req.params['*'] ?? '');
@@ -208,7 +234,7 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
 
   // ------------------------------------------------------------ SPA
   if (fs.existsSync(path.join(cfg.webDir, 'index.html'))) {
-    await app.register(fastifyStatic, { root: cfg.webDir, prefix: '/', wildcard: false, index: ['index.html'] });
+    await app.register(fastifyStatic, { root: cfg.webDir, prefix: '/', wildcard: true, index: ['index.html'] });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.code(404).send({ error: 'not found' });
       return reply.type('text/html').sendFile('index.html');

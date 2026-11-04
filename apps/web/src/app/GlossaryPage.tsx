@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Network, StickyNote } from 'lucide-react';
-import { useAllModules } from '../modules/useAll';
+import { useModuleIndex } from '../modules/useIndex';
 import { useCourses } from '../modules/courses';
 import { GlossaryProvider, Markdown, TermHrefContext, Tex } from '../lib/md';
 import { isEmbedded } from '../lib/popup';
@@ -18,7 +18,7 @@ const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#0ea5e9', '#a855f7
  * ?course= opens the list filtered to a course (the quiz popup uses it).
  */
 export function GlossaryPage() {
-  const { mods, loading } = useAllModules();
+  const { mods, loading } = useModuleIndex();
   const [params] = useSearchParams();
   const nav = useNavigate();
   const sub = useParams()['*'] ?? '';
@@ -36,7 +36,7 @@ export function GlossaryPage() {
 
   const colorOf = useMemo(() => {
     const byCourse = new Map(courses.map((g, i) => [g.course, PALETTE[i % PALETTE.length]]));
-    return (n: Note) => (multi ? byCourse.get(courseOf(n.defs[0].mod.id) ?? '') : n.defs[0].mod.parsed.manifest.color) ?? PALETTE[0];
+    return (n: Note) => (multi ? byCourse.get(courseOf(n.defs[0].mod.id) ?? '') : n.defs[0].mod.manifest.color) ?? PALETTE[0];
   }, [courses, courseOf, multi]);
   const inFilter = (n: Note) => filter === 'all' || n.defs.some((d) => (filter.startsWith('course:') ? courseOf(d.mod.id) === filter.slice(7) : d.mod.id === filter));
   const ql = q.toLowerCase();
@@ -129,7 +129,7 @@ function NoteView({ note, index, filter, colorOf, courseOf }: { note: Note; inde
     return n && <Link key={id} to={noteHref(id)} className="chip gap-1.5 hover:border-accent"><span className="h-1.5 w-1.5 rounded-full" style={{ background: colorOf(n) }} />{n.title}</Link>;
   };
   const byModule = [...new Set(note.mentions.map((m) => m.mod))];
-  const label = (m: typeof mod) => `${courseOf ? `${courseOf(m.id) ?? ''} · ` : ''}${m.parsed.manifest.shortTitle}`;
+  const label = (m: typeof mod) => `${courseOf ? `${courseOf(m.id) ?? ''} · ` : ''}${m.manifest.shortTitle}`;
 
   const local = useMemo(() => {
     const keep = around(index, note.id, depth);
@@ -151,14 +151,14 @@ function NoteView({ note, index, filter, colorOf, courseOf }: { note: Note; inde
           {note.defs.map((d, i) => (
             note.defs.length > 1
               ? <button key={d.mod.id} role="tab" aria-selected={i === tab} onClick={() => setTab(i)} className={cn('chip', i === tab ? 'border-accent text-ink' : 'text-muted hover:text-ink')}>{label(d.mod)}</button>
-              : <span key={d.mod.id} className="chip" style={{ borderColor: d.mod.parsed.manifest.color }}>{label(d.mod)}</span>
+              : <span key={d.mod.id} className="chip" style={{ borderColor: d.mod.manifest.color }}>{label(d.mod)}</span>
           ))}
         </div>
 
         <p className="mt-4 text-base">{term.short}</p>
         {term.formula && <Tex tex={term.formula} className="mt-2" />}
         {term.long && (
-          <GlossaryProvider terms={mod.parsed.glossary}>
+          <GlossaryProvider terms={mod.glossary}>
             <TermHrefContext.Provider value={noteHref}>
               <Markdown text={term.long} raw className="mt-3 text-sm text-muted" />
             </TermHrefContext.Provider>
@@ -166,7 +166,7 @@ function NoteView({ note, index, filter, colorOf, courseOf }: { note: Note; inde
         )}
         {ref && (
           <Link className="mt-3 inline-flex items-center gap-1 text-sm text-accent underline" to={`/m/${mod.id}/${ref.tab}${ref.tab === 'application' ? '' : `/${ref.id}`}`}>
-            <BookOpen size={14} />{ref.tab === 'intuition' ? `Introduced in “${mod.parsed.intuition.find((s) => s.id === ref.id)?.title ?? ref.id}”` : 'See the lesson'} →
+            <BookOpen size={14} />{ref.tab === 'intuition' ? `Introduced in “${mod.scenes.find((s) => s.id === ref.id)?.title ?? ref.id}”` : 'See the lesson'} →
           </Link>
         )}
 

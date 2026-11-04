@@ -61,19 +61,42 @@ export async function createNodeHost(source: string, opts: { timeoutMs?: number 
 
 /** Read a module folder from disk into a FileMap. */
 export async function readModuleDir(dir: string): Promise<Record<string, string | Uint8Array>> {
+  const { isTextPath } = await import('./bundle');
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
-  const { isTextPath } = await import('./bundle');
   const files: Record<string, string | Uint8Array> = {};
+  for (const r of await walkModuleDir(dir)) files[r] = isTextPath(r) ? await fs.readFile(path.join(dir, r), 'utf8') : new Uint8Array(await fs.readFile(path.join(dir, r)));
+  return files;
+}
+
+/** Like readModuleDir, but binary files are only listed, never read. */
+export async function listModuleDir(dir: string): Promise<{ files: Record<string, string>; binary: string[] }> {
+  const { isTextPath } = await import('./bundle');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const files: Record<string, string> = {};
+  const binary: string[] = [];
+  for (const r of await walkModuleDir(dir)) {
+    if (isTextPath(r)) files[r] = await fs.readFile(path.join(dir, r), 'utf8');
+    else binary.push(r);
+  }
+  return { files, binary };
+}
+
+/** Relative paths of a module's files (skips dotfiles and node_modules). */
+export async function walkModuleDir(dir: string): Promise<string[]> {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const out: string[] = [];
   async function walk(rel: string) {
     const entries = await fs.readdir(path.join(dir, rel), { withFileTypes: true });
     for (const e of entries) {
       if (e.name.startsWith('.') || e.name === 'node_modules') continue;
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) await walk(r);
-      else files[r] = isTextPath(r) ? await fs.readFile(path.join(dir, r), 'utf8') : new Uint8Array(await fs.readFile(path.join(dir, r)));
+      else out.push(r);
     }
   }
   await walk('');
-  return files;
+  return out;
 }

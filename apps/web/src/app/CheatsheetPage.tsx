@@ -1,22 +1,12 @@
 import { Printer } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { useAllModules } from '../modules/useAll';
+import { useModuleIndex } from '../modules/useIndex';
 import { useCourses } from '../modules/courses';
 import { useSetting } from '../storage/progress';
 import { Markdown, Tex } from '../lib/md';
 
-function collectErrata(value: unknown, out: string[] = []): string[] {
-  if (Array.isArray(value)) value.forEach((v) => collectErrata(v, out));
-  else if (value && typeof value === 'object') {
-    const o = value as any;
-    if (o.widget === 'Callout' && o.props?.kind === 'errata' && typeof o.props.body === 'string') out.push(o.props.body);
-    Object.values(o).forEach((v) => collectErrata(v, out));
-  }
-  return out;
-}
-
 export function CheatsheetPage() {
-  const { mods } = useAllModules();
+  const { mods } = useModuleIndex();
   const { courses, courseOf } = useCourses();
   const [params, setParams] = useSearchParams();
   const [saved] = useSetting('course');
@@ -40,24 +30,24 @@ export function CheatsheetPage() {
       {course && <h2 className="mb-3 hidden text-lg font-semibold print:block">{course} cheat sheet</h2>}
       <div className="flex flex-col gap-6">
         {shown.map((mod) => {
-          const m = mod.parsed.manifest;
-          const errata = [...new Set([...mod.parsed.mathCode.flatMap((s) => s.errata ?? []), ...collectErrata(mod.parsed.intuition), ...collectErrata(mod.parsed.application)])];
+          const m = mod.manifest;
+          const errata = [...new Set([...mod.sections.flatMap((s) => s.errata ?? []), ...mod.scenes.flatMap((s) => s.errata), ...mod.application.errata])];
           return (
             <section key={mod.id} className="card break-inside-avoid p-4">
               <h2 className="mb-2 border-b border-line pb-1 text-lg font-semibold" style={{ color: m.color }}>{m.title}</h2>
               <div className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
-                {mod.parsed.mathCode.filter((s) => s.keyFormula).map((s) => (
+                {mod.sections.filter((s) => s.keyFormula).map((s) => (
                   <div key={s.id} className="scrollbar-thin break-inside-avoid overflow-x-auto py-1">
                     <div className="text-xs font-semibold text-muted">{s.title}{s.beyondSlides ? ' (beyond slides)' : ''}</div>
                     <Tex tex={s.keyFormula} className="text-[15px]" />
                   </div>
                 ))}
               </div>
-              {mod.parsed.mathCode.some((s) => s.examTip) && (
+              {mod.sections.some((s) => s.examTip) && (
                 <>
                   <h3 className="mt-3 text-sm font-semibold">Exam tips</h3>
                   <ul className="ml-4 list-disc text-sm">
-                    {mod.parsed.mathCode.filter((s) => s.examTip).map((s) => <li key={s.id}><b>{s.title}:</b> <Markdown text={s.examTip} inline raw /></li>)}
+                    {mod.sections.filter((s) => s.examTip).map((s) => <li key={s.id}><b>{s.title}:</b> <Markdown text={s.examTip} inline raw /></li>)}
                   </ul>
                 </>
               )}
