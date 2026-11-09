@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>XOR in the hidden space</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <link rel="stylesheet" href="../../kit/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="../../kit/manim.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+  <script src="../../kit/vendor/katex/katex.min.js"></script>
+  <script src="../../kit/manim.js"></script>
+</head>
+<body>
+  <!-- Neural Networks · hidden-layers, the beat after the (1, 1) predict gate · 8 s. Manim-style kit. -->
+  <div id="stage" data-composition-id="xor-hidden-space" data-start="0" data-width="1280" data-height="720" data-duration="8"></div>
+  <script>
+    /*
+     * Neural Networks · XOR in the hidden space (scene hidden-layers, the beat after the predict gate on input (1, 1)), 8 s.
+     * The four inputs of XOR as dots on a plane: filled green = the output is 1, hollow red = the output is 0.
+     *   0.0–1.6  axes draw on (x1 right, x2 up); the four dots pop in: (0,0) and (1,1) hollow, (0,1) and (1,0) filled
+     *   2.0–4.2  the plane is read as the hidden space (h1, h2) = (OR, AND): (0,1) glides onto (1,0), the other three
+     *            dots stay where they are (xorSheet / hiddenSpace: (0,0)→(0,0), (0,1)→(1,0), (1,0)→(1,0), (1,1)→(1,1))
+     *   4.4–6.0  one straight line, h1 − h2 = 0.5, draws on; the filled side lights up green
+     *   6.0–8.0  hold
+     * Placed after the (1, 1) predict gate: the gate asked what the output gives for (1, 1), which this clip never states.
+     * No words, symbols only. Plane: a point (a, b) is drawn at (440 + 300a, 560 − 300b).
+     */
+    (() => {
+      const { C } = MN;
+      const tl = HF.timeline(8);
+      window.__timelines['xor-hidden-space'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const back = HF.layer('back');
+      const front = HF.layer('front');
+
+      const O = [440, 560], U = 300;
+      const at = (a, b) => [O[0] + U * a, O[1] - U * b];
+
+      // axes and ticks
+      const axX = MN.line(back, ...at(-0.3, 0), ...at(1.5, 0), { color: C.grey, width: 2.5 });
+      const axY = MN.line(back, ...at(0, -0.3), ...at(0, 1.4), { color: C.grey, width: 2.5 });
+      const tick = (a, b, horizontal) => MN.line(back, ...(horizontal ? [at(a, b)[0], at(a, b)[1] - 9, at(a, b)[0], at(a, b)[1] + 9] : [at(a, b)[0] - 9, at(a, b)[1], at(a, b)[0] + 9, at(a, b)[1]]), { color: C.grey, width: 2.5 });
+      const ticks = [tick(1, 0, true), tick(0, 1, false)];
+      const tickNums = [
+        MN.num('1', { x: at(1, 0)[0], y: at(1, 0)[1] + 32, size: 24, color: C.grey }),
+        MN.num('1', { x: at(0, 1)[0] - 30, y: at(0, 1)[1], size: 24, color: C.grey }),
+        MN.num('0', { x: at(0, 0)[0] - 26, y: at(0, 0)[1] + 26, size: 24, color: C.grey }),
+      ];
+      const xLab = [MN.tex('x_1', { x: at(1.5, 0)[0] + 22, y: at(1.5, 0)[1], size: 38, anchor: 'left' }), MN.tex('h_1', { x: at(1.5, 0)[0] + 22, y: at(1.5, 0)[1], size: 38, anchor: 'left', color: C.teal })];
+      const yLab = [MN.tex('x_2', { x: at(0, 1.4)[0], y: at(0, 1.4)[1] - 30, size: 38 }), MN.tex('h_2', { x: at(0, 1.4)[0], y: at(0, 1.4)[1] - 30, size: 38, color: C.teal })];
+
+      // the separating line h1 − h2 = 0.5 and the side where the output is 1
+      const side = MN.path(back, `M${at(0.3, -0.2)} L${at(1.4, 0.9)} L${at(1.5, 0.9)} L${at(1.5, -0.2)} Z`.replace(/,/g, ' '), { color: 'none', width: 0, fill: C.green, opacity: 0 });
+      const sep = MN.line(back, ...at(0.3, -0.2), ...at(1.4, 0.9), { color: C.yellow, width: 4 });
+
+      // the four inputs: filled green = output 1, hollow red = output 0
+      const dot = (a, b, one) => {
+        const [x, y] = at(a, b);
+        const n = MN.neuron(front, { x, y, r: 17, color: one ? C.green : C.red, width: 4 });
+        if (one) gsap.set(n.fill, { attr: { 'fill-opacity': 1 } });
+        return n;
+      };
+      const d00 = dot(0, 0, false), d11 = dot(1, 1, false), d01 = dot(0, 1, true), d10 = dot(1, 0, true);
+
+      const mapsTo = MN.tex('(x_1,\\,x_2)\\;\\longrightarrow\\;(h_1,\\,h_2)', { x: 640, y: 80, size: 40 });
+      const eq = MN.tex('h_1-h_2=0.5', { x: 1060, y: 330, size: 40, color: C.yellow });
+      // faint path the moving dot takes
+      const trail = MN.line(back, ...at(0, 1), ...at(1, 0), { color: C.grey, width: 2, opacity: 0.5 });
+
+      // ================================================================ choreography
+      // 0.0–1.6 axes draw on, the four inputs appear
+      MN.drawOn(tl, axX, 0.0, 0.7);
+      MN.drawOn(tl, axY, 0.1, 0.7);
+      ticks.forEach((t, i) => MN.drawOn(tl, t, 0.6 + i * 0.05, 0.25));
+      tickNums.forEach((n, i) => MN.show(tl, n, 0.7 + i * 0.05));
+      MN.show(tl, xLab[0], 0.8);
+      MN.show(tl, yLab[0], 0.85);
+      [d00, d11, d01, d10].forEach((d, i) => HF.pop(tl, d.g, 1.0 + i * 0.15));
+
+      // 2.0–4.2 read the plane as the hidden space: (0,1) glides onto (1,0)
+      MN.show(tl, mapsTo, 2.0);
+      MN.drawOn(tl, trail, 2.4, 0.5);
+      tl.to(d01.g, { x: at(1, 0)[0], y: at(1, 0)[1], duration: 1.4, ease: 'power2.inOut' }, 2.8);
+      MN.hide(tl, xLab[0], 3.2, { dur: 0.3 });
+      MN.hide(tl, yLab[0], 3.2, { dur: 0.3 });
+      MN.show(tl, xLab[1], 3.5);
+      MN.show(tl, yLab[1], 3.5);
+      MN.hide(tl, trail, 4.2, { dur: 0.3 });
+      MN.indicate(tl, d10.g, 4.15, { scale: 1.45, dur: 0.5 });
+
+      // 4.4–6.0 one straight line now separates the groups
+      MN.drawOn(tl, sep, 4.6, 0.8);
+      MN.show(tl, eq, 5.2);
+      tl.to(side, { opacity: 0.13, duration: 0.7, ease: 'power1.inOut' }, 5.2);
+
+      HF.camera(tl, { scale: 1.03 }, 0, 7.5);
+    })();
+  </script>
+</body>
+</html>

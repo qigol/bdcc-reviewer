@@ -4,10 +4,13 @@ const path = require('path');
 const OUT = process.argv[2];
 const PREV = process.argv.indexOf('--preview') > 0 ? process.argv[process.argv.indexOf('--preview') + 1] : null;
 const FONT = "Inter, 'Segoe UI', Helvetica, Arial, sans-serif";
+// Manim / 3Blue1Brown look, matching animations/kit/manim.js: black card, thin bright strokes on dark tinted fills.
+// Blue = weights, teal = hidden units, yellow = output, red = loss, orange = gradients (the backward pass).
+const BG = '#000000', CARD_LINE = '#2a2a33', TAG_BG = '#0a0a0e', TAG_LINE = '#3a3a46';
 const C = {
-  in: ['#f1f5f9', '#475569'], hid: ['#ede9fe', '#6d28d9'], out: ['#ccfbf1', '#0f766e'], loss: ['#fee2e2', '#b91c1c'],
-  off: ['#f3f4f6', '#9ca3af'], sum: ['#fef3c7', '#b45309'],
-  edge: '#64748b', w: '#1d4ed8', back: '#dc2626', fwd: '#0f766e', ink: '#0f172a', mute: '#64748b',
+  in: ['#17171d', '#ececec'], hid: ['#0d2622', '#5cd0b3'], out: ['#2b2608', '#ffe066'], loss: ['#2d1210', '#fc6255'],
+  off: ['#16161a', '#6b6b76'], sum: ['#2b1a08', '#ff862f'],
+  edge: '#8a8a96', w: '#58c4dd', back: '#ff862f', fwd: '#83c167', ink: '#ececec', mute: '#9a9aa6',
 };
 
 function rich(s, size) {
@@ -28,7 +31,7 @@ function rich(s, size) {
 const text = (x, y, s, { size = 22, color = C.ink, weight = 500, anchor = 'middle', italic = false } = {}) =>
   `<text x="${x}" y="${(y + size * 0.35).toFixed(1)}" font-size="${size}" fill="${color}" font-weight="${weight}" text-anchor="${anchor}"${italic ? ' font-style="italic"' : ''}>${rich(s, size)}</text>`;
 const plainLen = s => s.replace(/_\{([^}]*)\}/g, '$1').length;
-function tag(x, y, lines, { size = 20, color = C.w, border = '#cbd5e1', bg = '#ffffff', minW = 0 } = {}) {
+function tag(x, y, lines, { size = 20, color = C.w, border = TAG_LINE, bg = TAG_BG, minW = 0 } = {}) {
   const arr = (Array.isArray(lines) ? lines : [lines]).map(l => (typeof l === 'string' ? { t: l } : l));
   const w = Math.max(minW, ...arr.map(l => plainLen(l.t) * size * 0.56 + 24));
   const h = arr.length * (size + 10) + 10;
@@ -55,12 +58,12 @@ function arrow(x1, y1, x2, y2, r1, r2, color = C.edge, width = 3) {
   const ax = x1 + dx / d * r1, ay = y1 + dy / d * r1, bx = x2 - dx / d * (r2 + 4), by = y2 - dy / d * (r2 + 4);
   return `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${color}" stroke-width="${width}" marker-end="url(#ah-${color.slice(1)})"/>`;
 }
-const markers = cols => cols.map(c => `<marker id="ah-${c.slice(1)}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('');
+const markers = cols => [...new Set(cols)].map(c => `<marker id="ah-${c.slice(1)}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('');
 function svg(w, h, body, title) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="${FONT}" role="img" aria-label="${title}">
 <title>${title}</title>
 <defs>${markers([C.edge, C.back, C.fwd, C.w, C.off[1], C.sum[1], C.hid[1]])}</defs>
-<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="18" fill="${BG}" stroke="${CARD_LINE}" stroke-width="2"/>
 ${body}
 </svg>\n`;
 }
@@ -89,12 +92,12 @@ function net221(p, mode, title, extra = {}) {
   b += box(LB[0], LB[1], 112, 84, 'loss', 'L');
   b += tag(X1[0], X1[1] + 76, 'x_{1} = ' + fmt(p.x1), { size: S, color: C.in[1] });
   b += tag(X2[0], X2[1] + 76, 'x_{2} = ' + fmt(p.x2), { size: S, color: C.in[1] });
-  b += tag(LB[0], LB[1] + 80, 'y = ' + fmt(p.y), { size: S, color: C.loss[1], border: '#fca5a5' });
+  b += tag(LB[0], LB[1] + 80, 'y = ' + fmt(p.y), { size: S, color: C.loss[1], border: '#8a2f28' });
   b += text(LB[0], LB[1] + 122, '(target)', { size: 17, color: C.loss[1], weight: 600 });
   // one tag per parameter: its value (params / forward) or its loss gradient (backward)
-  const pt = (name, sym, x, y, border = '#cbd5e1') => tag(x, y,
+  const pt = (name, sym, x, y, border = TAG_LINE) => tag(x, y,
     back ? { t: '∂L/∂' + sym + ' = ' + fmt(g[name]), c: C.back } : { t: sym + ' = ' + fmt(p[name]), c: C.w },
-    { size: back ? 21 : S, border: back ? '#fca5a5' : border, bg: back ? '#fef2f2' : '#ffffff' });
+    { size: back ? 21 : S, border: back ? '#8a4a14' : border, bg: back ? '#1f1405' : TAG_BG });
   const on = (from, to, t, dy) => [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t + dy];
   b += pt('w11', 'w_{11}', ...on(X1, H1, 0.5, -30));
   b += pt('w22', 'w_{22}', ...on(X2, H2, 0.5, 30));
@@ -102,19 +105,19 @@ function net221(p, mode, title, extra = {}) {
   b += pt('w12', 'w_{12}', ...on(X1, H2, 0.62, 0));
   b += pt('v1', 'v_{1}', ...on(H1, O, back ? 0.54 : 0.5, back ? -48 : -34));
   b += pt('v2', 'v_{2}', ...on(H2, O, 0.5, back ? 48 : 34));
-  b += pt('b1', 'b_{1}', H1[0], H1[1] - 84, '#c4b5fd');
-  b += pt('b2', 'b_{2}', H2[0], H2[1] + 84, '#c4b5fd');
-  b += pt('c', 'c', back ? O[0] + 56 : O[0], O[1] - 84, '#c4b5fd');
+  b += pt('b1', 'b_{1}', H1[0], H1[1] - 84, '#2d6f60');
+  b += pt('b2', 'b_{2}', H2[0], H2[1] + 84, '#2d6f60');
+  b += pt('c', 'c', back ? O[0] + 56 : O[0], O[1] - 84, '#2d6f60');
   if (mode === 'forward') {
-    const fc = { size: S, color: C.fwd, border: '#5eead4', bg: '#f0fdfa' };
+    const fc = { size: S, color: C.fwd, border: '#3f7a30', bg: '#0b1608' };
     b += tag(606, H1[1] - 96, ['z_{1} = ' + fmt(f.z1), 'a_{1} = ' + fmt(f.a1)], fc);
     b += tag(606, H2[1] + 96, ['z_{2} = ' + fmt(f.z2), 'a_{2} = ' + fmt(f.a2)], fc);
     b += tag(O[0], O[1] + 80, 'ŷ = ' + fmt(f.yh), fc);
-    b += tag(LB[0], LB[1] - 84, 'L = ' + fmt(f.L), { ...fc, color: C.loss[1], border: '#fca5a5', bg: '#fef2f2' });
+    b += tag(LB[0], LB[1] - 84, 'L = ' + fmt(f.L), { ...fc, color: C.loss[1], border: '#8a2f28', bg: '#1c0d0c' });
     b += text(W - 24, H - 30, 'forward pass →', { size: 21, color: C.fwd, weight: 700, anchor: 'end' });
   }
   if (back) {
-    const bc = { size: S, color: C.back, border: '#fca5a5', bg: '#fef2f2' };
+    const bc = { size: S, color: C.back, border: '#8a4a14', bg: '#1f1405' };
     b += tag(612, H1[1] - 100, ['∂L/∂a_{1} = ' + fmt(f.da1), '∂L/∂z_{1} = ' + fmt(f.dz1)], bc);
     b += tag(612, H2[1] + 100, ['∂L/∂a_{2} = ' + fmt(f.da2), '∂L/∂z_{2} = ' + fmt(f.dz2)], bc);
     b += tag(O[0] + 32, O[1] + 80, '∂L/∂ŷ = ' + fmt(f.dy), bc);
@@ -140,10 +143,10 @@ function neuron() {
   }
   b += '<circle cx="' + Sg[0] + '" cy="' + Sg[1] + '" r="62" fill="' + C.sum[0] + '" stroke="' + C.sum[1] + '" stroke-width="3.5"/>' + text(Sg[0], Sg[1] - 2, 'Σ', { size: 46, color: C.sum[1], weight: 700 });
   b += text(Sg[0], Sg[1] + 92, 'weighted sum', { size: 20, color: C.sum[1], weight: 700 });
-  b += tag(Sg[0], 74, 'bias b = 0.1', { size: S, color: C.hid[1], border: '#c4b5fd' });
+  b += tag(Sg[0], 74, 'bias b = 0.1', { size: S, color: C.hid[1], border: '#2d6f60' });
   b += '<line x1="' + Sg[0] + '" y1="98" x2="' + Sg[0] + '" y2="' + (Sg[1] - 68) + '" stroke="' + C.hid[1] + '" stroke-width="3" marker-end="url(#ah-' + C.hid[1].slice(1) + ')"/>';
   b += arrow(Sg[0] + 62, Sg[1], 640, Sg[1], 0, 0, C.edge, 3);
-  b += tag(690, Sg[1], 'z = ?', { size: 26, color: C.sum[1], border: '#fcd34d', bg: '#fffbeb', minW: 96 });
+  b += tag(690, Sg[1], 'z = ?', { size: 26, color: C.sum[1], border: '#8a4a14', bg: '#1f1405', minW: 96 });
   b += arrow(740, Sg[1], 778, Sg[1], 0, 0, C.edge, 3);
   b += box(860, Sg[1], 150, 96, 'out', 'a = g(z)', 'activation');
   return svg(W, H, b, 'One artificial neuron: three inputs times their weights, plus a bias, give the sum z; the activation g turns z into the output a');
@@ -164,9 +167,9 @@ function xorNet() {
   const lt = (from, to, t, dy, s) => tag(from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t + dy, s, { size: S });
   b += lt(X1, H1, 0.5, -26, '1') + lt(X2, H2, 0.5, 26, '1') + lt(X2, H1, 0.66, 0, '1') + lt(X1, H2, 0.66, 0, '1');
   b += lt(H1, Y, 0.5, -30, '+1') + lt(H2, Y, 0.5, 30, '−1');
-  b += tag(430, H1[1] - 90, 'fires if x_{1} + x_{2} − 0.5 > 0', { size: 21, color: C.hid[1], border: '#c4b5fd' });
-  b += tag(430, H2[1] + 90, 'fires if x_{1} + x_{2} − 1.5 > 0', { size: 21, color: C.hid[1], border: '#c4b5fd' });
-  b += tag(780, Y[1] + 100, 'fires if h_{1} − h_{2} − 0.5 > 0', { size: 21, color: C.out[1], border: '#5eead4' });
+  b += tag(430, H1[1] - 90, 'fires if x_{1} + x_{2} − 0.5 > 0', { size: 21, color: C.hid[1], border: '#2d6f60' });
+  b += tag(430, H2[1] + 90, 'fires if x_{1} + x_{2} − 1.5 > 0', { size: 21, color: C.hid[1], border: '#2d6f60' });
+  b += tag(780, Y[1] + 100, 'fires if h_{1} − h_{2} − 0.5 > 0', { size: 21, color: C.out[1], border: '#8a7a26' });
   b += text(780, Y[1] + 146, '“OR but not AND”', { size: 20, color: C.mute, weight: 600, italic: true });
   return svg(W, H, b, 'A network for XOR: an OR unit and an AND unit feed one output that fires for OR but not AND');
 }
@@ -203,7 +206,7 @@ function chainPath() {
   xs.forEach((x, i) => (b += box(x, y, 130, 92, kinds[i], syms[i], subs[i])));
   for (let i = 0; i < 4; i++) {
     b += '<line x1="' + (xs[i] + 67) + '" y1="' + y + '" x2="' + (xs[i + 1] - 71) + '" y2="' + y + '" stroke="' + C.edge + '" stroke-width="3" marker-end="url(#ah-' + C.edge.slice(1) + ')"/>';
-    b += tag((xs[i] + xs[i + 1]) / 2, i % 2 === 0 ? y - 96 : y + 96, loc[i], { size: 22, color: C.back, border: '#fca5a5', bg: '#fef2f2' });
+    b += tag((xs[i] + xs[i + 1]) / 2, i % 2 === 0 ? y - 96 : y + 96, loc[i], { size: 22, color: C.back, border: '#8a4a14', bg: '#1f1405' });
   }
   b += text(W / 2, 382, '∂L/∂w_{11} = (∂L/∂ŷ)(∂ŷ/∂a_{1})(∂a_{1}/∂z_{1})(∂z_{1}/∂w_{11})', { size: 24, color: C.ink, weight: 700 });
   b += text(W / 2, 426, '= (ŷ − y) · v_{1} · ReLU′(z_{1}) · x_{1}', { size: 24, color: C.ink, weight: 700 });
@@ -228,10 +231,10 @@ function deepChain() {
   const ar = (x1, x2) => '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="' + C.edge + '" stroke-width="3" marker-end="url(#ah-' + C.edge.slice(1) + ')"/>';
   b += ar(116, 184) + ar(342, 409) + ar(567, 663) + ar(763, 829);
   b += tag(150, y - 38, 'w_{1}', { size: 23 }) + tag(376, y - 38, 'w_{2}', { size: 23 }) + tag(614, y - 38, 'v', { size: 23 });
-  b += tag(xs[1], y + 86, 'bias b_{1}', { size: 22, color: C.hid[1], border: '#c4b5fd' });
-  b += tag(xs[2], y + 86, 'bias b_{2}', { size: 22, color: C.hid[1], border: '#c4b5fd' });
-  b += tag(xs[3], y + 86, 'bias c', { size: 22, color: C.hid[1], border: '#c4b5fd' });
-  b += tag(xs[4], y + 86, 'target y', { size: 22, color: C.loss[1], border: '#fca5a5' });
+  b += tag(xs[1], y + 86, 'bias b_{1}', { size: 22, color: C.hid[1], border: '#2d6f60' });
+  b += tag(xs[2], y + 86, 'bias b_{2}', { size: 22, color: C.hid[1], border: '#2d6f60' });
+  b += tag(xs[3], y + 86, 'bias c', { size: 22, color: C.hid[1], border: '#2d6f60' });
+  b += tag(xs[4], y + 86, 'target y', { size: 22, color: C.loss[1], border: '#8a2f28' });
   b += text(W / 2, 330, 'z_{1} = w_{1}x + b_{1}\u2003\u2003z_{2} = w_{2}a_{1} + b_{2}\u2003\u2003ŷ = v a_{2} + c', { size: 23, color: C.ink, weight: 600 });
   b += text(W / 2, 368, 'a_{1} = ReLU(z_{1})\u2003\u2003a_{2} = ReLU(z_{2})\u2003\u2003L = ½(ŷ − y)²', { size: 23, color: C.ink, weight: 600 });
   return svg(W, H, b, 'A deeper chain: one input, two hidden layers of one ReLU unit each and one linear output, six parameters');

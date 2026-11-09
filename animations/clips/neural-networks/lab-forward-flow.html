@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>The lab network, forward</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <link rel="stylesheet" href="../../kit/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="../../kit/manim.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+  <script src="../../kit/vendor/katex/katex.min.js"></script>
+  <script src="../../kit/manim.js"></script>
+</head>
+<body>
+  <!-- Neural Networks · lab-forward, last beat (after every predict gate) · 9 s. Manim-style kit. -->
+  <div id="stage" data-composition-id="lab-forward-flow" data-start="0" data-width="1280" data-height="720" data-duration="9"></div>
+  <script>
+    /*
+     * Neural Networks · the lab network, forward pass (scene lab-forward, final beat), 9 s. Numbers are the lab's Part A
+     * worked example (examples.yaml parta-forward): x = (2, −1), w11 = 0.5, w21 = −0.5, b1 = 0.5, w12 = −0.5, w22 = −1,
+     * b2 = 1, v1 = −0.5, v2 = 1, c = 0.5, target 2.5  →  z1 = 2, z2 = 1, a1 = 2, a2 = 1, ŷ = 0.5, L = 2.
+     *   0.0–1.7  the network draws on; blue edges are positive weights, red negative, thicker = bigger; inputs appear
+     *   1.8–3.3  signals leave the inputs along every edge; each hidden unit counts up its sum z (2 and 1)
+     *   3.3–4.0  both sums are positive, so ReLU leaves them alone: the units light up
+     *   4.1–5.2  signals leave the hidden units; the output counts up to 0.5
+     *   5.3–6.6  the guess drops onto a number line; the target 2.5 appears above it; a bracket marks the miss
+     *   6.8–9.0  the loss, written out, then a hold
+     * Shows nothing the learner has not already computed: it is placed after the loss gate.
+     */
+    (() => {
+      const { C } = MN;
+      const tl = HF.timeline(9);
+      window.__timelines['lab-forward-flow'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const back = HF.layer('back');
+      const front = HF.layer('front');
+
+      // ---------------------------------------------------------------- the lab network (examples.yaml: labnet)
+      const NET = { x1: 2, x2: -1, w11: 0.5, w21: -0.5, b1: 0.5, w12: -0.5, w22: -1, b2: 1, v1: -0.5, v2: 1, c: 0.5, y: 2.5 };
+      const z1 = NET.w11 * NET.x1 + NET.w21 * NET.x2 + NET.b1;           // 2
+      const z2 = NET.w12 * NET.x1 + NET.w22 * NET.x2 + NET.b2;           // 1
+      const a1 = Math.max(0, z1), a2 = Math.max(0, z2);                  // 2, 1
+      const yhat = NET.v1 * a1 + NET.v2 * a2 + NET.c;                    // 0.5
+      const L = 0.5 * (yhat - NET.y) ** 2;                               // 2
+      const fmt = (v) => (v < 0 ? '−' : '') + String(Math.abs(Math.round(v * 100) / 100));
+
+      const R = 40;
+      const P = {
+        x1: [190, 230], x2: [190, 490],
+        h1: [550, 230], h2: [550, 490],
+        o: [880, 360],
+      };
+      const posCol = C.blue, negCol = C.red;
+      const wCol = (w) => (w >= 0 ? posCol : negCol);
+
+      // an edge between two nodes, trimmed to the node rings; returns its end points
+      function edgeBetween(a, b, w) {
+        const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy);
+        const p0 = [a[0] + (dx / d) * R, a[1] + (dy / d) * R], p1 = [b[0] - (dx / d) * R, b[1] - (dy / d) * R];
+        const ln = MN.line(back, p0[0], p0[1], p1[0], p1[1], { color: wCol(w), width: 1.5 + 3.2 * Math.abs(w), opacity: 0.9 });
+        return { ln, p0, p1, at: (t) => [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] };
+      }
+      const E = {
+        w11: edgeBetween(P.x1, P.h1, NET.w11), w21: edgeBetween(P.x2, P.h1, NET.w21),
+        w12: edgeBetween(P.x1, P.h2, NET.w12), w22: edgeBetween(P.x2, P.h2, NET.w22),
+        v1: edgeBetween(P.h1, P.o, NET.v1), v2: edgeBetween(P.h2, P.o, NET.v2),
+      };
+
+      const N = {
+        x1: MN.neuron(front, { x: P.x1[0], y: P.x1[1], r: R, color: C.ink }),
+        x2: MN.neuron(front, { x: P.x2[0], y: P.x2[1], r: R, color: C.ink }),
+        h1: MN.neuron(front, { x: P.h1[0], y: P.h1[1], r: R, color: C.teal }),
+        h2: MN.neuron(front, { x: P.h2[0], y: P.h2[1], r: R, color: C.teal }),
+        o: MN.neuron(front, { x: P.o[0], y: P.o[1], r: R, color: C.yellow }),
+      };
+
+      // weight and bias labels (numbers only; the beat's narration names them)
+      const lab = (str, [x, y], color, size = 28) => MN.num(str, { x, y, size, color, halo: true });
+      const wl = {
+        w11: lab(fmt(NET.w11), [E.w11.at(0.5)[0], E.w11.at(0.5)[1] - 24], wCol(NET.w11)),
+        w21: lab(fmt(NET.w21), E.w21.at(0.27), wCol(NET.w21)),
+        w12: lab(fmt(NET.w12), E.w12.at(0.27), wCol(NET.w12)),
+        w22: lab(fmt(NET.w22), [E.w22.at(0.5)[0], E.w22.at(0.5)[1] + 24], wCol(NET.w22)),
+        v1: lab(fmt(NET.v1), [E.v1.at(0.5)[0] - 8, E.v1.at(0.5)[1] - 26], wCol(NET.v1)),
+        v2: lab(fmt(NET.v2), [E.v2.at(0.5)[0] - 8, E.v2.at(0.5)[1] + 26], wCol(NET.v2)),
+      };
+      const bias = [
+        MN.tex(`+\\,${fmt(NET.b1)}`, { x: P.h1[0], y: P.h1[1] - R - 26, size: 28, color: C.grey }),
+        MN.tex(`+\\,${fmt(NET.b2)}`, { x: P.h2[0], y: P.h2[1] + R + 26, size: 28, color: C.grey }),
+        MN.tex(`+\\,${fmt(NET.c)}`, { x: P.o[0], y: P.o[1] - R - 26, size: 28, color: C.grey }),
+      ];
+      // inputs: the value sits in the ring, the name to its left
+      const inName = [MN.tex('x_1', { x: P.x1[0] - R - 20, y: P.x1[1], size: 36, anchor: 'right' }), MN.tex('x_2', { x: P.x2[0] - R - 20, y: P.x2[1], size: 36, anchor: 'right' })];
+      const inVal = [MN.num(fmt(NET.x1), { x: P.x1[0], y: P.x1[1], size: 36 }), MN.num(fmt(NET.x2), { x: P.x2[0], y: P.x2[1], size: 36 })];
+      // hidden and output values count up inside the rings
+      const hVal = [MN.num('0', { x: P.h1[0], y: P.h1[1], size: 36 }), MN.num('0', { x: P.h2[0], y: P.h2[1], size: 36 })];
+      const oVal = MN.num('0', { x: P.o[0], y: P.o[1], size: 36 });
+      const caption = MN.tex('a = \\max(0,\\,z)', { x: 550, y: 360, size: 34, color: C.teal });
+
+      // the miss: a number line on the right (0…3, 150 px per unit)
+      const NL = { x: 1120, y0: 620, k: 150 };
+      const yAt = (v) => NL.y0 - v * NL.k;
+      const axis = MN.line(back, NL.x, yAt(0), NL.x, yAt(3), { color: C.grey, width: 2.5 });
+      const ticks = [0, 1, 2, 3].map((v) => MN.line(back, NL.x - 9, yAt(v), NL.x + 9, yAt(v), { color: C.grey, width: 2.5 }));
+      const tickNums = [0, 1, 2, 3].map((v) => MN.num(String(v), { x: NL.x - 24, y: yAt(v), size: 22, color: C.grey, anchor: 'right' }));
+      const dotYhat = MN.neuron(front, { x: NL.x, y: yAt(yhat), r: 11, color: C.yellow, width: 3 });
+      const dotY = MN.neuron(front, { x: NL.x, y: yAt(NET.y), r: 11, color: C.green, width: 3 });
+      gsap.set([dotYhat.fill, dotY.fill], { attr: { 'fill-opacity': 1 } });
+      const nameYhat = MN.tex('\\hat y', { x: NL.x + 26, y: yAt(yhat), size: 38, color: C.yellow, anchor: 'left' });
+      const nameY = MN.tex('y', { x: NL.x + 26, y: yAt(NET.y), size: 38, color: C.green, anchor: 'left' });
+      const brace = MN.path(back, `M${NL.x + 112} ${yAt(yhat)} h14 V${yAt(NET.y)} h-14`, { color: C.red, width: 3.5 });
+      const loss = MN.tex(`L=\\tfrac12\\,(\\hat y-y)^2=\\tfrac12\\,(${fmt(yhat)}-${fmt(NET.y)})^2=${fmt(L)}`, { x: 560, y: 650, size: 38 });
+
+      // ================================================================ choreography
+      // 0.0–1.7 draw the network on
+      [N.x1, N.x2, N.h1, N.h2, N.o].forEach((n, i) => MN.drawOn(tl, n.ring, 0.0 + i * 0.1, 0.7));
+      Object.values(E).forEach((e, i) => MN.drawOn(tl, e.ln, 0.4 + i * 0.1, 0.8));
+      inName.forEach((n, i) => MN.show(tl, n, 0.7 + i * 0.1));
+      inVal.forEach((n, i) => MN.show(tl, n, 0.9 + i * 0.1));
+      Object.values(wl).forEach((n, i) => MN.show(tl, n, 1.1 + i * 0.08));
+      bias.forEach((n, i) => MN.show(tl, n, 1.4 + i * 0.08));
+
+      // 1.8–3.3 signals into the hidden units; their sums count up
+      [E.w11, E.w21, E.w12, E.w22].forEach((e) => MN.pulse(tl, front, { x0: e.p0[0], y0: e.p0[1], x1: e.p1[0], y1: e.p1[1] }, 1.8, 0.8, { color: C.blue, r: 7 }));
+      hVal.forEach((n, i) => MN.show(tl, n, 2.5, { dur: 0.2 }));
+      HF.count(hVal[0], 0, z1, 2.5, 0.8, { format: fmt });
+      HF.count(hVal[1], 0, z2, 2.5, 0.8, { format: fmt });
+
+      // 3.3–4.0 both sums are positive: ReLU leaves them alone, the units light up
+      MN.show(tl, caption, 3.3);
+      MN.glow(tl, N.h1, 3.4, { to: 0.32 });
+      MN.glow(tl, N.h2, 3.4, { to: 0.32 });
+      MN.indicate(tl, N.h1.g, 3.4);
+      MN.indicate(tl, N.h2.g, 3.5);
+      MN.hide(tl, caption, 4.1);
+
+      // 4.1–5.2 signals into the output, which counts up
+      [E.v1, E.v2].forEach((e) => MN.pulse(tl, front, { x0: e.p0[0], y0: e.p0[1], x1: e.p1[0], y1: e.p1[1] }, 4.1, 0.9, { color: C.teal, r: 8 }));
+      MN.show(tl, oVal, 4.95, { dur: 0.2 });
+      HF.count(oVal, 0, yhat, 4.95, 0.5, { format: fmt });
+      MN.glow(tl, N.o, 5.0, { to: 0.32 });
+      MN.indicate(tl, N.o.g, 5.0);
+
+      // 5.3–6.6 the guess lands on the number line, the target appears above it, a bracket marks the miss
+      MN.drawOn(tl, axis, 5.0, 0.6);
+      ticks.forEach((t, i) => MN.drawOn(tl, t, 5.2 + i * 0.05, 0.3));
+      tickNums.forEach((n, i) => MN.show(tl, n, 5.4 + i * 0.05));
+      MN.pulse(tl, front, { x0: P.o[0] + R, y0: P.o[1], x1: NL.x, y1: yAt(yhat) }, 5.4, 0.7, { color: C.yellow, r: 8 });
+      HF.pop(tl, dotYhat.g, 6.05);
+      MN.show(tl, nameYhat, 6.1);
+      HF.pop(tl, dotY.g, 6.35);
+      MN.show(tl, nameY, 6.4);
+      MN.drawOn(tl, brace, 6.6, 0.6);
+
+      // 6.8–9.0 the loss, then a hold
+      MN.show(tl, loss, 7.0, { dur: 0.6 });
+      MN.indicate(tl, loss, 7.7, { scale: 1.05, dur: 0.6 });
+
+      HF.camera(tl, { scale: 1.03 }, 0, 8.5);
+    })();
+  </script>
+</body>
+</html>

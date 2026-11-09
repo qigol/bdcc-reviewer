@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>The lab network, backward</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <link rel="stylesheet" href="../../kit/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="../../kit/manim.css">
+  <script src="../../kit/vendor/gsap.min.js"></script>
+  <script src="../../kit/kit.js"></script>
+  <script src="../../kit/vendor/katex/katex.min.js"></script>
+  <script src="../../kit/manim.js"></script>
+</head>
+<body>
+  <!-- Neural Networks · lab-backward, beat after "Play to the end" (every gradient already computed) · 10 s. Manim-style kit. -->
+  <div id="stage" data-composition-id="lab-backward-flow" data-start="0" data-width="1280" data-height="720" data-duration="10"></div>
+  <script>
+    /*
+     * Neural Networks · the lab network, backward pass (scene lab-backward, the beat after the player), 10 s. Same network
+     * as lab-forward-flow; numbers are examples.yaml parta-backward: dL/dŷ = −2; dL/dv1 = −4, dL/dv2 = −2, dL/dc = −2;
+     * dL/da1 = 1, dL/da2 = −2; ReLU slopes 1, 1 so dL/dz1 = 1, dL/dz2 = −2; dL/dw11 = 2, dL/dw21 = −1, dL/db1 = 1,
+     * dL/dw12 = −4, dL/dw22 = 2, dL/db2 = −2.
+     *   0.0–1.2  the network appears (weights shown, faint); the loss sits on the right
+     *   1.2–2.4  a signal runs from the loss to the output: dL/dŷ = −2
+     *   2.4–4.0  it runs back to the hidden units (dL/dz = 1, −2); the output weights and bias turn into their gradients
+     *   4.2–6.4  it runs back to the inputs; the first-layer weights and biases turn into their gradients
+     *   6.4–10   all nine gradients on screen, then a hold
+     * Gradients are orange; the weights they replace are blue (positive) or red (negative). No words, symbols only.
+     * Placed on the beat after the "Play to the end" gate (its only gate is a reflect gate that asks for no number), so
+     * every number here has already been worked out by the learner.
+     */
+    (() => {
+      const { C } = MN;
+      const tl = HF.timeline(10);
+      window.__timelines['lab-backward-flow'] = tl; // (HF.timeline registers it too; this line is for the HyperFrames linter)
+      const back = HF.layer('back');
+      const front = HF.layer('front');
+
+      const NET = { x1: 2, x2: -1, w11: 0.5, w21: -0.5, b1: 0.5, w12: -0.5, w22: -1, b2: 1, v1: -0.5, v2: 1, c: 0.5, y: 2.5 };
+      const G = { dyhat: -2, v1: -4, v2: -2, c: -2, da1: 1, da2: -2, dz1: 1, dz2: -2, w11: 2, w21: -1, b1: 1, w12: -4, w22: 2, b2: -2 };
+      const fmt = (v) => (v < 0 ? '−' : '') + String(Math.abs(Math.round(v * 100) / 100));
+
+      const R = 40;
+      const P = { x1: [190, 230], x2: [190, 490], h1: [550, 230], h2: [550, 490], o: [820, 360], L: [1100, 360] };
+      const wCol = (w) => (w >= 0 ? C.blue : C.red);
+      const GC = C.orange;
+
+      function edgeBetween(a, b, w, col = wCol(w), width = 1.5 + 3.2 * Math.abs(w)) {
+        const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy);
+        const p0 = [a[0] + (dx / d) * R, a[1] + (dy / d) * R], p1 = [b[0] - (dx / d) * R, b[1] - (dy / d) * R];
+        const ln = MN.line(back, p0[0], p0[1], p1[0], p1[1], { color: col, width, opacity: 0.9 });
+        return { ln, p0, p1, at: (t) => [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t] };
+      }
+      const E = {
+        w11: edgeBetween(P.x1, P.h1, NET.w11), w21: edgeBetween(P.x2, P.h1, NET.w21),
+        w12: edgeBetween(P.x1, P.h2, NET.w12), w22: edgeBetween(P.x2, P.h2, NET.w22),
+        v1: edgeBetween(P.h1, P.o, NET.v1), v2: edgeBetween(P.h2, P.o, NET.v2),
+      };
+      // the link from the output to the loss
+      const toL = MN.line(back, P.o[0] + R, P.o[1], P.L[0] - 34, P.L[1], { color: C.grey, width: 3 });
+
+      const N = {
+        x1: MN.neuron(front, { x: P.x1[0], y: P.x1[1], r: R, color: C.ink }),
+        x2: MN.neuron(front, { x: P.x2[0], y: P.x2[1], r: R, color: C.ink }),
+        h1: MN.neuron(front, { x: P.h1[0], y: P.h1[1], r: R, color: C.teal }),
+        h2: MN.neuron(front, { x: P.h2[0], y: P.h2[1], r: R, color: C.teal }),
+        o: MN.neuron(front, { x: P.o[0], y: P.o[1], r: R, color: C.yellow }),
+      };
+      const Ltex = MN.tex('L', { x: P.L[0], y: P.L[1], size: 52, color: C.red });
+
+      // each weight (or bias) label and the gradient that replaces it, at the same spot
+      const lab = (str, [x, y], color, size = 28) => MN.num(str, { x, y, size, color, halo: true });
+      const spot = {
+        w11: [E.w11.at(0.5)[0], E.w11.at(0.5)[1] - 24], w21: E.w21.at(0.27), w12: E.w12.at(0.27), w22: [E.w22.at(0.5)[0], E.w22.at(0.5)[1] + 24],
+        v1: [E.v1.at(0.5)[0] - 8, E.v1.at(0.5)[1] - 26], v2: [E.v2.at(0.5)[0] - 8, E.v2.at(0.5)[1] + 26],
+        b1: [P.h1[0], P.h1[1] - R - 26], b2: [P.h2[0], P.h2[1] + R + 26], c: [P.o[0], P.o[1] - R - 26],
+      };
+      const wLab = {}, gLab = {};
+      for (const k of ['w11', 'w21', 'w12', 'w22', 'v1', 'v2']) { wLab[k] = lab(fmt(NET[k]), spot[k], wCol(NET[k])); gLab[k] = lab(fmt(G[k]), spot[k], GC); }
+      for (const k of ['b1', 'b2', 'c']) { wLab[k] = lab(`+ ${fmt(NET[k])}`, spot[k], C.grey); gLab[k] = lab(fmt(G[k]), spot[k], GC); }
+
+      // node gradients live inside the rings
+      const inVal = [MN.num(fmt(NET.x1), { x: P.x1[0], y: P.x1[1], size: 36 }), MN.num(fmt(NET.x2), { x: P.x2[0], y: P.x2[1], size: 36 })];
+      const oG = MN.num(fmt(G.dyhat), { x: P.o[0], y: P.o[1], size: 36, color: GC });
+      const hG = [MN.num(fmt(G.dz1), { x: P.h1[0], y: P.h1[1], size: 36, color: GC }), MN.num(fmt(G.dz2), { x: P.h2[0], y: P.h2[1], size: 36, color: GC })];
+      const capO = MN.tex('\\dfrac{\\partial L}{\\partial \\hat y}', { x: P.o[0], y: P.o[1] + R + 52, size: 34, color: GC });
+      const capH = MN.tex('\\dfrac{\\partial L}{\\partial z}', { x: P.h1[0] + 12, y: 360, size: 34, color: GC });
+      const capW = MN.tex('\\dfrac{\\partial L}{\\partial w}', { x: 360, y: 640, size: 34, color: GC });
+
+      // ================================================================ choreography
+      // 0.0–1.2 the network, quickly (it is the same one the learner just walked)
+      [N.x1, N.x2, N.h1, N.h2, N.o].forEach((n, i) => MN.drawOn(tl, n.ring, 0.0 + i * 0.06, 0.5));
+      Object.values(E).forEach((e, i) => MN.drawOn(tl, e.ln, 0.2 + i * 0.06, 0.6));
+      MN.drawOn(tl, toL, 0.5, 0.5);
+      MN.show(tl, Ltex, 0.6);
+      inVal.forEach((n) => MN.show(tl, n, 0.7));
+      Object.values(wLab).forEach((n, i) => MN.show(tl, n, 0.7 + i * 0.04));
+
+      // 1.2–2.4 the signal leaves the loss and reaches the output
+      MN.pulse(tl, front, { x0: P.L[0] - 34, y0: P.L[1], x1: P.o[0] + R, y1: P.o[1] }, 1.2, 0.8, { color: GC, r: 9 });
+      MN.glow(tl, N.o, 1.9, { to: 0.3 });
+      MN.show(tl, oG, 2.0, { dur: 0.3 });
+      MN.show(tl, capO, 2.0);
+      MN.indicate(tl, N.o.g, 2.0);
+
+      // 2.4–4.0 back to the hidden units; the output weights and bias become their gradients
+      [E.v1, E.v2].forEach((e) => MN.pulse(tl, front, { x0: e.p1[0], y0: e.p1[1], x1: e.p0[0], y1: e.p0[1] }, 2.5, 0.9, { color: GC, r: 8 }));
+      ['v1', 'v2', 'c'].forEach((k, i) => { MN.hide(tl, wLab[k], 2.6 + i * 0.05, { dur: 0.25 }); MN.show(tl, gLab[k], 2.9 + i * 0.05); });
+      hG.forEach((n, i) => { MN.show(tl, n, 3.45 + i * 0.05, { dur: 0.3 }); MN.glow(tl, i ? N.h2 : N.h1, 3.4, { to: 0.3 }); MN.indicate(tl, (i ? N.h2 : N.h1).g, 3.45); });
+      MN.show(tl, capH, 3.5);
+
+      // 4.2–6.4 back to the inputs; the first-layer weights and biases become their gradients
+      MN.hide(tl, capH, 4.15);
+      MN.hide(tl, capO, 4.15);
+      [E.w11, E.w21, E.w12, E.w22].forEach((e) => MN.pulse(tl, front, { x0: e.p1[0], y0: e.p1[1], x1: e.p0[0], y1: e.p0[1] }, 4.3, 1.0, { color: GC, r: 7 }));
+      ['w11', 'w21', 'w12', 'w22', 'b1', 'b2'].forEach((k, i) => { MN.hide(tl, wLab[k], 4.7 + i * 0.05, { dur: 0.25 }); MN.show(tl, gLab[k], 5.1 + i * 0.07); });
+      MN.show(tl, capW, 5.4);
+
+      // 6.4–10 all nine gradients on screen, a gentle emphasis, then a hold
+      Object.values(gLab).forEach((n, i) => MN.indicate(tl, n, 6.6 + i * 0.1, { scale: 1.12, dur: 0.45 }));
+
+      HF.camera(tl, { scale: 1.03 }, 0, 9.5);
+    })();
+  </script>
+</body>
+</html>
