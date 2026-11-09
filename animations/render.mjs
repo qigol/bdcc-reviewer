@@ -36,6 +36,9 @@ if (!todo.length) {
 // clips the widget plays in one piece (no start/end segments): their poster must be the first frame, not the ending
 const FIRST_FRAME_POSTER = new Set(['cost-gap', 'follow-the-money', 'transfer-pricing']);
 
+// modules whose clips use the Manim-style kit (kit/manim.css, black) instead of the navy sky
+const BG = { 'neural-networks': '#000000' };
+
 const run = (cmd, argv) => {
   const r = spawnSync(cmd, argv, { stdio: 'inherit', cwd: root, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: '1' } });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(' ')} failed`);
@@ -48,7 +51,8 @@ for (const { mod, id } of todo) {
   run('npx', ['--yes', HYPERFRAMES, 'render', 'animations', '-c', `clips/${mod}/${id}.html`, '--format', 'webm', '--fps', '30',
     '--quality', draft ? 'draft' : 'high', '--quiet', '-o', render]);
   if (draft) continue;
-  // the clips paint their own navy background, so the alpha HyperFrames writes into every webm is dropped
-  run('pnpm', ['-s', 'kodigo', 'animation', render, path.join('modules', mod, 'assets', 'anim', id), '--flatten', '--bg', '#0B1D3A',
+  // the clips paint their own background (navy sky, or black for the Manim-style math modules), so the alpha
+  // HyperFrames writes into every webm is dropped
+  run('pnpm', ['-s', 'kodigo', 'animation', render, path.join('modules', mod, 'assets', 'anim', id), '--flatten', '--bg', BG[mod] ?? '#0B1D3A',
     ...(FIRST_FRAME_POSTER.has(id) ? ['--poster', 'start'] : [])]);
 }

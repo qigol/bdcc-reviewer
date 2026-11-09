@@ -214,6 +214,18 @@ scenes:
       - id: xor
         widget: Image
         props: { src: assets/xor-net.svg, alt: 'XOR network: inputs x1 and x2 feed an OR unit h1 and an AND unit h2; the output fires if h1 − h2 − 0.5 > 0' }
+      - id: anim
+        widget: Animation
+        hidden: true
+        props:
+          src: [assets/anim/xor-hidden-space.webm, assets/anim/xor-hidden-space.mp4]
+          poster: assets/anim/xor-hidden-space.poster.jpg
+          alt: |
+            The four XOR inputs as dots on a plane, filled green where the output is 1 and hollow red where it is 0. The
+            plane is then read as the hidden space: the dot for (0, 1) glides onto the dot for (1, 0), and one straight
+            line, h1 − h2 = 0.5, now separates the green dots from the red ones.
+          loop: false
+          stills: [1.8, 3.0, 4.3, 7.0]
       - id: n342
         widget: Image
         hidden: true
@@ -258,12 +270,14 @@ scenes:
           straight line splits the groups. The hidden units re-represented the data, which works only because each unit
           bends its sum.
         set: { xorUp: 12 }
-        show: [hsp]
+        hide: [xor]
+        show: [hsp, anim]
+        do: [{ target: anim, cmd: restart }]
       - say: |
           Real networks are wider. The **input layer** just holds the features and computes nothing. The **output layer**
           gives the prediction, here two numbers, one score per class.
         define: [input-layer, output-layer]
-        hide: [xor, hsp, player, sheet]
+        hide: [xor, hsp, anim, player, sheet]
         show: [n342]
       - say: |
           Every arrow is one weight. Every hidden or output neuron also has one bias. Together these are the network's
@@ -468,10 +482,19 @@ scenes:
       - id: net
         widget: Image
         props: { src: assets/lab-net.svg, alt: 'The lab network: inputs x1 = 2 and x2 = −1, hidden units h1 and h2 with weights w11 = 0.5, w21 = −0.5, w12 = −0.5, w22 = −1 and biases b1 = 0.5, b2 = 1, output weights v1 = −0.5, v2 = 1, output bias c = 0.5, target 2.5' }
-      - id: netf
-        widget: Image
+      - id: anim
+        widget: Animation
         hidden: true
-        props: { src: assets/lab-net-forward.svg, alt: 'The lab network after the forward pass: z1 = 2, a1 = 2, z2 = 1, a2 = 1, prediction 0.5, loss 2' }
+        props:
+          src: [assets/anim/lab-forward-flow.webm, assets/anim/lab-forward-flow.mp4]
+          poster: assets/anim/lab-forward-flow.poster.jpg
+          alt: |
+            The lab network drawn on a black screen. Signals travel from the two inputs, 2 and −1, along the weighted
+            edges to the two hidden units, which add up to 2 and 1 and light up. Signals then travel on to the output,
+            which adds up to 0.5. The guess 0.5 drops onto a number line below the target 2.5, a bracket marks the
+            gap, and the loss works out to 2.
+          loop: false
+          stills: [1.2, 3.4, 5.0, 8.0]
       - id: sheet
         widget: Matrix
         region: bottom
@@ -517,10 +540,11 @@ scenes:
           question: What is the loss $L$?
           answer: { value: 2, tol: 0.01 }
           explain: '$\tfrac12(0.5 - 2.5)^2 = \tfrac12(4) = 2$.'
-      - say: The prediction 0.5 is below the target 2.5. Keep every value; going backward reuses all of them.
+      - say: Watch the whole forward pass once. The prediction 0.5 is below the target 2.5. Keep every value; going backward reuses all of them.
         set: { fwdUp: 6 }
         hide: [net]
-        show: [netf]
+        show: [anim]
+        do: [{ target: anim, cmd: restart }]
     takeaway: The forward pass computes each sum, each activation, the prediction and the loss, in that order, keeping every value.
 
   # ------------------------------------------------------------------ 7
@@ -674,10 +698,18 @@ scenes:
       - id: chain
         widget: Image
         props: { src: assets/chain-path.svg, alt: 'The chain from w11 to the loss: w11 to z1 to a1 to the prediction to L, with local derivatives x1, ReLU slope, v1 and ŷ − y on the links' }
-      - id: netb
-        widget: Image
+      - id: anim
+        widget: Animation
         hidden: true
-        props: { src: assets/lab-net-backward.svg, alt: 'The lab network with every loss gradient: w11 2, w21 −1, b1 1, w12 −4, w22 2, b2 −2, v1 −4, v2 −2, c −2' }
+        props:
+          src: [assets/anim/lab-backward-flow.webm, assets/anim/lab-backward-flow.mp4]
+          poster: assets/anim/lab-backward-flow.poster.jpg
+          alt: |
+            The lab network on a black screen. An orange signal runs backward from the loss to the output, then to the two
+            hidden units, then to the inputs. As it passes, each weight and bias is replaced by its gradient: v1 −4,
+            v2 −2, c −2, then w11 2, w21 −1, b1 1, w12 −4, w22 2, b2 −2.
+          loop: false
+          stills: [1.5, 3.6, 5.6, 9.0]
       - id: sheet
         widget: Matrix
         region: bottom
@@ -744,7 +776,8 @@ scenes:
           All nine gradients. Sense check: $\partial L/\partial w_{11} = 2 > 0$. Raising $w_{11}$ raises $a_1$, and since
           $v_1 < 0$ that lowers $\hat y$, which is already too low. So the loss would rise: $w_{11}$ should go down.
         hide: [chain]
-        show: [netb]
+        show: [anim]
+        do: [{ target: anim, cmd: restart }]
         gate:
           type: reflect
           prompt: Why compute $\partial L/\partial z_1$ once and store it, instead of writing the full chain for each of $w_{11}$, $w_{21}$ and $b_1$?
