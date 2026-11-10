@@ -53,7 +53,7 @@ scenes:
           question: Which legal system is the most widespread in the world?
           options: [Civil law, Common law, Religious law, None of these]
           answer: 0
-          explain: The lecture says civil law is the most widespread system.
+          explain: Civil law, rooted in codified Roman law, is the most widespread system in the world.
       - say: |
           **Common law** gives judges' earlier decisions the force of law. A **precedent** is an earlier decision that
           judges follow in similar cases. The trial is adversarial, and the defendant is presumed innocent.
@@ -64,7 +64,7 @@ scenes:
           forbids charging interest, which matters a great deal to banks.
         define: [religious-law]
         set: { animFrom: 3.4, animTo: 5 }
-      - say: Now sort what you have heard.
+      - say: Now sort what you have heard across the three legal traditions.
         show: [sorter]
         hide: [anim]
         gate:
@@ -73,67 +73,43 @@ scenes:
           target: sorter
           event: solved
           hint: Codes and questioning judges go with civil law.
+      - say: Check your grasp of how trials work in a common-law courtroom.
+        gate:
+          type: practice
+          template: common-law-mcq
     takeaway: Civil law runs on written codes, common law on precedent and religious law on a religious source.
 
   - id: rule-and-corruption
     title: Fair laws and the cost of bribes
     goal: How can a firm tell whether laws in a country will be applied fairly to it?
     skills: [legal-systems, corruption-index]
-    data: [cpi]
-    state: { country: France, from: '1999', to: '2022' }
-    derive:
-      - { fn: cpiRank, in: { table: '@cpi', country: '@country', from: '@from', to: '@to' }, out: c }
     stage:
-      - id: rule-note
-        widget: Callout
+      - id: fcpa-schedule
+        widget: Schedule
         props:
-          kind: note
-          title: Rule of law vs corruption
-          body: |
-            Under the **rule of law**, governments and citizens obey clear, fairly applied rules that protect **property rights**. Where **bribery** is common, laws are bent for private gain.
-      - id: cpi-chart
-        widget: Chart
+          title: Rule of law and anti-corruption framework
+          columns: [Concept, Core rule, Cross-border business impact]
+          rows:
+            - { id: rol, label: Rule of law, amounts: ['Clear laws bind government and citizens equally', 'Protects property rights and attracts investment'] }
+            - { id: bribe, label: Bribery (FCPA ban), amounts: ['Paying foreign officials to win or keep business', 'Illegal under the U.S. FCPA even when paid abroad'] }
+            - { id: grease, label: Facilitating payment, amounts: ['Small fee to speed up routine government service', 'Permitted exception under the U.S. FCPA'] }
+            - { id: cpi, label: Corruption Perceptions Index, amounts: ['Ranks public-sector cleanliness (Rank 1 = cleanest)', 'Signals corruption risk across countries'] }
+      - id: sorter
+        widget: DropBins
         hidden: true
         props:
-          kind: line
-          title: Corruption Perceptions Index rank (smaller = cleaner)
-          xLabel: Year
-          yLabel: Rank
-          series:
-            - { name: Japan, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [25, 24, 17, 15, 20, 18] }
-            - { name: France, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [22, 22, 24, 27, 23, 21] }
-            - { name: China, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [58, 71, 79, 100, 80, 65] }
-            - { name: Mexico, x: ['1999', '2004', '2009', '2014', '2019', '2022'], y: [58, 64, 89, 103, 130, 120] }
-      - id: r-in
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Rank in 1999, value: '@c.earlier', tone: accent }
-            - { label: Rank in 2022, value: '@c.later', tone: accent }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Rank in 1999, value: '@c.earlier', tone: accent }
-            - { label: Rank in 2022, value: '@c.later', tone: accent }
-            - { label: Places gained (negative = lost), value: '@c.change', tone: good }
-      - id: pick
-        widget: Choice
-        region: side
-        hidden: true
-        props:
-          label: Country
-          style: dropdown
-          options:
-            - { value: Denmark, label: Denmark }
-            - { value: France, label: France }
-            - { value: Japan, label: Japan }
-            - { value: China, label: China }
-            - { value: Mexico, label: Mexico }
-            - { value: Nigeria, label: Nigeria }
-        bind: { value: country }
+          check: instant
+          chips:
+            - { id: b1, label: Paying a procurement minister to win a state highway contract }
+            - { id: b2, label: Paying a small clerk fee to speed up routine visa stamping }
+            - { id: b3, label: Gifting luxury goods to a customs director to waive import duties }
+            - { id: b4, label: Paying a standard expedite fee to connect warehouse electricity }
+            - { id: b5, label: Independent courts enforcing contracts equally against state agencies }
+          bins:
+            - { id: bribe, label: Forbidden bribe (FCPA) }
+            - { id: grease, label: Facilitating payment }
+            - { id: rol, label: Rule-of-law protection }
+          solution: { b1: bribe, b2: grease, b3: bribe, b4: grease, b5: rol }
     beats:
       - say: |
           Investors prefer countries where leaders obey the law too. The **rule of law** means everyone, including the
@@ -145,32 +121,38 @@ scenes:
         define: [property-rights]
       - say: |
           **Bribery** means paying an official for special treatment. The U.S. **Foreign Corrupt Practices Act** bans paying
-          foreign officials. It still allows a **facilitating payment**: a small payment to speed up routine services.
+          foreign officials to win business, though it allows a **facilitating payment** to speed up routine services.
         define: [bribery, foreign-corrupt-practices-act, facilitating-payment]
       - say: |
-          The **Corruption Perceptions Index** ranks countries by how corrupt their public sector looks. Rank 1 is the least
-          corrupt. France ranked 22 in 1999 and 21 in 2022.
+          The **Corruption Perceptions Index** ranks countries by how corrupt their public sector is perceived to be. Rank 1
+          is the least corrupt, while higher rank numbers signal weaker public-sector integrity.
         define: [corruption-perceptions-index]
-        hide: [rule-note]
-        show: [r-in]
         gate:
           type: predict
-          question: By how many places did France's rank change from 1999 to 2022 (positive = improved)?
-          answer: { value: 1, tol: 0.1 }
-          explain: 22 − 21 = 1. The rank number fell by one, an improvement.
-      - say: Compare the multi-year rank paths across countries and find the one that improved by 7 places.
-        hide: [r-in]
-        show: [cpi-chart, r, pick]
+          question: In the Corruption Perceptions Index, Denmark is ranked near 1 while another country is ranked 120. What does this indicate?
+          options:
+            - Denmark's public sector is perceived as much less corrupt than the country ranked 120
+            - The country ranked 120 is perceived as cleaner because its number is larger
+            - The index only measures private-sector copyright piracy
+            - Both countries ban facilitating payments under domestic religious law
+          answer: 0
+          explain: Rank 1 represents the lowest perceived public-sector corruption, so a smaller rank number signals cleaner governance.
+      - say: Sort each cross-border scenario into forbidden bribery, a routine facilitating payment, or rule-of-law protection.
+        hide: [fcpa-schedule]
+        show: [sorter]
         gate:
-          type: when
-          prompt: Find the country in the menu that gained 7 places between 1999 and 2022.
-          when: 'c.change == 7'
-          hint: Look for the country that moved from rank 25 in 1999 to rank 18 in 2022.
-      - say: Your turn on another country and years.
+          type: event
+          prompt: Sort each action into the matching legal category.
+          target: sorter
+          event: solved
+          hint: Payments to win contracts or waive taxes are bribes; small fees to speed up standard ministerial paperwork are facilitating payments.
+      - say: Test your understanding of the Foreign Corrupt Practices Act.
+        hide: [sorter]
+        show: [fcpa-schedule]
         gate:
           type: practice
-          template: cpi-change-numeric
-      - say: One more thought.
+          template: fcpa-mcq
+      - say: Consider how anti-bribery rules shape long-term competitiveness.
         gate:
           type: reflect
           prompt: A U.S. firm cannot pay bribes abroad while rivals can. Does the Foreign Corrupt Practices Act help or hurt it?
@@ -178,7 +160,7 @@ scenes:
             It can lose deals to rivals who pay, but it avoids fines and scandal, and it builds trust with honest partners.
             Over time, clear rules and compliance programs can be an advantage, especially as more countries sign
             anti-bribery agreements.
-    takeaway: The rule of law and clean public offices attract investors, and the index shows which way a country is moving.
+    takeaway: The rule of law and clean public offices protect property rights and attract long-term investment.
 
   - id: law-between-nations
     title: Rules that cross borders
@@ -294,16 +276,28 @@ scenes:
           end: '@animTo'
           loop: false
           stills: [1.1, 2.5, 3.9, 4.9]
-      - id: cisg-note
-        widget: Callout
+      - id: dispute-tree
+        widget: Tree
         hidden: true
         props:
-          kind: note
-          title: Preventing cross-border contract disputes
-          body: |
-            - **Choice-of-law clause**: names which country's law governs
-            - **Choice-of-forum clause**: names where a dispute is heard
-            - **CISG**: UN treaty giving a uniform baseline for international sales of goods
+          orientation: right
+          root:
+            id: contract-breach
+            label: Cross-border contract dispute
+            note: No single world court enforces decrees
+            children:
+              - id: clauses-node
+                label: Preventive contract clauses
+                note: Choice-of-law, choice-of-forum, and CISG uniform baseline
+                tone: accent
+              - id: lit-node
+                label: Litigation (Court)
+                note: Formal discovery; public, slow, and expensive across borders
+                tone: bad
+              - id: arb-node
+                label: Arbitration (Neutral panel)
+                note: Outside the courts; quicker, cheaper, and private
+                tone: good
     beats:
       - say: |
           A **contract** is a legally binding agreement to do something. Every cross-border sale starts with one. The
@@ -342,7 +336,7 @@ scenes:
           Nations treaty with common rules for contracts to sell goods across borders.
         define: [cisg]
         hide: [sorter]
-        show: [cisg-note]
+        show: [dispute-tree]
       - say: Check your understanding.
         gate:
           type: practice
@@ -351,31 +345,22 @@ scenes:
 
   - id: shipping-terms
     title: Who pays for the ship?
-    goal: When a seller quotes a price for goods that must cross the sea, what costs does that price include?
+    goal: When a seller quotes a trade term for goods that cross the sea, who covers freight, insurance, and risk?
     skills: [intl-law, incoterms]
-    state: { fob: 20000, freight: 2000, insurance: 300, loading: 500, term: FOB, animFrom: 0, animTo: 0.7 }
+    state: { term: FOB, animFrom: 0, animTo: 0.7 }
     derive:
-      - { fn: incotermPrice, in: { fob: '@fob', freight: '@freight', insurance: '@insurance', loading: '@loading', term: '@term' }, out: i }
+      - { fn: incotermGuide, in: { term: '@term' }, out: i }
     stage:
-      - id: r-in
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Goods on board (FOB price), value: '@fob' }
-            - { label: Loading onto ship, value: '@loading' }
-            - { label: Sea freight, value: '@freight' }
-            - { label: Marine insurance, value: '@insurance' }
       - id: r
         widget: Readout
         hidden: true
         props:
           items:
-            - { label: Goods on board (FOB price), value: '@fob' }
-            - { label: Freight, value: '@freight' }
-            - { label: Insurance, value: '@insurance' }
-            - { label: Price quoted by the seller, value: '@i.price', tone: good }
-            - { label: Buyer pays on top, value: '@i.buyerExtra', tone: accent }
+            - { label: Delivery point, value: '{=i.delivery}', tone: accent }
+            - { label: Where risk passes to buyer, value: '{=i.riskPassesAt}', tone: accent }
+            - { label: Loading onto vessel paid by, value: '{=i.loadingPaidBy}' }
+            - { label: Ocean freight paid by, value: '{=i.freightPaidBy}', tone: good }
+            - { label: Marine insurance paid by, value: '{=i.insurancePaidBy}', tone: good }
       - id: pick
         widget: Choice
         region: side
@@ -405,47 +390,47 @@ scenes:
           stills: [0.7, 1.6, 2.6, 3.4, 4.4, 6]
     beats:
       - say: |
-          Words like "price" mean different things on a ship. **Incoterms** are standard trade terms from the International
+          Shipping responsibilities must be spelled out clearly. **Incoterms** are standard trade terms from the International
           Chamber of Commerce. They say who pays for what, and who bears the risk, when goods are shipped.
         define: [incoterms]
       - say: |
-          Start with **FAS**, free alongside ship: the seller delivers the goods to the quay beside the vessel, and the
-          buyer pays for loading (`500`), sea freight (`2,000`) and insurance (`300`).
+          Start with **FAS**, free alongside ship: the seller delivers the goods to the quay beside the vessel and clears them
+          for export. Risk passes there, and the buyer pays for loading, sea freight, and insurance.
         define: [fas]
         set: { animFrom: 0.7, animTo: 1.6 }
       - say: |
-          Under **FOB**, free on board, the seller lifts the goods on board the ship at the port of shipment, and the
-          risk passes to the buyer once they cross the rail. Our goods cost 20,000 on board.
+          Under **FOB**, free on board, the seller lifts the goods on board the ship at the port of shipment. Risk passes to the
+          buyer once the cargo is on board, and the buyer arranges ocean freight and insurance.
         define: [fob]
         set: { animFrom: 1.6, animTo: 2.6 }
       - say: |
-          **CFR**, cost and freight, adds the sea freight to the price; the buyer buys the insurance. **CIF**, cost,
-          insurance and freight, adds insurance as well. Freight is 2,000 and insurance is 300.
+          **CFR**, cost and freight, requires the seller to pay ocean freight to the destination port, while the buyer buys
+          insurance. **CIF**, cost, insurance and freight, adds marine insurance to the seller's duties as well.
         define: [cfr, cif]
-        show: [r-in]
         gate:
           type: predict
-          question: What price does a seller quote under CIF?
-          answer: { value: 22300, tol: 0.5 }
-          explain: 20,000 + 2,000 freight + 300 insurance = 22,300.
-      - say: Now compare all four terms and find the one where the buyer pays 2,800 dollars on top of the seller's quote.
+          question: Under CIF, the seller pays for ocean freight and marine insurance to the destination port. When does the risk of loss pass to the buyer?
+          options:
+            - Once the goods are loaded on board at the port of shipment
+            - Only when the vessel docks at the destination port
+            - Alongside the ship before the crane lifts the cargo
+            - After customs clearance in the buyer's warehouse
+          answer: 0
+          explain: Even under CIF, risk transfers to the buyer once the goods are placed on board the ship at the port of shipment.
+      - say: Compare all four terms and select the one where risk passes alongside the vessel before loading.
         set: { animFrom: 2.6, animTo: 6 }
-        hide: [r-in]
         show: [r, pick]
         gate:
           type: when
-          prompt: Select the term where the buyer pays 2,800 dollars on top of the seller's quote.
-          when: 'i.buyerExtra == 2800'
-          hint: Which term stops at the side of the ship, leaving loading (500), freight (2,000) and insurance (300) to the buyer?
-      - say: Now one on your own.
+          prompt: Select the Incoterm where the seller's responsibility stops alongside the ship on the quay.
+          when: "term == 'FAS'"
+          hint: Which term stands for Free Alongside Ship, leaving loading onto the vessel to the buyer?
+      - say: Now match all four Incoterms on your own.
+        hide: [anim]
         gate:
           type: practice
-          template: inco-price-numeric
-      - say: And one that includes loading.
-        gate:
-          type: practice
-          template: inco-fas-numeric
-    takeaway: Each Incoterm adds more of the shipping costs to the seller's price, and the buyer pays the rest.
+          template: inco-terms-match
+    takeaway: Incoterms define where delivery occurs, when risk passes, and who pays for loading, freight, and insurance.
 
   - id: protecting-ideas
     title: Protecting what you create
@@ -470,13 +455,17 @@ scenes:
             - { id: copyright, label: Copyright }
             - { id: secret, label: Trade secret }
           solution: { p1: patent, p2: trademark, p3: tradename, p4: copyright, p5: secret }
-      - id: note
-        widget: Text
+      - id: ip-schedule
+        widget: Schedule
         props:
-          body: |
-            **Five kinds of protection**
-
-            Inventions, brands, names, creative works and secrets.
+          title: Five kinds of intellectual property protection
+          columns: [Protection, What it covers, Registration vs. secrecy, Key limitation]
+          rows:
+            - { id: pat, label: Patent, amounts: ['Invention or manufacturing process', 'Government grant (public disclosure)', 'Expires after a fixed term'] }
+            - { id: tm, label: Trademark, amounts: ['Shape, color, design, phrase, or sound', 'Registered mark (Madrid Agreement)', 'Must guard against counterfeits'] }
+            - { id: tn, label: Trade name, amounts: ['Name of a business or product line', 'Protected under Paris Convention', 'Jurisdictional name conflicts'] }
+            - { id: cop, label: Copyright, amounts: ['Books, art, music, and software', 'Berne Convention, WIPO, and TRIPS', 'Protects expression, not raw ideas'] }
+            - { id: ts, label: Trade secret, amounts: ['Confidential formula or know-how', 'No registration required', 'Lost if leaked or reverse-engineered'] }
     beats:
       - say: |
           Fake medicines are a deadly example: an estimated one million patients die every year from counterfeit drugs.
@@ -501,7 +490,7 @@ scenes:
           of protection, and it needs no registration. Sort the examples.
         define: [trade-secret]
         show: [sorter]
-        hide: [note]
+        hide: [ip-schedule]
         gate:
           type: event
           prompt: Match each example to the protection it needs.
@@ -509,6 +498,7 @@ scenes:
           event: solved
       - say: One last question.
         hide: [sorter]
+        show: [ip-schedule]
         gate:
           type: reflect
           prompt: Why might a company choose to keep a formula as a trade secret instead of patenting it?
@@ -538,6 +528,34 @@ scenes:
           end: '@animTo'
           loop: false
           stills: [0.9, 1.45, 2.9, 4.9]
+      - id: liability-schedule
+        widget: Schedule
+        hidden: true
+        props:
+          title: Competition, product liability, and accounting laws
+          columns: [Law / Standard, Target area, Core requirement]
+          rows:
+            - { id: anti, label: Antitrust law, amounts: ['Market competition', 'Bans price fixing, market sharing, and abusive monopolies'] }
+            - { id: tort, label: Tort (Negligence), amounts: ['Civil injury claims', 'Requires showing intentional harm or carelessness'] }
+            - { id: strict, label: Strict liability, amounts: ['Defective products', 'Holds maker liable for product harm without proof of carelessness'] }
+            - { id: ifrs, label: IFRS vs. US GAAP, amounts: ['Financial reporting', 'EU and most countries use IFRS; the United States uses GAAP'] }
+            - { id: sox, label: Sarbanes-Oxley Act, amounts: ['Corporate governance', 'U.S. law setting strict standards for boards, managers, and auditors'] }
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: m1, label: Rival airlines secretly agree to fix ticket prices }
+            - { id: m2, label: A maker is liable for a defective toaster without proof of carelessness }
+            - { id: m3, label: Accounting standards used across the European Union and most nations }
+            - { id: m4, label: U.S. law tightening corporate board and auditor accountability after scandals }
+          bins:
+            - { id: anti, label: Antitrust law }
+            - { id: strict, label: Strict liability }
+            - { id: ifrs, label: IFRS }
+            - { id: sox, label: Sarbanes-Oxley Act }
+          solution: { m1: anti, m2: strict, m3: ifrs, m4: sox }
     beats:
       - say: |
           **Antitrust law**, also called competition law, stops firms from gaining too much power or abusing it through
@@ -559,8 +577,17 @@ scenes:
           States uses GAAP and passed the **Sarbanes-Oxley Act** after scandals to raise standards for boards and auditors.
         define: [ifrs, sarbanes-oxley]
         set: { animFrom: 3, animTo: 5 }
-      - say: Practice what you have seen.
+      - say: Sort each compliance situation under the law or standard that governs it.
         hide: [anim]
+        show: [sorter]
+        gate:
+          type: event
+          prompt: Sort each case into the right law or standard.
+          target: sorter
+          event: solved
+      - say: Practice what you have seen.
+        hide: [sorter]
+        show: [liability-schedule]
         gate:
           type: practice
           template: strict-mcq

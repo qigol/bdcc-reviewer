@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const { sum } = sdk;
   const STRATEGY = {
     'low|low': 'Home replication',
@@ -218,5 +218,147 @@ export default function register(sdk) {
       chooseStrategy: sameAnchors(chooseStrategy), budgetPlan: sameAnchors(budgetPlan), commonActions: sameAnchors(commonActions),
     },
     generators: { valueQ, avgCostQ, learnQ, budgetQ, commonQ, strategyQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual() {
+  const STRATEGY_MAP = {
+    'low|low': {
+      strategy: 'Home replication',
+      focus: 'Transfer home products and processes abroad',
+      knowledgeFlow: 'One-way from headquarters to foreign units',
+    },
+    'low|high': {
+      strategy: 'Multidomestic',
+      focus: 'Tailor products and marketing to each local market',
+      knowledgeFlow: 'Generated and kept within each local subsidiary',
+    },
+    'high|low': {
+      strategy: 'Global',
+      focus: 'Standardize products worldwide in lowest-cost locations',
+      knowledgeFlow: 'Centralized at headquarters and global plants',
+    },
+    'high|high': {
+      strategy: 'Transnational',
+      focus: 'Standardize core activities while adapting locally',
+      knowledgeFlow: 'Shared two-way across headquarters and all subsidiaries',
+    },
+  };
+
+  const VALUE_POSITION_MAP = {
+    baseline: {
+      lever: 'Standard industry operations',
+      costEffect: 'Standard unit cost',
+      wtpEffect: 'Standard buyer willingness to pay',
+      gapEffect: 'Moderate economic value gap',
+    },
+    'cost-leadership': {
+      lever: 'Efficient scale and tight cost control',
+      costEffect: 'Pushes unit cost below rivals',
+      wtpEffect: 'Maintains acceptable buyer value',
+      gapEffect: 'Widens value gap from the cost side',
+    },
+    differentiation: {
+      lever: 'Superior design, brand, or service',
+      costEffect: 'Keeps unit cost under control',
+      wtpEffect: 'Lifts buyer willingness to pay',
+      gapEffect: 'Widens value gap from the buyer side',
+    },
+  };
+
+  const COST_DRIVER_MAP = {
+    none: {
+      mechanism: 'Small-batch initial production',
+      source: 'High fixed overhead per unit and unrefined workflows',
+      outcome: 'High initial unit cost',
+    },
+    scale: {
+      mechanism: 'Higher plant capacity and output volume',
+      source: 'Spreads fixed overhead (rent, machinery) over more units',
+      outcome: 'Lower average cost via economies of scale',
+    },
+    learning: {
+      mechanism: 'Cumulative repetition over time',
+      source: 'Workers and teams master tasks and eliminate waste',
+      outcome: 'Lower unit cost via the learning curve',
+    },
+  };
+
+  const SCORECARD_MAP = {
+    'financial-only': {
+      scope: 'Short-term revenue and expense targets only',
+      blindSpot: 'Misses capability building, employee skills, and mission progress',
+      alignment: 'Partial operational view',
+    },
+    'balanced-scorecard': {
+      scope: 'Financial budgets plus resources, people, and mission progress',
+      blindSpot: 'None — tracks both current results and future capabilities',
+      alignment: 'Full strategic alignment',
+    },
+  };
+
+  const PLANNING_FLOW_MAP = {
+    'top-down': {
+      origin: 'Corporate headquarters',
+      strength: 'Strong global alignment and speed',
+      risk: 'May miss local market realities',
+      reconciled: 'No',
+    },
+    'bottom-up': {
+      origin: 'Local operating subsidiaries',
+      strength: 'Grounded in local customer knowledge',
+      risk: 'Can fragment global resource allocation',
+      reconciled: 'No',
+    },
+    iterative: {
+      origin: 'Repeated cycles between HQ and local units',
+      strength: 'Combines global direction with local insight',
+      risk: 'Requires more time and coordination',
+      reconciled: 'Yes',
+    },
+  };
+
+  function chooseStrategy({ cost, adapt }) {
+    return STRATEGY_MAP[`${cost}|${adapt}`] || STRATEGY_MAP['low|low'];
+  }
+
+  function valuePosition({ approach }) {
+    return VALUE_POSITION_MAP[approach] || VALUE_POSITION_MAP.baseline;
+  }
+
+  function costDriver({ driver }) {
+    return COST_DRIVER_MAP[driver] || COST_DRIVER_MAP.none;
+  }
+
+  function scorecardLens({ lens }) {
+    return SCORECARD_MAP[lens] || SCORECARD_MAP['financial-only'];
+  }
+
+  function planningFlow({ method }) {
+    return PLANNING_FLOW_MAP[method] || PLANNING_FLOW_MAP['top-down'];
+  }
+
+  return {
+    fns: {
+      chooseStrategy,
+      valuePosition,
+      costDriver,
+      scorecardLens,
+      planningFlow,
+    },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

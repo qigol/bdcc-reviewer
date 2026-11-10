@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const { sum } = sdk;
   const CULTURE = {
     'home replication': ['Ethnocentric', 'transfers existing products and processes'],
@@ -203,5 +203,131 @@ export default function register(sdk) {
       ownershipControl: sameAnchors(ownershipControl),
     },
     generators: { transQ, hierQ, centralQ, ownerQ, cultureQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual() {
+  const SPAN = {
+    narrow: {
+      spanLabel: 'Narrow (few direct reports per manager)',
+      shape: 'Tall hierarchy with many layers',
+      tradeoff: 'Closer supervision per employee, but slower vertical communication and higher management overhead',
+    },
+    wide: {
+      spanLabel: 'Wide (many direct reports per manager)',
+      shape: 'Flat hierarchy with few layers',
+      tradeoff: 'Fewer managers and faster communication across layers, but less supervision time per employee',
+    },
+  };
+
+  const DECISION = {
+    centralized: {
+      title: 'Centralized at headquarters',
+      strength: 'Global consistency and experienced executive oversight on major commitments',
+      risk: 'Slow local response and lower motivation or loyalty among subsidiary managers',
+    },
+    decentralized: {
+      title: 'Decentralized to subsidiaries',
+      strength: 'Fast local adaptation and stronger motivation among host-country managers',
+      risk: 'Requires coordination and control mechanisms so units stay aligned with group goals',
+    },
+  };
+
+  const CULTURE = {
+    'home replication': ['Ethnocentric', 'transfers existing products and processes from the home country'],
+    global: ['None named', 'offers standardized products and services worldwide'],
+    multidomestic: ['Polycentric', 'adapts to local preferences, rules and cultures'],
+    transnational: ['Geocentric', 'standardizes when possible and adapts when necessary'],
+  };
+
+  const STRUCT = {
+    'international-division': ['Gives overseas operations one home as they start to grow', 'Often dropped as overseas operations grow'],
+    product: ['Avoids duplicating product experts', 'Duplicates area experts'],
+    geographic: ['Every country is under someone in contact with headquarters', 'Best for products with low or stable technology'],
+    functional: ['Suits a narrow, highly integrated product mix such as oil', 'Few international companies use it at the top'],
+    hybrid: ['Uses more than one dimension at the top level', 'Often grows out of adding a new product line to a regional company'],
+    matrix: ['Meshes product, regional and functional expertise', 'Multiple reporting lines keep most worldwide firms from adopting it'],
+  };
+
+  const TRANSFER = {
+    market: {
+      policy: 'Standard market-based internal price',
+      whereProfit: 'Booked according to each unit’s normal operating margin',
+      effect: 'Baseline group tax bill with low regulatory friction',
+    },
+    'shift-low-tax': {
+      policy: 'Higher transfer price charged by low-tax subsidiary',
+      whereProfit: 'Shifted out of high-tax Alpha into low-tax Beta',
+      effect: 'Raises combined after-tax profit while total pretax profit stays unchanged; attracts tax scrutiny',
+    },
+    'shift-high-tax': {
+      policy: 'Lower transfer price charged by low-tax subsidiary',
+      whereProfit: 'Shifted into high-tax Alpha away from low-tax Beta',
+      effect: 'Increases the group tax bill and lowers combined after-tax profit',
+    },
+  };
+
+  const OWNERSHIP = {
+    minority: {
+      position: 'Non-majority voting stock (50% or less)',
+      type: 'Affiliate',
+      tools: 'Management contract, control of finances or technology, and placing people in key executive jobs',
+    },
+    majority: {
+      position: 'Majority voting stock (more than 50%)',
+      type: 'Subsidiary',
+      tools: 'Elects a majority of the board of directors',
+    },
+  };
+
+  function spanProfile({ spanDesign }) {
+    return SPAN[spanDesign] || SPAN.narrow;
+  }
+
+  function decisionProfile({ allocation }) {
+    return DECISION[allocation] || DECISION.centralized;
+  }
+
+  function cultureFor({ strategy }) {
+    const hit = CULTURE[strategy] || ['Unknown', 'no match'];
+    return { culture: hit[0], idea: hit[1] };
+  }
+
+  function structureInfo({ structure }) {
+    const hit = STRUCT[structure] || ['No match', 'No match'];
+    return { strength: hit[0], weakness: hit[1] };
+  }
+
+  function transferProfile({ pricingPolicy }) {
+    return TRANSFER[pricingPolicy] || TRANSFER.market;
+  }
+
+  function ownershipProfile({ ownershipMode }) {
+    return OWNERSHIP[ownershipMode] || OWNERSHIP.minority;
+  }
+
+  return {
+    fns: {
+      spanProfile,
+      decisionProfile,
+      cultureFor,
+      structureInfo,
+      transferProfile,
+      ownershipProfile,
+    },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

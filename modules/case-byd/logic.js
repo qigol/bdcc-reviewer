@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const round = (x, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 
   // ---------------------------------------------------------------- compare two numbers
@@ -177,5 +177,72 @@ export default function register(sdk) {
       tariffedPrice: sameAnchors(tariffedPrice), subsidyShare: sameAnchors(subsidyShare),
     },
     generators: { compareQ, growthQ, overseasQ, tariffQ, subsidyQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual() {
+  function costPillar({ pillar }) {
+    const table = {
+      none: {
+        driver: 'None selected',
+        role: 'Select a cost pillar to inspect how BYD builds its cost edge',
+        durability: 'Awaiting selection',
+      },
+      vertical: {
+        driver: 'In-house parts & vertical integration (~75% of Seal)',
+        role: 'Eliminates external Tier 1 and Tier 2 supplier profit margins',
+        durability: 'High — requires years of battery, motor, and chip investment to replicate',
+      },
+      overhead: {
+        driver: 'Lean administration, R&D & Shenzhen labor',
+        role: 'Co-located mega-factories and lower domestic pay keep overhead lean',
+        durability: 'Medium — partially tied to China factory footprint',
+      },
+      subsidy: {
+        driver: 'Direct government subsidies',
+        role: 'Accounts for only a small fraction (~5%) of the per-car gap vs. Tesla',
+        durability: 'Low — vulnerable to phase-outs and foreign countervailing duties',
+      },
+    };
+    return table[pillar] || table.none;
+  }
+
+  function scaleProfile({ stage }) {
+    const table = {
+      subscale: {
+        stageLabel: 'Sub-scale startup (below break-even)',
+        fixedCosts: 'Heavy R&D and factory tooling spread over too few vehicles',
+        leverage: 'Weak — relies on outside suppliers and burns cash in price wars',
+      },
+      breakeven: {
+        stageLabel: 'Break-even threshold (~400,000 EVs/year)',
+        fixedCosts: 'Vehicle revenues just cover ongoing plant and development costs',
+        leverage: 'Moderate — viable in stable markets but squeezed during price wars',
+      },
+      leader: {
+        stageLabel: 'Global scale leader (4M+ EVs/year)',
+        fixedCosts: 'Massive volume spreads battery R&D, tooling, and overhead thinly per car',
+        leverage: 'Strong — can cut prices in a price war and still remain profitable',
+      },
+    };
+    return table[stage] || table.subscale;
+  }
+
+  return {
+    fns: { costPillar, scaleProfile },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

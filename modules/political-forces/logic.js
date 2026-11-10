@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const { sum } = sdk;
   const REGIONS = ['Africa', 'Asia', 'Latin America and the Caribbean', 'Rest of world'];
   // Table 5.1, embedded so quiz generators can draw years from the lecture's own data.
@@ -240,5 +240,43 @@ export default function register(sdk) {
       protectionCost: sameAnchors(protectionCost),
     },
     generators: { dutyQ, levyQ, piracyQ, dumpQ, changeQ, protectQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual(sdk) {
+  const { sum } = sdk;
+  const REGIONS = ['Africa', 'Asia', 'Latin America and the Caribbean', 'Rest of world'];
+
+  function piracyYear({ table, year }) {
+    const row = table.rows.find((r) => String(r[0]) === String(year));
+    const parts = row.slice(1, 5);
+    const total = sum(parts);
+    const top = parts.indexOf(Math.max(...parts));
+    return {
+      africa: parts[0],
+      asia: parts[1],
+      latam: parts[2],
+      rest: parts[3],
+      total,
+      topRegion: REGIONS[top],
+    };
+  }
+
+  return {
+    fns: { piracyYear },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

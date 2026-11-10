@@ -1,132 +1,172 @@
 scenes:
   - id: designing-an-organization
     title: Designing a worldwide organization
-    goal: How should a company with thousands of workers in many countries be arranged so it works as one?
+    goal: How should a company with operations in many countries be arranged so its units work as one?
     skills: [org-dimensions]
-    state: { employees: 1000, span: 10 }
+    state: { spanDesign: narrow }
     derive:
-      - { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' }, out: h }
+      - { fn: spanProfile, in: { spanDesign: '@spanDesign' }, out: h }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: hier-tree
+        widget: Tree
         props:
-          items:
-            - { label: Employees, value: '@employees' }
-            - { label: Span of control, value: '@span' }
+          orientation: down
+          root:
+            id: ceo
+            label: Chief Executive Officer
+            note: Top headquarters authority
+            tone: accent
+            children:
+              - id: div-a
+                label: Division / Regional Lead A
+                note: Formalization & standardization link units
+                children:
+                  - { id: mgr-a1, label: Unit Manager 1, note: Oversees frontline staff }
+                  - { id: mgr-a2, label: Unit Manager 2, note: Oversees frontline staff }
+              - id: div-b
+                label: Division / Regional Lead B
+                note: Departmentalized by function, product or place
+                children:
+                  - { id: mgr-b1, label: Unit Manager 3, note: Oversees frontline staff }
+                  - { id: mgr-b2, label: Unit Manager 4, note: Oversees frontline staff }
       - id: r
         widget: Readout
         hidden: true
         props:
           items:
-            - { label: Employees, value: '@employees' }
-            - { label: Span of control, value: '@span' }
-            - { label: Layers of management, value: '@h.layers', tone: accent }
-            - { label: Managers in all, value: '@h.managers', tone: good }
+            - { label: Span of control, value: '{=h.spanLabel}' }
+            - { label: Hierarchy shape, value: '{=h.shape}', tone: accent }
+            - { label: Key trade-off, value: '{=h.tradeoff}', tone: good }
       - id: spanpick
-        widget: Slider
+        widget: Choice
         region: side
         hidden: true
-        props: { label: Span of control, min: 5, max: 50, step: 5 }
-        bind: { value: span }
+        props:
+          label: Span of control
+          style: dropdown
+          options:
+            - { value: narrow, label: Narrow span (few direct reports) }
+            - { value: wide, label: Wide span (many direct reports) }
+        bind: { value: spanDesign }
     beats:
       - say: |
-          A **multinational corporation** is a company that runs business in more than one country. Getting its far-flung
-          parts to work together takes **organizational design**: deciding how the company should be organized so its
-          worldwide activities fit together efficiently and effectively.
+          A **multinational corporation** is a company that runs business operations in more than one country. Getting its
+          far-flung units to work together takes **organizational design**: deciding how the company should be organized so
+          its worldwide activities fit together efficiently and effectively.
         define: [multinational-corporation, organizational-design]
       - say: |
-          Two ways to guide people are rules and sameness. **Formalization** uses rules, policies, procedures and
-          budgets. **Standardization** uses the same approach in every unit.
+          Two ways to guide people across borders are rules and sameness. **Formalization** uses rules, policies, procedures
+          and budgets to guide how people work. **Standardization** uses the same approach across the different units of a
+          company.
         define: [formalization, standardization]
       - say: |
-          Size forces layers. The **span of control** is the number of employees a manager can effectively oversee. A
-          **hierarchy** arranges the company into levels of authority and responsibility. A company has 1,000 employees and a
-          span of 10.
+          Size also shapes authority levels. The **span of control** is the number of employees a manager can effectively
+          oversee. A **hierarchy** is the arrangement of an organization into levels of authority and responsibility.
         define: [span-of-control, hierarchy]
         gate:
           type: predict
-          question: How many layers of management are needed to reach one top manager?
-          answer: { value: 3, tol: 0.1 }
-          explain: 1,000 people need 100 managers, 100 need 10, and 10 need 1. That is three layers.
+          question: How does a narrow span of control affect an organization's hierarchy compared to a wide span?
+          options:
+            - It creates a taller hierarchy with more layers of management
+            - It flattens the hierarchy into fewer management layers
+            - It eliminates the need for formal rules and policies
+            - It removes middle management completely
+          answer: 0
+          explain: When each manager oversees only a few direct reports, the organization needs more layers of management from bottom to top, forming a tall hierarchy.
       - say: |
-          With a span of 10, 1,000 employees require 3 layers (100 + 10 + 1 = 111 managers in all). Now widen the span
-          to flatten the hierarchy.
-        hide: [r-in]
+          A narrow span gives closer supervision per worker but slows communication across layers. Switch the span of control
+          in the side menu to see how widening the span reshapes the hierarchy.
+        hide: [hier-tree]
         show: [r, spanpick]
         gate:
           type: when
-          prompt: Widen the span until only two layers of management are needed.
-          when: 'h.layers <= 2'
-          hint: With 1,000 employees you need a span of at least 32 for two layers. Try 35 or more.
+          prompt: Select the span of control that flattens the hierarchy into fewer layers.
+          when: "spanDesign == 'wide'"
+          hint: Choose Wide span in the Span of control menu.
       - say: |
           Finally, how units are grouped matters. **Departmentalization** groups people and activities into units by
-          function, product, service, customer or place, to help specialization and coordination.
+          function, product, service, customer or place to support specialization and cross-unit coordination.
         define: [departmentalization]
         hide: [spanpick]
-      - say: Try a company of your own.
+      - say: Check how span of control shapes the hierarchy.
         gate:
           type: practice
-          template: levels-numeric
-    takeaway: Span of control sets how many layers a company needs, and grouping and rules shape how it works.
+          template: span-mcq
+    takeaway: Span of control shapes whether a hierarchy is tall or flat, while rules and grouping organize work.
 
   - id: who-decides
     title: Who makes the decisions?
-    goal: Should headquarters decide everything, or should the people near the customer decide?
+    goal: Should headquarters decide everything, or should managers close to the customer decide?
     skills: [decision-allocation]
-    state: { hq: 30, total: 50 }
+    state: { allocation: centralized }
     derive:
-      - { fn: centralization, in: { hq: '@hq', total: '@total' }, out: c }
+      - { fn: decisionProfile, in: { allocation: '@allocation' }, out: c }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: decision-sched
+        widget: Schedule
         props:
-          items:
-            - { label: Decisions at headquarters, value: '@hq' }
-            - { label: All decisions, value: '@total' }
+          title: Typical decision allocation in wholly owned subsidiaries
+          columns: [Headquarters role, Subsidiary role]
+          rows:
+            - { id: d1, label: Research & development, amounts: [Centralized direction, Local technical feedback] }
+            - { id: d2, label: Capital expenditure budgets, amounts: [Approves major investments, Proposes local projects] }
+            - { id: d3, label: Marketing & product adaptation, amounts: [Sets global brand guardrails, Adapts to local customers] }
+            - { id: d4, label: Personnel & local staffing, amounts: [Appoints top executives, Manages local workforce] }
       - id: r
         widget: Readout
         hidden: true
         props:
           items:
-            - { label: Decisions at headquarters, value: '@hq' }
-            - { label: All decisions, value: '@total' }
-            - { label: Share at headquarters, value: '{=c.share|pct}', tone: good }
+            - { label: Decision approach, value: '{=c.title}' }
+            - { label: Primary advantage, value: '{=c.strength}', tone: good }
+            - { label: Key risk, value: '{=c.risk}', tone: accent }
       - id: hqpick
-        widget: Slider
+        widget: Choice
         region: side
         hidden: true
-        props: { label: Decisions at headquarters, min: 0, max: 50, step: 5 }
-        bind: { value: hq }
+        props:
+          label: Decision allocation
+          style: dropdown
+          options:
+            - { value: centralized, label: Centralized at headquarters }
+            - { value: decentralized, label: Decentralized to subsidiaries }
+        bind: { value: allocation }
     beats:
       - say: |
-          Every important decision is made somewhere. **Centralization** means making decisions at the top, at
-          headquarters. **Decentralization** means letting lower levels, such as subsidiaries, make them. Headquarters makes
-          30 of 50 decisions.
+          Every important decision is made somewhere. **Centralization** means making decisions at the top level of the
+          company, at headquarters. **Decentralization** means letting lower levels, such as foreign subsidiaries, make
+          decisions closer to local operations.
         define: [centralization, decentralization]
         gate:
           type: predict
-          question: What share of decisions are made at headquarters? (Enter a decimal like 0.6 or a percentage like 60%.)
-          answer: { value: 0.6, tol: 0.01, percent: true }
-          explain: 30 ÷ 50 = 0.6, which is 60%.
+          question: What is a major risk when headquarters centralizes nearly every decision for its foreign subsidiaries?
+          options:
+            - Subsidiary managers lose motivation and loyalty while local decisions slow down
+            - Headquarters loses all ability to set research and capital budgets
+            - Subsidiaries automatically become independent external competitors
+            - Formal policies and budgets can no longer be written
+          answer: 0
+          explain: Local managers understand host-country customers and rules best; stripping away their authority saps motivation and slows local adaptation.
       - say: |
-          At 60%, decisions are mostly centralized at headquarters. Now move decisions out to the subsidiaries.
-        hide: [r-in]
+          Older, larger multinationals often make more decisions at headquarters because experienced executives accumulate
+          there. Use the menu to shift decision-making authority toward the subsidiaries.
+        hide: [decision-sched]
         show: [r, hqpick]
         gate:
           type: when
-          prompt: Make the company mostly decentralized, with headquarters making 40% or fewer of the decisions.
-          when: 'c.share <= 0.4'
-          hint: Headquarters should make 20 or fewer of the 50 decisions.
+          prompt: Select the decision approach that empowers local subsidiary managers and speeds up local adaptation.
+          when: "allocation == 'decentralized'"
+          hint: Choose Decentralized to subsidiaries in the Decision allocation menu.
       - say: |
           Whatever the split, units must work together. **Coordination mechanisms** link the activities of different units
-          and levels. **Control mechanisms** check performance and results, such as formal, informal, output, process and
+          and levels. **Control mechanisms** check performance and results, including formal, informal, output, process and
           social controls.
         define: [coordination-mechanisms, control-mechanisms]
         hide: [hqpick]
-      - say: Calculate on new numbers.
+      - say: Test how multinationals allocate decisions across levels.
         gate:
           type: practice
-          template: central-numeric
+          template: central-mcq
       - say: One more thought.
         gate:
           type: reflect
@@ -134,7 +174,7 @@ scenes:
           model: |
             Subsidiary managers know the local culture, customers and rules better. If headquarters decides everything, they lose
             motivation and loyalty, and decisions slow down. Delegating as much as reasonable keeps managers engaged.
-    takeaway: Decisions can sit at headquarters or be handed down, and every design needs coordination and control.
+    takeaway: Decisions can sit at headquarters or be delegated locally, and every design needs coordination and control.
 
   - id: structures
     title: Ways to arrange the top
@@ -406,42 +446,42 @@ scenes:
 
   - id: shifting-profits
     title: Where the profit shows up
-    goal: How can one company pay less tax simply by changing the prices it charges its own units?
+    goal: How can one company lower its tax bill simply by changing the internal prices it charges its own units?
     skills: [transfer-pricing]
     data: [transfer]
-    state: { alphaPretax: 60, betaPretax: 40, alphaRate: 0.5, betaRate: 0.2, animFrom: 0, animTo: 1 }
+    state: { pricingPolicy: market, animFrom: 0, animTo: 1 }
     derive:
-      - { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, out: t }
+      - { fn: transferProfile, in: { pricingPolicy: '@pricingPolicy' }, out: t }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: tax-sched
+        widget: Schedule
         props:
-          items:
-            - { label: Alpha pretax profit, value: '@alphaPretax' }
-            - { label: Alpha tax rate, value: '{=alphaRate|pct}' }
-            - { label: Beta pretax profit, value: '@betaPretax' }
-            - { label: Beta tax rate, value: '{=betaRate|pct}' }
+          title: How internal transfer prices affect two subsidiaries
+          columns: [High-tax Alpha, Low-tax Beta, Group effect]
+          rows:
+            - { id: tp1, label: Standard market transfer price, amounts: [High pretax profit & heavy tax bill, Moderate pretax profit & low tax rate, Baseline group after-tax profit] }
+            - { id: tp2, label: Beta charges Alpha a higher transfer price, amounts: [Higher input cost & lower taxable profit, Higher revenue & more profit taxed lightly, Higher group after-tax profit; total pretax profit unchanged] }
+            - { id: tp3, label: Regulatory response, amounts: [Tax authority audits transfer prices, Scrutinized for profit shifting, Arm's-length rules limit artificial pricing] }
       - id: r
         widget: Readout
         hidden: true
         props:
           items:
-            - { label: Alpha after tax, value: '@t.alphaAfter', tone: accent }
-            - { label: Beta after tax, value: '@t.betaAfter', tone: accent }
-            - { label: Group after tax, value: '@t.totalAfter', tone: good }
-            - { label: Group tax, value: '@t.totalTax' }
-      - id: aslide
-        widget: Slider
+            - { label: Pricing policy, value: '{=t.policy}' }
+            - { label: Where profit lands, value: '{=t.whereProfit}', tone: accent }
+            - { label: Group outcome, value: '{=t.effect}', tone: good }
+      - id: pick
+        widget: Choice
         region: side
         hidden: true
-        props: { label: Alpha profit before tax (millions), min: 20, max: 80, step: 10 }
-        bind: { value: alphaPretax }
-      - id: bslide
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Beta profit before tax (millions), min: 20, max: 80, step: 10 }
-        bind: { value: betaPretax }
+        props:
+          label: Internal pricing policy
+          style: dropdown
+          options:
+            - { value: market, label: Standard market-based internal price }
+            - { value: shift-low-tax, label: Higher transfer price charged by low-tax unit }
+            - { value: shift-high-tax, label: Lower transfer price charged by low-tax unit }
+        bind: { value: pricingPolicy }
       - id: anim
         widget: Animation
         region: top
@@ -458,40 +498,43 @@ scenes:
           stills: [1.0, 2.4, 4.2, 5]
     beats:
       - say: |
-          A company has two subsidiaries. Alpha earns 60 million dollars and pays 50% tax. Beta earns 40 million and pays
-          20%. **Pretax profit** is profit before tax is taken out, and **after-tax profit** is what remains after the tax is paid.
+          A multinational often operates subsidiaries in countries with very different corporate tax rates. **Pretax profit** is
+          profit before income tax is taken out, and **after-tax profit** is the profit that remains after income tax is paid.
         define: [pretax-profit, after-tax-profit]
         gate:
           type: predict
-          question: What is the group's combined after-tax profit, in millions?
-          answer: { value: 62, tol: 0.05 }
-          explain: Alpha keeps 60 × 0.5 = 30 and Beta keeps 40 × 0.8 = 32, so 62 million.
+          question: When a multinational shifts pretax profit from a high-tax subsidiary to a low-tax subsidiary, what happens to the group's combined after-tax profit?
+          options:
+            - It rises because a larger share of group profit is taxed at the lower rate
+            - It falls because total pretax profit across the group shrinks
+            - It stays unchanged because both subsidiaries belong to the same parent
+            - It disappears because internal sales are taxed twice at 100%
+          answer: 0
+          explain: Total pretax profit stays the same, but shifting where profit is booked from a high-tax country to a low-tax country reduces the group's total tax bill.
       - say: |
-          Units of one company sell to each other. **Transfer pricing** sets the prices for goods and services sold
-          between units of the same company, and it also shifts where profit shows up.
+          Units of one company regularly sell parts and services to each other. **Transfer pricing** sets the prices for goods
+          and services sold between units of the same company, and it also shifts where profit shows up.
         define: [transfer-pricing]
         show: [anim]
       - say: |
-          Watch 10 million of profit move from Alpha to Beta. The group's tax falls from 38 to 35 million, and total profit
-          is still 100.
+          Watch how charging high-tax Alpha a higher internal price for supplies from low-tax Beta moves pretax profit across the
+          water. The group's total tax bill falls while combined pretax profit remains unchanged.
         set: { animFrom: 1, animTo: 5 }
-      - say: Now go one step further. Move more profit from high-tax Alpha to low-tax Beta.
-        hide: [r-in]
-        show: [r, aslide, bslide]
+      - say: |
+          Now explore the internal pricing policy menu to see how transfer pricing shifts profit between high-tax Alpha and
+          low-tax Beta.
+        hide: [tax-sched]
+        show: [r, pick]
         gate:
           type: when
-          prompt: Shift 20 million of pretax profit from Alpha (to 40) to Beta (to 60) so the group keeps 68 million after tax.
-          when: 't.totalAfter > 67.9 and t.totalPretax == 100'
-          hint: Set Alpha to 40 million and Beta to 60 million.
-      - say: Check the rule behind it.
-        hide: [aslide, bslide, anim]
+          prompt: Select the transfer pricing policy that shifts pretax profit to the low-tax subsidiary and raises group after-tax profit.
+          when: "pricingPolicy == 'shift-low-tax'"
+          hint: Choose Higher transfer price charged by low-tax unit in the menu.
+      - say: Check the logic of transfer pricing and tax differentials.
+        hide: [pick, anim]
         gate:
           type: practice
-          template: gain-numeric
-      - say: And a full calculation.
-        gate:
-          type: practice
-          template: trans-total-numeric
+          template: transfer-concept-mcq
       - say: A last question.
         gate:
           type: reflect
@@ -506,22 +549,27 @@ scenes:
     title: Control with and without a majority
     goal: Can a company control a business it does not mostly own?
     skills: [control-influence]
-    state: { sharePct: 40 }
+    state: { ownershipMode: minority }
     derive:
-      - { fn: ownershipControl, in: { sharePct: '@sharePct' }, out: o }
+      - { fn: ownershipProfile, in: { ownershipMode: '@ownershipMode' }, out: o }
     stage:
       - id: r
         widget: Readout
         props:
           items:
-            - { label: Voting stock owned (%), value: '@sharePct' }
+            - { label: Ownership position, value: '{=o.position}' }
             - { label: Type of company, value: '{=o.type}', tone: good }
             - { label: Ways to keep control, value: '{=o.tools}', tone: accent }
       - id: share
-        widget: Slider
+        widget: Choice
         region: side
-        props: { label: Voting stock owned (%), min: 0, max: 100, step: 10 }
-        bind: { value: sharePct }
+        props:
+          label: Voting stock position
+          style: dropdown
+          options:
+            - { value: minority, label: Non-majority voting stock }
+            - { value: majority, label: Majority voting stock }
+        bind: { value: ownershipMode }
       - id: control-note
         widget: Callout
         hidden: true
@@ -529,18 +577,18 @@ scenes:
           kind: note
           title: Ownership vs. control
           body: |
-            - **More than 50% of voting stock:** Elects a majority of the board of directors.
-            - **50% or less of voting stock:** No board majority from shares alone; control can still come from contracts, financing, technology or key executives.
+            - **Majority of voting stock:** Elects a majority of the board of directors, making the unit a subsidiary.
+            - **Non-majority voting stock:** No board majority from shares alone; control can still come from management contracts, financing, technology or key executives.
     beats:
       - say: |
           A **subsidiary** is a company controlled by a parent that owns enough voting stock to elect a majority of its
-          board. Test the idea with the slider.
+          board. Use the menu to switch the parent's voting stock position.
         define: [subsidiary]
         gate:
           type: when
-          prompt: Set the parent's share high enough for the company to count as a subsidiary.
+          prompt: Select the voting stock position that classifies the company as a subsidiary.
           when: "o.type == 'Subsidiary'"
-          hint: More than 50% of the voting stock.
+          hint: Choose Majority voting stock in the side menu.
       - say: |
           An **affiliate** is a company the parent controls without being a majority owner. The control may come from stock or
           from other means.
@@ -549,19 +597,19 @@ scenes:
         show: [control-note]
         gate:
           type: predict
-          question: A parent owns 40% of the voting stock. Is the company a subsidiary or an affiliate?
+          question: A parent company controls a foreign partner firm without owning enough voting stock to elect a board majority. What is that firm called?
           options: [Subsidiary, Affiliate]
           answer: 1
-          explain: 40% is not a majority, so under the lecture's definitions it is an affiliate.
+          explain: When a parent controls a company without holding majority voting stock, the lecture classifies that company as an affiliate.
       - say: |
           Two common arrangements. A **joint venture** is a business that two or more companies own and run together. A
           **management contract** is an agreement under which one company manages another, which can give control without
           owning the stock.
         define: [joint-venture, management-contract]
-        set: { sharePct: 40 }
+        set: { ownershipMode: minority }
         hide: [control-note]
         show: [r]
-      - say: Classify some more companies.
+      - say: Classify how parents control foreign companies.
         gate:
           type: practice
           template: owner-mcq

@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const { sum, mean } = sdk;
   const YEARS = ['2009', '2014', '2019', '2022'];
   // Row ids of the regimes table (Table 8.1), in printed order.
@@ -444,5 +444,141 @@ export default function register(sdk) {
       randomWalk: sameAnchors(randomWalk), vatChain: sameAnchors(vatChain), bopSummary: sameAnchors(bopSummary),
     },
     generators: { spreadQ, reciprocalQ, crossQ, convertQ, forwardQ, pppQ, fisherQ, randomWalkQ, vatQ, bopQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual() {
+  const REGIME_PROFILES = {
+    hard: {
+      title: 'Hard peg',
+      autonomy: 'None — central bank gives up independent monetary policy',
+      stability: 'Locked to the anchor currency with no room to drift',
+      prevalence: 'Smallest main IMF group (used by a small minority of countries)',
+      examples: 'No separate legal tender (e.g., dollarization) or a strict currency board',
+    },
+    soft: {
+      title: 'Soft peg',
+      autonomy: 'Limited — central bank intervenes to hold a target or band',
+      stability: 'Managed stability via a conventional peg, crawling peg, or band',
+      prevalence: 'Largest IMF group (nearly half of all member countries)',
+      examples: 'Conventional pegs, crawling pegs, and stabilized arrangements',
+    },
+    floating: {
+      title: 'Floating arrangement',
+      autonomy: 'Full — central bank sets interest rates for domestic inflation and jobs',
+      stability: 'Moves continuously with foreign exchange supply and demand',
+      prevalence: 'Second largest IMF group (roughly a third of member countries)',
+      examples: 'Managed floating and free-floating major currencies (USD, EUR, JPY)',
+    },
+  };
+
+  function regimeProfile({ regime }) {
+    return REGIME_PROFILES[regime] || REGIME_PROFILES.hard;
+  }
+
+  const QUOTE_ROLES = {
+    hold: {
+      actor: 'Comparing the two-sided quote',
+      sideUsed: 'Bid (dealer buys) vs. Ask (dealer sells)',
+      dealerRole: 'Dealer quotes a lower bid and higher ask to earn the bid-ask spread',
+      takeaway: 'Select a trade action to see which side of the quote applies',
+    },
+    buy: {
+      actor: 'Importer buying foreign currency from the bank',
+      sideUsed: 'Ask price (the higher price in the quote)',
+      dealerRole: 'The bank sells foreign currency from its inventory at the ask',
+      takeaway: 'Customers buying foreign money always pay the dealer ask price',
+    },
+    sell: {
+      actor: 'Exporter selling foreign currency to the bank',
+      sideUsed: 'Bid price (the lower price in the quote)',
+      dealerRole: 'The bank buys foreign currency into its inventory at the bid',
+      takeaway: 'Customers selling foreign money always receive the dealer bid price',
+    },
+    flip: {
+      actor: 'Viewing the reciprocal quote',
+      sideUsed: 'Base and quote currencies swap roles (e.g., EUR/USD to USD/EUR)',
+      dealerRole: 'The old ask flips to form the new bid, and the old bid forms the new ask',
+      takeaway: 'A reciprocal quote states the exact same exchange rate from the other currency perspective',
+    },
+  };
+
+  function quoteRole({ action }) {
+    return QUOTE_ROLES[action] || QUOTE_ROLES.hold;
+  }
+
+  const PPP_OUTCOMES = {
+    balanced: {
+      gap: 'Domestic and foreign price levels rise at the same pace',
+      currencyMove: 'Purchasing power parity predicts a stable exchange rate',
+      exporterEffect: 'Export price competitiveness remains steady',
+      importerEffect: 'Import costs track domestic prices without currency pressure',
+    },
+    'high-home': {
+      gap: 'Domestic inflation exceeds foreign inflation',
+      currencyMove: 'Home currency depreciates (weakens) to restore equal buying power',
+      exporterEffect: 'A weaker home currency helps offset rising domestic production costs',
+      importerEffect: 'Foreign goods and inputs become more expensive in home currency terms',
+    },
+    'low-home': {
+      gap: 'Domestic inflation stays below foreign inflation',
+      currencyMove: 'Home currency appreciates (strengthens) as it holds its buying power',
+      exporterEffect: 'A stronger home currency makes exports pricier for foreign buyers',
+      importerEffect: 'Foreign goods and inputs become cheaper in home currency terms',
+    },
+  };
+
+  function pppOutcome({ scenario }) {
+    return PPP_OUTCOMES[scenario] || PPP_OUTCOMES.balanced;
+  }
+
+  const FORECAST_PROFILES = {
+    efficient: {
+      assumption: 'Current spot prices already reflect all known public information',
+      inputs: 'Current market prices; public news is priced in immediately',
+      implication: 'Beating the market consistently is nearly impossible without new information',
+    },
+    'random-walk': {
+      assumption: 'Future rate changes are driven by unpredictable news shocks',
+      inputs: 'Today’s spot exchange rate as the benchmark forecast for tomorrow',
+      implication: 'Firms should hedge exposure rather than bet on short-term rate direction',
+    },
+    fundamental: {
+      assumption: 'Macroeconomic forces drive currency values toward equilibrium',
+      inputs: 'Inflation differentials, interest rates, GDP growth, and trade balances',
+      implication: 'Useful for medium- to long-term strategic planning and location choices',
+    },
+    technical: {
+      assumption: 'Past price and volume patterns repeat as trader psychology unfolds',
+      inputs: 'Historical exchange rate charts, moving averages, and momentum trends',
+      implication: 'Used by short-term currency traders to time entry and exit points',
+    },
+  };
+
+  function forecastProfile({ method }) {
+    return FORECAST_PROFILES[method] || FORECAST_PROFILES.efficient;
+  }
+
+  return {
+    fns: {
+      regimeProfile,
+      quoteRole,
+      pppOutcome,
+      forecastProfile,
+    },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

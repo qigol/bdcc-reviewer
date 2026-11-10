@@ -30,7 +30,7 @@ scenes:
           title: Three eras of money
           body: |
             - **Gold standard (1717–1930s):** Each currency is worth a fixed weight of gold.
-            - **Bretton Woods (1945–1971):** The U.S. dollar is tied to gold at \$35/oz, and other currencies fix a **par value** to the dollar.
+            - **Bretton Woods (1945–1971):** The U.S. dollar is tied to gold, and other currencies fix a **par value** to the dollar.
             - **Floating rates (since 1971 / Jamaica Agreement):** Major currencies move with supply and demand in the FX market.
       - id: anim
         widget: Animation
@@ -105,92 +105,93 @@ scenes:
 
   - id: peg-or-float
     title: Peg or float?
-    goal: How many countries hold their money steady, and how many let it move?
+    goal: How do countries choose between locking their currency and letting the market set it?
     skills: [monetary-system]
-    data: [regimes]
-    state: { year: '2014' }
+    state: { regime: 'hard' }
     derive:
-      - { fn: regimeGrid, in: { table: '@regimes', year: '@year', upTo: 13 }, out: g }
-      - { fn: regimeShares, in: { table: '@regimes', year: '@year' }, out: r }
+      - { fn: regimeProfile, in: { regime: '@regime' }, out: r }
     stage:
-      - id: grid
-        widget: Schedule
-        props: { rows: '@g.rows', columns: ['Share of countries (%)'], title: 'Table 8.1: arrangements in use' }
-      - id: yearpick
+      - id: regime-tree
+        widget: Tree
+        props:
+          root:
+            id: imf
+            label: IMF Exchange Rate Arrangements
+            note: Spectrum from rigid commitment to full market flexibility
+            children:
+              - id: hard-group
+                label: Hard Pegs
+                note: Strictest lock; no independent monetary policy
+                children:
+                  - { id: nslt, label: No separate legal tender }
+                  - { id: cb, label: Currency board }
+              - id: soft-group
+                label: Soft Pegs
+                note: Managed stability within bands or crawls
+                children:
+                  - { id: conv, label: Conventional peg }
+                  - { id: crawl, label: Stabilized & crawling pegs }
+                  - { id: bands, label: Pegged within horizontal bands }
+              - id: float-group
+                label: Floating Regimes
+                note: Market-driven exchange rates
+                children:
+                  - { id: managed, label: Floating (managed) }
+                  - { id: free, label: Free floating }
+      - id: regime-pick
         widget: Choice
         region: side
         props:
-          label: Year
+          label: Regime category
           style: segmented
           options:
-            - { value: '2009', label: '2009' }
-            - { value: '2014', label: '2014' }
-            - { value: '2019', label: '2019' }
-            - { value: '2022', label: '2022' }
-        bind: { value: year }
-      - id: r-groups
+            - { value: 'hard', label: 'Hard peg' }
+            - { value: 'soft', label: 'Soft peg' }
+            - { value: 'floating', label: 'Floating' }
+        bind: { value: regime }
+      - id: regime-info
         widget: Readout
         region: side
-        hidden: true
         props:
           items:
-            - { label: Hard peg, value: '@r.hard', format: 1 }
-            - { label: Soft peg, value: '@r.soft', format: 1, tone: accent }
-            - { label: Floating, value: '@r.floating', format: 1 }
-            - { label: Residual, value: '@r.residual', format: 1 }
-      - id: r-total
-        widget: Readout
-        region: side
-        hidden: true
-        props:
-          items:
-            - { label: Hard peg, value: '@r.hard', format: 1 }
-            - { label: Soft peg, value: '@r.soft', format: 1 }
-            - { label: Floating, value: '@r.floating', format: 1 }
-            - { label: Residual, value: '@r.residual', format: 1 }
-            - { label: Printed four-group sum, value: '@r.total', format: 1, tone: good }
+            - { label: Category, value: '@r.title', tone: accent }
+            - { label: Monetary autonomy, value: '@r.autonomy' }
+            - { label: Rate behavior, value: '@r.stability' }
+            - { label: IMF share, value: '@r.prevalence', tone: good }
+            - { label: Typical forms, value: '@r.examples' }
     beats:
       - say: |
-          Most countries choose how tightly to hold their exchange rate. The table shows what share of countries chose
-          each arrangement in four different years.
+          Even after the gold link ended, countries still choose how tightly to manage their currency. The International
+          Monetary Fund groups exchange rate arrangements along a spectrum from rigid pegs to free floating.
       - say: |
-          At the strict end is the **hard peg**: the country either uses another country's money outright, or a
-          currency board backs every unit of its money. The rate has almost no room to move.
+          At the strict end is the **hard peg**: a country either uses another country's currency outright as legal tender
+          or runs a currency board that backs every unit of domestic money with foreign reserves.
         define: [hard-peg]
       - say: |
-          A **soft peg** is looser. The rate may slide a little at a time, sit inside a band, or be nudged by the
-          government. It is still managed, just not locked.
+          A **soft peg** is a looser fixed arrangement. The central bank pegs to an anchor currency or basket, or lets the
+          rate crawl gradually or move inside horizontal bands.
         define: [soft-peg]
-      - say: Look at 2014 on the table.
+      - say: |
+          Across IMF member countries, soft pegs and floating regimes account for the vast majority of national currencies,
+          while hard pegs are the smallest of the three main groups.
         gate:
           type: predict
-          question: Which group was the largest in 2014?
-          options: [Hard peg, Soft peg, Floating, Residual]
+          question: Which broad category of exchange rate arrangements do the largest share of countries use today?
+          options: [Hard pegs, Soft pegs, The gold standard, Barter clearing]
           answer: 1
-          explain: Soft pegs were 43.5%, ahead of floating at 34.0%.
-      - say: Compare the four years to see how soft pegs changed over time.
-        show: [r-groups]
+          explain: Soft pegs make up the largest share of IMF members—nearly half of all countries—followed by floating regimes.
+      - say: |
+          Compare the three categories in the side panel to see what a country gives up when it locks its exchange rate.
         gate:
           type: when
-          prompt: Find the year in which soft pegs reached their highest share of countries (above 46.5%).
-          when: 'r.soft > 46.5'
-          hint: Use the Year buttons and watch the Soft peg subtotal.
-      - say: |
-          Each year's four group subtotals should add to 100%. In 2014, 2019 and 2022 they do—now look at 2009. Its
-          printed group totals look wrong.
-        set: { year: '2009' }
-        gate:
-          type: predict
-          question: What do the four 2009 group totals (12.2, 34.6, 34.7 and 8.9) add to?
-          answer: { value: 90.4, tol: 0.1 }
-          explain: 12.2 + 34.6 + 34.7 + 8.9 = 90.4. The slide's 2009 column does not add to 100, so we log it as an error in the printed table.
-      - say: Try one yourself, using a different year.
-        hide: [r-groups]
-        show: [r-total]
+          prompt: Select **Soft peg** in the side panel to inspect how it balances stability and policy flexibility.
+          when: "regime == 'soft'"
+          hint: Click the "Soft peg" option under Regime category.
+      - say: Check your grasp of how the IMF classifies currency regimes.
         gate:
           type: practice
-          template: regime-sum-numeric
-    takeaway: Most countries manage their rate with a soft peg or let it float; the printed table is worth checking by adding it up.
+          template: hard-peg-mcq
+    takeaway: Countries trade off exchange-rate stability against monetary independence across hard pegs, soft pegs, and floating regimes.
 
   - id: new-kinds-of-money
     title: New kinds of money
@@ -277,156 +278,155 @@ scenes:
 
   - id: reading-a-quote
     title: Reading a currency quote
-    goal: Why does a money changer show two prices for the same currency?
+    goal: Why does a currency dealer show two prices for the same currency pair?
     skills: [fx-quotes]
-    data: [fxquotes]
-    state: { bid: 1.0955, ask: 1.0957 }
+    state: { action: 'hold' }
     derive:
-      - { fn: spreadQuote, in: { bid: '@bid', ask: '@ask' }, out: q }
+      - { fn: quoteRole, in: { action: '@action' }, out: q }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: quote-card
+        widget: Callout
         props:
-          items:
-            - { label: Bid (bank buys EUR), value: '@bid', format: 4 }
-            - { label: Ask (bank sells EUR), value: '@ask', format: 4 }
-      - id: r-spread
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Bid, value: '@bid', format: 4 }
-            - { label: Ask, value: '@ask', format: 4 }
-            - { label: Spread, value: '@q.spread', format: 4, tone: accent }
-            - { label: Midpoint, value: '@q.mid', format: 5, tone: accent }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Bid, value: '@bid', format: 4 }
-            - { label: Ask, value: '@ask', format: 4 }
-            - { label: Spread, value: '@q.spread', format: 4, tone: accent }
-            - { label: Midpoint, value: '@q.mid', format: 5, tone: accent }
-            - { label: 'Reciprocal bid (1 / ask)', value: '@q.recipBid', format: 4, tone: good }
-            - { label: 'Reciprocal ask (1 / bid)', value: '@q.recipAsk', format: 4, tone: good }
-      - id: askslider
-        widget: Slider
+          kind: note
+          title: Inside a two-sided dealer quote
+          body: |
+            - **Spot rate:** Price for immediate currency delivery (settled within two business days).
+            - **Bid price:** The lower price where the dealer **buys** foreign currency from a customer.
+            - **Ask price:** The higher price where the dealer **sells** foreign currency to a customer.
+            - **Bid-ask spread:** The gap between ask and bid—the dealer's built-in transaction fee.
+            - **Reciprocal quote:** The same pair flipped around so the second currency becomes the unit being priced.
+      - id: action-pick
+        widget: Choice
         region: side
-        hidden: true
-        props: { label: Ask price, min: 1.0956, max: 1.1010, step: 0.0001 }
-        bind: { value: ask }
+        props:
+          label: Trade perspective
+          style: segmented
+          options:
+            - { value: 'hold', label: 'Overview' }
+            - { value: 'buy', label: 'Importer buys FX' }
+            - { value: 'sell', label: 'Exporter sells FX' }
+            - { value: 'flip', label: 'Reciprocal quote' }
+        bind: { value: action }
+      - id: quote-readout
+        widget: Readout
+        region: side
+        props:
+          items:
+            - { label: Scenario, value: '@q.actor', tone: accent }
+            - { label: Side of quote used, value: '@q.sideUsed', tone: good }
+            - { label: Dealer role, value: '@q.dealerRole' }
+            - { label: Key rule, value: '@q.takeaway' }
     beats:
       - say: |
-          Billions of pesos, dollars and euros are swapped every day in the **foreign exchange market**, or FX market. It is
-          not one building. It is banks trading over computer links.
+          Trillions of pesos, dollars and euros are swapped every day in the **foreign exchange market**, or FX market.
+          Rather than a single building, it is a global network of banks and dealers trading over computer links.
         define: [fx-market]
       - say: |
-          A trade settled within two business days uses the **spot rate**. On January 8, 2024, one euro cost about
-          1.0955 to 1.0957 dollars. Why two numbers?
+          A trade settled within two business days uses the **spot rate**. Whenever you check a currency screen, the
+          dealer posts two spot prices side by side for the same pair.
         define: [spot-rate]
       - say: |
-          The dealer buys at the **bid price**, the highest price a buyer is offering. It sells at the **ask price**, the
-          lowest price a seller is accepting. The dealer buys low and sells high.
+          The dealer buys foreign currency at the **bid price** and sells it at the **ask price**. Because the dealer buys
+          low and sells high, the ask is always higher than the bid.
         define: [bid-price, ask-price]
         gate:
           type: predict
-          question: You want to buy euros from the bank. Which price do you pay?
-          options: [The bid, The ask]
+          question: You are an importer buying euros from a bank. Which price do you pay?
+          options: [The bid price, The ask price, The reciprocal midpoint, Neither side]
           answer: 1
-          explain: The bank sells euros to you, so it uses its selling price, the ask.
+          explain: Because you want to buy euros, the bank is selling euros to you at its selling price—the ask.
       - say: |
-          The gap between the two prices is the **bid-ask spread**. Here it is 1.0957 − 1.0955 = 0.0002, which is 2 pips
-          (a pip is 0.0001). Make the spread wider and watch the readout.
+          The gap between the two prices is the **bid-ask spread**. It is the dealer's fee for providing liquidity. Test
+          what happens when an exporter converts foreign earnings home.
         define: [bid-ask-spread]
-        hide: [r-in]
-        show: [r-spread, askslider]
         gate:
           type: when
-          prompt: Raise the ask until the spread reaches 5 pips.
-          when: 'q.pips >= 4.99'
-          hint: The ask should be 5 pips (0.0005) above the bid.
+          prompt: Select **Exporter sells FX** in the side panel to see which side of the quote applies when selling foreign currency.
+          when: "action == 'sell'"
+          hint: Click "Exporter sells FX" under Trade perspective.
       - say: |
-          Quotes also come flipped. The **reciprocal quote** states the same rate the other way round: divide 1 by it.
-          The old ask makes the new bid ($1 / 1.0957 = 0.9126$), and the old bid makes the new ask ($1 / 1.0955 = 0.9128$).
+          Quotes can also be stated the other way round. A **reciprocal quote** flips the pair—expressing euros per dollar
+          instead of dollars per euro—so the old ask side becomes the new bid side.
         define: [reciprocal-quote]
-        set: { ask: 1.0957 }
-        hide: [r-spread, askslider]
-        show: [r]
-      - say: One for you, on new numbers.
+      - say: Test your understanding of why currency dealers quote two prices.
         gate:
           type: practice
-          template: spread-numeric
-      - say: And a flip.
-        gate:
-          type: practice
-          template: reciprocal-numeric
-    takeaway: A quote has a bid and an ask; the spread is their gap, and flipping a pair divides 1 by the rate.
+          template: quote-sides-mcq
+    takeaway: Dealers buy foreign currency at the lower bid and sell at the higher ask, earning the bid-ask spread.
 
   - id: crossing-currencies
     title: When the bank lists the wrong pair
-    goal: How do you find the price of euros in pounds when the bank only lists euros in dollars and dollars in pounds?
+    goal: How do banks price a trade between two currencies when both are quoted only against the U.S. dollar?
     skills: [cross-rates]
-    data: [fxquotes]
-    state: { bid1: 1.0955, ask1: 1.0957, bid2: 0.7838, ask2: 0.7839 }
-    derive:
-      - { fn: crossRate, in: { bid1: '@bid1', ask1: '@ask1', bid2: '@bid2', ask2: '@ask2' }, out: x }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: vehicle-note
+        widget: Callout
         props:
-          items:
-            - { label: 'EUR/USD bid', value: '@bid1', format: 4 }
-            - { label: 'EUR/USD ask', value: '@ask1', format: 4 }
-            - { label: 'USD/GBP bid', value: '@bid2', format: 4 }
-            - { label: 'USD/GBP ask', value: '@ask2', format: 4 }
-      - id: r
-        widget: Readout
+          kind: note
+          title: Chaining quotes through a vehicle currency
+          body: |
+            - **Direct quote gap:** Maintaining deep direct markets between every possible currency pair (such as euros to pounds or baht to pesos) is costly.
+            - **Vehicle currency:** A widely traded currency—most often the U.S. dollar—used as the shared middle link.
+            - **Cross rate:** Chaining `EUR/USD` and `USD/GBP` cancels out the dollar and yields the implied `EUR/GBP` bid and ask.
+      - id: cross-sorter
+        widget: DropBins
         hidden: true
         props:
-          items:
-            - { label: 'EUR/USD bid', value: '@bid1', format: 4 }
-            - { label: 'EUR/USD ask', value: '@ask1', format: 4 }
-            - { label: 'USD/GBP bid', value: '@bid2', format: 4 }
-            - { label: 'USD/GBP ask', value: '@ask2', format: 4 }
-            - { label: 'EUR/GBP bid', value: '@x.bid', format: 4, tone: good }
-            - { label: 'EUR/GBP ask', value: '@x.ask', format: 4, tone: good }
+          check: instant
+          chips:
+            - { id: c1, label: 'EUR/USD and USD/GBP quotes posted on the dealer screen' }
+            - { id: c2, label: 'The U.S. dollar acting as the shared middle currency that cancels out' }
+            - { id: c3, label: 'The resulting EUR/GBP exchange rate between two non-dollar currencies' }
+            - { id: c4, label: 'Avoids thin order books between thousands of minor currency pairs' }
+          bins:
+            - { id: direct, label: Dollar quotes }
+            - { id: vehicle, label: Vehicle currency role }
+            - { id: cross, label: Cross rate result }
+          solution: { c1: direct, c2: vehicle, c3: cross, c4: vehicle }
     beats:
       - say: |
-          You hold euros and want pounds. The bank lists euros against dollars and dollars against pounds, but no
-          euro-pound price. Go through the dollar.
+          Suppose a firm holds euros and needs British pounds, or a Thai exporter is paid in Mexican pesos. Banks rarely
+          keep deep direct markets for every pair—instead, they route quotes through the U.S. dollar.
       - say: |
-          A **cross rate** is a rate between two currencies worked out from each one's rate against a third, usually the
-          dollar. The dollar cancels: euros → dollars → pounds.
+          A **cross rate** is an exchange rate between two currencies worked out from each currency's rate against a common
+          third currency, usually the dollar. The shared dollar link bridges the two currencies.
         define: [cross-rate]
-      - say: EUR/USD bid is 1.0955 and USD/GBP bid is 0.7838. Work out the EUR/GBP bid.
+      - say: |
+          When chaining two quotes that share a middle currency, the dealer pairs bid with bid and ask with ask so the
+          middle currency cancels out cleanly.
         gate:
           type: predict
-          question: What is the EUR/GBP bid? (Multiply the two bids.)
-          answer: { value: 0.8587, tol: 0.001 }
-          explain: 1.0955 × 0.7838 = 0.8587, matching the lecture's Table 8.2.
+          question: Why do foreign exchange dealers use a vehicle currency like the U.S. dollar to build cross rates?
+          options:
+            - Deep dollar liquidity makes it cheaper to bridge through the dollar than to maintain direct markets for every minor pair
+            - International treaties forbid banks from quoting two non-dollar currencies directly
+            - Using a vehicle currency removes the bid-ask spread
+            - Central banks fix cross rates once a year
+          answer: 0
+          explain: With over 150 currencies in the world, routing trades through a liquid vehicle currency avoids thin, expensive direct markets.
       - say: |
-          Bids multiply bids ($1.0955 \times 0.7838 = 0.8587$) and asks multiply asks ($1.0957 \times 0.7839 = 0.8589$).
-          The lecture prints EUR/GBP as 0.8587 / 0.8589, the exact same numbers.
-        hide: [r-in]
-        show: [r]
-      - say: Your turn, on new rates.
+          Sort each part of a cross-rate transaction into its role in connecting two non-dollar currencies.
+        show: [cross-sorter]
+        gate:
+          type: event
+          prompt: Place each description into the right bin.
+          target: cross-sorter
+          event: solved
+          hint: Separate the initial dollar quotes, the middle vehicle role, and the final cross rate.
+      - say: Put the steps of building a cross rate in order.
+        hide: [cross-sorter]
         gate:
           type: practice
-          template: cross-numeric
-      - say: And with a spread this time.
-        gate:
-          type: practice
-          template: cross-handcalc
-    takeaway: A cross rate multiplies two quotes that share a middle currency, bid with bid and ask with ask.
+          template: cross-steps-order
+    takeaway: A cross rate links two currencies through their quotes against a shared third currency, usually the U.S. dollar.
 
   - id: why-prices-differ
     title: Why exchange rates move
-    goal: Why does a peso buy less abroad after a few years of rising prices at home?
+    goal: Why does a currency lose value abroad after years of rising prices at home?
     skills: [ppp]
-    state: { spot: 50, piHome: 0.03, piForeign: 0.02, animFrom: 0, animTo: 1.2 }
+    state: { inflScenario: 'balanced', animFrom: 0, animTo: 1.2 }
     derive:
-      - { fn: pppRate, in: { spot: '@spot', piHome: '@piHome', piForeign: '@piForeign' }, out: p }
+      - { fn: pppOutcome, in: { scenario: '@inflScenario' }, out: p }
     stage:
       - id: loop-note
         widget: Callout
@@ -434,25 +434,47 @@ scenes:
           kind: note
           title: One product, two markets
           body: |
-            - **Manila price:** 25,000 pesos (worth \$500 at 50 pesos per dollar)
-            - **New York price:** \$500 (drops to \$450 when supply rises in New York)
-            - **Law of one price:** Identical goods should sell for the same price once expressed in a common currency.
-      - id: r
+            - **Law of one price:** In an efficient market with no barriers, identical goods should sell for the same price when expressed in a common currency.
+            - **Arbitrage:** Buying a good where it is cheap and selling where it is dear at the same moment to lock in a risk-free profit.
+            - **Price convergence:** Arbitrageurs drive up demand in the cheap market and increase supply in the expensive market until the gap closes.
+      - id: ppp-schedule
+        widget: Schedule
+        hidden: true
+        props:
+          title: How inflation and PPP shape currency value
+          columns: [Inflation gap, Currency tendency, Trade impact]
+          rows:
+            - id: row-high
+              label: Higher domestic inflation
+              amounts: [Home currency weakens (depreciates), Offsets rising domestic prices; imports cost more]
+            - id: row-low
+              label: Lower domestic inflation
+              amounts: [Home currency strengthens (appreciates), Preserves buying power; imports become cheaper]
+            - id: row-equal
+              label: Equal inflation rates
+              amounts: [PPP exchange rate stays stable, Relative price competitiveness holds steady]
+      - id: ppp-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Inflation scenario
+          style: segmented
+          options:
+            - { value: 'balanced', label: 'Equal inflation' }
+            - { value: 'high-home', label: 'Higher home inflation' }
+            - { value: 'low-home', label: 'Lower home inflation' }
+        bind: { value: inflScenario }
+      - id: ppp-readout
         widget: Readout
+        region: side
         hidden: true
         props:
           items:
-            - { label: Today's rate (pesos per dollar), value: '@spot', format: 2 }
-            - { label: Home inflation, value: '{=piHome|pct1}' }
-            - { label: Foreign inflation, value: '{=piForeign|pct1}' }
-            - { label: Inflation gap, value: '{=p.gap|pct1}', tone: accent }
-            - { label: Expected rate, value: '@p.expected', format: 2, tone: good }
-      - id: infl
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Home inflation (0.03 = 3%), min: 0, max: 0.1, step: 0.005 }
-        bind: { value: piHome }
+            - { label: Price trend, value: '@p.gap', tone: accent }
+            - { label: PPP currency response, value: '@p.currencyMove', tone: good }
+            - { label: Exporter impact, value: '@p.exporterEffect' }
+            - { label: Importer impact, value: '@p.importerEffect' }
       - id: anim
         widget: Animation
         region: top
@@ -470,149 +492,134 @@ scenes:
           stills: [1.1, 1.95, 2.9, 4.9]
     beats:
       - say: |
-          A phone costs 25,000 pesos in Manila and 500 dollars in New York. At 50 pesos per dollar these are the same
-          price. The **law of one price** says that in an efficient market, the same product sells for the same price
-          everywhere.
+          Suppose an identical phone sells for the same dollar value in Manila and New York. The **law of one price**
+          says that in an efficient market, identical goods sell for the same price everywhere once converted into one currency.
         define: [law-of-one-price]
-      - say: Suppose the phone drops to 450 dollars in New York, still 500 dollars' worth in Manila.
+      - say: Suppose the phone suddenly becomes cheaper in New York while staying expensive in Manila.
         set: { animFrom: 1.2, animTo: 2 }
         gate:
           type: predict
-          question: What will traders do?
+          question: What will traders do when the same product is cheaper in New York than in Manila?
           options: [Buy in New York and sell in Manila, Buy in Manila and sell in New York, Nothing, Wait a year]
           answer: 0
-          explain: They buy where it is cheap and sell where it is dear. That buying and selling pushes the two prices together.
+          explain: Traders buy where the product is cheap and sell where it is dear, pushing the two prices back together.
       - say: |
-          That risk-free profit is **arbitrage**: buying and selling the same thing at the same moment in two markets.
-          Traders keep chasing it until the gap closes.
+          That risk-free profit is **arbitrage**: buying and selling the same item at the same moment across two markets.
+          Arbitrageurs keep trading until the price gap closes.
         define: [arbitrage]
         set: { animFrom: 2, animTo: 5 }
       - say: |
-          Prices do not stay still. **Inflation** is a sustained rise in the general level of prices. Say prices rise
-          3% a year in the Philippines and 2% in the United States.
+          Across whole economies, prices rarely stay still. **Inflation** is a sustained rise in the general level of
+          prices, meaning each unit of currency buys less at home than before.
         define: [inflation]
         hide: [loop-note, anim]
-        show: [r]
+        show: [ppp-schedule, ppp-choice, ppp-readout]
       - say: |
-          Peso goods get dearer faster than dollar goods. For the same money to keep buying the same goods, the peso
-          must weaken. That is **purchasing power parity**: exchange rates adjust to equalize what money buys.
+          When domestic prices rise faster than foreign prices, the home currency must weaken so a basket of goods still
+          costs the same in both places. That principle is **purchasing power parity** (PPP).
         define: [purchasing-power-parity]
-        show: [infl]
         gate:
           type: when
-          prompt: Raise home inflation until the expected rate goes above 52.
-          when: 'p.expected > 51.9'
-          hint: You need an inflation gap of 4 points, so push home inflation to 6%.
-      - say: Your turn, with new inflation rates.
-        hide: [infl]
-        gate:
-          type: practice
-          template: ppp-numeric
-      - say: One last question.
+          prompt: Select **Higher home inflation** in the side panel to see how purchasing power parity predicts the currency will adjust.
+          when: "inflScenario == 'high-home'"
+          hint: Click "Higher home inflation" under Inflation scenario.
+      - say: Consider why real-world exchange rates often drift away from PPP for years at a time.
         gate:
           type: reflect
-          prompt: Rates seldom match purchasing power parity exactly. What could get in the way?
+          prompt: Rates seldom match purchasing power parity exactly. What real-world frictions get in the way?
           model: |
-            Shipping, taxes and rules make it costly to move goods, many items cannot be traded at all, and exchange rates
-            are also pushed by interest rates and by news. So parity is a pull over the long run, not an exact rule.
-    takeaway: If home prices rise faster, the home currency should weaken by about the inflation gap.
+            Shipping costs, import tariffs, and quotas make it expensive to arbitrage physical goods, many services like
+            haircuts or housing cannot be traded across borders, and short-term capital flows react to interest rates and
+            news. Thus PPP acts as a long-run anchor rather than an instant rule.
+    takeaway: Arbitrage equalizes single-good prices, while purchasing power parity links long-run currency moves to inflation gaps.
 
   - id: interest-and-forwards
     title: Interest rates and the price of tomorrow's money
-    goal: If a bank pays 8% a year, how much richer do you really get?
+    goal: How do inflation and interest rate gaps shape real returns and forward exchange rates?
     skills: [fisher, forward-parity]
-    state: { nominal: 0.08, inflation: 0.03, spot: 1.25, iHome: 0.05, iForeign: 0.03 }
-    derive:
-      - { fn: fisher, in: { nominal: '@nominal', inflation: '@inflation' }, out: fi }
-      - { fn: forwardRate, in: { spot: '@spot', iHome: '@iHome', iForeign: '@iForeign' }, out: fw }
     stage:
-      - id: r1-in
-        widget: Readout
+      - id: parity-table
+        widget: Schedule
         props:
-          items:
-            - { label: Nominal rate, value: '{=nominal|pct1}' }
-            - { label: Expected inflation, value: '{=inflation|pct1}' }
-      - id: r1
-        widget: Readout
+          title: Interest rate and parity frameworks
+          columns: [What it connects, Core economic mechanism]
+          rows:
+            - id: row-fisher
+              label: Fisher effect
+              amounts: [Nominal rate, expected inflation & real rate, Lenders demand higher nominal rates to offset expected inflation]
+            - id: row-cirp
+              label: Covered interest rate parity
+              amounts: [Interest gap & forward premium/discount, Forward rate offsets the interest differential to block risk-free arbitrage]
+            - id: row-ife
+              label: International Fisher effect
+              amounts: [Interest gap & expected spot change, Higher-interest currencies are expected to depreciate in the spot market]
+      - id: parity-bins
+        widget: DropBins
         hidden: true
         props:
-          items:
-            - { label: Nominal rate, value: '{=nominal|pct1}' }
-            - { label: Expected inflation, value: '{=inflation|pct1}' }
-            - { label: Real rate, value: '{=fi.real|pct1}', tone: good }
-      - id: r2-in
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Spot rate, value: '@spot', format: 4 }
-            - { label: Home interest, value: '{=iHome|pct1}' }
-            - { label: Foreign interest, value: '{=iForeign|pct1}' }
-      - id: r2
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Spot rate, value: '@spot', format: 4 }
-            - { label: Home interest, value: '{=iHome|pct1}' }
-            - { label: Foreign interest, value: '{=iForeign|pct1}' }
-            - { label: Interest gap, value: '{=fw.diff|pct1}', tone: accent }
-            - { label: Forward rate, value: '@fw.forward', format: 4, tone: good }
+          check: instant
+          chips:
+            - { id: p1, label: 'High expected inflation erodes a saver’s real buying power unless nominal rates rise' }
+            - { id: p2, label: 'A firm locks in a future exchange rate today so interest differentials cannot be arbitraged' }
+            - { id: p3, label: 'A country with higher nominal interest rates is expected to see its spot currency weaken' }
+          bins:
+            - { id: fe, label: Fisher effect }
+            - { id: cirp, label: Covered interest parity }
+            - { id: ife, label: International Fisher effect }
+          solution: { p1: fe, p2: cirp, p3: ife }
     beats:
       - say: |
-          A bank advertises 8% a year. That is the **nominal interest rate**: the rate quoted before taking price rises
-          into account.
+          When a bank advertises a deposit or loan rate, that stated figure is the **nominal interest rate**—the rate
+          quoted before taking inflation into account.
         define: [nominal-interest-rate]
-      - say: Prices are expected to rise 3% over the same year.
-        gate:
-          type: predict
-          question: By how many percentage points does your buying power really grow?
-          answer: { value: 5, tol: 0.01 }
-          explain: 8% minus 3% is 5%. Rising prices eat part of the interest.
       - say: |
-          What you really gain is the **real interest rate**: the nominal rate minus expected inflation. The
-          **Fisher effect** is this link between the two rates.
+          What a lender truly gains in buying power is the **real interest rate**, which removes expected inflation from
+          the nominal rate. The **Fisher effect** explains that nominal rates rise when expected inflation rises.
         define: [real-interest-rate, fisher-effect]
-        hide: [r1-in]
-        show: [r1]
-      - say: Try it with new numbers.
-        gate:
-          type: practice
-          template: fisher-numeric
-      - say: |
-          Businesses also want to fix tomorrow's price today. A **forward rate** is an exchange rate agreed now for a swap
-          on a fixed future date, often 30, 60, 90 or 180 days away.
-        define: [forward-rate]
-        hide: [r1]
-        show: [r2-in]
-      - say: |
-          Which forward rate is fair? **Covered interest rate parity** says the percentage gap between forward and spot
-          equals the gap between the two countries' interest rates. Otherwise arbitrage would be free money.
-        define: [covered-interest-parity]
         gate:
           type: predict
-          question: Spot is 1.25. Home interest is 5%, foreign is 3%. What is the forward rate?
-          answer: { value: 1.275, tol: 0.002 }
-          explain: The gap is 5% − 3% = 2%, so the forward is 1.25 × 1.02 = 1.275, above spot.
+          question: If expected inflation rises above the nominal interest rate on a savings account, what happens to the saver's real buying power?
+          options:
+            - It shrinks, because the real interest rate is negative
+            - It grows faster, because inflation adds to interest
+            - It stays constant, because nominal rates guarantee buying power
+            - It doubles over the year
+          answer: 0
+          explain: When prices rise faster than the nominal interest rate, the real interest rate is negative and the saver loses purchasing power.
       - say: |
-          With a 2% interest gap, the forward rate is $1.25 \times 1.02 = 1.2750$. The **International Fisher effect** says
-          that the gap between two currencies' interest rates also reflects the exchange rate change people expect.
+          Cross-border businesses also want to lock in tomorrow's exchange rate today. A **forward rate** is an exchange
+          rate agreed now for swapping currencies on a fixed future date, such as 30, 90, or 180 days ahead.
+        define: [forward-rate]
+      - say: |
+          How is that forward rate set? **Covered interest rate parity** states that the forward premium or discount
+          between two currencies offsets the gap between their nominal interest rates—preventing risk-free arbitrage.
+        define: [covered-interest-parity]
+      - say: |
+          Even without a forward contract, interest gaps carry a signal. The **International Fisher effect** states that
+          the difference between two countries' nominal interest rates reflects how their spot rate is expected to change.
         define: [international-fisher-effect]
-        hide: [r2-in]
-        show: [r2]
-      - say: Now a forward rate of your own.
+        show: [parity-bins]
+        gate:
+          type: event
+          prompt: Match each scenario to the interest-rate framework that explains it.
+          target: parity-bins
+          event: solved
+          hint: Distinguish between real buying power (Fisher), locked-in forwards (Covered), and expected spot moves (International Fisher).
+      - say: Test how interest differentials shape whether a currency trades at a forward premium or discount.
+        hide: [parity-bins]
         gate:
           type: practice
-          template: forward-numeric
-    takeaway: The real rate is nominal minus inflation, and the forward rate moves from spot by the interest rate gap.
+          template: forward-direction-mcq
+    takeaway: The Fisher effect links nominal rates to inflation, while interest parity links interest gaps to forward and expected spot rates.
 
   - id: forecasting-rates
     title: Can anyone predict the rate?
-    goal: Is it possible to know next month's exchange rate before it happens?
+    goal: Why do economists and traders disagree on whether exchange rates can be forecast?
     skills: [forecasting]
     data: [spotseries]
+    state: { forecastMethod: 'efficient' }
     derive:
-      - { fn: randomWalk, in: { series: '@spotseries', window: 3 }, out: rw }
+      - { fn: forecastProfile, in: { method: '@forecastMethod' }, out: fp }
     stage:
       - id: chart
         widget: Chart
@@ -622,62 +629,72 @@ scenes:
             - { name: Dollars per euro, y: '@spotseries' }
           xLabel: Month
           yLabel: Rate
-      - id: r
+      - id: method-pick
+        widget: Choice
+        region: side
+        props:
+          label: Forecasting school
+          style: segmented
+          options:
+            - { value: 'efficient', label: 'Efficient market' }
+            - { value: 'random-walk', label: 'Random walk' }
+            - { value: 'fundamental', label: 'Fundamental' }
+            - { value: 'technical', label: 'Technical' }
+        bind: { value: forecastMethod }
+      - id: forecast-readout
         widget: Readout
         region: side
-        hidden: true
         props:
           items:
-            - { label: Months scored, value: '@rw.n' }
-            - { label: Random walk average error, value: '@rw.mae', format: 4, tone: accent }
-            - { label: 3-month average error, value: '@rw.maMae', format: 4, tone: accent }
-            - { label: Last error, value: '@rw.lastError', format: 4 }
+            - { label: Core assumption, value: '@fp.assumption', tone: accent }
+            - { label: Primary inputs, value: '@fp.inputs' }
+            - { label: Managerial takeaway, value: '@fp.implication', tone: good }
     beats:
       - say: |
-          Here is a made-up six-month run of dollars per euro. Everyone from importers to banks would love to know the
-          seventh month in advance.
+          Look at this six-month run of dollars per euro. Every importer, exporter, and bank treasury would love to know
+          in advance which way the rate will move next month.
       - say: |
-          One camp says it is hopeless. The **efficient market approach** assumes today's price already reflects
-          everything relevant that is known, so no one can predict an easy gain.
+          One school says trying to beat the market is futile. The **efficient market approach** holds that today's spot
+          price already reflects all relevant public information, leaving no easy predictable gain.
         define: [efficient-market]
       - say: |
-          A close cousin is the **random walk hypothesis**: since the next news is unpredictable, the best guess for
-          tomorrow's price is simply today's price.
+          A close companion is the **random walk hypothesis**: because future news is unpredictable, exchange rate changes
+          are random and the best forecast for tomorrow's rate is simply today's rate.
         define: [random-walk-hypothesis]
         gate:
           type: predict
-          question: By the random walk view, what is the forecast for month 7?
-          answer: { value: 1.12, tol: 0.005 }
-          explain: The latest value is 1.12, so the forecast is 1.12.
+          question: Under the random walk hypothesis, what is the best forecast for next month's exchange rate?
+          options:
+            - Today's current spot rate, because future news shocks cannot be predicted
+            - An extrapolation of the last two months' upward slope
+            - The average rate from ten years ago
+            - The official gold par value
+          answer: 0
+          explain: A random walk holds that all known information is already in today's price, so tomorrow's best predictor is today's spot rate.
       - say: |
-          Others still try. The **fundamental approach** builds economic models of inflation, interest rates and trade.
-          **Technical analysis** studies past prices for trends and projects them forward.
+          Forecasters still try two active methods. The **fundamental approach** models economic forces like inflation,
+          interest rates, and trade, while **technical analysis** studies past price charts to project trends forward.
         define: [fundamental-approach, technical-analysis]
-      - say: |
-          Scoring the random walk across the five month-to-month steps gives an average absolute error of **0.0200**, slightly
-          better than a 3-month moving average (**0.0267**). Beating today's price is harder than it looks.
-        show: [r]
-      - say: One for you.
         gate:
-          type: practice
-          template: rw-numeric
-      - say: Finally, a challenge to the idea.
+          type: when
+          prompt: Select **Fundamental** in the side panel to see how macroeconomic forecasting differs from chart-based analysis.
+          when: "forecastMethod == 'fundamental'"
+          hint: Click "Fundamental" under Forecasting school.
+      - say: Weigh the debate between market efficiency and chart reading.
         gate:
           type: reflect
-          prompt: If markets are efficient, why do some traders still study price charts?
+          prompt: If markets are largely efficient, why do some currency traders still rely on technical analysis?
           model: |
-            Chart readers believe past prices contain patterns that the market has not fully used. Efficient market
-            believers say any such pattern is already priced in and vanishes as soon as many people act on it. The debate
-            is unsettled.
-    takeaway: A random walk forecasts with today's price; fundamental and technical approaches try to beat it.
+            Technical traders believe that human psychology, herd behavior, and institutional trading rules create
+            short-term momentum patterns in price charts. Efficient-market proponents counter that any public chart
+            pattern is quickly arbitraged away once enough traders act on it.
+    takeaway: Efficient-market and random-walk views treat today's rate as the best forecast, while fundamental and technical analysts try to beat it.
 
   - id: governments-step-in
     title: When governments step in
-    goal: What can a government do to money and prices that markets alone would not?
+    goal: How do currency exchange controls and cross-border taxes reshape international business?
     skills: [govt-forces]
-    state: { rate: 0.12, prices: [100, 150, 250], animFrom: 0, animTo: 2.6 }
-    derive:
-      - { fn: vatChain, in: { prices: '@prices', rate: '@rate' }, out: v }
+    state: { animFrom: 0, animTo: 2.6 }
     stage:
       - id: controls-note
         widget: Callout
@@ -685,34 +702,24 @@ scenes:
           kind: note
           title: Government tools on money and income
           body: |
-            - **Currency exchange controls:** Ration foreign currency to protect central bank reserves, making the local currency **nonconvertible** at an official rate above the free-market rate.
+            - **Currency exchange controls:** Ration foreign currency to protect central bank reserves, making the local currency **nonconvertible** at an official rate set above the free-market value.
             - **Income tax:** Direct tax on personal and corporate earnings.
             - **Withholding tax:** Tax deducted at the source on passive income (interest, dividends, royalties) paid across borders.
-      - id: r-in
-        widget: Readout
+            - **Value-added tax (VAT):** Indirect tax levied only on the value added at each production stage via input tax credits.
+      - id: policy-bins
+        widget: DropBins
         hidden: true
         props:
-          items:
-            - { label: Stage 1 sale price, value: 100 }
-            - { label: Stage 2 sale price, value: 150 }
-            - { label: Stage 3 final price, value: 250 }
-            - { label: VAT rate, value: '{=rate|pct}', tone: accent }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Stage 1 tax (on 100), value: '@v.stages.0.remit', format: 2 }
-            - { label: Stage 2 tax (on +50 added), value: '@v.stages.1.remit', format: 2 }
-            - { label: Stage 3 tax (on +100 added), value: '@v.stages.2.remit', format: 2 }
-            - { label: Total tax to the government, value: '@v.totalRemit', format: 2, tone: good }
-            - { label: Tax on the final price (250), value: '@v.finalTax', format: 2, tone: good }
-      - id: rateslider
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Tax rate (0.12 = 12%), min: 0.05, max: 0.25, step: 0.01 }
-        bind: { value: rate }
+          check: instant
+          chips:
+            - { id: g1, label: 'Rations access to foreign currency to protect central bank reserves' }
+            - { id: g2, label: 'Collected at each stage of production, with a credit for tax already paid on inputs' }
+            - { id: g3, label: 'Deducted at the source when interest, dividends, or royalties are paid abroad' }
+          bins:
+            - { id: ctrl, label: Exchange controls }
+            - { id: vat, label: Value-added tax }
+            - { id: wht, label: Withholding tax }
+          solution: { g1: ctrl, g2: vat, g3: wht }
       - id: anim
         widget: Animation
         region: top
@@ -740,97 +747,121 @@ scenes:
         define: [convertible-currency]
         gate:
           type: predict
-          question: Compared with the free-market rate, the official rate under controls is usually…
+          question: Compared with the free-market rate, the official exchange rate under currency controls is usually…
           options: [Above it, Below it, Exactly equal, Unrelated]
           answer: 0
-          explain: Governments set the official value above the free-market value, which is why controls are needed to enforce it.
+          explain: Governments set the official value above the free-market value, which is why controls are needed to ration scarce foreign exchange.
       - say: |
-          Governments also shape business through taxes. An **income tax** is charged on what people and companies earn. A
-          **withholding tax** is taken at the source from passive income, such as interest, that is paid across a border.
+          Governments also shape business through taxes. An **income tax** is charged directly on what people and companies
+          earn. A **withholding tax** is taken at the source from passive income, such as interest or dividends, paid across a border.
         define: [income-tax, withholding-tax]
       - say: |
-          The **value-added tax**, or VAT, is a sales tax collected at every step of production. Each firm charges tax on its
-          sale, then gets a credit for the tax already paid on its inputs. Tax is 12% here.
+          The **value-added tax**, or VAT, is a sales tax collected at every step of production. Each firm charges tax on
+          its sale, then receives a credit for the tax already paid on its inputs.
         define: [value-added-tax]
         hide: [controls-note]
-        show: [r-in, anim]
-        gate:
-          type: predict
-          question: A firm buys at 100 and sells at 150. How much VAT does it pay the government at 12%?
-          answer: { value: 6, tol: 0.01 }
-          explain: It collects 12% × 150 = 18 and gets a credit of 12% × 100 = 12, so it pays 18 − 12 = 6.
+        show: [anim]
       - say: |
-          Across all three stages (12 + 6 + 12 = 30), the government collects the exact same amount as 12% of the final price
-          (250). Now change the tax rate and watch the total.
+          Because each firm deducts the tax paid at earlier stages, VAT taxes only the net value added at each step and
+          never cascades. Sort each government policy into how it works.
         set: { animFrom: 2.6, animTo: 5 }
-        hide: [r-in]
-        show: [r, rateslider]
+        show: [policy-bins]
         gate:
-          type: when
-          prompt: Set the tax rate so the government collects a total of 50.
-          when: 'v.totalRemit > 49.9 and v.totalRemit < 50.1'
-          hint: The total is the rate times the final price of 250. What rate gives 50?
-      - say: One more on new prices.
-        hide: [rateslider, anim]
+          type: event
+          prompt: Place each policy description into the right category.
+          target: policy-bins
+          event: solved
+          hint: Match foreign exchange rationing, supply-chain input credits, and passive income deductions.
+      - say: Practice matching the three tax types in international business.
+        hide: [policy-bins, anim]
+        show: [controls-note]
         gate:
           type: practice
-          template: vat-numeric
-    takeaway: Value-added tax is paid on each firm's added value, and the total equals the rate times the final price.
+          template: tax-match
+    takeaway: Governments ration foreign money with exchange controls and collect revenue through income, withholding, and value-added taxes.
 
   - id: balance-of-payments
     title: Keeping score between countries
-    goal: How does a country keep a record of all the money coming in and going out?
+    goal: How does a country record all the money flowing across its borders—and why does it always balance?
     skills: [bop]
-    data: [bopdemo]
-    derive:
-      - { fn: bopSummary, in: { table: '@bopdemo' }, out: b }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: bop-tree
+        widget: Tree
         props:
-          items:
-            - { label: 'Exports (credit +)', value: 120 }
-            - { label: 'Imports (debit −)', value: -150 }
-            - { label: Current account, value: '@b.current', tone: accent }
-            - { label: 'Foreign investment in (credit +)', value: 80 }
-            - { label: 'Resident investment abroad (debit −)', value: -50 }
-      - id: r
-        widget: Readout
+          root:
+            id: bop-root
+            label: Balance of Payments (Double-Entry Record)
+            note: Credits (+) come from abroad; Debits (−) go abroad
+            children:
+              - id: curr-node
+                label: Current Account
+                note: Goods, services, investment income & unilateral transfers
+                children:
+                  - { id: exp-node, label: 'Exports of goods & services (Credit +)' }
+                  - { id: imp-node, label: 'Imports of goods & services (Debit −)' }
+              - id: cap-node
+                label: Capital Account
+                note: Cross-border investments, loans & asset flows
+                children:
+                  - { id: in-node, label: 'Foreign investment inflows (Credit +)' }
+                  - { id: out-node, label: 'Domestic investment outflows (Debit −)' }
+              - id: res-node
+                label: Official Reserves
+                note: Central bank gold, foreign exchange & IMF holdings
+                children:
+                  - { id: bal-node, label: 'Offsets any net gap so the three accounts balance to zero' }
+      - id: bop-bins
+        widget: DropBins
         hidden: true
         props:
-          items:
-            - { label: Current account, value: '@b.current', tone: accent }
-            - { label: Capital account, value: '@b.capital', tone: accent }
-            - { label: Official reserves, value: '@b.official', tone: accent }
-            - { label: Total, value: '@b.net', tone: good }
+          check: instant
+          chips:
+            - { id: b1, label: 'Exporting domestic merchandise and importing foreign shipping services' }
+            - { id: b2, label: 'Foreign investors building a local factory or buying domestic bonds' }
+            - { id: b3, label: 'The central bank adjusting its gold and foreign currency holdings to balance the accounts' }
+          bins:
+            - { id: curr, label: Current account }
+            - { id: cap, label: Capital account }
+            - { id: res, label: Official reserves }
+          solution: { b1: curr, b2: cap, b3: res }
     beats:
       - say: |
-          Every country trades with the world: goods go out, goods come in, investors move money. The
-          **balance of payments** is a record of all those dealings over a period. It uses double-entry bookkeeping, so it adds to zero.
+          Every country trades and invests with the rest of the world. The **balance of payments** (BOP) records all money
+          dealings between a country's residents and foreigners over a period, using double-entry bookkeeping so the total balances.
         define: [balance-of-payments]
       - say: |
-          Payments from other countries are credits (+). Payments to other countries are debits (−). The
-          **current account** records trade in goods and services and other money sent abroad, such as aid.
+          Payments received from abroad are recorded as credits (+), and payments sent abroad are debits (−). The
+          **current account** records trade in goods and services, investment income, and unilateral transfers like aid.
         define: [current-account]
       - say: |
-          The **capital account** records investments and loans moving across borders. The **official reserves** line
-          records changes in the central bank's gold and foreign money, and balances the rest.
+          The **capital account** records cross-border investments and loans. The **official reserves** account tracks
+          changes in the central bank's gold and foreign currency holdings that balance the overall record.
         define: [capital-account, official-reserves]
       - say: |
-          Our country exported 120 and imported 150, so its current account is −30. Foreign investors put in 80 while
-          residents invested 50 abroad.
+          Because double-entry bookkeeping requires the balance of payments to sum to zero, a deficit in one account must
+          be financed by a surplus in another or by official reserves.
         gate:
           type: predict
-          question: What is the capital account total?
-          answer: { value: 30, tol: 0.5 }
-          explain: 80 − 50 = +30. It matches the −30 current account deficit, so reserves do not need to change.
+          question: If a country runs a current account deficit and its official reserves do not change, what must happen in its capital account?
+          options:
+            - It must show an offsetting capital account surplus from net foreign investment or borrowing
+            - It must show an identical capital account deficit
+            - It must be zero by law
+            - Its exports of goods must exceed its imports
+          answer: 0
+          explain: Spending more abroad on goods and services than you earn requires an equal net inflow of foreign capital when reserves stay unchanged.
       - say: |
-          Because the +30 capital account surplus offsets the −30 current account deficit, official reserves stay at 0 and the
-          three accounts sum to zero.
-        hide: [r-in]
-        show: [r]
-      - say: A deficit is money that left. The capital account shows money that came back. Try a new country.
+          Sort each cross-border activity into the balance of payments account where it belongs.
+        show: [bop-bins]
+        gate:
+          type: event
+          prompt: Place each transaction into its balance of payments account.
+          target: bop-bins
+          event: solved
+          hint: Goods and services go in the current account; asset investments go in the capital account; central bank holdings go in official reserves.
+      - say: Practice how the current and capital accounts offset each other.
+        hide: [bop-bins]
         gate:
           type: practice
-          template: bop-numeric
-    takeaway: The three accounts add to zero, so a current account deficit is matched by a capital account surplus or by reserves.
+          template: bop-mcq
+    takeaway: Double-entry bookkeeping ensures that a current account deficit is matched by a capital account surplus or a change in reserves.

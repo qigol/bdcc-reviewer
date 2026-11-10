@@ -1,33 +1,24 @@
 intro: |
-  Politics reaches every import order: the safety of the route, the border tax and the rules on unfair pricing. This case
-  follows one small importer through all three.
+  Politics reaches every import order: the safety of the shipping route, the structure of border taxes, and rules on
+  local content and unfair pricing. This case follows one importer through these policy forces.
 case:
   id: bike-importer
   title: A Davao bike shop imports frames
   story: |
-    Davao Cycles wants to import **1,000 bicycle frames** worth **25,000 dollars** from a supplier in Asia. The shipment
-    sails past regions with piracy risk. The border applies a **compound duty** of 10% of the value plus 3 dollars per
-    frame. A local supplier offers frames for 42 dollars each. The owner must decide whether to import.
+    Davao Cycles imports alloy bicycle frames from a supplier in Asia. The shipment sails past regions with maritime
+    piracy risk, faces a compound duty at customs, and competes against domestic frame makers lobbying for new trade
+    barriers. The owner must evaluate each political force.
   data: [piracy]
   state:
     year: '2022'
-    value: 25000
-    units: 1000
-    adValoremRate: 0.1
-    specificPerUnit: 3
-    exportPrice: 20
-    homePrice: 30
-    cost: 22
   derive:
     - { fn: piracyYear, in: { table: '@piracy', year: '@year' }, out: pa }
-    - { fn: importDuty, in: { value: '@value', units: '@units', adValoremRate: '@adValoremRate', specificPerUnit: '@specificPerUnit' }, out: d }
-    - { fn: dumpingTest, in: { exportPrice: '@exportPrice', homePrice: '@homePrice', cost: '@cost' }, out: dm }
   cells:
     - id: route-risk
       title: Is the route safe?
       say: |
-        Table 5.1 shows how piracy incidents were spread across regions in the latest full year. Shipping through a
-        region with many incidents means higher insurance and more risk.
+        Table 5.1 shows how piracy incidents were spread across regions in 2022. Shipping through a region with active
+        incidents means higher insurance and route planning.
       stage:
         - id: risk-r
           widget: Readout
@@ -37,74 +28,84 @@ case:
               - { label: Asia, value: '@pa.asia' }
               - { label: Latin America and the Caribbean, value: '@pa.latam' }
               - { label: Rest of world, value: '@pa.rest' }
-              - { label: Total, value: '@pa.total', tone: good }
+              - { label: Highest-risk region, value: '@pa.topRegion', tone: accent }
       decision:
-        prompt: In the latest full year, which region had the most incidents, and what should the owner do about the route?
+        prompt: In 2022, which region had the most incidents, and what should the owner do about the route?
         type: mcq
         options: [Asia; buy cargo insurance and check the shipping route, Africa; cancel the order immediately, Latin America; ignore the risk completely, Rest of the world; nothing to do]
         answer: 0
-        model: Asia had 56 of 115 incidents in 2022. The supplier is in Asia, so the owner should insure the cargo and ask the shipper about the route, not cancel.
+        model: Asia had the highest incident count in 2022. Because the supplier is in Asia, the owner should insure the cargo and verify routing with the carrier rather than ignore the risk.
     - id: border-duty
-      title: What does the border add?
+      title: What kind of tariff applies at customs?
       say: |
-        The compound duty has two parts. The percentage part depends on the value. The per-unit part depends on how many
-        frames arrive.
+        Customs applies a border tax that charges both a percentage of the shipment's invoice value and a fixed fee for
+        each physical frame in the container.
       stage:
-        - id: duty-r
-          widget: Readout
+        - id: duty-schedule
+          widget: Schedule
           props:
-            items:
-              - { label: Invoice value, value: '@value' }
-              - { label: Units imported, value: '@units' }
-              - { label: Ad valorem rate, value: '{=adValoremRate|pct}' }
-              - { label: Specific duty per frame, value: '@specificPerUnit' }
+            title: Customs tariff structure on bicycle frames
+            columns: [Assessment basis]
+            rows:
+              - { label: Value component, amounts: ['Percentage of total invoice value (ad valorem)'] }
+              - { label: Unit component, amounts: ['Fixed fee per physical bicycle frame (specific)'] }
       decision:
-        prompt: What are the total compound duty and the landed cost (before freight and insurance) for the 1,000 frames?
+        prompt: What type of tariff is customs charging, and how does it affect the importer's sourcing choice?
         type: mcq
-        options: ['5,500 duty and 30,500 landed cost', '2,500 duty and 27,500 landed cost', '3,000 duty and 28,000 landed cost', '5,500 duty and 25,000 landed cost']
+        options:
+          - A compound duty; it taxes both shipment value and unit volume
+          - A variable levy; it fluctuates daily with world grain prices
+          - A voluntary export restraint; the exporter keeps the tax revenue
+          - An import ban; no frames may legally cross the border
         answer: 0
-        model: Ad valorem duty is 10% × 25,000 = 2,500, and specific duty is 3 × 1,000 = 3,000, giving 5,500 in total duty and 30,500 in landed cost.
+        model: Combining a percentage of value (ad valorem) with a fixed charge per unit (specific) creates a compound duty, raising the landed cost on both expensive and high-volume shipments.
     - id: compare-local
-      title: Imported or local?
+      title: A new local-content rule
       say: |
-        The local supplier offers frames for 42 dollars each. For 1,000 frames that is 42,000 dollars. Compare it with
-        the imported landed cost, before freight and insurance.
+        Domestic frame makers ask the government to require bicycle assemblers to source a minimum share of their parts
+        from factories inside the host country.
       stage:
         - id: local-note
           widget: Text
           props:
             body: |
-              Local supplier: **42 dollars** per frame, **42,000** for 1,000 frames.
+              Proposed rule: **Every bicycle assembled and sold domestically must use a set share of locally manufactured components.**
       decision:
-        prompt: Is importing cheaper once the duty is included, before freight and insurance?
+        prompt: How is this proposed policy classified?
         type: mcq
-        options: ['Yes. The landed cost is lower than 42,000', 'No. The landed cost is higher than 42,000', They are exactly equal, There is not enough information]
+        options:
+          - A local content requirement, which is a nontariff barrier
+          - An ad valorem tariff on exports
+          - Privatization of the bicycle industry
+          - A countervailing duty against foreign buyers
         answer: 0
-        model: Landed cost is 25,000 + 2,500 + 3,000 = 30,500 dollars, well under 42,000. Freight and insurance would have to cost more than 11,500 to change the decision.
+        model: Forcing firms to use domestically produced goods or services is a local content requirement, one of the main nontariff barriers.
     - id: unfair-price
-      title: Is the supplier dumping?
+      title: Unfair pricing and trade remedies
       say: |
-        The supplier sells to the Philippines at 20 dollars a frame. At home it sells for 30 and its cost is 22. Dumping
-        could trigger a duty that changes the numbers.
+        The Asian supplier offers frames at an export price below both its home-market price and its cost of production,
+        supported by an export grant from its home government.
       stage:
-        - id: dump-r
-          widget: Readout
+        - id: dump-schedule
+          widget: Schedule
           props:
-            items:
-              - { label: Export price, value: '@exportPrice' }
-              - { label: Home price, value: '@homePrice' }
-              - { label: Cost, value: '@cost' }
+            title: Supplier pricing and support profile
+            columns: [Observation]
+            rows:
+              - { label: Export price vs. home price and cost, amounts: [Priced below both home-market price and production cost] }
+              - { label: Government support abroad, amounts: [Exporter receives a direct state export subsidy] }
       decision:
-        prompt: Would the supplier's price count as dumping, and what risk does that create for the owner?
+        prompt: What two unfair-trade concepts apply here, and what border taxes could the importing government impose in response?
         type: open
         model: |
-          Yes. 20 is below both the home price (30) and cost (22). The government could add an antidumping duty, which would
-          make the frames dearer later. The owner should not rely on the low price lasting.
+          Selling abroad below home price or production cost is dumping, which can trigger an antidumping duty. Receiving a
+          foreign government export grant is a subsidy, which can trigger a countervailing duty to cancel out the unfair help.
+          Davao Cycles should not count on the artificially low price lasting.
     - id: policy-view
       title: Whose side is the border on?
       say: |
-        The owner is told the government may later add a quota on frames to protect local makers. Think about who gains
-        and who loses.
+        The owner hears that the government may also add an import quota on bicycle frames to protect local makers.
+        Think about who gains and who loses.
       stage:
         - id: beyond-note
           widget: Callout
@@ -120,22 +121,22 @@ case:
         model: A quota limits supply, so local makers face less competition and can charge more. Importers lose volume and cyclists pay higher prices.
 explainBack:
   prompt: |
-    Explain to a friend how a compound duty is worked out, why a government might add a countervailing duty, and what
-    country risk means for an importer.
+    Explain to a friend how ad valorem, specific, compound and variable-levy tariffs differ, why a government adds a
+    countervailing duty, and what country risk means for an importer.
   rubric:
-    - Describes the ad valorem part and the specific part
-    - Links a countervailing duty to export subsidies
+    - Distinguishes ad valorem (percentage of value), specific (per unit), compound (both) and variable levy (price gap)
+    - Links a countervailing duty to canceling out foreign export subsidies
     - Mentions political and physical risks to people, property and cargo
 atScale:
   title: In practice
   body: |
-    Importers use customs brokers to classify goods, because the duty rate depends on the product code. Cargo insurance and
+    Importers use customs brokers to classify goods, because the duty rule depends on the product code. Cargo insurance and
     route planning handle piracy risk. Companies keep country risk reports from export credit agencies and track trade
     notifications from the World Trade Organization so they hear of new barriers early.
 tradeoffs:
   title: Sourcing choices
   columns: [Option, Benefit, Risk]
   rows:
-    - [Import from Asia, Lower landed cost, 'Piracy, duties that change, dumping action']
-    - [Buy local, 'No border taxes, shorter supply line', Higher price]
-    - [Split orders, Spreads the risk, More paperwork]
+    - [Import from Asia, Lower factory price, 'Piracy, duties that change, dumping or countervailing action']
+    - [Buy local, 'No border taxes, shorter supply line', Higher unit price]
+    - [Split orders, Spreads political and supply risk, More paperwork]

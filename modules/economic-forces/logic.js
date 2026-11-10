@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const { sum } = sdk;
   const GROUPS = ['High income', 'Upper-middle income', 'Lower-middle income', 'Low income'];
   // Tables embedded so quiz generators can draw rows from the lecture's own data.
@@ -266,5 +266,159 @@ export default function register(sdk) {
       populationDensity: sameAnchors(populationDensity),
     },
     generators: { perCapQ, classQ, basketQ, atlasQ, debtQ, ulcQ, discQ, densityQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual() {
+  const LENS_MAP = {
+    gdp: {
+      name: 'Gross domestic product (GDP)',
+      captures: 'All goods and services produced inside the country borders',
+      blindSpot: 'Ignores cross-border income flows and population size',
+      signal: 'Overall scale of domestic production activity',
+    },
+    gni: {
+      name: 'Gross national income (GNI)',
+      captures: 'Total income earned by residents at home and abroad',
+      blindSpot: 'A static snapshot that hides inequality and unreported trade',
+      signal: 'Aggregate resident earning power before per-person adjustment',
+    },
+    growth: {
+      name: 'Economic growth rate',
+      captures: 'How fast national output or income is expanding over time',
+      blindSpot: 'Does not show baseline affluence or informal cash activity',
+      signal: 'Rising growth points to expanding consumer demand',
+    },
+    underground: {
+      name: 'Underground economy',
+      captures: 'Unreported cash work, barter, and informal or illegal trade',
+      blindSpot: 'Left out of official GDP and GNI statistics',
+      signal: 'Real purchasing power is larger than official figures show',
+    },
+  };
+
+  const PPP_MAP = {
+    'United States': {
+      country: 'United States',
+      priceLevel: 'Benchmark price level',
+      pppVsAtlas: 'PPP income sits close to Atlas income',
+      marketTakeaway: 'Market exchange rate already reflects domestic buying power',
+    },
+    Norway: {
+      country: 'Norway',
+      priceLevel: 'High domestic price level',
+      pppVsAtlas: 'High nominal income moderated by expensive local goods',
+      marketTakeaway: 'Affluent market, though everyday goods and services cost more',
+    },
+    Turkey: {
+      country: 'Turkey',
+      priceLevel: 'Low local price level for domestic goods and services',
+      pppVsAtlas: 'PPP income is more than three times Atlas income',
+      marketTakeaway: 'Households can buy far more locally than market exchange rates suggest',
+    },
+    India: {
+      country: 'India',
+      priceLevel: 'Very low local prices for staples and services',
+      pppVsAtlas: 'PPP income is roughly three and a half times Atlas income',
+      marketTakeaway: 'Local purchasing power far exceeds nominal dollar conversions',
+    },
+  };
+
+  const TIER_MAP = {
+    gross: {
+      name: 'Gross household income',
+      deducted: 'None (before taxes and living expenses)',
+      bestFor: 'Headline earnings before mandatory obligations',
+    },
+    disposable: {
+      name: 'Disposable income',
+      deducted: 'Personal taxes removed',
+      bestFor: 'Total take-home pay for both essentials and non-essentials',
+    },
+    discretionary: {
+      name: 'Discretionary income',
+      deducted: 'Both taxes and essential living costs (food, housing) removed',
+      bestFor: 'True spending power for choice and luxury consumer goods',
+    },
+  };
+
+  const DEBT_MAP = {
+    baseline: {
+      focus: 'Manageable external borrowing',
+      currencyEffect: 'Foreign exchange flows freely for trade and investment',
+      firmRisk: 'Routine cross-border payment and supply operations',
+    },
+    imports: {
+      focus: 'Foreign exchange rationing and import controls',
+      currencyEffect: 'Government conserves hard currency to service foreign debt',
+      firmRisk: 'Import restrictions block factories from buying foreign inputs',
+    },
+    growth: {
+      focus: 'Export earnings diverted to foreign lenders',
+      currencyEffect: 'Less capital left for domestic infrastructure and investment',
+      firmRisk: 'Slower local consumer demand and heightened macroeconomic fragility',
+    },
+  };
+
+  const DEMO_MAP = {
+    aging: {
+      pattern: 'Aging population and early retirement',
+      region: 'Typical of high-income industrial economies',
+      marketImpact: 'Strains pension systems while boosting healthcare and senior demand',
+    },
+    young: {
+      pattern: 'Broad young age base',
+      region: 'Typical of developing economies',
+      marketImpact: 'Expands future labor supply and demand for youth and family goods',
+    },
+    urban: {
+      pattern: 'Rural-to-urban shift',
+      region: 'Rapidly urbanizing developing and emerging markets',
+      marketImpact: 'Concentrates reachable buyers in cities and shifts lifestyle spending',
+    },
+  };
+
+  function macroLens({ lens }) {
+    return LENS_MAP[lens] || LENS_MAP.gdp;
+  }
+
+  function pppProfile({ country }) {
+    return PPP_MAP[country] || PPP_MAP['United States'];
+  }
+
+  function incomeTier({ tier }) {
+    return TIER_MAP[tier] || TIER_MAP.gross;
+  }
+
+  function debtSignal({ risk }) {
+    return DEBT_MAP[risk] || DEBT_MAP.baseline;
+  }
+
+  function demographicLens({ trend }) {
+    return DEMO_MAP[trend] || DEMO_MAP.aging;
+  }
+
+  return {
+    fns: {
+      macroLens,
+      pppProfile,
+      incomeTier,
+      debtSignal,
+      demographicLens,
+    },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

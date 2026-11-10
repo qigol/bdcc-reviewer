@@ -1,4 +1,4 @@
-export default function register(sdk) {
+function registerMain(sdk) {
   const YEARS = ['2022', '2019', '2014', '2009', '2004', '1999'];
   // Table 6.4, embedded so quiz generators can draw countries from the lecture's own data.
   const CPI = [
@@ -160,5 +160,60 @@ export default function register(sdk) {
   return {
     fns: { cpiRank: sameAnchors(cpiRank), cpiBest, incotermPrice: sameAnchors(incotermPrice), whichLaw: sameAnchors(whichLaw) },
     generators: { cpiQ, cpiGapQ, incoQ },
+  };
+}
+
+// 1.4.0: conceptual scenes (Intuition, Application) use the functions below; the Math & Code tab, lecture
+// examples and numeric quiz items keep the functions above.
+function registerConceptual() {
+  const INCOTERMS = {
+    FAS: {
+      delivery: 'Alongside the vessel at the port of shipment',
+      riskPassesAt: 'Alongside the ship on the quay',
+      loadingPaidBy: 'Buyer',
+      freightPaidBy: 'Buyer',
+      insurancePaidBy: 'Buyer',
+    },
+    FOB: {
+      delivery: 'On board the vessel at the port of shipment',
+      riskPassesAt: 'Once goods are on board the ship',
+      loadingPaidBy: 'Seller',
+      freightPaidBy: 'Buyer',
+      insurancePaidBy: 'Buyer',
+    },
+    CFR: {
+      delivery: 'On board the vessel; freight covered to destination',
+      riskPassesAt: 'Once goods are on board the ship',
+      loadingPaidBy: 'Seller',
+      freightPaidBy: 'Seller',
+      insurancePaidBy: 'Buyer',
+    },
+    CIF: {
+      delivery: 'On board the vessel; freight and insurance covered',
+      riskPassesAt: 'Once goods are on board the ship',
+      loadingPaidBy: 'Seller',
+      freightPaidBy: 'Seller',
+      insurancePaidBy: 'Seller',
+    },
+  };
+
+  function incotermGuide({ term }) {
+    return INCOTERMS[term] || INCOTERMS.FOB;
+  }
+
+  return {
+    fns: { incotermGuide },
+    generators: {},
+  };
+}
+
+export default function register(sdk) {
+  const a = registerMain(sdk);
+  const b = registerConceptual(sdk);
+  return {
+    ...b,
+    ...a,
+    fns: { ...b.fns, ...a.fns },
+    generators: { ...(b.generators ?? {}), ...(a.generators ?? {}) },
   };
 }

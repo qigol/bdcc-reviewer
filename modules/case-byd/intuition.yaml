@@ -3,9 +3,6 @@ scenes:
     title: The world's busiest car market
     goal: Why did China become the place where electric cars took off, and what does that mean for a company born there?
     skills: [byd-market]
-    state: { base: 1.2, other: 4.2 }
-    derive:
-      - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
     stage:
       - id: ev-market-note
         widget: Callout
@@ -13,84 +10,84 @@ scenes:
           kind: note
           title: China's electric vehicle market
           body: |
-            - **Powertrains:** BYD sells about half pure battery electric vehicles (BEVs) and half plug-in hybrids (PHEVs).
+            - **Powertrains:** BYD sells roughly an even split of pure battery electric vehicles (BEVs) and plug-in hybrids (PHEVs).
             - **Scale & crowding:** ~55 million cars of annual factory capacity vs. ~34 million sold across ~100 automakers.
-            - **EV adoption:** ~50% of new vehicle sales in China, vs. ~25% worldwide and ~8% in the United States.
-      - id: r-in
-        widget: Readout
+            - **EV adoption:** ~50% of new vehicle sales in China, compared with ~25% worldwide and ~8% in the United States.
+      - id: market-schedule
+        widget: Schedule
         hidden: true
         props:
-          items:
-            - { label: Model life of Chinese EVs (years), value: '@base' }
-            - { label: Model life of foreign brands (years), value: '@other' }
-      - id: r
-        widget: Readout
+          title: Chinese EV Challengers vs. Legacy Foreign Automakers
+          columns: [Chinese EV Makers, Legacy Foreign Brands]
+          rows:
+            - { label: Manufacturing heritage, amounts: ['Custom-built EV systems (late-mover edge)', 'Tied to legacy ICE plants and habits'] }
+            - { label: Development approach, amounts: ['Parallel engineering across ecosystem', 'Sequential development cycles'] }
+            - { label: Model lifecycle, amounts: ['Rapid refresh (~1.2 years on market)', 'Long refresh (~4.2 years on market)'] }
+            - { label: Buyer focus, amounts: ['Price, digital tech, and fast updates', 'Historical brand loyalty and engine pedigree'] }
+      - id: market-sorter
+        widget: DropBins
         hidden: true
         props:
-          items:
-            - { label: Model life of Chinese EVs (years), value: '@base' }
-            - { label: Model life of foreign brands (years), value: '@other' }
-            - { label: Difference, value: '@c.diff', format: 1, tone: accent }
-            - { label: Times longer, value: '@c.ratio', format: 2, tone: accent }
-            - { label: Fraction above the base, value: '{=c.pctOver|pct1}', tone: good }
+          check: instant
+          chips:
+            - { id: m1, label: Custom-built EV processes without legacy habits }
+            - { id: m2, label: Rapid 1.2-year model refresh cycle }
+            - { id: m3, label: Long 4.2-year model lifecycle }
+            - { id: m4, label: Tied to existing internal combustion engine plants }
+          bins:
+            - { id: cn, label: Chinese EV Makers }
+            - { id: legacy, label: Legacy Foreign Brands }
+          solution: { m1: cn, m2: cn, m3: legacy, m4: legacy }
     beats:
       - say: |
-          BYD, China's leading maker of **electric vehicles**, sells cars powered by a battery instead of fuel. It sells about
-          half battery cars and half **plug-in hybrids**: cars with a chargeable battery plus a fuel engine.
+          BYD, China's leading maker of **electric vehicles**, builds cars powered by a battery instead of fuel. It sells
+          roughly half pure battery cars and half **plug-in hybrids**: cars combining a chargeable battery with a fuel engine.
         define: [electric-vehicle, plug-in-hybrid]
       - say: |
-          Older cars use an **internal combustion engine**, a traditional engine that burns fuel. China built capacity to
-          make about 55 million cars, though it sold about 34 million a year, and it has about 100 car companies.
-        define: [internal-combustion-engine]
-      - say: |
-          A company's **market share** is the part of all sales that is its own. Across the whole Chinese car market, EVs
-          reached about 50% of new vehicles sold, against 25% worldwide and 8% in the United States.
-        define: [market-share]
+          Older cars rely on an **internal combustion engine** that burns petrol or diesel. A company's **market share** is the
+          slice of total sales it captures. In China, EVs reached half of new car sales, far ahead of the US.
+        define: [internal-combustion-engine, market-share]
         gate:
           type: predict
           question: Why did EVs capture half of new car sales in China while staying near 8% in the United States?
           options:
-            - Fierce local price competition, government buyer incentives and weak buyer attachment to legacy gas brands
+            - Fierce local price competition, government buyer incentives, and weak buyer attachment to legacy gas brands
             - China banned all internal combustion engine cars in 2015
             - China had only one state-owned automaker selling cars
             - Foreign brands refused to sell cars in China
           answer: 0
-          explain: Roughly 100 carmakers, government support and buyers focused on price and technology pushed EV share to 50% in China.
+          explain: Roughly 100 carmakers, policy support, and tech-focused buyers with low loyalty to legacy petrol brands pushed EV share to 50% in China.
       - say: |
-          Chinese makers also had no old habits to carry. A **late-mover advantage** comes from starting later, so you can
-          build new systems without being held back by old ones. They also built an **ecosystem**: a network of parts makers,
-          mapping and cloud firms and shippers that support one another.
+          Chinese makers also enjoyed a **late-mover advantage**: starting later let them design custom EV processes without legacy
+          baggage. They also built an **ecosystem** of parts makers, cloud and mapping firms, and ocean shippers working in parallel.
         define: [late-mover-advantage, ecosystem]
-      - say: |
-          Too many factories lead to a **price war**, in which rivals keep cutting prices to win customers. Chinese buyers
-          choose on price and performance, so makers update models fast. Chinese EVs stayed on the market 1.2 years and
-          foreign brands 4.2.
-        define: [price-war]
         hide: [ev-market-note]
-        show: [r-in]
-        gate:
-          type: predict
-          question: How many times longer do foreign brands stay on the market?
-          answer: { value: 3.5, tol: 0.05 }
-          explain: 4.2 ÷ 1.2 = 3.5.
+        show: [market-schedule]
       - say: |
-          At 4.2 years vs. 1.2 years, foreign models sit on the market 3.5 times as long (250% above the Chinese cycle).
-          Check the key market terms before moving on.
-        hide: [r-in]
-        show: [r]
+          Excess factory capacity across ~100 automakers sparked a brutal **price war**, where rivals continually cut prices to win
+          buyers. To survive, Chinese EV makers refresh models every 1.2 years against 4.2 years for foreign brands.
+        define: [price-war]
+        hide: [market-schedule]
+        show: [market-sorter]
+        gate:
+          type: event
+          prompt: Sort each competitive trait under Chinese EV Makers or Legacy Foreign Brands.
+          target: market-sorter
+          event: solved
+      - say: |
+          Fast model refreshes and parallel development keep Chinese EV makers ahead at home, but thin price-war margins push
+          them to seek profits abroad. Review the core market terms before moving on.
+        hide: [market-sorter]
+        show: [market-schedule]
         gate:
           type: practice
           template: market-match
-    takeaway: China's EV market is huge and fast-moving, and a late-mover ecosystem helped its makers move faster.
+    takeaway: China's huge EV market, partner ecosystem, and late-mover flexibility drove rapid model updates and intense price competition.
 
   - id: batteries-and-parts
     title: The battery and the parts
     goal: What makes one electric car cheaper to make than another?
     skills: [cost-advantage]
-    data: [capex]
-    state: { base: 60, other: 88 }
-    derive:
-      - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
     stage:
       - id: sorter
         widget: DropBins
@@ -108,38 +105,48 @@ scenes:
             - { id: lfp, label: LFP battery }
             - { id: nmc, label: NMC battery }
           solution: { b1: lfp, b2: nmc, b3: lfp, b4: nmc, b5: nmc, b6: lfp }
-      - id: r-in
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: CATL capital cost per GWh (millions), value: '@base' }
-            - { label: Rival capital cost per GWh (millions), value: '@other' }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: CATL capital cost per GWh (millions), value: '@base' }
-            - { label: Rival capital cost per GWh (millions), value: '@other' }
-            - { label: Difference, value: '@c.diff', tone: accent }
-            - { label: Ratio, value: '@c.ratio', format: 2, tone: accent }
-            - { label: Fraction above CATL, value: '{=c.pctOver|pct1}', tone: good }
-      - id: rival
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Rival capital cost per GWh (millions), min: 60, max: 120, step: 5 }
-        bind: { value: other }
       - id: parts-note
         widget: Callout
         hidden: true
         props:
           kind: note
-          title: BYD's vertical integration on the Seal
+          title: BYD's battery and parts strategy
           body: |
-            - **In-house share:** About **75%** of the parts in the BYD Seal are made by BYD itself.
-            - **Supplier margin saved:** Making Tier 1 and Tier 2 components in-house eliminates roughly **\$2,400** per vehicle in outside supplier profit margins.
+            - **Blade Battery (LFP):** Cell-to-pack design increases rigidity, passes nail-penetration safety tests, and avoids costly cobalt.
+            - **In-house integration:** About **75%** of the BYD Seal's components are made in-house by BYD.
+            - **Eliminated markups:** Producing Tier 1 and Tier 2 parts internally saves roughly **\$2,400** per car in outside supplier margins.
+      - id: supply-tree
+        widget: Tree
+        hidden: true
+        props:
+          orientation: right
+          root:
+            id: root
+            label: BYD EV Architecture (~75% In-House)
+            tone: accent
+            children:
+              - id: battery
+                label: In-House Blade Battery (LFP)
+                note: Cobalt-free cell-to-pack
+                children:
+                  - { id: cell, label: Cell & pack manufacturing }
+                  - { id: mining, label: Upstream lithium links }
+              - id: semi
+                label: In-House Semiconductors
+                note: Shielded from chip shortages
+                children:
+                  - { id: igbt, label: IGBT & SiC power chips }
+              - id: powertrain
+                label: In-House Motors & Assembly
+                note: Saves ~$2,400 supplier margin
+                children:
+                  - { id: motor, label: E-axles & electric motors }
+                  - { id: body, label: Stamping, seats & assembly }
+              - id: shipping
+                label: In-House Export Fleet
+                note: Dedicated ocean logistics
+                children:
+                  - { id: roro, label: Roll-on/roll-off car carriers }
     beats:
       - say: |
           The battery is the costliest part of an EV. An **LFP battery** (lithium iron phosphate) is cheaper and safer but
@@ -148,70 +155,51 @@ scenes:
         show: [sorter]
         gate:
           type: event
-          prompt: Sort each trait under LFP or NMC.
+          prompt: Sort each trait under LFP battery or NMC battery.
           target: sorter
           event: solved
       - say: |
-          Chinese makers chose affordability over energy density. CATL kept capital costs below 60 million dollars per
-          gigawatt hour. Korean makers were at 88. Estimate how much higher.
+          While Western makers initially favored high-range NMC cells, Chinese battery leaders CATL and BYD prioritized LFP
+          chemistry and lower capital costs per gigawatt-hour. BYD's slender Blade Battery packs LFP cells directly into the pack.
         hide: [sorter]
-        show: [r-in]
+        show: [parts-note]
         gate:
           type: predict
-          question: By what fraction is the Korean cost above CATL's? (Enter a decimal like 0.467 or a percentage like 46.7%.)
-          answer: { value: 0.467, tol: 0.005, percent: true }
-          explain: (88 − 60) ÷ 60 = 0.467, about 46.7% above.
-      - say: Now raise the rival's cost.
-        hide: [r-in]
-        show: [r, rival]
-        gate:
-          type: when
-          prompt: Raise the rival's capital cost until it is more than 70% above CATL's.
-          when: 'c.pctOver > 0.7'
-          hint: The Japanese rivals were at 103. Try 105.
+          question: Why did LFP batteries give BYD a decisive advantage in China's mass-market EV segment?
+          options:
+            - Lower material costs, cobalt-free chemistry, and high thermal safety suited price-sensitive buyers
+            - LFP batteries had twice the energy density of NMC batteries
+            - Foreign automakers were legally barred from using lithium in batteries
+            - LFP batteries required no charging infrastructure
+          answer: 0
+          explain: Chinese buyers prioritized vehicle affordability and safety over maximum highway range, making cobalt-free LFP cells ideal.
       - say: |
-          BYD goes further. **Vertical integration** means a company makes many of the parts and inputs itself instead of
-          buying them. About 75% of the parts in its Seal were made in-house.
+          BYD goes far beyond batteries. **Vertical integration** means making most parts and inputs internally instead of
+          buying them from outside vendors. BYD manufactures roughly 75% of the components in its Seal sedan in-house.
         define: [vertical-integration]
-        hide: [r, rival]
+        hide: [parts-note]
+        show: [supply-tree]
+      - say: |
+          Making batteries, motors, semiconductors, and electronics internally eliminates the **supplier margin**—the profit markup
+          external Tier 1 and Tier 2 vendors charge carmakers. In-house parts also shielded BYD during global chip shortages.
+        define: [supplier-margin]
         show: [parts-note]
       - say: |
-          That removes the **supplier margin**: the profit a supplier adds to the price of a part. The case estimates that
-          making Tier 1 and Tier 2 parts in-house eliminated about 2,400 dollars of supplier margin per vehicle.
-        define: [supplier-margin]
-      - say: A check on the comparison.
+          Check how battery chemistry and supply chain structure fit together.
         hide: [parts-note]
-        show: [r]
         gate:
           type: practice
-          template: compare-over-numeric
-    takeaway: Cheap LFP cells and in-house parts cut battery cost and supplier margins.
+          template: lfp-match
+    takeaway: Affordable LFP battery chemistry and deep vertical integration eliminate outside supplier margins and lower production costs.
 
   - id: why-so-cheap
     title: Why BYD can charge less
-    goal: How big is BYD's cost edge over a rival, and where does it come from?
+    goal: Where does BYD's overall cost edge over global rivals come from?
     skills: [cost-advantage]
-    data: [exhibit4]
-    state: { base: 750, other: 1000, animFrom: 0, animTo: 0.8 }
+    state: { pillar: 'none', animFrom: 0, animTo: 0.8 }
     derive:
-      - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
+      - { fn: costPillar, in: { pillar: '@pillar' }, out: p }
     stage:
-      - id: r-in
-        widget: Readout
-        props:
-          items:
-            - { label: BYD Shenzhen worker pay, value: '@base' }
-            - { label: Tesla Shanghai worker pay, value: '@other' }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: BYD Shenzhen worker pay, value: '@base' }
-            - { label: Tesla Shanghai worker pay, value: '@other' }
-            - { label: Difference, value: '@c.diff', tone: accent }
-            - { label: Ratio, value: '@c.ratio', format: 2 }
-            - { label: Fraction above BYD, value: '{=c.pctOver|pct1}', tone: good }
       - id: anim
         widget: Animation
         region: top
@@ -226,146 +214,177 @@ scenes:
           end: '@animTo'
           loop: false
           stills: [0.8, 2.2, 3.4, 5]
+      - id: cost-schedule
+        widget: Schedule
+        hidden: true
+        props:
+          title: Sources of BYD's Cost Advantage over Rivals
+          columns: [BYD Approach, Impact on Per-Vehicle Cost]
+          rows:
+            - { label: Supplier margins, amounts: ['Makes ~75% of Seal parts in-house (Tier 1 & 2)', 'Largest savings (~$2,400/car vs. Tesla)'] }
+            - { label: Admin & R&D overhead, amounts: ['Lean corporate overhead & high-volume scale', 'Second-largest savings (~$1,700/car vs. Tesla)'] }
+            - { label: Labor & co-location, amounts: ['Walled Shenzhen factory towns & lower pay', 'Lower assembly labor and logistics cost'] }
+            - { label: Battery pack cost, amounts: ['In-house LFP Blade cells ($128 vs. $175/kWh)', 'Significant powertrain cost savings'] }
+            - { label: Direct subsidies, amounts: ['State grants and tax support', 'Only ~5% (~$235) of the $4,700 gap vs. Tesla'] }
+      - id: pillar-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Inspect cost driver
+          options:
+            - { value: none, label: 'Select a cost driver...' }
+            - { value: vertical, label: 'In-house parts (Vertical integration)' }
+            - { value: overhead, label: 'Lean admin, R&D & Shenzhen wages' }
+            - { value: subsidy, label: 'Direct government subsidies' }
+        bind: { value: pillar }
+      - id: pillar-readout
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Cost pillar, value: '@p.driver', tone: accent }
+            - { label: Strategic mechanism, value: '@p.role' }
+            - { label: Durability abroad, value: '@p.durability', tone: good }
     beats:
       - say: |
-          Put it all together and BYD had a **cost advantage**: it could make the same car for less than rivals. A report
-          found about 4,700 dollars less per vehicle than Tesla. It came from several places.
+          Combined across the vehicle, BYD achieved a major **cost advantage**—producing a comparable car for roughly \$4,700
+          less than Tesla. That edge comes from multiple operational layers rather than a single shortcut.
         define: [cost-advantage]
         show: [anim]
       - say: |
-          First, pay. BYD workers in Shenzhen earned about 750 dollars a month on average against 1,000 for Tesla workers
-          in Shanghai. Estimate how far below that is.
+          Many foreign observers assume government handouts explain the entire price gap. Yet a teardown comparison of BYD and
+          rival EVs reveals a very different breakdown across supplier markups, overhead, wages, and batteries.
         hide: [anim]
+        show: [cost-schedule]
         gate:
           type: predict
-          question: BYD pay is what fraction below Tesla's? (Gap divided by Tesla's pay; decimal or percent.)
-          answer: { value: 0.25, tol: 0.005, percent: true }
-          explain: (1,000 − 750) ÷ 1,000 = 0.25, so BYD pay is 25% below.
+          question: According to the case's cost teardown, which factor provided the largest share of BYD's $4,700 per-car cost advantage over Tesla?
+          options:
+            - Eliminating external supplier margins through vertical integration, followed by leaner admin and R&D
+            - Direct cash subsidies from the Chinese government covering over half the car's cost
+            - Using imported engines from European luxury automakers
+            - Skipping safety testing and battery thermal management
+          answer: 0
+          explain: Capturing Tier 1 and Tier 2 supplier margins (~$2,400) and leaner admin/R&D (~$1,700) explained the vast majority of the $4,700 gap.
       - say: |
-          Notice how the base matters: the 250-dollar gap is **25% below Tesla's 1,000**, and **33.3% above BYD's 750**.
-        hide: [r-in]
-        show: [r]
-      - say: |
-          Pay was one of several sources. BYD also spent about 1,700 dollars less per vehicle on administration and R&D and
-          about 2,400 less in supplier margins, and its battery cost 128 dollars per kWh against 175 for Renault.
+          Watch how the cost tower comes down: eliminating outside supplier margins removes the biggest block, leaner administration
+          and R&D removes the next, and lower Shenzhen wages, cheaper LFP batteries, and subsidies close the rest.
         set: { animFrom: 0.8, animTo: 5 }
-        hide: [r]
+        hide: [cost-schedule]
         show: [anim]
-      - say: Compare two prices for yourself.
+      - say: |
+          Use the selector to inspect each cost pillar and identify the one that is hardest for outsourced Western automakers
+          to replicate quickly.
         hide: [anim]
-        show: [r]
+        show: [pillar-choice, pillar-readout]
+        gate:
+          type: when
+          prompt: Select the cost driver that eliminates external Tier 1 and Tier 2 supplier margins.
+          when: "pillar == 'vertical'"
+          hint: Choose 'In-house parts (Vertical integration)' in the side panel.
+      - say: |
+          Confirm all the sources of BYD's cost advantage identified in the case.
+        hide: [pillar-choice, pillar-readout]
+        show: [cost-schedule]
         gate:
           type: practice
-          template: compare-under-numeric
-      - say: And one more.
-        gate:
-          type: practice
-          template: compare-handcalc
-    takeaway: BYD's cost edge came from pay, lean administration, in-house parts and cheap batteries.
+          template: cost-multi
+    takeaway: BYD's cost edge comes primarily from in-house parts, lean overhead, lower wages, and cheaper batteries.
 
   - id: growing-at-speed
     title: Growing at speed
-    goal: How quickly did BYD grow, and when does a car brand become big enough to survive?
+    goal: How quickly did BYD scale up, and why does volume determine which EV brands survive?
     skills: [scale-growth]
-    state: { start: 741000, end: 4600000, years: 4 }
+    state: { scaleStage: 'subscale' }
     derive:
-      - { fn: growthRate, in: { start: '@start', end: '@end', years: '@years' }, out: g }
+      - { fn: scaleProfile, in: { stage: '@scaleStage' }, out: sp }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: scale-callout
+        widget: Callout
         props:
-          items:
-            - { label: Cars in 2021, value: '@start' }
-            - { label: Cars in 2025, value: '@end' }
-            - { label: Years between 2021 and 2025, value: '@years' }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Cars in 2021, value: '@start' }
-            - { label: Cars in 2025, value: '@end' }
-            - { label: Times larger, value: '@g.multiple', format: 2, tone: accent }
-            - { label: Yearly growth, value: '{=g.cagr|pct1}', tone: good }
-      - id: yrs
-        widget: Slider
+          kind: note
+          title: BYD's explosive scale-up (2021–2025)
+          body: |
+            - **2021 volume:** ~741,000 vehicles sold.
+            - **2022 pivot:** Ended pure internal combustion engine production to focus 100% on New Energy Vehicles (BEVs + PHEVs).
+            - **2025 volume:** Over **4.6 million** vehicles sold (more than six times 2021 volume).
+            - **Industry break-even:** ~**400,000** vehicles per year for an EV brand to cover its fixed costs.
+      - id: scale-choice
+        widget: Choice
         region: side
         hidden: true
-        props: { label: Years taken, min: 2, max: 8, step: 1 }
-        bind: { value: years }
+        props:
+          label: Volume stage
+          options:
+            - { value: subscale, label: 'Sub-scale startup (<400k/year)' }
+            - { value: breakeven, label: 'Break-even threshold (~400k/year)' }
+            - { value: leader, label: 'Global scale leader (4M+/year)' }
+        bind: { value: scaleStage }
+      - id: scale-readout
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Scale tier, value: '@sp.stageLabel', tone: accent }
+            - { label: Fixed cost absorption, value: '@sp.fixedCosts' }
+            - { label: Competitive resilience, value: '@sp.leverage', tone: good }
     beats:
       - say: |
-          BYD sold 741,000 cars in 2021 and more than 4.6 million in 2025. A fast climb like that can be measured two ways:
-          how many times larger it became, and the **compound annual growth rate**, the steady yearly rate that would take
-          you from the start to the end.
+          BYD's sales surged from 741,000 cars in 2021 to over 4.6 million in 2025. Analysts track such multi-year expansion
+          using the **compound annual growth rate**, the steady yearly rate that compounds a starting volume to its ending level.
         define: [compound-annual-growth-rate]
+      - say: |
+          In 2022, BYD made the bold decision to stop making pure petrol cars entirely, betting its factories on battery EVs
+          and plug-in hybrids across every price tier from budget hatchbacks to luxury SUVs.
         gate:
           type: predict
-          question: How many times larger were BYD's 2025 sales than its 2021 sales?
-          answer: { value: 6.2, tol: 0.05 }
-          explain: 4,600,000 ÷ 741,000 = 6.21.
+          question: How does rapid volume growth reinforce BYD's cost advantage over smaller EV rivals?
+          options:
+            - High volume spreads fixed R&D, battery plant, and tooling costs over millions of vehicles
+            - High volume automatically eliminates all shipping and raw material expenses
+            - Selling more cars allows a company to ignore battery safety standards
+            - Larger automakers are exempt from domestic price competition
+          answer: 0
+          explain: Automotive manufacturing has massive fixed R&D and tooling costs; spreading them over 4.6 million cars lowers per-unit cost dramatically.
       - say: |
-          Growing 6.21-fold in 4 years equals a 57.8% compound annual growth rate. The same jump over a longer time is
-          slower each year.
-        hide: [r-in]
-        show: [r, yrs]
+          Scale determines survival in autos. The **break-even volume** is the annual unit sales a carmaker needs so revenues
+          cover fixed and variable costs—estimated at roughly 400,000 vehicles a year for an EV brand.
+        define: [break-even-volume]
+        hide: [scale-callout]
+        show: [scale-choice, scale-readout]
         gate:
           type: when
-          prompt: Stretch the time until the yearly growth falls below 40%.
-          when: 'g.cagr < 0.4'
-          hint: Try 6 years or more.
+          prompt: Switch the volume stage to 'Global scale leader (4M+/year)' to see the impact of operating at more than ten times break-even volume.
+          when: "scaleStage == 'leader'"
+          hint: Select 'Global scale leader (4M+/year)' in the side panel.
       - say: |
-          Size matters in cars. The **break-even volume** is the number of units a company must sell for its income to cover
-          costs. The case puts it at about 400,000 for an EV brand.
-        define: [break-even-volume]
-        set: { years: 4 }
-        hide: [yrs]
-        gate:
-          type: predict
-          question: How many times the break-even volume is BYD's 4.6 million cars?
-          answer: { value: 11.5, tol: 0.05 }
-          explain: 4,600,000 ÷ 400,000 = 11.5.
-      - say: A growth question for you.
+          Selling over ten times the industry break-even volume gives BYD immense cushion in a price war, while dozens of smaller
+          Chinese EV startups remain below break-even and face consolidation or exit.
+        hide: [scale-choice]
+        show: [scale-callout]
+      - say: |
+          Test your understanding of break-even scale and growth dynamics.
         gate:
           type: practice
-          template: cagr-numeric
-      - say: And one more.
-        gate:
-          type: practice
-          template: growth-multiple-numeric
-    takeaway: BYD grew more than six-fold in four years, far above the volume an EV brand needs to break even.
+          template: scale-breakeven-mcq
+    takeaway: Rapid compound growth pushed BYD far past break-even volume, spreading fixed R&D and factory costs across millions of cars.
 
   - id: going-global
     title: Taking the cars abroad
-    goal: How far is BYD from its goal of selling half its cars outside China, and how does it get there?
+    goal: Why is BYD pushing aggressively into overseas markets, and how does it sequence its entry?
     skills: [overseas-push]
-    state: { total: 4600000, overseas: 1050000, targetShare: 0.5 }
-    derive:
-      - { fn: overseasGap, in: { total: '@total', overseas: '@overseas', targetShare: '@targetShare' }, out: o }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: global-schedule
+        widget: Schedule
         props:
-          items:
-            - { label: Total sales (2025), value: '@total' }
-            - { label: Sold abroad (exports), value: '@overseas' }
-            - { label: 2030 target share abroad, value: '{=targetShare|pct}' }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Total sales, value: '@total' }
-            - { label: Sold abroad (exports), value: '@overseas' }
-            - { label: Share abroad, value: '{=o.share|pct1}', tone: accent }
-            - { label: Needed abroad, value: '@o.needed', tone: accent }
-            - { label: Extra needed, value: '@o.extra', tone: good }
-      - id: tgt
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Target share abroad (0.5 = 50%), min: 0.3, max: 0.7, step: 0.1 }
-        bind: { value: targetShare }
+          title: BYD's Phased International Expansion
+          columns: [Target Markets, Entry Mode & Strategic Logic]
+          rows:
+            - { label: 'Wave 1 (from 2009)', amounts: ['Africa, South America, Middle East', 'Export commercial buses & affordable EVs to build experience'] }
+            - { label: 'Wave 2 (early 2020s)', amounts: ['Australia, Norway, New Zealand, Singapore', 'Developed EV markets without domestic carmakers'] }
+            - { label: 'Wave 3 (2022–2023)', amounts: ['Germany, Japan, UK, Thailand, Brazil', 'Major auto markets backed by dealers & regional plants'] }
+            - { label: '2030 Ambition', amounts: ['Half of total sales outside China', 'Earn 2–3x higher profit per car abroad & escape home glut'] }
       - id: anim
         widget: Animation
         region: top
@@ -380,93 +399,87 @@ scenes:
             the wall to a whole factory built inside the market.
           loop: false
           stills: [1.5, 3.0, 4.9]
+      - id: entry-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: e1, label: Ships finished cars from China; keeps home cost edge but pays full import tariff }
+            - { id: e2, label: Ships part kits for local final assembly (e.g., Brazil) to lower tariffs }
+            - { id: e3, label: Builds a full local manufacturing plant inside the market (e.g., Hungary) }
+            - { id: e4, label: Shares ownership and local market know-how with a partner firm }
+          bins:
+            - { id: exp, label: Direct Export }
+            - { id: ckd, label: CKD Assembly }
+            - { id: fdi, label: Full Local Plant / JV }
+          solution: { e1: exp, e2: ckd, e3: fdi, e4: fdi }
     beats:
       - say: |
-          In 2025 BYD exported 1.05 million vehicles out of 4.6 million, and its target is half of sales outside China by
-          2030. Overseas profit is also two to three times home profit, so the push matters.
+          BYD exported over one million vehicles in 2025 and aims to sell half its cars outside China by 2030. Because overseas
+          sales earn two to three times the profit per vehicle of China's price-war market, global expansion is vital.
         gate:
           type: predict
-          question: What share of BYD's cars were exported in 2025? (Enter a decimal like 0.228 or a percentage like 22.8%.)
-          answer: { value: 0.228, tol: 0.005, percent: true }
-          explain: 1.05 ÷ 4.6 = 0.228, about 22.8%.
+          question: When entering wealthy developed markets, why did BYD target countries like Norway and Australia before Germany or Japan?
+          options:
+            - Norway and Australia had strong EV adoption but no major domestic carmakers defending home turf
+            - Germany and Japan had zero paved highways for electric vehicles
+            - Norway and Australia required all cars to be plug-in hybrids
+            - Shipping cars to Australia required no ocean transport
+          answer: 0
+          explain: Entering developed markets without domestic auto champions let BYD build brand credibility before confronting VW or Toyota on their home turf.
       - say: |
-          At 4.6 million total sales, a 50% overseas target requires 2.3 million cars abroad—1.25 million more than 2025
-          exports. Building plants abroad also helps avoid tariffs: a **CKD assembly** plant puts cars together locally from
-          parts shipped in, like BYD's plant in Brazil.
+          Relying solely on exports from China risks shipping bottlenecks and import duties. To jump tariff walls faster, BYD
+          uses **CKD assembly**—shipping knocked-down part kits from China to put together locally, as in its Brazil plant.
         define: [ckd-assembly]
-        hide: [r-in]
-        show: [r, anim]
+        hide: [global-schedule]
+        show: [anim]
       - say: |
-          BYD also uses partners. A **joint venture** is a business owned and run together by two or more companies. In
-          China, many carmakers pair with foreign firms this way.
+          Automakers also use a **joint venture**—a business co-owned by two or more firms—or build wholly owned factories in
+          Thailand, Uzbekistan, and Hungary. Sort the strategic traits of each international entry route.
         define: [joint-venture]
         hide: [anim]
-        show: [tgt]
+        show: [entry-sorter]
         gate:
-          type: when
-          prompt: Raise the target so that BYD needs more than 1.5 million extra overseas sales.
-          when: 'o.extra > 1500000'
-          hint: A 60% target needs about 1.7 million more.
-      - say: Now one on new numbers.
-        hide: [tgt]
+          type: event
+          prompt: Sort each description into Direct Export, CKD Assembly, or Full Local Plant / JV.
+          target: entry-sorter
+          event: solved
+      - say: |
+          Review the sequence of BYD's global rollout across emerging and developed markets.
+        hide: [entry-sorter]
+        show: [global-schedule]
         gate:
           type: practice
-          template: overseas-extra-numeric
-      - say: A question about the plan.
+          template: expansion-order
+      - say: |
+          Consider what happens when BYD shifts production from Shenzhen to overseas factories.
         gate:
           type: reflect
           prompt: Could BYD copy its China cost advantages in overseas plants? What would be hard to move?
           model: |
-            Its edge comes from a walled, vertically integrated town, cheap local parts and close ties with suppliers. Overseas
-            it would face higher labor costs, fewer nearby suppliers and local rules, so some of the savings may not travel.
-    takeaway: BYD must sell about 1.25 million more cars abroad to reach a 50% target at the same total.
+            Its edge comes from co-located mega-factories, cheap local parts, and close ties with Chinese suppliers. Overseas plants
+            face higher wages, stricter labor rules, and fewer nearby EV suppliers, so BYD must ship core battery and motor kits
+            or build local supplier clusters over time.
+    takeaway: BYD combines exports, CKD assembly, and foreign plants in Hungary, Thailand, and Brazil to grow high-margin overseas sales.
 
   - id: walls-and-help
     title: Walls and a helping hand
-    goal: How much do tariffs and subsidies decide who wins in a global car market?
+    goal: How do foreign tariffs and domestic industrial subsidies shape global EV competition?
     skills: [trade-policy, subsidy-role]
-    state: { price: 26572, tariff: 1, advantage: 4700, share: 0.05, animFrom: 0, animTo: 1.6 }
-    derive:
-      - { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' }, out: t }
-      - { fn: subsidyShare, in: { advantage: '@advantage', share: '@share' }, out: s }
+    state: { animFrom: 0, animTo: 1.6 }
     stage:
-      - id: r1-in
-        widget: Readout
+      - id: policy-schedule
+        widget: Schedule
         props:
-          items:
-            - { label: Price before the tariff, value: '@price' }
-            - { label: Tariff rate, value: '{=tariff|pct}' }
-      - id: r1
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Price before the tariff, value: '@price' }
-            - { label: Tariff rate, value: '{=tariff|pct}' }
-            - { label: Duty, value: '@t.duty', tone: accent }
-            - { label: Price after the tariff, value: '@t.total', tone: good }
-      - id: r2-in
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Cost advantage per car, value: '@advantage' }
-            - { label: Share from subsidies, value: '{=share|pct}' }
-      - id: r2
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Cost advantage per car, value: '@advantage' }
-            - { label: Share from subsidies, value: '{=share|pct}' }
-            - { label: From subsidies, value: '@s.part', tone: accent }
-            - { label: From everything else, value: '@s.rest', tone: good }
-      - id: rate
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Tariff rate (1 = 100%), min: 0, max: 1.5, step: 0.25 }
-        bind: { value: tariff }
+          title: Trade Barriers vs. Industrial Policy in the Global EV Race
+          columns: [Instrument, Strategic Impact on BYD]
+          rows:
+            - { label: United States, amounts: ['100%+ import tariff & connected-car rules', 'Blocks direct passenger EV exports from China'] }
+            - { label: European Union, amounts: ['Countervailing duties on Chinese EVs', 'Prompts local FDI plants in Hungary and Turkey'] }
+            - { label: Latin America & ASEAN, amounts: ['Graduated tariffs & EV incentives', 'Encourages CKD assembly & plants in Brazil and Thailand'] }
+            - { label: 'China (Supply side)', amounts: ['Subsidies, soft loans & bus/taxi fleets', 'Helped early scale (~5% of current cost gap vs. Tesla)'] }
+            - { label: 'China (Demand side)', amounts: ['Buyer tax breaks, chargers & green plates', 'Pushed domestic EV adoption to 50% of new sales'] }
       - id: anim
         widget: Animation
         region: top
@@ -481,53 +494,70 @@ scenes:
           end: '@animTo'
           loop: false
           stills: [0.8, 1.5]
+      - id: policy-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: p1, label: Soft loans and municipal electric bus procurement }
+            - { id: p2, label: Free green license plates and buyer purchase incentives }
+            - { id: p3, label: 100%+ import duty doubling the landed vehicle price }
+            - { id: p4, label: Countervailing duties targeting imported Chinese EVs }
+          bins:
+            - { id: home, label: China Industrial Policy }
+            - { id: foreign, label: Foreign Trade Barriers }
+          solution: { p1: home, p2: home, p3: foreign, p4: foreign }
     beats:
       - say: |
-          The United States put tariffs of 100% or more on Chinese cars. A **tariff** is a tax on imported goods that raises
-          their price. The Seal costs about 26,572 dollars in China.
+          As Chinese EVs gained share abroad, Western governments responded with trade barriers. A **tariff** is a tax on
+          imported goods that raises their local price—reaching 100% or more in the US and countervailing duties in Europe.
         define: [tariff]
         gate:
           type: predict
-          question: What would the Seal cost after a 100% tariff, before any other cost?
-          answer: { value: 53144, tol: 0.5 }
-          explain: 26,572 + 26,572 = 53,144. The price doubles.
+          question: How does BYD's decision to build passenger car factories in Hungary and Turkey address European Union tariffs?
+          options:
+            - Producing vehicles inside the EU or customs union bypasses external import duties on Chinese-built cars
+            - Hungary and Turkey outlaw all competing European car brands
+            - Building a factory in Europe lowers BYD's wages below Shenzhen levels
+            - EU tariffs only apply to internal combustion engine vehicles
+          answer: 0
+          explain: Tariff-jumping FDI locates manufacturing inside the target market so vehicles are sold as local production rather than taxed imports.
       - say: |
-          A 100% tariff adds 26,572 dollars of duty, doubling the price to 53,144. Now raise the tariff rate further.
-        hide: [r1-in]
-        show: [r1, rate, anim]
-        gate:
-          type: when
-          prompt: Raise the tariff until the price after the tariff passes 60,000 dollars.
-          when: 't.total > 60000'
-          hint: Try 150%.
+          When a country imposes a 100% tariff wall, the landed price of an imported car doubles at the port, pricing mass-market
+          exports out of reach and forcing automakers to rethink their entry route.
+        hide: [policy-schedule]
+        show: [anim]
       - say: |
-          China also helped its EV makers. A **subsidy** is money or other help from a government that lowers a company's costs
-          or boosts its sales. BYD's per-car advantage over Tesla was 4,700 dollars, and about 5% came from subsidies.
+          Foreign tariffs are often justified as a response to Chinese state support. A **subsidy** is government financial
+          help that lowers a firm's costs or boosts sales, alongside soft loans, public transit contracts, and free EV plates.
         define: [subsidy]
-        hide: [rate, r1, anim]
-        show: [r2-in]
-        gate:
-          type: predict
-          question: How many dollars of the 4,700 came from subsidies?
-          answer: { value: 235, tol: 0.5 }
-          explain: 5% × 4,700 = 235 dollars.
+        hide: [anim]
+        show: [policy-schedule]
       - say: |
-          Only 235 dollars of the 4,700-dollar edge came from direct subsidies; the remaining 4,465 came from in-house parts,
-          leaner overhead, lower wages and battery costs. Try a tariff calculation on new numbers.
-        hide: [r2-in]
-        show: [r2]
+          Yet the case shows direct subsidies explained only about 5% of BYD's per-car cost advantage over Tesla; the rest came
+          from vertical integration, lean overhead, and battery chemistry. Sort these policy tools by their role.
+        hide: [policy-schedule]
+        show: [policy-sorter]
+        gate:
+          type: event
+          prompt: Sort each measure under China Industrial Policy or Foreign Trade Barriers.
+          target: policy-sorter
+          event: solved
+      - say: |
+          Check the forms of government support that helped build China's EV sector.
+        hide: [policy-sorter]
+        show: [policy-schedule]
         gate:
           type: practice
-          template: tariff-total-numeric
-      - say: And a subsidy question.
-        gate:
-          type: practice
-          template: subsidy-numeric
-      - say: A last thought.
+          template: subsidy-multi
+      - say: |
+          Step back and weigh the broader economic tradeoffs of high automotive tariff walls.
         gate:
           type: reflect
           prompt: Who gains and who loses when a country puts a 100% tariff on Chinese EVs?
           model: |
-            Local carmakers gain protection and jobs for a while. Buyers lose cheaper cars and choice, and the country may slow
-            its own shift to electric vehicles. Chinese makers lose that market and may build plants in other countries.
-    takeaway: A 100% tariff doubles a price, and subsidies explain only a small part of BYD's cost edge.
+            Domestic automakers and autoworkers gain breathing room and short-term protection from lower-cost imports. However,
+            local consumers face higher car prices and fewer affordable EV choices, which can slow clean-energy adoption and
+            reduce competitive pressure on domestic carmakers to innovate.
+    takeaway: Tariffs push BYD toward local plants abroad, while operational efficiency—not just subsidies—explains most of its cost edge.

@@ -1,0 +1,691 @@
+scenes:
+  - id: fx-basics
+    title: The day the peso moved
+    goal: A firm agrees a price in dollars today and gets paid in three months. What can go wrong in between?
+    skills: [fx-exposure]
+    stage:
+      - id: order-note
+        widget: Callout
+        props:
+          kind: note
+          title: The order
+          body: |
+            A Cebu furniture exporter ships a **USD 100,000** order to a U.S. retailer, payable in **90 days**. The rate is
+            **58 pesos per dollar**, so the owner budgets **5.8 million pesos**.
+      - id: word-table
+        widget: Schedule
+        hidden: true
+        props:
+          title: Five words to know
+          columns: [Plain meaning]
+          rows:
+            - { label: Exchange rate, amounts: [The price tag on a dollar] }
+            - { label: Stronger or weaker peso, amounts: [Stronger means fewer pesos buy a dollar; weaker means more] }
+            - { label: Exposure, amounts: [Money a firm could gain or lose when the rate moves] }
+            - { label: Hedge, amounts: [A step that reduces that risk] }
+            - { label: Natural hedge, amounts: [Earning and spending in the same currency so moves cancel] }
+    beats:
+      - say: |
+          Prices in international trade are often written in dollars, but a Philippine firm pays its workers in pesos. The
+          **exchange rate** is the price of one currency in another, such as 58 pesos for one dollar.
+        define: [exchange-rate]
+        show: [order-note]
+      - say: |
+          Look at the order. The owner expects 5.8 million pesos in 90 days. Nothing about the furniture will change. But the
+          peso might. On payday the peso has strengthened to 55 per dollar.
+        gate:
+          type: predict
+          question: How many pesos arrive on payday?
+          options: [5.5 million, 5.8 million, 6.1 million, 5.6 million]
+          answer: 0
+          explain: USD 100,000 at 55 pesos per dollar is 5.5 million pesos.
+      - say: |
+          The firm lost 300,000 pesos without selling one fewer chair, and it did nothing wrong. The loss came from the gap
+          between signing and settling. The money a firm could gain or lose from rate moves is its **exposure**.
+        define: [exposure]
+        hide: [order-note]
+      - say: |
+          A **hedge** is a step that reduces that risk, like an umbrella in the rain. A **natural hedge** is earning and
+          spending in the same currency, so the moves cancel. An OFW who earns and pays rent in dollars worries only about the
+          money sent home.
+        define: [hedge, natural-hedge]
+        show: [word-table]
+        gate:
+          type: predict
+          question: The peso weakens from 58 to 64 per dollar. Who is most likely to be better off?
+          options:
+            - A Philippine exporter paid in dollars
+            - A firm importing dollar-priced fuel
+            - A family paying dollar-priced school fees abroad
+            - A firm with a large dollar loan
+          answer: 0
+          explain: A weaker peso makes Philippine exports cheaper abroad and gives more pesos per dollar earned.
+      - say: Check the loss.
+        hide: [word-table]
+        gate:
+          type: practice
+          template: peso-loss-mcq
+      - say: And who gains when the peso weakens.
+        gate:
+          type: practice
+          template: weak-peso-mcq
+    takeaway: A rate move between signing and payment can cost real money, and hedging reduces that risk.
+
+  - id: three-exposures
+    title: Three ways a currency can hurt
+    goal: Is every currency loss the same kind of problem?
+    skills: [fx-exposure]
+    stage:
+      - id: exp-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: x1, label: The exporter loses 300,000 pesos on one order }
+            - { id: x2, label: A firm's annual report shows lower sales in euros even though volumes grew }
+            - { id: x3, label: A local maker loses customers when a foreign currency weakens and imports get cheaper }
+          bins:
+            - { id: tra, label: Transaction exposure }
+            - { id: tran, label: Translation exposure }
+            - { id: eco, label: Economic exposure }
+          solution: { x1: tra, x2: tran, x3: eco }
+      - id: exp-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: Worth thinking about
+          body: |
+            Deal risk is real cash and easiest to protect, because the amount and date are known. Report-card risk is mostly
+            on paper, so many firms explain it rather than hedge it. Competition risk is the biggest and slowest.
+    beats:
+      - say: |
+          **Transaction exposure** is the deal risk: the rate moves between signing a deal and getting paid. The exporter's
+          loss of 300,000 pesos is an example.
+        define: [transaction-exposure]
+      - say: Before we explain, what do you think?
+        gate:
+          type: predict
+          question: A company sold more and raised prices, yet its reported sales in its home currency fell. What is the most likely cause?
+          options:
+            - Currencies it earned in weakened against its reporting currency
+            - It lost customers
+            - It stopped selling abroad
+            - Its tax rate fell
+          answer: 0
+          explain: This is report-card risk. The business grew, but converted into the reporting currency the total looked smaller.
+      - say: |
+          **Translation exposure** is the report-card risk. A company reports in one currency, so results earned in other
+          currencies must be converted. If those currencies weaken, results look smaller even when the business grew.
+        define: [translation-exposure]
+      - say: |
+          **Economic exposure** is the competition risk. Over the years, exchange rates change who has the cheaper product.
+          It can hit a firm that never sells abroad.
+        define: [economic-exposure]
+      - say: |
+          Firms rarely absorb the whole effect or pass it all to customers. This is **partial pass-through**, and it is why
+          the long-run exposure is hard to measure. Sort three examples into their exposure.
+        define: [partial-pass-through]
+        show: [exp-sorter]
+        gate:
+          type: event
+          prompt: Place each example under the exposure it shows.
+          target: exp-sorter
+          event: solved
+          hint: One is a single deal, one is about a printed report, one is about long-run competition.
+      - say: Some thoughts on which is worth fighting.
+        hide: [exp-sorter]
+        show: [exp-note]
+      - say: Check the match.
+        hide: [exp-note]
+        gate:
+          type: practice
+          template: exposure-match
+      - say: And a firm with no foreign sales.
+        gate:
+          type: practice
+          template: competition-mcq
+    takeaway: Deal risk is cash, report-card risk is on paper, and competition risk is the slowest and biggest.
+
+  - id: lock-match
+    title: Three ways to protect yourself
+    goal: Firms cannot control exchange rates. What can they do about them?
+    skills: [hedging]
+    stage:
+      - id: ways-tree
+        widget: Tree
+        hidden: true
+        props:
+          root:
+            id: ways
+            label: Three ways firms protect themselves
+            children:
+              - { id: lock, label: Lock it in, note: 'Agree the rate today; best against deal risk' }
+              - { id: match, label: Match it, note: 'Earn and spend in the same currency or cancel payments; best against deal and report-card risk' }
+              - { id: adjust, label: Adjust the business, note: 'Change prices, suppliers, production or timing; best against competition risk' }
+      - id: outcome-table
+        widget: Schedule
+        hidden: true
+        props:
+          title: Pesos received for USD 100,000 (millions)
+          columns: [Peso strengthens to 55, Stays at 58, Peso weakens to 61]
+          rows:
+            - { label: A. Wait, amounts: ['5.5', '5.8', '6.1'] }
+            - { label: B. Lock it in, amounts: ['5.8', '5.8', '5.8'] }
+            - { label: C. Insurance, amounts: ['5.7', '5.7', '6.0'] }
+      - id: choice-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: c1, label: Can leave the owner short of the 5.6 million needed }
+            - { id: c2, label: Gives up 300,000 if the peso weakens to 61 }
+            - { id: c3, label: Costs 100,000 whatever happens but keeps most of the upside }
+          bins:
+            - { id: wait, label: Wait }
+            - { id: lock, label: Lock it in }
+            - { id: ins, label: Insurance }
+          solution: { c1: wait, c2: lock, c3: ins }
+    beats:
+      - say: |
+          Firms cannot control exchange rates, so they do three things. They lock in the rate, they match their money
+          coming in and going out, and they adjust the business. The pro-tip is to lock in what you know, match where you
+          can, and adjust for the long run.
+        show: [ways-tree]
+      - say: |
+          Back to the Cebu owner, who needs at least 5.6 million pesos on payday for payroll and suppliers. A
+          **forward contract** locks the rate: the bank guarantees 58 per dollar on payday.
+        define: [forward-contract]
+        hide: [ways-tree]
+      - say: |
+          Or the owner can pay a 100,000 peso fee for a **currency option**: the right, but not the duty, to sell dollars at 58.
+          If the market rate is worse, use the option. If it is better, sell at the market.
+        define: [currency-option]
+        gate:
+          type: predict
+          question: Which choice, if any, can leave the owner short of the 5.6 million pesos needed?
+          options:
+            - Waiting and converting at whatever the rate is
+            - Locking in with a forward
+            - Buying the option
+            - All three can
+          answer: 0
+          explain: Only waiting can fall below 5.6 million, because a stronger peso at 55 gives 5.5 million.
+      - say: Here is every outcome. Then place three statements under the choice they describe.
+        show: [outcome-table, choice-sorter]
+        gate:
+          type: event
+          prompt: Match each statement to the choice it describes.
+          target: choice-sorter
+          event: solved
+          hint: Compare the table's worst case with 5.6 million.
+      - say: |
+          Locking in gives up 300,000 if the peso weakens to 61. That is the price of certainty. The option costs
+          100,000 whatever happens. Waiting is reasonable only for a small order or a firm with cash to absorb a bad month.
+        hide: [choice-sorter]
+      - say: Test the idea.
+        hide: [outcome-table]
+        gate:
+          type: practice
+          template: hedge-outcome-mcq
+      - say: And the cost of certainty.
+        gate:
+          type: practice
+          template: forward-cost-mcq
+      - say: A question on your own.
+        gate:
+          type: reflect
+          prompt: Currency helped some firms in a year. If currency can help, why would a firm still hedge?
+          model: |
+            The same move can reverse next year. Hedging is about being able to plan budgets, prices and dividends with
+            confidence, and about making sure the firm can always pay its bills.
+    takeaway: Lock in the deals you know, match where you can, and adjust the business for the long run.
+
+  - id: more-hedges
+    title: More tools in the box
+    goal: What other tools do finance teams use to cover a foreign payment?
+    skills: [hedging]
+    stage:
+      - id: six-tree
+        widget: Tree
+        hidden: true
+        props:
+          root:
+            id: six
+            label: Six ways to cover transaction exposure
+            children:
+              - { id: s1, label: Refuse foreign currency contracts }
+              - { id: s2, label: Exposure netting }
+              - { id: s3, label: Forward market hedge }
+              - { id: s4, label: Currency option hedge }
+              - { id: s5, label: Money market hedge }
+              - { id: s6, label: Swap contract }
+      - id: tool-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: t1, label: Borrow and lend in home and foreign money markets }
+            - { id: t2, label: A spot deal paired with an opposite future deal }
+            - { id: t3, label: Buy or sell currency at a fixed rate on a later date }
+            - { id: t4, label: The right but not the duty to trade at a set rate }
+          bins:
+            - { id: mm, label: Money market hedge }
+            - { id: sw, label: Swap contract }
+            - { id: fw, label: Forward hedge }
+            - { id: op, label: Option hedge }
+          solution: { t1: mm, t2: sw, t3: fw, t4: op }
+    beats:
+      - say: |
+          Transaction exposure can be covered six ways. A firm can refuse foreign currency contracts, net its exposures,
+          use a forward, an option, a money market hedge or a swap.
+        show: [six-tree]
+      - say: Try predicting this one.
+        gate:
+          type: predict
+          question: What is the main drawback of insisting on being paid in your own currency?
+          options:
+            - The customer carries the risk and may buy elsewhere
+            - The firm pays more tax
+            - The currency becomes weaker
+            - Nothing, it is free
+          answer: 0
+          explain: A customer who must carry your exchange rate risk may choose another seller.
+      - say: |
+          Refusing foreign currency contracts works only if the customer agrees to pay in your currency. Then the customer
+          carries the risk and may buy elsewhere.
+      - say: |
+          A **money market hedge** uses borrowing and lending in home and foreign money markets. A **swap contract** is a
+          spot sale or purchase of an asset paired with a future purchase or sale of an equal amount.
+        define: [money-market-hedge, swap-contract]
+        hide: [six-tree]
+        show: [tool-sorter]
+        gate:
+          type: event
+          prompt: Match each description to the tool.
+          target: tool-sorter
+          event: solved
+          hint: A swap pairs a spot deal with an opposite future one.
+      - say: |
+          Prices of forwards link to interest rates. **Covered interest rate parity** says the percentage gap between forward
+          and spot rates of two currencies equals the gap in nominal interest rates.
+        define: [covered-interest-rate-parity]
+        hide: [tool-sorter]
+      - say: Check the tools.
+        gate:
+          type: practice
+          template: hedge-tools-match
+      - say: And the list of six.
+        gate:
+          type: practice
+          template: six-ways-multi
+    takeaway: A firm can choose from six ways to cover a foreign payment, each with a cost.
+
+  - id: cash-moves
+    title: Moving money inside a multinational
+    goal: A multinational has subsidiaries in many currencies. How does it move cash among them cheaply?
+    skills: [cash-management]
+    stage:
+      - id: net-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: The lecture's netting example
+          body: |
+            Without netting, reconciling positions takes **eight transactions** and **1.2 million dollars** in transit. With
+            netting there are **four transactions** and **600,000 dollars** in transit, and FX costs are lower.
+      - id: leadlag-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: l1, label: Collect receivables early when the foreign currency is expected to weaken }
+            - { id: l2, label: Pay early when the foreign currency is expected to strengthen }
+            - { id: l3, label: Collect late when the currency is expected to strengthen }
+            - { id: l4, label: Pay late when the currency is expected to weaken }
+          bins:
+            - { id: lead, label: Lead (earlier) }
+            - { id: lag, label: Lag (later) }
+          solution: { l1: lead, l2: lead, l3: lag, l4: lag }
+    beats:
+      - say: |
+          Subsidiaries owe each other money all the time. In **multilateral netting** they send only their net amounts through a
+          central clearing center. Fewer payments mean lower transaction costs and a chance to invest idle cash.
+        define: [multilateral-netting]
+        gate:
+          type: predict
+          question: With netting, how many transactions does the lecture's example need, compared with eight without it?
+          options: [Two, Four, Six, Eight]
+          answer: 1
+          explain: Netting cuts the example from eight transactions to four.
+      - say: Here is the example in full.
+        show: [net-note]
+      - say: |
+          **Leading and lagging** means paying or collecting earlier or later than due, depending on where a currency is
+          expected to go. Sort four timing moves.
+        define: [leading-and-lagging]
+        hide: [net-note]
+        show: [leadlag-sorter]
+        gate:
+          type: event
+          prompt: Put each move under lead or lag.
+          target: leadlag-sorter
+          event: solved
+          hint: Collect early before a currency falls. Pay early before it rises.
+      - say: |
+          Other tools move funds. A **fronting loan** is made from parent to subsidiary through an intermediary, usually a
+          bank. **Transfer pricing** sets prices for goods sold between members of the same company, and it can raise
+          ethical issues in the host country.
+        define: [fronting-loan, transfer-pricing]
+        hide: [leadlag-sorter]
+      - say: |
+          Many firms centralize these jobs in an **international finance center** because of floating rates, growing
+          markets, changing inflation, better cash systems, chances to raise yields and growth of derivatives.
+        define: [international-finance-center]
+      - say: Check the numbers.
+        gate:
+          type: practice
+          template: netting-mcq
+      - say: And the timing moves.
+        gate:
+          type: practice
+          template: leadlag-match
+    takeaway: Netting, timing, loans and pricing move cash between subsidiaries, often through a central finance center.
+
+  - id: translation
+    title: Turning foreign results into one report
+    goal: A parent must report one set of numbers. How are foreign statements converted?
+    skills: [translation-accounting]
+    stage:
+      - id: method-table
+        widget: Schedule
+        hidden: true
+        props:
+          title: Two translation methods
+          columns: [Current rate method, Temporal method]
+          rows:
+            - { label: Functional currency, amounts: [Local currency, Parent company currency] }
+            - { label: Assets and liabilities, amounts: ['Current spot rate', 'Monetary items at spot; fixed and intangible assets at historical rates'] }
+            - { label: Income statement, amounts: [Average rate for the period, 'Historical rate for cost of goods sold and depreciation; average for revenues and most expenses'] }
+            - { label: Translation gains and losses, amounts: ['Separate part of equity on the balance sheet', 'Net earnings'] }
+      - id: method-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: m1, label: Gains and losses go to equity on the balance sheet }
+            - { id: m2, label: Gains and losses go to net earnings }
+            - { id: m3, label: All assets at the current spot rate }
+            - { id: m4, label: Fixed assets at historical rates }
+          bins:
+            - { id: cur, label: Current rate method }
+            - { id: tem, label: Temporal method }
+          solution: { m1: cur, m2: tem, m3: cur, m4: tem }
+    beats:
+      - say: Make a prediction, then we will look at it.
+        gate:
+          type: predict
+          question: A parent owns subsidiaries that keep their books in local currencies. What must happen before the parent publishes one report?
+          options:
+            - The subsidiaries' results are translated into one currency and added together
+            - Each subsidiary publishes its own report only
+            - The subsidiaries stop trading abroad
+            - Their results are averaged without any conversion
+          answer: 0
+          explain: Translating into one currency and adding the results is consolidation.
+      - say: |
+          The parent records its own foreign sales, purchases and loans at the spot rate when each happens. But a foreign
+          subsidiary keeps its own books. **Consolidation** translates subsidiary results and adds them into one report.
+        define: [consolidation]
+      - say: |
+          Which method to use depends on the subsidiary's **functional currency**, the main currency in which it operates.
+          Local currency calls for the current rate method. Parent currency calls for the temporal method.
+        define: [functional-currency]
+      - say: |
+          Under the **current rate method**, assets and liabilities are valued at current spot rates. Under the [[temporal-method|temporal method]], money-type accounts use the spot rate while accounts at historical cost use their historical rates.
+        define: [current-rate-method, temporal-method]
+        show: [method-sorter]
+        gate:
+          type: event
+          prompt: Put each feature under the method it belongs to.
+          target: method-sorter
+          event: solved
+          hint: The temporal method keeps historical rates for items carried at historical cost.
+      - say: |
+          Here is the full comparison. Translation gains and losses go to equity under one method and to net earnings under
+          the other, so firms often weigh whether to hedge them.
+        hide: [method-sorter]
+        show: [method-table]
+      - say: Check the methods.
+        hide: [method-table]
+        gate:
+          type: practice
+          template: methods-match
+      - say: And where the gains go.
+        gate:
+          type: practice
+          template: current-mcq
+      - say: And the order of consolidation.
+        gate:
+          type: practice
+          template: statement-order
+    takeaway: A subsidiary's functional currency decides whether the current or temporal method translates its results.
+
+  - id: standards
+    title: Rules, culture and a wider scorecard
+    goal: Do all countries keep accounts the same way, and is profit the only thing to report?
+    skills: [translation-accounting]
+    stage:
+      - id: std-table
+        widget: Schedule
+        hidden: true
+        props:
+          title: Two systems of accounting
+          columns: [GAAP, IFRS]
+          rows:
+            - { label: Used in, amounts: [The United States, Most of the rest of the world] }
+            - { label: Relies on, amounts: [Detailed rules and regulations, Shared principles] }
+            - { label: Compliance based on, amounts: [Expedience, Social obligation] }
+      - id: tbl-tree
+        widget: Tree
+        hidden: true
+        props:
+          root:
+            id: tbl
+            label: Triple bottom line
+            note: A report to stakeholders
+            children:
+              - { id: env, label: Environmental results }
+              - { id: soc, label: Social results }
+              - { id: fin, label: Financial results }
+    beats:
+      - say: |
+          The United States follows **GAAP**, which relies on detailed rules and regulations. Most of the world follows
+          **IFRS**, the standards of the International Accounting Standards Board, which rely on shared principles.
+        define: [gaap, ifrs]
+        show: [std-table]
+      - say: Pause and make a guess before the next idea.
+        gate:
+          type: predict
+          question: Which two dimensions did Gray's study use?
+          options:
+            - Secrecy-transparency and optimism-conservatism
+            - Profit and loss
+            - Debt and equity
+            - Tax and revenue
+          answer: 0
+          explain: Disclosure practices and measurement are affected by culture along those two dimensions.
+      - say: |
+          Culture shapes accounting too. Sidney Gray's study found two dimensions: secrecy versus transparency, and optimism
+          versus conservatism. How much a firm discloses and how it measures depend on them.
+        hide: [std-table]
+      - say: |
+          Reports are also widening. **Triple-bottom-line accounting** reports a company's environmental, social and financial
+          results to stakeholders. Critics say it is not widely implementable and needs objective measures to compare firms.
+        define: [triple-bottom-line]
+        show: [tbl-tree]
+      - say: Check the standards.
+        hide: [tbl-tree]
+        gate:
+          type: practice
+          template: standards-match
+      - say: And the three parts of the wider report.
+        gate:
+          type: practice
+          template: tbl-mcq
+    takeaway: Accounting differs by rules and culture, and triple-bottom-line reports add environmental and social results.
+
+  - id: capital
+    title: Where the money comes from
+    goal: A multinational can raise money in many places. How does it choose?
+    skills: [capital-structure]
+    stage:
+      - id: dec-note
+        widget: Callout
+        hidden: true
+        props:
+          kind: note
+          title: Six decisions of the financial manager
+          body: |
+            **Currency**, **capital structure**, **sources**, **capital market**, **alternative sources**, and **amount and
+            duration** of financing.
+      - id: cap-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: k1, label: Profits kept inside the firm }
+            - { id: k2, label: Selling new shares }
+            - { id: k3, label: Borrowing from banks }
+            - { id: k4, label: A foreign share held by a U.S. bank and sold to U.S. investors }
+          bins:
+            - { id: internal, label: Internal source }
+            - { id: equity, label: External equity }
+            - { id: debt, label: External debt }
+          solution: { k1: internal, k2: equity, k3: debt, k4: equity }
+    beats:
+      - say: |
+          A firm's **capital structure** is how it raises money: internally through retained earnings, or externally through
+          equity or debt. Selling stock in foreign markets can broaden the investor pool and lower the cost of capital.
+        define: [capital-structure]
+        show: [cap-sorter]
+        gate:
+          type: event
+          prompt: Sort each source of money.
+          target: cap-sorter
+          event: solved
+          hint: Equity means shares. Debt means borrowing.
+      - say: Take a guess first. The answer comes right after.
+        gate:
+          type: predict
+          question: In which currency is an ADR traded on a U.S. exchange?
+          options: [Dollars, The issuer's home currency, Euros, Gold]
+          answer: 0
+          explain: ADRs trade in dollars on a U.S. exchange, even though the shares are foreign.
+      - say: |
+          An **American depositary receipt** is a foreign share held by a custodian, usually a U.S. bank, in the issuer's home
+          market and traded in dollars on a U.S. exchange. It can also raise a firm's brand name in foreign markets.
+        define: [american-depositary-receipt]
+        hide: [cap-sorter]
+      - say: |
+          An **offshore financial center**, also known as a tax haven, specializes in financing nonresidents, with low taxes
+          and few banking rules. Firms also weigh six decisions when they raise capital.
+        define: [offshore-financial-center]
+        show: [dec-note]
+      - say: Check the sources.
+        hide: [dec-note]
+        gate:
+          type: practice
+          template: capital-sources-mcq
+      - say: And the foreign share.
+        gate:
+          type: practice
+          template: adr-mcq
+      - say: One thought on the trade-off.
+        gate:
+          type: reflect
+          prompt: Why might a firm sell its shares in a foreign market as well as at home?
+          model: |
+            A broader pool of investors can raise the share price and lower the cost of capital. It can also raise the firm's
+            brand name in that foreign market.
+    takeaway: Firms raise capital internally, through equity or through debt, and may use foreign markets and ADRs.
+
+  - id: taxes
+    title: Taxes at the border
+    goal: Taxes shape where a firm earns and how it sets up abroad. Which kinds matter most?
+    skills: [taxation]
+    stage:
+      - id: tax-sorter
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: x1, label: A direct tax on earnings }
+            - { id: x2, label: Collected as each party adds value to a product }
+            - { id: x3, label: Paid by the payer, usually on passive income }
+          bins:
+            - { id: inc, label: Income tax }
+            - { id: vat, label: Value-added tax }
+            - { id: wh, label: Withholding tax }
+          solution: { x1: inc, x2: vat, x3: wh }
+      - id: form-tree
+        widget: Tree
+        hidden: true
+        props:
+          root:
+            id: forms
+            label: Ways to organize foreign operations
+            children:
+              - { id: br, label: Branch, note: A legal extension of the parent }
+              - { id: sub, label: Subsidiary, note: A separate legal entity owned by the parent }
+              - { id: cfc, label: Controlled foreign corporation, note: A subsidiary with more than 50 percent parent ownership }
+    beats:
+      - say: |
+          Taxation is an outside force that affects decisions because it affects revenue. A direct tax on earnings is an
+          **income tax**. A **value-added tax** is an indirect tax collected from parties as they add value to a product.
+        define: [income-tax, value-added-tax]
+      - say: |
+          A **withholding tax** is an indirect tax paid by the payer, usually on passive income. Try sorting the three.
+        define: [withholding-tax]
+        show: [tax-sorter]
+        gate:
+          type: event
+          prompt: Match each description to its tax.
+          target: tax-sorter
+          event: solved
+          hint: Direct taxes hit earnings. Indirect taxes follow transactions.
+      - say: Before we explain, what do you think?
+        gate:
+          type: predict
+          question: Which form is a separate legal entity owned by the parent?
+          options: [Subsidiary, Branch, Neither, Both]
+          answer: 0
+          explain: A subsidiary is separate in law. A branch is a legal extension of the parent.
+      - say: |
+          A firm can organize a foreign operation in three ways. A **branch** is a legal extension of the parent. A
+          **subsidiary** is a separate legal entity owned by the parent.
+        define: [branch, subsidiary]
+        hide: [tax-sorter]
+        show: [form-tree]
+      - say: |
+          A **controlled foreign corporation** is a foreign subsidiary that the parent controls, with more than 50 percent
+          ownership.
+        define: [controlled-foreign-corporation]
+      - say: Check the taxes.
+        hide: [form-tree]
+        gate:
+          type: practice
+          template: tax-match
+      - say: And the legal forms.
+        gate:
+          type: practice
+          template: forms-mcq
+    takeaway: Income tax, value-added tax and withholding tax differ, and branches and subsidiaries are taxed differently.

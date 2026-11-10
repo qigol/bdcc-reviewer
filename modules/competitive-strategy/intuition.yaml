@@ -64,40 +64,29 @@ scenes:
         define: [strategic-planning]
         hide: [tests]
         show: [note]
+      - say: Test your grasp of the three core competency tests.
+        gate:
+          type: practice
+          template: competencies-multi
     takeaway: A strategy builds on competencies that are valuable, rare and hard to copy.
 
   - id: creating-value
     title: Creating value for customers
-    goal: When is a product worth making, and who gets the benefit?
+    goal: When is a product worth making, and how do firms widen the value gap abroad?
     skills: [value-creation]
-    state: { willingness: 100, price: 70, unitCost: 50, animFrom: 0, animTo: 1 }
+    state: { approach: baseline, animFrom: 0, animTo: 1 }
     derive:
-      - { fn: valueCreation, in: { willingness: '@willingness', price: '@price', unitCost: '@unitCost' }, out: v }
+      - { fn: valuePosition, in: { approach: '@approach' }, out: v }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: value-note
+        widget: Callout
         props:
-          items:
-            - { label: Willingness to pay, value: '@willingness' }
-            - { label: Price, value: '@price' }
-            - { label: Unit cost, value: '@unitCost' }
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Willingness to pay, value: '@willingness' }
-            - { label: Price, value: '@price' }
-            - { label: Unit cost, value: '@unitCost' }
-            - { label: Value created, value: '@v.created', tone: good }
-            - { label: Customer keeps, value: '@v.surplus', tone: accent }
-            - { label: Firm keeps, value: '@v.profit', tone: accent }
-      - id: pr
-        widget: Slider
-        region: side
-        hidden: true
-        props: { label: Price charged, min: 55, max: 100, step: 5 }
-        bind: { value: price }
+          kind: note
+          title: How economic value is created and shared
+          body: |
+            - **Willingness to pay:** The maximum value a buyer places on the product.
+            - **Unit cost:** The resources used to design, make, and deliver the product.
+            - **Price charged:** Splits the value created between **customer surplus** (above price) and **firm profit** (below price).
       - id: abroad-note
         widget: Callout
         hidden: true
@@ -108,6 +97,41 @@ scenes:
             - **Liability of foreignness & newness:** Extra costs of operating in an unfamiliar country or industry.
             - **Formal vs. informal institutions:** Written laws and regulations vs. unwritten norms, values and customs.
             - **Value chain:** Linked activities from design to sale, positioned for **cost leadership** or **product differentiation**.
+      - id: inst-bins
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: i1, label: National import tariff and food safety statute }
+            - { id: i2, label: Local custom of family-style shared meals }
+            - { id: i3, label: Mandatory labor contract law }
+            - { id: i4, label: Unwritten norm of relationship-building before signing deals }
+          bins:
+            - { id: formal, label: Formal institutions }
+            - { id: informal, label: Informal institutions }
+          solution: { i1: formal, i2: informal, i3: formal, i4: informal }
+      - id: pos-r
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Strategic lever, value: '{=v.lever}' }
+            - { label: Effect on cost, value: '{=v.costEffect}', tone: accent }
+            - { label: Effect on buyer value, value: '{=v.wtpEffect}', tone: accent }
+            - { label: Value gap outcome, value: '{=v.gapEffect}', tone: good }
+      - id: pos-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Value chain position
+          style: segmented
+          options:
+            - { value: baseline, label: Standard }
+            - { value: cost-leadership, label: Cost leadership }
+            - { value: differentiation, label: Differentiation }
+        bind: { value: approach }
       - id: anim
         widget: Animation
         region: top
@@ -125,96 +149,119 @@ scenes:
           stills: [0.9, 2.1, 3.4, 4.9]
     beats:
       - say: |
-          Firms succeed by creating **economic value**. **Economic value creation** is the gap between what customers
-          are willing to pay and what a unit costs to make. Customers will pay up to 100 dollars for a product that costs 50.
+          Firms succeed by creating economic value. **Economic value creation** is the gap between what customers are
+          willing to pay for a product and what it costs to make. The wider this gap, the stronger the firm's competitive
+          position.
         define: [economic-value-creation]
         gate:
           type: predict
-          question: How much value is created per unit?
-          answer: { value: 50, tol: 0.01 }
-          explain: 100 − 50 = 50 dollars per unit.
+          question: If a firm raises its price without changing product quality or production cost, what happens to the total economic value created?
+          options:
+            - It stays the same, while shifting more of the existing gap from the buyer to the firm
+            - It increases because a higher price automatically creates more buyer value
+            - It falls to zero because buyers pay more
+            - It doubles because revenue per unit rises
+          answer: 0
+          explain: Total value created depends only on buyer willingness to pay and production cost. Price merely splits that gap between customer surplus and firm profit.
       - say: |
-          At a price of 70, the 50 dollars of value is split: customers keep 30 and the firm keeps 20. Move the price
-          until the firm keeps 30 dollars a unit.
+          As the animation shows, the price sits between willingness to pay and cost. Buyers keep the gap above the price as
+          surplus, while the firm keeps the gap below the price as profit.
         set: { animFrom: 1, animTo: 2.2 }
-        hide: [r-in]
-        show: [r, pr]
-        gate:
-          type: when
-          prompt: Set the price so the firm keeps 30 dollars per unit.
-          when: 'v.profit == 30'
-          hint: Profit is price minus the 50 dollar cost, so the price must be 80.
       - say: |
-          Going abroad adds costs. The **liability of foreignness** is the extra cost a firm pays simply because it is new
-          to a foreign country. The **liability of newness** is the extra cost of entering a market or industry new to it.
+          Going abroad adds extra hurdles. The **liability of foreignness** is the extra cost a firm pays simply because it is
+          new to a foreign country. The **liability of newness** is the extra cost of entering a market or industry that is
+          new to it.
         define: [liability-of-foreignness, liability-of-newness]
-        hide: [r, pr, anim]
+        hide: [value-note, anim]
         show: [abroad-note]
       - say: |
-          Part of the foreign cost is learning the rules. **Formal institutions** are laws and regulations.
-          **Informal institutions** are norms, values and customs that guide behavior without being written down.
+          Part of the foreign cost is learning the local rules. **Formal institutions** are written laws and regulations.
+          **Informal institutions** are norms, values, customs and beliefs that shape behavior without being written down.
         define: [formal-institutions, informal-institutions]
+        hide: [abroad-note]
+        show: [inst-bins]
+        gate:
+          type: event
+          prompt: Sort each host-country rule into formal or informal institutions.
+          target: inst-bins
+          event: solved
+          hint: Written statutes and regulations are formal; unwritten customs and social norms are informal.
       - say: |
-          Value is built step by step. The **value chain** is the linked set of activities that add value to the final
-          product, from design to sale.
+          Value is built step by step inside the firm. The **value chain** is the linked set of primary and support
+          activities—from design and production to marketing and service—that add value to the final product.
         define: [value-chain]
-        show: [anim]
+        hide: [inst-bins]
+        show: [abroad-note, anim]
         set: { animFrom: 2.2, animTo: 3.5 }
       - say: |
-          Two ways to win: **cost leadership** keeps costs lower than rivals, and **product differentiation** offers
-          customers more value than rivals while controlling costs.
+          Firms position their value chain in two main ways: **cost leadership** keeps costs lower than rivals, while
+          **product differentiation** offers customers more value than rivals while keeping costs under control.
         define: [cost-leadership, product-differentiation]
         set: { animFrom: 3.5, animTo: 5 }
-      - say: Try value creation on new numbers.
-        hide: [abroad-note, anim]
-        show: [r]
+        hide: [abroad-note]
+        show: [pos-r, pos-choice]
+        gate:
+          type: when
+          prompt: Select the value chain position that widens the value gap by lifting buyer willingness to pay.
+          when: "approach == 'differentiation'"
+          hint: Choose Differentiation to see how superior design or brand lifts buyer willingness to pay.
+      - say: Match these core value-creation concepts before moving on.
+        hide: [pos-choice, anim]
         gate:
           type: practice
-          template: value-created-numeric
-    takeaway: Value created is willingness to pay minus cost, and price decides who keeps it.
+          template: positions-match
+    takeaway: Value creation is the gap between willingness to pay and cost, widened by cost leadership or differentiation.
 
   - id: getting-cheaper
     title: Getting cheaper as you grow
-    goal: Why can a large producer sell at a price that a small one cannot match?
+    goal: Why can a large, experienced producer operate at a unit cost that a newcomer cannot match?
     skills: [cost-leadership]
-    state: { fixedCost: 20000, variableCost: 5, units: 1000, firstCost: 100, rate: 0.8, doublings: 2, animFrom: 0, animTo: 0.8 }
+    state: { driver: none, animFrom: 0, animTo: 0.8 }
     derive:
-      - { fn: averageCost, in: { fixedCost: '@fixedCost', variableCost: '@variableCost', units: '@units' }, out: a }
-      - { fn: learningCurve, in: { firstCost: '@firstCost', rate: '@rate', doublings: '@doublings' }, out: l }
+      - { fn: costDriver, in: { driver: '@driver' }, out: d }
     stage:
-      - id: r1
+      - id: scale-note
+        widget: Callout
+        props:
+          kind: note
+          title: Two engines of cost leadership
+          body: |
+            - **Economies of scale:** Larger plant output spreads fixed overhead (rent, machinery, R&D) thinner across more units in a given period.
+            - **Learning curve:** Cumulative repetition over time teaches workers and managers how to reduce waste, errors, and assembly time.
+      - id: driver-r
         widget: Readout
         hidden: true
         props:
           items:
-            - { label: Fixed cost, value: '@fixedCost' }
-            - { label: Variable cost per unit, value: '@variableCost' }
-            - { label: Units, value: '@units' }
-            - { label: Fixed cost per unit, value: '@a.spread', format: 2, tone: accent }
-            - { label: Average cost per unit, value: '@a.average', format: 2, tone: good }
-      - id: r2-in
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: First unit cost, value: '@firstCost' }
-            - { label: Rate per doubling, value: '@rate' }
-            - { label: Doublings, value: '@doublings' }
-      - id: r2
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: First unit cost, value: '@firstCost' }
-            - { label: Rate per doubling, value: '@rate' }
-            - { label: Doublings, value: '@doublings' }
-            - { label: Cost after, value: '@l.cost', format: 2, tone: good }
-      - id: qty
-        widget: Slider
+            - { label: Mechanism, value: '{=d.mechanism}' }
+            - { label: How it lowers cost, value: '{=d.source}', tone: accent }
+            - { label: Strategic outcome, value: '{=d.outcome}', tone: good }
+      - id: driver-choice
+        widget: Choice
         region: side
         hidden: true
-        props: { label: Units produced, min: 1000, max: 10000, step: 1000 }
-        bind: { value: units }
+        props:
+          label: Cost driver
+          style: segmented
+          options:
+            - { value: none, label: Small batch }
+            - { value: scale, label: Scale economies }
+            - { value: learning, label: Learning curve }
+        bind: { value: driver }
+      - id: cost-bins
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: c1, label: Spreading factory rent over a larger monthly production run }
+            - { id: c2, label: Assembly workers making fewer mistakes after building thousands of units }
+            - { id: c3, label: Sharing one automated stamping press across global orders }
+            - { id: c4, label: Engineers refining workflow steps through years of cumulative experience }
+          bins:
+            - { id: scale, label: Economies of scale }
+            - { id: learning, label: Learning curve }
+          solution: { c1: scale, c2: learning, c3: scale, c4: learning }
       - id: anim
         widget: Animation
         region: top
@@ -230,48 +277,63 @@ scenes:
           stills: [0.8, 2.0, 2.8, 3.6, 5]
     beats:
       - say: |
-          A plant has 20,000 dollars of fixed costs, such as rent and machines, and 5 dollars of variable cost per unit.
-          **Economies of scale** are the fall in average cost per unit as the plant gets bigger and output rises.
+          Every factory faces fixed overhead—like rent and heavy machinery—plus variable material cost on each unit.
+          **Economies of scale** are the fall in average cost per unit as a plant gets larger and output rises.
         define: [economies-of-scale]
         gate:
           type: predict
-          question: What is the average cost per unit when the plant makes 1,000 units?
-          answer: { value: 25, tol: 0.01 }
-          explain: 20,000 ÷ 1,000 = 20 of fixed cost per unit, plus 5 variable, makes 25 dollars.
+          question: As a factory expands output tenfold, why does average cost per unit fall without dropping all the way to zero?
+          options:
+            - Fixed overhead is spread thinner across more units, while the variable cost per unit remains
+            - Variable material cost per unit disappears at high volume
+            - Fixed factory rent automatically drops to zero when output rises
+            - Suppliers give away raw materials for free once output doubles
+          answer: 0
+          explain: Fixed cost is divided across more units so each box carries a thinner slice of overhead, but every unit still requires its variable material and labor inputs.
       - say: |
-          At 1,000 units, fixed cost adds 20 dollars to every box. Now raise the output and watch the fixed slice thin out.
+          Watch the fixed-cost block slice thinner as more boxes roll down the line. Switch the cost driver to inspect how
+          scale economies work.
         set: { animFrom: 0.8, animTo: 5 }
-        show: [r1, qty]
+        hide: [scale-note]
+        show: [driver-r, driver-choice]
         gate:
           type: when
-          prompt: Raise output until average cost drops below 10 dollars.
-          when: 'a.average < 10'
-          hint: Fixed cost per unit must fall below 5. Try 5,000 units or more.
+          prompt: Select Scale economies to see how higher plant volume lowers average unit cost.
+          when: "driver == 'scale'"
+          hint: Click Scale economies in the side control.
       - say: |
-          Repetition also makes work cheaper. The **learning curve** is the drop in cost per unit as a firm repeats a task
-          again and again. Say each doubling of output cuts cost to 80% of what it was. The first unit costs 100.
+          Repetition over time also makes work cheaper. The **learning curve** is the drop in cost per unit as a firm repeats
+          a task or product again and again over time, cutting waste and assembly errors.
         define: [learning-curve]
-        hide: [r1, qty, anim]
-        show: [r2-in]
+        hide: [anim]
         gate:
           type: predict
-          question: What does a unit cost after two doublings?
-          answer: { value: 64, tol: 0.01 }
-          explain: 100 × 0.8 = 80, then 80 × 0.8 = 64 dollars.
+          question: How does the learning curve differ from economies of scale?
+          options:
+            - The learning curve comes from cumulative repetition over time, whereas economies of scale come from larger output volume in a given period
+            - The learning curve only applies to raw material prices, whereas economies of scale apply to worker skill
+            - Economies of scale require small plants, whereas the learning curve requires idle machinery
+            - They are identical terms for reducing corporate tax rates
+          answer: 0
+          explain: Scale economies come from spreading fixed overhead over larger volume at a point in time; learning-curve gains come from cumulative experience over time.
       - say: |
-          Each doubling multiplies cost by 0.8: the first doubling drops cost from 100 to 80, and the second drops it from
-          80 to 64.
-        hide: [r2-in]
-        show: [r2]
-      - say: Average cost on new numbers.
+          In practice, global cost leaders combine both engines. Sort each factory advantage into economies of scale or the
+          learning curve.
+        hide: [driver-r, driver-choice]
+        show: [cost-bins]
+        gate:
+          type: event
+          prompt: Place each example under the cost driver it illustrates.
+          target: cost-bins
+          event: solved
+          hint: Overhead spread across volume is scale; skill and workflow mastery from cumulative repetition is learning.
+      - say: Check your intuition on economies of scale.
+        hide: [cost-bins]
+        show: [scale-note]
         gate:
           type: practice
-          template: avgcost-numeric
-      - say: And a learning curve.
-        gate:
-          type: practice
-          template: learn-numeric
-    takeaway: Bigger output spreads fixed cost, and repetition lowers cost per unit.
+          template: scale-mcq
+    takeaway: Bigger output spreads fixed overhead across units, while cumulative repetition lowers cost through the learning curve.
 
   - id: pick-a-strategy
     title: Standardize or adapt?
@@ -298,6 +360,8 @@ scenes:
             - { label: Cost pressure, value: '{=cost}' }
             - { label: Pressure to adapt, value: '{=adapt}' }
             - { label: Strategy, value: '{=s.strategy}', tone: good }
+            - { label: Strategic focus, value: '{=s.focus}', tone: accent }
+            - { label: Knowledge flow, value: '{=s.knowledgeFlow}' }
       - id: costpick
         widget: Choice
         region: side
@@ -341,8 +405,8 @@ scenes:
           Two forces pull an international firm in opposite directions. Pressure to cut costs favors selling the same
           thing everywhere. Pressure to adapt favors changing it for each market. The mix decides the strategy.
       - say: |
-          With little of either pressure, a firm can do **home replication**: keep product development at home and transfer
-          existing products and processes abroad. The lecture calls this the **home replication strategy**.
+          With little of either pressure, a firm can use a **home replication strategy**: keep product development at home
+          and transfer existing products and processes abroad.
         define: [home-replication-strategy]
         set: { animFrom: 0.6, animTo: 1.4 }
       - say: |
@@ -363,7 +427,7 @@ scenes:
           explain: Strong cost pressure and little need to adapt point to a global strategy.
       - say: |
           When both pressures are strong, the **transnational strategy** standardizes when possible and adapts when necessary.
-          It can lead to a **blue ocean strategy**: creating a new market with little competition.
+          It can also open a **blue ocean strategy**: creating a new market space with little competition.
         define: [transnational-strategy, blue-ocean-strategy]
         set: { animFrom: 2.8, animTo: 5 }
         hide: [pressures-note]
@@ -373,11 +437,11 @@ scenes:
           prompt: Use the buttons to set the pressures that call for a Transnational strategy.
           when: "s.strategy == 'Transnational'"
           hint: Set both Cost pressure and Pressure to adapt to High.
-      - say: Pick for a new firm.
+      - say: Match all four international strategies to their core ideas.
         hide: [costpick, adaptpick, anim]
         gate:
           type: practice
-          template: strategy-mcq
+          template: strategy-match
       - say: A thought to finish.
         gate:
           type: reflect
@@ -392,8 +456,29 @@ scenes:
     goal: How does a company tell its people what it stands for and what it aims to achieve?
     skills: [planning-steps]
     stage:
+      - id: hierarchy-tree
+        widget: Tree
+        props:
+          orientation: down
+          root:
+            id: root-mission
+            label: Mission, Vision & Values
+            note: Purpose, future aspiration, and core beliefs
+            tone: accent
+            children:
+              - id: node-obj
+                label: Corporate Objectives
+                note: Measurable targets across organizational levels
+                children:
+                  - id: node-strat
+                    label: Competitive Strategy
+                    note: Home replication, Multidomestic, Global, or Transnational
+                  - id: node-tactical
+                    label: Tactical Plans & Budgets
+                    note: Forecasts, itemized budgets, and balanced scorecard
       - id: statements
         widget: DropBins
+        hidden: true
         props:
           check: instant
           chips:
@@ -413,7 +498,7 @@ scenes:
           chips:
             - { id: k1, label: A master chef's feel for when a dish is ready }
             - { id: k2, label: A written recipe }
-            - { id: k3, label: A formula in a spreadsheet }
+            - { id: k3, label: A standard operating manual }
             - { id: k4, label: A negotiator's sense of when to stay quiet }
           bins:
             - { id: tacit, label: Tacit knowledge }
@@ -427,8 +512,8 @@ scenes:
           title: Direction and knowledge
           body: |
             - **Mission, vision & values:** Define purpose, future aspiration and core beliefs.
-            - **Objectives:** Quantified targets that become more specific at each level of the firm.
-            - **Explicit vs. tacit knowledge:** Written formulas and manuals vs. experience that is hard to put into words.
+            - **Objectives:** Measurable targets that become more specific at each level of the firm.
+            - **Explicit vs. tacit knowledge:** Written manuals and procedures vs. experience that is hard to put into words.
     beats:
       - say: |
           The planning steps start by looking at the outside world and the firm's own strengths. Then comes direction. A
@@ -440,25 +525,27 @@ scenes:
           A **values statement** says the beliefs and priorities members should live by, such as acting with integrity and mutual respect.
         define: [vision-statement, values-statement]
       - say: |
-          Then **objectives**: goals that direct the firm within its mission and vision. They are best quantified, and become
-          more specific at the operating level, such as growing foreign sales by 15%.
+          Then come **objectives**: measurable goals that direct the firm within its mission and vision, becoming more
+          specific at the operating level, such as growing foreign sales this year.
         define: [objectives]
+        hide: [hierarchy-tree]
+        show: [statements]
         gate:
           type: event
           prompt: Sort the three statements into the right bins.
           target: statements
           event: solved
-          hint: Purpose and scope is the mission; core beliefs are values; a quantified target is an objective.
+          hint: Purpose and scope is the mission; core beliefs are values; a measurable target is an objective.
       - say: |
           Strategy also depends on what the firm knows. **Knowledge management** is the practice of finding, creating,
-          sharing and using valuable knowledge. **Tacit knowledge** is hard to put into words, pictures or formulas, while
+          sharing and using valuable knowledge. **Tacit knowledge** is hard to put into words or manuals, while
           **explicit knowledge** is easy to write down and share.
         define: [knowledge-management, tacit-knowledge, explicit-knowledge]
         hide: [statements]
         show: [direction-note]
         gate:
           type: predict
-          question: Which kind of knowledge is easier to share with a new employee?
+          question: Which kind of knowledge is easier to share with a new employee across borders?
           options: [Explicit knowledge that can be written down, Tacit knowledge that is hard to put into words]
           answer: 0
           explain: Explicit knowledge you can write down or draw can be passed on easily. Tacit knowledge is much harder to transfer.
@@ -475,86 +562,131 @@ scenes:
         show: [direction-note]
         gate:
           type: reflect
-          prompt: Why does the lecture prefer objectives that are stated in numbers?
+          prompt: Why does the lecture emphasize setting measurable objectives rather than vague aspirations?
           model: |
-            A number can be checked. It tells managers what to aim for, lets them build strategies to reach it and shows
-            whether they got there. Vague goals cannot be tested.
+            Measurable targets can be verified. They tell managers clearly what to aim for, let business units align their
+            tactical plans, and make it obvious whether the strategy is succeeding. Vague aspirations cannot be tested.
     takeaway: Mission, vision, values and objectives set direction, and knowledge is a resource to manage.
 
   - id: plan-and-budget
     title: From plan to budget
-    goal: How does a plan turn into numbers a manager can follow?
+    goal: How does a high-level strategy turn into operational action and multi-dimensional control?
     skills: [budgeting]
-    state: { lastSales: 200000, growth: 0.1, costRatio: 0.5, fixedExpenses: 20000 }
+    state: { lens: financial-only }
     derive:
-      - { fn: budgetPlan, in: { lastSales: '@lastSales', growth: '@growth', costRatio: '@costRatio', fixedExpenses: '@fixedExpenses' }, out: b }
+      - { fn: scorecardLens, in: { lens: '@lens' }, out: sc }
     stage:
-      - id: r-in
-        widget: Readout
+      - id: execution-schedule
+        widget: Schedule
         props:
-          items:
-            - { label: Last year's sales, value: '@lastSales' }
-            - { label: Expected growth, value: '{=growth|pct}' }
-            - { label: Variable cost share, value: '{=costRatio|pct}' }
-            - { label: Fixed expenses, value: '@fixedExpenses' }
-      - id: r
+          title: Turning strategy into operational execution
+          columns: [Tool, Strategic role, Primary focus]
+          rows:
+            - id: row-tactical
+              label: Tactical plan
+              amounts: ['Spells out detailed operational actions to reach objectives', 'Short-term execution steps']
+            - id: row-forecast
+              label: Sales forecast
+              amounts: ['Predicts future customer demand by market', 'Anchors staffing and inventory']
+            - id: row-budget
+              label: Budget
+              amounts: ['Itemizes projected income and spending', 'Allocates resources and controls cost']
+            - id: row-scorecard
+              label: Balanced scorecard
+              amounts: ['Tracks strategy with financial and non-financial measures', 'Money, resources, people & mission']
+              style: total
+      - id: tactical-bins
+        widget: DropBins
+        hidden: true
+        props:
+          check: instant
+          chips:
+            - { id: b1, label: Step-by-step rollout schedule for opening ten regional stores }
+            - { id: b2, label: Projection of next year's expected unit demand by country }
+            - { id: b3, label: Itemized schedule of projected store revenues and operating expenses }
+            - { id: b4, label: Dashboard tracking financial returns, employee training, and mission milestones }
+          bins:
+            - { id: tactical, label: Tactical plan }
+            - { id: forecast, label: Sales forecast }
+            - { id: budget, label: Budget }
+            - { id: scorecard, label: Balanced scorecard }
+          solution: { b1: tactical, b2: forecast, b3: budget, b4: scorecard }
+      - id: lens-r
         widget: Readout
         hidden: true
         props:
           items:
-            - { label: Last year's sales, value: '@lastSales' }
-            - { label: Forecast sales, value: '@b.forecast', tone: accent }
-            - { label: Expenses, value: '@b.expenses', tone: accent }
-            - { label: Budgeted profit, value: '@b.net', tone: good }
-      - id: gr
-        widget: Slider
+            - { label: Control scope, value: '{=sc.scope}' }
+            - { label: Strategic blind spot, value: '{=sc.blindSpot}', tone: accent }
+            - { label: Alignment level, value: '{=sc.alignment}', tone: good }
+      - id: lens-choice
+        widget: Choice
         region: side
         hidden: true
-        props: { label: Expected growth (0.1 = 10%), min: 0, max: 0.3, step: 0.05 }
-        bind: { value: growth }
+        props:
+          label: Performance lens
+          style: segmented
+          options:
+            - { value: financial-only, label: Financial only }
+            - { value: balanced-scorecard, label: Balanced scorecard }
+        bind: { value: lens }
     beats:
       - say: |
-          A strategy is useless until it is turned into action. A **tactical plan** spells out in detail how the objectives
-          will be reached. Its numbers come from a forecast and a budget.
+          A strategy is useless until it is turned into daily action. A **tactical plan** (or operational plan) spells out
+          in detail how corporate objectives will be reached on the ground.
         define: [tactical-plan]
       - say: |
-          A **sales forecast** is a prediction of future sales. Last year a firm sold 200,000 dollars and expects 10% growth.
-        define: [sales-forecast]
+          To fund those actions, managers start with a **sales forecast**—a prediction of future sales—and build a
+          **budget**, which is an itemized projection of income and spending for a future period.
+        define: [sales-forecast, budget]
         gate:
           type: predict
-          question: What is the sales forecast?
-          answer: { value: 220000, tol: 0.5 }
-          explain: 200,000 × 1.10 = 220,000 dollars.
+          question: Why does a firm prepare its sales forecast before finalizing its operating budget?
+          options:
+            - Expected sales volume determines the production, staffing, and marketing resources the budget must allocate
+            - Operating budgets only record historical tax payments from ten years ago
+            - Sales forecasts are legally required to be identical across every competitor
+            - Budgets are only written after all spending for the year is finished
+          answer: 0
+          explain: A sales forecast estimates future revenue and volume, which drives how much production, staffing, and marketing spending the itemized budget needs to fund.
       - say: |
-          A **budget** is an itemized projection of income and spending for a future period. Costs are half of sales
-          (110,000) plus 20,000 of fixed expenses, leaving 90,000 of budgeted profit. Now steer growth.
-        define: [budget]
-        hide: [r-in]
-        show: [r, gr]
+          Each execution tool plays a distinct role in translating goals into action. Sort the four management artifacts into
+          the right category.
+        hide: [execution-schedule]
+        show: [tactical-bins]
+        gate:
+          type: event
+          prompt: Place each artifact under the execution tool it represents.
+          target: tactical-bins
+          event: solved
+          hint: Action steps are tactical plans; demand predictions are forecasts; income/spending schedules are budgets; multi-measure dashboards are balanced scorecards.
+      - say: |
+          Success is not only about short-term money. A **balanced scorecard** measures strategy success with several kinds
+          of measures—including resources, people, and progress toward the mission.
+        define: [balanced-scorecard]
+        hide: [tactical-bins]
+        show: [lens-r, lens-choice]
         gate:
           type: when
-          prompt: Raise expected growth until the budgeted profit reaches 100,000 dollars.
-          when: 'b.net > 99999'
-          hint: Try 20% growth.
-      - say: |
-          Success is not only about money. A **balanced scorecard** measures strategy with several kinds of measures,
-          not only financial ones, such as resources, people and progress toward the mission.
-        define: [balanced-scorecard]
-        hide: [gr]
-      - say: A budget on new numbers.
+          prompt: Switch the performance lens to Balanced scorecard to see how it closes the blind spots of financial-only control.
+          when: "lens == 'balanced-scorecard'"
+          hint: Select Balanced scorecard in the side panel.
+      - say: Match the four execution and control tools to their strategic functions.
+        hide: [lens-choice]
+        show: [execution-schedule]
         gate:
           type: practice
-          template: budget-numeric
-    takeaway: A forecast and an itemized budget turn objectives into the numbers a plan needs.
+          template: budget-tools-match
+    takeaway: Tactical plans, sales forecasts, budgets, and balanced scorecards turn objectives into coordinated action and control.
 
   - id: imagining-futures
     title: Preparing for several futures
     goal: How can a company plan when nobody knows what will happen next?
     skills: [scenarios]
     data: [scenarios]
-    state: { animFrom: 0, animTo: 1.3 }
+    state: { method: top-down, animFrom: 0, animTo: 1.3 }
     derive:
-      - { fn: commonActions, in: { scenarios: '@scenarios' }, out: c }
+      - { fn: planningFlow, in: { method: '@method' }, out: pf }
     stage:
       - id: stories-card
         widget: Callout
@@ -565,13 +697,6 @@ scenes:
             - **Boom:** `expand-fast`, `hire-local-managers`, `keep-cost-focus`, `build-new-kitchens`
             - **Steady:** `expand-slowly`, `hire-local-managers`, `keep-cost-focus`
             - **Downturn:** `delay-new-stores`, `hire-local-managers`, `keep-cost-focus`
-      - id: r
-        widget: Readout
-        hidden: true
-        props:
-          items:
-            - { label: Actions in every story, value: '@c.count', tone: good }
-            - { label: Different actions seen, value: '@c.total' }
       - id: planning-note
         widget: Callout
         hidden: true
@@ -582,6 +707,27 @@ scenes:
             - **Contingency plan:** Prepared in advance for a critical, high-impact event.
             - **Top-down vs. bottom-up planning:** Starts at top management and flows down, or starts at operating units and flows up.
             - **Iterative planning:** Repeats top-down and bottom-up cycles until differences are reconciled.
+      - id: flow-r
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: Where planning starts, value: '{=pf.origin}' }
+            - { label: Primary strength, value: '{=pf.strength}', tone: accent }
+            - { label: Main risk, value: '{=pf.risk}' }
+            - { label: Levels reconciled, value: '{=pf.reconciled}', tone: good }
+      - id: flow-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props:
+          label: Planning direction
+          style: segmented
+          options:
+            - { value: top-down, label: Top-down }
+            - { value: bottom-up, label: Bottom-up }
+            - { value: iterative, label: Iterative }
+        bind: { value: method }
       - id: anim
         widget: Animation
         region: top
@@ -605,34 +751,42 @@ scenes:
         define: [scenario]
         gate:
           type: predict
-          question: Look at the three scenario lists on stage. How many actions appear in all three stories?
-          answer: { value: 2, tol: 0.1 }
-          explain: Hire-local-managers and keep-cost-focus appear in all three lists.
+          question: Look at the three scenario lists on stage. Which actions appear across all three stories?
+          options:
+            - Hiring local managers and keeping a cost focus
+            - Expanding fast and building new kitchens
+            - Delaying new stores and expanding slowly
+            - Building new kitchens and delaying new stores
+          answer: 0
+          explain: Hire-local-managers and keep-cost-focus appear in all three lists, making them robust moves whichever future unfolds.
       - say: |
-          Out of 6 different actions across the three stories, 2 appear in every story (`hire-local-managers` and
-          `keep-cost-focus`). Some events could also badly hurt the firm: a **contingency plan** is prepared in advance for a
+          Actions that appear in every story (`hire-local-managers` and `keep-cost-focus`) are safe no-regret moves to start
+          now. Some sudden shocks could also badly hurt the firm: a **contingency plan** is prepared in advance for a
           critical event with a severe impact.
         define: [contingency-plan]
         set: { animFrom: 1.3, animTo: 2.6 }
-        show: [r]
       - say: |
-          Plans can be built in different directions. **Top-down planning** begins at the highest level and moves down.
-          **Bottom-up planning** begins at the lowest level and moves up.
+          Plans can also move through the organization in different directions. **Top-down planning** begins at the highest
+          level and moves down. **Bottom-up planning** begins at the lowest operating level and moves up.
         define: [top-down-planning, bottom-up-planning]
         set: { animFrom: 2.6, animTo: 3.8 }
-        hide: [stories-card, r]
-        show: [planning-note]
+        hide: [stories-card]
+        show: [planning-note, flow-r, flow-choice]
       - say: |
-          When the two disagree, **iterative planning** repeats the top-down or bottom-up process until all the differences
-          are settled.
+          When headquarters and local units disagree, **iterative planning** repeats the top-down and bottom-up cycles until
+          all differences between levels are settled.
         define: [iterative-planning]
         set: { animFrom: 3.8, animTo: 5 }
-      - say: Try a count on a new set of stories.
-        hide: [planning-note, anim]
-        show: [r]
+        gate:
+          type: when
+          prompt: Select the planning direction that reconciles headquarters goals with local operating insight.
+          when: "method == 'iterative'"
+          hint: Choose Iterative in the side control.
+      - say: Put the steps of scenario planning in order.
+        hide: [flow-choice, anim]
         gate:
           type: practice
-          template: common-numeric
+          template: scenario-order
       - say: A last thought.
         gate:
           type: reflect

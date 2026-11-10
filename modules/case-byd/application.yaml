@@ -1,137 +1,164 @@
 intro: |
-  The BYD case ends with three questions: can the cost edge travel, how to beat the tariffs, and how to stay ahead at
-  home. This tab walks through the numbers behind each and asks for your own decision.
+  The BYD case closes with three strategic dilemmas: whether its domestic cost advantage can travel abroad, how to overcome
+  rising Western tariff walls, and how to defend its lead in China's crowded home market. Work through each strategic
+  decision below.
 case:
   id: byd-decision
   title: What should BYD do next?
   story: |
-    BYD is the world's top EV seller. Its Seal costs **26,572 dollars** in China and **45,060** in Germany. Its overseas
-    sales were **1.05 million** of **4.6 million** cars, and it wants half of sales abroad by 2030. US tariffs are 100% or
-    more. At home, rivals such as Geely, Xiaomi and Leapmotor are closing the gap, and the industry has twice as much
-    capacity as buyers.
-  data: [exhibit4]
-  state:
-    base: 26572
-    other: 45060
-    total: 4600000
-    overseas: 1050000
-    targetShare: 0.5
-    price: 26572
-    tariff: 1
-  derive:
-    - { fn: compare, in: { base: '@base', other: '@other' }, out: c }
-    - { fn: overseasGap, in: { total: '@total', overseas: '@overseas', targetShare: '@targetShare' }, out: o }
-    - { fn: tariffedPrice, in: { price: '@price', tariff: '@tariff' }, out: t }
+    BYD is the world's top EV seller. Its Seal sedan sells for a mass-market price in China but is priced near Western
+    rivals in Germany. Overseas sales reached over one million vehicles out of 4.6 million total, and BYD wants half of its
+    sales outside China by 2030. However, US tariffs stand at 100% or more and the EU imposes countervailing duties, while
+    domestic rivals such as Geely, Xiaomi, and Leapmotor press a fierce price war at home.
   cells:
     - id: price-markup
-      title: Why is the Seal dearer in Germany?
+      title: Why is the Seal priced higher in Europe?
       say: |
-        The Seal costs 26,572 dollars in China and 45,060 in Germany. The difference covers shipping, European tariffs,
-        dealer margins and what the market will bear.
+        In China's fierce price war, the BYD Seal sells at an aggressive price, whereas in Germany it is priced close to the
+        Tesla Model 3. That higher European retail price covers ocean shipping, European import duties, dealer networks, and
+        local regulatory compliance—while still leaving a large profit margin.
       stage:
-        - id: markup-r
-          widget: Readout
+        - id: markup-schedule
+          widget: Schedule
           props:
-            items:
-              - { label: Price in China, value: '@base' }
-              - { label: Price in Germany, value: '@other' }
-              - { label: Difference, value: '@c.diff', tone: accent }
-              - { label: Fraction above the China price, value: '{=c.pctOver|pct1}', tone: good }
+            title: BYD Seal Positioning — China vs. Europe
+            columns: [China Home Market, Germany / European Market]
+            rows:
+              - { label: Competitive climate, amounts: ['Intense price war (~100 carmakers)', 'Higher retail price umbrella'] }
+              - { label: Added cost layers, amounts: ['Domestic factory-gate delivery', 'Ocean freight, EU duties & dealer margins'] }
+              - { label: Strategic pricing, amounts: ['Volume-first aggressive pricing', 'Priced near Tesla Model 3 ($45k tier)'] }
+              - { label: Unit profitability, amounts: ['Thin domestic margin per car', '2–3x higher profit per car than in China'] }
       decision:
-        prompt: BYD's German price is close to Tesla's (45,769). What does that tell you about its strategy in Europe?
+        prompt: BYD's German price is close to Tesla's rather than deeply undercutting it. What does that reveal about BYD's strategy in Europe?
         type: mcq
-        options: ['It earns a high margin abroad rather than undercutting rivals', 'It sells at a loss', 'It has no costs in Germany', 'It matches Tesla because it must']
+        options:
+          - It uses its low production cost to capture a high profit margin per vehicle abroad rather than starting a race to the bottom
+          - It sells every car at a heavy loss in Europe
+          - It has zero shipping or tariff costs when exporting to Germany
+          - European law forces all electric sedans to charge the exact same price
         answer: 0
-        model: BYD's cost is low, so a price near Tesla's in Germany leaves a big margin. The case says BYD earns two to three times as much profit abroad as at home.
+        model: Because BYD's underlying manufacturing cost is low, pricing near Tesla in Germany absorbs shipping and tariff costs while generating two to three times the profit per car earned in China.
     - id: transfer-edge
       title: Can the cost edge travel?
       say: |
-        BYD's edge comes from a walled town with co-located factories, in-house parts, and low pay. Overseas plants will not
-        have all of that.
+        BYD's cost advantage was forged inside China through walled factory towns, ~75% in-house parts, affordable LFP Blade
+        batteries, and lower domestic wages. As BYD opens plants in Hungary, Thailand, and Brazil, not every piece of that
+        formula moves easily across borders.
       stage:
-        - id: edge-note
+        - id: edge-tree
+          widget: Tree
+          props:
+            orientation: right
+            root:
+              id: edge-root
+              label: Transferability of BYD's Cost Edge
+              tone: accent
+              children:
+                - id: portable
+                  label: Travels Easily Abroad
+                  note: Technology & scale assets
+                  children:
+                    - { id: lfp-tech, label: LFP Blade Battery & vehicle platform design }
+                    - { id: kits, label: Core component kits shipped from China (CKD) }
+                - id: location-bound
+                  label: Rooted in China
+                  note: Hard to replicate overseas
+                  children:
+                    - { id: cluster, label: Co-located mega-factories & local supplier network }
+                    - { id: wages, label: Lower domestic manufacturing & engineering wages }
+      decision:
+        prompt: Which parts of BYD's cost edge are hardest to transfer to a foreign plant, and how can BYD adapt? Give your reasoning.
+        type: open
+        model: |
+          Co-located mega-factories, dense local supplier clusters, and lower Chinese wages are hardest to replicate abroad,
+          especially in higher-wage European markets. BYD can adapt by shipping high-value battery and motor kits from China for
+          local CKD assembly, building supplier parks around major overseas plants, and locating early factories in competitive
+          manufacturing hubs such as Thailand, Brazil, and Hungary.
+    - id: target-gap
+      title: Reaching the 50% overseas sales goal
+      say: |
+        BYD aims to generate half of its total vehicle sales outside China by 2030. Relying only on direct exports from
+        Chinese ports would expose BYD to shipping bottlenecks and rising foreign protectionism.
+      stage:
+        - id: target-schedule
+          widget: Schedule
+          props:
+            title: Portfolio of International Growth Channels
+            columns: [Role in 2030 Target, Key Vulnerability]
+            rows:
+              - { label: Direct exports (Ro-Ro fleet), amounts: ['Uses full China factory scale', 'Fully exposed to foreign tariff walls'] }
+              - { label: CKD assembly (e.g., Brazil), amounts: ['Fast startup; lowers import duties', 'Tightening local-content rules'] }
+              - { label: Regional FDI plants (Thailand, Hungary), amounts: ['Sells as tariff-free local output', 'Higher capex and local labor costs'] }
+      decision:
+        prompt: Why are overseas assembly and manufacturing plants essential to BYD's 2030 international ambition?
+        type: mcq
+        options:
+          - Scaling overseas share to half of sales requires tariff-jumping local plants alongside exports
+          - BYD is shutting down all of its factories inside China
+          - Exporting cars by sea is banned under international maritime law
+          - Foreign plants require no capital investment or local workers
+        answer: 0
+        model: Doubling the overseas share of sales cannot rely on direct exports alone when major markets impose tariffs; local CKD and full manufacturing plants let BYD grow volume inside protected regions.
+    - id: tariff-wall
+      title: Navigating US and EU trade barriers
+      say: |
+        The United States imposes tariffs of 100% or more on Chinese EVs alongside connected-vehicle restrictions, while the
+        European Union levies countervailing duties. BYD must decide how to allocate capital across regions with very
+        different political risks.
+      stage:
+        - id: wall-note
           widget: Text
           props:
             body: |
-              **Where the edge comes from**
+              **Comparing Western Trade Barriers**
 
-              Parts made in-house, lower pay, lean administration, cheap LFP cells, close local suppliers.
+              - **United States:** 100%+ tariff wall plus national-security scrutiny of connected car software and potential restrictions on Mexican transshipment routes.
+              - **European Union:** Graduated countervailing duties on China-built EVs, but open to inward foreign direct investment (FDI) factories inside EU member states such as Hungary.
       decision:
-        prompt: Which parts of BYD's cost edge are hardest to take to a new country, and how could it cope? Give your reasoning.
+        prompt: How should BYD respond differently to the US market versus the European market, and what risks does each route carry?
         type: open
         model: |
-          Co-located factories and close ties to nearby suppliers are hardest to copy, along with lower local pay. BYD can
-          cope by building a supplier cluster around each plant, shipping key parts such as batteries from China (CKD assembly)
-          and starting in countries with lower labor costs, such as Thailand, Brazil and Uzbekistan.
-    - id: target-gap
-      title: How far is the 50% target?
-      say: |
-        At the same total, BYD would need 2.3 million cars sold abroad against 1.05 million exports in 2025.
-      stage:
-        - id: target-r
-          widget: Readout
-          props:
-            items:
-              - { label: Share abroad today, value: '{=o.share|pct1}', tone: accent }
-              - { label: Needed abroad, value: '@o.needed', tone: accent }
-              - { label: Extra needed, value: '@o.extra', tone: good }
-      decision:
-        prompt: Is the 50% target by 2030 realistic if only exports are counted?
-        type: mcq
-        options: ['It needs more than double today''s overseas volume, so plants abroad matter', 'It is already met', 'It needs no growth', 'It cannot be measured']
-        answer: 0
-        model: Overseas sales must rise from about 23% to 50% of the total, a gap of 1.25 million cars at today's total, so local production will count along with exports.
-    - id: tariff-wall
-      title: How to beat the tariff wall
-      say: |
-        At 100% the Seal would cost 53,144 dollars in the US, about the price of a premium car. The case suggests routes
-        through Mexico or Canada, and plants in other regions.
-      stage:
-        - id: wall-r
-          widget: Readout
-          props:
-            items:
-              - { label: Price before the tariff, value: '@price' }
-              - { label: Tariff rate, value: '{=tariff|pct}' }
-              - { label: Price after the tariff, value: '@t.total', tone: good }
-      decision:
-        prompt: How could BYD blunt the US tariffs, and what are the risks of each route? Give your reasoning.
-        type: open
-        model: |
-          It could build in Mexico or Canada, or ship cars from plants in other countries, or sell through partners. The risks
-          are US pressure to block Mexican routes, security investigations into connected vehicles, and the chance that the
-          tariff rules change again. Building in the US would remove the tariff but face political opposition.
+          In Europe, BYD can bypass countervailing duties by building local plants in Hungary and Turkey, though it faces higher
+          European labor costs and local-content rules. For the US, a 100%+ tariff and political opposition make direct entry or
+          even a Mexican back-door plant highly risky, so BYD is better off prioritizing Europe, Latin America, and Southeast Asia
+          first.
     - id: home-rivals
-      title: Staying ahead at home
+      title: Staying ahead in China's price war
       say: |
-        The case says China has enough factories for twice as many EVs as buyers want. Rivals are copying BYD's tricks.
+        China has factory capacity for roughly 55 million cars against 34 million sold, and agile domestic rivals such as
+        Geely, Xiaomi, and Leapmotor are rapidly adopting LFP batteries and fast model cycles.
       stage:
         - id: beyond-note
           widget: Callout
           props:
             kind: beyond
             title: Beyond the case
-            body: The quantities here are taken directly from the case. Predictions about BYD's future are opinions to debate.
+            body: The strategic facts here are drawn from the case. How BYD balances domestic market share against overseas profitability is an ongoing executive debate.
       decision:
-        prompt: What is BYD's best protection in a crowded home market with a price war?
+        prompt: What is BYD's strongest defense in a crowded home market experiencing a prolonged price war?
         type: mcq
-        options: ['Keeping its cost lead and improving technology such as batteries', 'Raising prices', 'Stopping new models', 'Selling fewer cars']
+        options:
+          - Sustaining its vertical-integration cost lead, scale advantage, and rapid battery and software innovation
+          - Raising domestic car prices far above competitors
+          - Halting new model updates for the next five years
+          - Outsourcing all battery and motor production to high-margin suppliers
         answer: 0
-        model: With a price war, the firm with the lowest cost can cut prices and still earn a profit. BYD's advantage in batteries, in-house parts and speed of new models is its best protection.
+        model: In a price war driven by excess capacity, the producer with the lowest unit cost and largest scale can cut prices and still remain profitable while continuously refreshing technology.
 explainBack:
   prompt: |
-    Explain to a friend why BYD can sell cheaper cars than Tesla, why tariffs and plants abroad matter to its plans, and why
-    a price war at home pushes it overseas.
+    Explain to a colleague why BYD can manufacture EVs for less than Western rivals, how tariffs and foreign plants shape its
+    international rollout, and why China's domestic price war makes overseas markets so important.
   rubric:
-    - Names at least two sources of BYD's cost advantage
-    - Explains how a tariff raises the price and why plants abroad reduce it
-    - Links excess capacity and a price war at home to the push abroad
+    - Identifies key structural sources of BYD's cost advantage (vertical integration, LFP batteries, lean overhead, local wages)
+    - Explains how import tariffs raise landed prices and how CKD assembly or local FDI plants overcome trade barriers
+    - Connects domestic overcapacity and price wars in China to the push for higher-margin overseas sales
 atScale:
   title: In practice
   body: |
-    Carmakers plan plants years ahead and decide where to build by comparing labor cost, nearby suppliers, tariffs and
-    incentives. They track battery cost per kWh closely, since it is the largest single cost in an EV, and they watch trade
-    rules such as tariffs and security reviews, which can change from one election to the next.
+    Global automakers plan factory footprints years ahead by weighing labor costs, supplier clusters, trade rules, and
+    government industrial policies. Because batteries and power electronics represent the core value of an EV, firms face a
+    constant make-or-buy tradeoff between vertical integration and supplier flexibility as trade barriers redraw global supply
+    chains.
 tradeoffs:
   title: Ways into a tariff-protected market
   columns: [Route, Benefit, Risk]

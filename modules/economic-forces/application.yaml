@@ -1,143 +1,182 @@
 intro: |
-  Before opening a factory or shop abroad, a company reads the economy: how rich people are, what money buys, what labor
-  costs and what the country owes. This case puts those readings together for one decision.
+  Before opening a factory or retail store abroad, a company reads the host country's economy: what local money actually
+  buys, how unit labor costs compare once productivity is weighed, who has discretionary income to spend, and whether
+  external debt threatens foreign exchange access.
 case:
   id: shoe-maker
   title: A Cebu shoe maker looks at Thailand
   story: |
-    Cebu Soles makes leather shoes and is thinking of opening a small factory in Thailand. The owner reads the economy
-    first. A basket of five goods costs 1,865 baht in Thailand and 160.05 dollars in the United States. A Thai factory
-    would pay **50,000 dollars** in direct labor to make **10,000 pairs**. A comparable factory at home pays 70,000
-    dollars for the same 10,000 pairs.
-  data: [basket]
-  state:
-    totalLabor: 50000
-    units: 10000
-    homeLabor: 70000
-    atlas: 11780
-    ppp: 32250
-    income: 18000
-    tax: 2000
-    essentials: 11000
-  derive:
-    - { fn: discretionary, in: { income: '@income', tax: '@tax', essentials: '@essentials' }, out: x }
-    - { fn: basketPPP, in: { table: '@basket' }, out: b }
-    - { fn: unitLaborCost, in: { totalLabor: '@totalLabor', units: '@units' }, out: u }
-    - { fn: unitLaborCost, in: { totalLabor: '@homeLabor', units: '@units' }, out: h }
-    - { fn: atlasVsPpp, in: { atlas: '@atlas', ppp: '@ppp' }, out: a }
+    Cebu Soles makes leather dress shoes and is considering opening a factory and regional sales office in Thailand.
+    Before committing capital, the owner evaluates local price levels using the lecture's five-good shopping basket,
+    compares factory unit labor costs against the home plant, examines regional purchasing power and household income
+    distribution, and checks whether foreign debt could disrupt imported leather supplies.
   cells:
     - id: price-level
       title: What does money buy there?
       say: |
-        The same five goods cost 1,865 baht in Thailand and 160.05 dollars in the United States. The ratio shows what the
-        market exchange rate hides: how far a dollar goes in the shops.
+        The owner first compares the lecture's five-good shopping basket in Thailand and the United States. While the
+        market exchange rate reflects currency trading, comparing identical baskets reveals how far local incomes stretch
+        in domestic shops.
       stage:
-        - id: basket-r
-          widget: Readout
+        - id: basket-sched
+          widget: Schedule
           props:
-            items:
-              - { label: Basket in baht, value: '@b.bahtTotal' }
-              - { label: Basket in dollars, value: '@b.usdTotal' }
-              - { label: Implied baht per dollar, value: '@b.rate', format: 2, tone: good }
+            title: Shopping basket in Thailand vs the United States (slide 14)
+            columns: [Thai baht, US dollars]
+            decimals: 2
+            rows:
+              - { label: Soap (bar), amounts: [50, 1.25], format: number }
+              - { label: Rice (pound), amounts: [35, 0.55], format: number }
+              - { label: Shoes (pair), amounts: [905, 70], format: number }
+              - { label: Dress, amounts: [780, 85], format: number }
+              - { label: Socks (pair), amounts: [95, 3.25], format: number }
+              - { label: Total basket cost, amounts: [1865, 160.05], style: total, format: number }
       decision:
-        prompt: Suppose the market rate were 35 baht per dollar while PPP implies about 11.65. What would that say about prices in Thailand?
+        prompt: Suppose the market exchange rate requires many more baht per dollar than the PPP basket comparison implies. What does that tell Cebu Soles about Thailand's economy?
         type: mcq
-        options: ['Local prices are low, so a dollar buys much more than the market rate suggests', Local prices are higher than in the United States, The two countries have the same prices, Nothing can be said]
+        options:
+          - Local goods and services are relatively inexpensive, so a dollar of income buys much more locally than the market exchange rate suggests
+          - Local prices in Thailand are much higher than in the United States
+          - Both countries have identical domestic price levels for everyday goods
+          - Market exchange rates always measure domestic purchasing power perfectly
         answer: 0
-        model: PPP implies fewer baht per dollar than the market rate, so the same basket costs less when converted at the market rate. Local goods and services are cheap.
+        model: When PPP requires fewer local currency units per dollar than the market exchange rate, everyday domestic goods and services are cheaper locally than nominal currency conversions imply.
     - id: labor
-      title: What does labor cost per pair?
+      title: How do factory labor costs compare?
       say: |
-        Compare labor cost per pair at the two sites. The lower number is attractive, but pay and productivity both
-        matter.
+        Next, the owner compares production costs between Thailand and the home plant. Looking only at hourly wage rates
+        can mislead a manufacturer if worker productivity or exchange rates move in the opposite direction.
       stage:
-        - id: ulc-r
-          widget: Readout
+        - id: ulc-note
+          widget: Callout
           props:
-            items:
-              - { label: Thai direct labor (10,000 pairs), value: '@totalLabor', tone: good }
-              - { label: Home direct labor (10,000 pairs), value: '@homeLabor', tone: accent }
-              - { label: Pairs produced, value: '@units' }
+            kind: note
+            title: Evaluating unit labor cost across two plant sites
+            body: |
+              - **Unit labor cost** combines direct labor compensation with the number of pairs produced
+              - Lower hourly wages reduce unit cost only if workers maintain comparable output per hour
+              - Trends in unit labor cost depend on **hourly pay**, **productivity**, and **exchange rate shifts**
       decision:
-        prompt: Which site has the lower unit labor cost, and by how much per pair?
+        prompt: Why should Cebu Soles base its factory site decision on unit labor cost rather than hourly wage rates alone?
         type: mcq
-        options: ['Thailand, by 2 dollars', 'Home, by 2 dollars', 'Thailand, by 20,000 dollars', They are equal]
+        options:
+          - Because low hourly wages can be offset if workers produce fewer pairs per hour, raising the labor cost per pair
+          - Because unit labor cost ignores how many pairs of shoes the factory produces
+          - Because hourly wage rates are always identical across developing and developed economies
+          - Because exchange rate swings never affect dollar-denominated labor costs
         answer: 0
-        model: Thailand costs 5 dollars per pair and home costs 7. The difference is 2 dollars per pair.
+        model: Unit labor cost weighs total direct labor cost against actual output. A site is only cost-competitive if pay per worker is low relative to the number of units each worker produces.
     - id: market
-      title: Is the market itself worth entering?
+      title: Is the regional market worth entering?
       say: |
-        The owner also wants to sell in Southeast Asia. In neighboring Malaysia (Table 7.2), income at PPP is far higher
-        than at Atlas exchange rates, and the same pattern holds across middle-income Southeast Asian markets.
+        The owner also hopes to sell shoes across Southeast Asia. In neighboring Malaysia and other middle-income Asian
+        economies (Table 7.2), GNI per capita measured at purchasing power parity is much higher than GNI per capita at
+        Atlas exchange rates.
       stage:
-        - id: market-r
-          widget: Readout
+        - id: market-sched
+          widget: Schedule
           props:
-            items:
-              - { label: 'Southeast Asian benchmark: Atlas income', value: '@atlas' }
-              - { label: 'Southeast Asian benchmark: PPP income', value: '@ppp' }
+            title: Regional GNI per capita benchmarks (Table 7.2, US dollars)
+            columns: [Atlas method ($), Purchasing power parity ($)]
+            decimals: 0
+            rows:
+              - { label: Malaysia, amounts: [11780, 32250], format: number }
+              - { label: China, amounts: [12850, 21250], format: number }
+              - { label: India, amounts: [2380, 8210], format: number }
       decision:
-        prompt: What can you say about the buying power of a middle-income market like this one?
+        prompt: What does the wide gap between Atlas and PPP GNI per capita tell the owner about middle-income Southeast Asian markets, and what caveats remain?
         type: open
         model: |
-          Measured at PPP (32,250 vs 11,780 at Atlas rates, about 2.74 times as large), incomes buy nearly three times more than
-          the exchange-rate figure suggests. Still, income may be unevenly shared, so check distribution and discretionary
-          income too.
+          Because local prices for everyday necessities are lower, households enjoy much stronger real purchasing power at
+          PPP than nominal Atlas figures suggest. However, GNI per capita is still an average, so the owner must also check
+          income distribution (the Gini index) and whether households have discretionary income left after taxes and
+          essentials.
     - id: household
-      title: Who can afford a pair of shoes?
+      title: Who can afford a pair of dress shoes?
       say: |
-        A typical household earns 18,000 dollars (at PPP), pays 2,000 in taxes and spends 11,000 on essentials. Shoes are
-        not essential, so what counts is the money left over.
+        Leather dress shoes are a choice purchase, not a survival necessity. To size the customer base, Cebu Soles looks
+        beyond national GNI per capita to how household income is taxed, spent on essentials, and distributed across
+        families.
       stage:
-        - id: house-r
-          widget: Readout
+        - id: house-tree
+          widget: Tree
           props:
-            items:
-              - { label: Gross income, value: '@income' }
-              - { label: Taxes, value: '@tax', tone: accent }
-              - { label: Essential spending, value: '@essentials', tone: accent }
+            orientation: down
+            root:
+              id: h-gross
+              label: Gross Household Income
+              note: Total earnings before deductions
+              tone: accent
+              children:
+                - id: h-tax
+                  label: Personal Taxes
+                  note: Paid to government
+                - id: h-disp
+                  label: Disposable Income
+                  note: Income left after taxes
+                  children:
+                    - id: h-ess
+                      label: Essential Purchases
+                      note: Food, housing, utilities
+                    - id: h-disc
+                      label: Discretionary Income
+                      note: Left for choice items like leather dress shoes
+                      tone: good
       decision:
-        prompt: How much discretionary income does this household have, and what does it suggest about demand for shoes?
+        prompt: Which combination of household and distributional indicators points to the strongest broad market for non-essential leather shoes?
         type: mcq
-        options: ['5,000 dollars, so there is some room to buy non-essentials', '16,000 dollars, so demand is very strong', 'Nothing is left, so there is no demand', '18,000 dollars, because taxes do not matter']
+        options:
+          - Growing discretionary income paired with a moderate Gini index and an expanding urban middle class
+          - High gross income where taxes and essential food and housing costs absorb nearly all earnings
+          - A very high Gini index where almost all national income belongs to a tiny elite
+          - A large rural population with minimal disposable income
         answer: 0
-        model: Disposable income is 16,000 and essentials take 11,000, leaving 5,000. That is room for non-essentials such as shoes, but not a lot.
+        model: Sellers of non-essential consumer goods depend on discretionary income—what remains after taxes and essentials—shared across a broad middle class rather than concentrated in a tiny elite.
     - id: risks
-      title: What could go wrong?
+      title: What macroeconomic risks could disrupt the plant?
       say: |
-        Large foreign debt, an underground economy and slow growth can all hurt a plan. A heavily indebted government may
-        restrict imports to save foreign currency, which could block the leather the factory needs.
+        Finally, the owner checks macroeconomic stability. Large external debt, an unreported underground economy, and
+        demographic shifts all shape operational risk—especially because the Thai factory must import specialty leather
+        tanned abroad.
       stage:
         - id: beyond-note
           widget: Callout
           props:
             kind: beyond
-            title: Beyond the slides
-            body: Real site choices also weigh taxes, transport, skills and incentives. The lecture covers the economic indicators.
+            title: Macroeconomic risk check
+            body: |
+              - **External debt strain**: heavy foreign debt service can drain hard-currency reserves and trigger import restrictions
+              - **Underground economy**: cash-only informal competitors may evade taxes and regulations
+              - **Urbanization & demographics**: rural-to-urban migration concentrates both factory labor and retail shoppers
       decision:
-        prompt: The government of the host country is heavily indebted. Which risk matters most to the factory?
+        prompt: If a host country accumulates heavy external debt and runs short of foreign exchange, which risk matters most to Cebu Soles' factory?
         type: mcq
-        options: [Import restrictions that make it hard to buy leather abroad, A fall in the Gini index, A rise in population density, Lower GNI per capita in another country]
+        options:
+          - Government import restrictions or currency controls that make it difficult to pay for imported leather inputs
+          - A sudden drop in the country's rural-to-urban migration
+          - An automatic decrease in the Gini index
+          - Immediate elimination of all domestic taxes
         answer: 0
-        model: Indebted governments may restrict imports to conserve foreign currency, which could hurt a factory that needs imported inputs.
+        model: Heavily indebted governments often conserve scarce foreign currency to service external debt, restricting imports or access to hard currency needed by factories that buy foreign inputs.
 explainBack:
   prompt: |
-    Explain to a friend how purchasing power parity differs from the market exchange rate, and why unit labor cost is a
-    better guide than wage rates alone.
+    Explain to a colleague how purchasing power parity differs from the market exchange rate, why unit labor cost is a
+    better guide than hourly wages alone, and why discretionary income matters for consumer goods.
   rubric:
-    - Says PPP compares what the same basket of goods costs
-    - Says unit labor cost combines pay and output
-    - Gives one other indicator to check, such as debt or income distribution
+    - Explains that PPP compares what an identical basket of goods actually buys locally
+    - Explains that unit labor cost weighs wages against worker productivity and output
+    - Distinguishes discretionary income (after taxes and essentials) or notes another indicator such as income distribution or external debt
 atScale:
   title: In practice
   body: |
-    Analysts pull these indicators from the World Bank, the International Monetary Fund and national statistics offices, and
-    update them as new releases appear. Many firms build dashboards that track GNI per capita, growth, inflation, debt and
-    unit labor cost for a short list of target countries.
+    International analysts pull these indicators from the World Bank, the International Monetary Fund, and national
+    statistical offices. Multinationals maintain country-screening dashboards that pair GNI per capita at PPP with growth
+    rates, Gini indexes, unit labor cost trends, external debt burdens, and demographic profiles before approving market
+    entry.
 tradeoffs:
   title: Where to site the factory
   columns: [Option, Strength, Risk]
   rows:
-    - [Thailand, 'Lower unit labor cost, growing market', 'Exchange rate swings, unfamiliar rules']
-    - [Stay at home, 'Known rules, no currency risk', Higher labor cost]
-    - [Partner with a local firm, 'Local knowledge, shared risk', Less control]
+    - [Thailand, 'Competitive unit labor cost, growing regional PPP buying power', 'Exchange rate swings, unfamiliar regulatory environment']
+    - [Stay at home, 'Familiar rules, no cross-border currency or import-control risk', 'Higher unit labor cost, slower domestic market growth']
+    - [Partner with a local firm, 'Local market knowledge, shared capital and regulatory risk', 'Less operational control over quality and branding']

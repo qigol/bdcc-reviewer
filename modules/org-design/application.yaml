@@ -1,136 +1,171 @@
 intro: |
-  Organizing a growing company means choosing layers, structure, who decides, how profit is booked and how much control to
-  keep. This case works through each choice for one electronics maker.
+  Organizing a growing multinational means choosing how tall the hierarchy should be, who makes decisions across borders,
+  how internal transfer prices are governed, how to keep control of minority ventures and how corporate culture supports
+  strategy. This case walks through each choice for an Asian electronics manufacturer.
 case:
   id: circuit-maker
   title: A Laguna circuit maker spreads across Asia
   story: |
-    Luzon Circuits employs **1,000** people in Laguna with a span of control of 10. It has two subsidiaries: **Alpha** in a
-    high-tax country (50%) and **Beta** in a low-tax one (20%). Together they earn 100 million before tax. Headquarters
-    makes 30 of 50 key decisions. A joint venture partner in Vietnam owns 60% of a new plant while Luzon Circuits owns 40%.
-    The company follows a transnational strategy.
+    Luzon Circuits started with a single semiconductor plant in Laguna and has expanded into a regional network with
+    facilities across Southeast and East Asia. Management now faces five organizational design choices: flattening a tall
+    management hierarchy, delegating operational decisions to country managers, governing internal transfer prices between
+    a low-tax supplier unit (**Beta**) and a high-tax assembly unit (**Alpha**), retaining control over a minority-owned
+    joint venture plant in Vietnam, and building a company culture that fits its transnational strategy.
   data: [transfer, structures]
   state:
-    employees: 1000
-    span: 10
-    alphaPretax: 60
-    betaPretax: 40
-    alphaRate: 0.5
-    betaRate: 0.2
-    hq: 30
-    total: 50
-    sharePct: 40
+    spanDesign: narrow
+    allocation: centralized
+    pricingPolicy: market
+    ownershipMode: minority
     strategy: transnational
   derive:
-    - { fn: hierarchyLevels, in: { employees: '@employees', span: '@span' }, out: h }
-    - { fn: centralization, in: { hq: '@hq', total: '@total' }, out: c }
-    - { fn: transferPricing, in: { alphaPretax: '@alphaPretax', betaPretax: '@betaPretax', alphaRate: '@alphaRate', betaRate: '@betaRate' }, out: t }
-    - { fn: ownershipControl, in: { sharePct: '@sharePct' }, out: o }
+    - { fn: spanProfile, in: { spanDesign: '@spanDesign' }, out: h }
+    - { fn: decisionProfile, in: { allocation: '@allocation' }, out: c }
+    - { fn: transferProfile, in: { pricingPolicy: '@pricingPolicy' }, out: t }
+    - { fn: ownershipProfile, in: { ownershipMode: '@ownershipMode' }, out: o }
     - { fn: cultureFor, in: { strategy: '@strategy' }, out: k }
   cells:
     - id: layers
-      title: How tall is the company?
+      title: Flattening a tall hierarchy
       say: |
-        With 1,000 employees and a span of 10, the company needs three layers of management. Widening the span would flatten
-        it.
+        Luzon Circuits grew with a narrow span of control, creating many management layers between factory teams and top
+        executives. As the firm shifts from an international division to a worldwide structure, vertical approvals have
+        become slow and costly.
       stage:
-        - id: layers-r
-          widget: Readout
+        - id: layers-tree
+          widget: Tree
           props:
-            items:
-              - { label: Layers of management, value: '@h.layers', tone: accent }
-              - { label: Managers in all, value: '@h.managers', tone: good }
+            orientation: down
+            root:
+              id: hq-ceo
+              label: Luzon Circuits CEO
+              note: Reengineering to widen span and remove middle layers
+              tone: accent
+              children:
+                - id: reg-sea
+                  label: Southeast Asia Division
+                  note: Wider span empowers plant leads
+                  children:
+                    - { id: laguna, label: Laguna Fabrication Plant, note: Direct reporting }
+                    - { id: vietnam, label: Vietnam Assembly Affiliate, note: Direct reporting }
+                - id: reg-ea
+                  label: East Asia Division
+                  note: Standardized quality systems
+                  children:
+                    - { id: taiwan, label: Wafer Component Unit (Beta), note: Direct reporting }
+                    - { id: japan, label: Automotive Packaging Unit (Alpha), note: Direct reporting }
       decision:
-        prompt: Management proposes a span of 20 to save on managers. What is the likely trade-off?
+        prompt: Management proposes widening the span of control to flatten the hierarchy. What is the likely trade-off?
         type: mcq
-        options: [Fewer managers and layers but less attention per person, More managers, No change, Faster decisions only]
+        options:
+          - Fewer management layers and faster communication, but less supervision time per direct report
+          - More management layers and slower communication across the company
+          - Complete elimination of formalization and standardization across plants
+          - Automatic conversion of all foreign affiliates into wholly owned subsidiaries
         answer: 0
-        model: A wider span needs fewer managers and layers, but each manager oversees more people, so there may be less time for each.
+        model: A wider span reduces management layers and speeds up communication, but each manager oversees more people and has less time for each direct report.
     - id: who-decides
-      title: Who decides?
+      title: Who decides across borders?
       say: |
-        Headquarters makes 30 of 50 decisions. Subsidiary managers may feel they have too little power.
+        Headquarters in Laguna currently centralizes most operational choices alongside R&D and capital budgets. Country
+        managers warn that waiting for headquarters sign-off on local staffing and customer adaptations is hurting morale
+        and responsiveness.
       stage:
-        - id: central-r
-          widget: Readout
+        - id: central-sched
+          widget: Schedule
           props:
-            items:
-              - { label: Share at headquarters, value: '{=c.share|pct}', tone: good }
-              - { label: Mood, value: '{=c.label}', tone: accent }
+            title: Reviewing decision authority at Luzon Circuits
+            columns: [Current centralized approach, Proposed balanced delegation]
+            rows:
+              - { id: c1, label: R&D and capital budgets, amounts: [Kept at headquarters, Kept at headquarters] }
+              - { id: c2, label: Local customer adaptation, amounts: [Requires headquarters sign-off, Delegated to subsidiary managers] }
+              - { id: c3, label: Host-country staffing, amounts: [Directed by headquarters, Delegated with formal & social controls] }
       decision:
-        prompt: Why might headquarters delegate more decisions to the subsidiaries?
+        prompt: Why should headquarters delegate more operational decisions to the subsidiaries while keeping coordination and control mechanisms?
         type: open
         model: |
-          Subsidiary managers know local conditions best, and having decisions taken away can sap their motivation and loyalty.
-          Delegating as many decisions as reasonable keeps them engaged, while headquarters keeps coordination and control.
+          Subsidiary managers know local customers, regulations and culture best, and stripping away decision authority saps
+          their motivation and loyalty. Delegating local operational choices keeps them engaged, while formal and informal
+          controls keep units aligned.
     - id: taxes
-      title: Where should profit show up?
+      title: Transfer pricing and regulatory scrutiny
       say: |
-        Today Alpha books 60 million and Beta 40 million. The group keeps 62 million after tax. Shifting 20 million of profit
-        to Beta by changing transfer prices would raise that to 68 million.
+        Subsidiary Beta (in a low-tax jurisdiction) ships wafer components to Subsidiary Alpha (in a high-tax jurisdiction).
+        Raising the internal transfer price charged by Beta shifts pretax profit to the low-tax unit and raises the group's
+        combined after-tax profit without changing total pretax profit.
       stage:
-        - id: tax-r
-          widget: Readout
+        - id: tax-sched-case
+          widget: Schedule
           props:
-            items:
-              - { label: Alpha after tax, value: '@t.alphaAfter', tone: accent }
-              - { label: Beta after tax, value: '@t.betaAfter', tone: accent }
-              - { label: Group after tax, value: '@t.totalAfter', tone: good }
+            title: Internal transfer pricing trade-offs
+            columns: [High-tax Alpha, Low-tax Beta, Group & regulatory impact]
+            rows:
+              - { id: p1, label: Market-based transfer price, amounts: [Higher taxable earnings, Normal supplier margin, Standard tax bill & low audit risk] }
+              - { id: p2, label: High transfer price to shift profit, amounts: [Higher cost & lower taxable profit, More pretax profit taxed lightly, Lower group tax bill but high audit risk] }
       decision:
-        prompt: Is it wise to shift the profit just because it saves 6 million in tax?
+        prompt: Why might aggressive transfer pricing create serious risks for Luzon Circuits even though it lowers the group's tax bill?
         type: open
         model: |
-          It saves the group 6 million, but the high-tax government loses revenue and may challenge the transfer prices, and the
-          press may treat the company as aggressive. Shareholders gain, yet the reputation risk and legal limits are real.
+          Shifting profit out of the high-tax country reduces local government tax revenue and can trigger audits, legal
+          challenges and penalties from tax authorities, while also risking reputational harm and distorting internal
+          subsidiary performance evaluations.
     - id: venture
       title: Control of the Vietnam plant
       say: |
-        Luzon Circuits owns 40% of the voting stock of the new plant. That makes the company an affiliate, not a subsidiary.
+        In Vietnam, a local partner holds the majority of voting stock while Luzon Circuits holds a minority stake. Because
+        Luzon Circuits cannot elect a majority of the board from its shares alone, the plant is an affiliate rather than a
+        subsidiary.
       stage:
         - id: owner-r
           widget: Readout
           props:
             items:
-              - { label: Voting stock owned (%), value: '@sharePct' }
+              - { label: Ownership position, value: '{=o.position}' }
               - { label: Type of company, value: '{=o.type}', tone: good }
+              - { label: Non-majority control tools, value: '{=o.tools}', tone: accent }
       decision:
-        prompt: Luzon Circuits wants control over technology at the plant. Which tool should it rely on?
+        prompt: Luzon Circuits wants to protect its manufacturing quality and proprietary processes at the Vietnam affiliate. Which approach should it rely on?
         type: mcq
-        options: [Retaining control of the technology, Owning no shares at all, Giving the partner all decisions, Selling the technology outright]
+        options:
+          - Retain control of the technology, use a management contract and place key people in executive jobs
+          - Rely solely on its minority voting stock to outvote the majority partner on the board
+          - Give up all formal and informal control over plant operations
+          - Sell its proprietary technology outright to external competitors
         answer: 0
-        model: With less than half the votes, the parent can still keep control by holding the technology, the finances, a management contract or key people in executive jobs.
+        model: Without a majority of voting stock, a parent can still keep control of an affiliate through a management contract, control of finances or technology, and placing trusted people in key executive jobs.
     - id: culture
       title: What culture comes with the strategy?
       say: |
-        The company follows a transnational strategy: standardize when possible and adapt when necessary. The lecture links
-        that to one kind of culture.
+        Luzon Circuits follows a transnational strategy: standardize core wafer engineering when possible and adapt
+        packaging and customer support when necessary. The lecture links that strategy to one specific company culture.
       stage:
         - id: culture-r
           widget: Readout
           props:
             items:
               - { label: Strategy, value: '{=strategy}' }
+              - { label: Linked culture, value: '{=k.culture}', tone: good }
               - { label: Core idea, value: '{=k.idea}', tone: accent }
         - id: beyond-note
           widget: Callout
           props:
             kind: beyond
             title: Beyond the slides
-            body: The numbers in this case are made up to practice the lecture's ideas. The lecture's own case is 3M.
+            body: While the lecture illustrates organizational restructuring with 3M, this case applies the same design and control frameworks to an Asian semiconductor manufacturer.
       decision:
-        prompt: Which company culture fits a transnational strategy, and what does it mean for hiring managers?
+        prompt: Which company culture fits a transnational strategy, and what does it mean for selecting and promoting managers across subsidiaries?
         type: open
         model: |
-          A geocentric culture fits a transnational strategy. It looks for the best practices and people from anywhere in the
-          world, so the company would promote managers on ability, not on nationality, and move them between countries.
+          A geocentric culture fits a transnational strategy. It adopts the best practices and talent from anywhere in the
+          world, so the company promotes managers based on ability rather than nationality and rotates leaders across countries.
 explainBack:
   prompt: |
-    Explain to a friend how span of control sets the layers of a company, and why transfer pricing and control without
-    ownership matter to a multinational.
+    Explain to a friend how span of control shapes an organization's hierarchy, why transfer pricing matters to both
+    multinationals and governments, and how a parent company can keep control of an affiliate without majority voting stock.
   rubric:
-    - Links a wider span to fewer layers
-    - Explains that moving profit to a low-tax unit raises the group's after-tax profit
-    - Names at least two tools of control without a majority of the votes
+    - Links a wider span of control to a flatter hierarchy with fewer management layers
+    - Explains that shifting pretax profit to a lower-tax subsidiary raises the group's combined after-tax profit while attracting government scrutiny
+    - Names at least two tools of control without a majority of voting shares (management contract, finances, technology, or key executives)
 atScale:
   title: In practice
   body: |
