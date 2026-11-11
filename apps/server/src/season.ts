@@ -8,7 +8,8 @@ import { localDate, type ChristmasMode } from './christmas/schedule';
 export type Season = 'hellweek' | 'immaculate' | 'christmas';
 /** `auto`: follow the calendar · `off`: never · a season's name: always that one (host preview) */
 export type SeasonMode = 'auto' | 'off' | Season;
-export interface SeasonStatus { season: Season | null; today: string }
+/** `range`: the first and last day of the season (YYYY-MM-DD), for calendars */
+export interface SeasonStatus { season: Season | null; today: string; range?: { start: string; end: string } }
 
 const SEASONS: Season[] = ['hellweek', 'immaculate', 'christmas'];
 export const parseSeasonMode = (s: string | undefined): SeasonMode => {
@@ -32,6 +33,14 @@ export function seasonStatus(now: Date, mode: SeasonMode, tz = 'Asia/Manila', fa
   const { y, m, d } = fake ? { y: +fake[1], m: +fake[2], d: +fake[3] } : localDate(now, tz);
   const today = `${y}-${pad(m)}-${pad(d)}`;
   if (mode === 'off') return { season: null, today };
-  if (mode !== 'auto') return { season: mode, today };
-  return { season: seasonFor(m, d, christmasMode), today };
+  const season = mode === 'auto' ? seasonFor(m, d, christmasMode) : mode;
+  return season ? { season, today, range: rangeOf(season, y, m) } : { season, today };
+}
+
+/** The season's span around today: Hell Week Nov 10 – Dec 7, Dec 8, Christmas Dec 9 – Jan 6 (spanning the new year). */
+function rangeOf(season: Season, y: number, m: number): { start: string; end: string } {
+  if (season === 'hellweek') return { start: `${y}-11-10`, end: `${y}-12-07` };
+  if (season === 'immaculate') return { start: `${y}-12-08`, end: `${y}-12-08` };
+  const from = m === 1 ? y - 1 : y;
+  return { start: `${from}-12-09`, end: `${from + 1}-01-06` };
 }

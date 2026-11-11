@@ -36,6 +36,10 @@ export const Manifest = z
     shortTitle: z.string().min(1).max(12, 'shortTitle must be ≤ 12 characters'),
     summary: Markdown,
     course: z.string().optional(),
+    /** the course test this module is assessed in, e.g. 'Long Quiz 4'; modules with the same label are grouped together */
+    assessment: z.string().trim().min(1).max(40, 'assessment must be ≤ 40 characters').optional(),
+    /** the syllabus date of that test ('YYYY-MM-DD', quoted); a default that a learner's own exam in Settings overrides */
+    assessmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "assessmentDate must be 'YYYY-MM-DD'").optional(),
     order: z.number().optional(),
     color: z.string().regex(/^#[0-9a-fA-F]{3,8}$/, 'hex color like #7c3aed').optional(),
     icon: z.string().optional(),

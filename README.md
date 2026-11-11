@@ -145,7 +145,7 @@ docker/           Dockerfile, compose.yml
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |
 | GET | `/api/christmas` | | Christmas countdown status; only unlocked days carry their content |
-| GET | `/api/season` | | today's seasonal look: `{season: "hellweek" \| "immaculate" \| "christmas" \| null, today}` |
+| GET | `/api/season` | | today's seasonal look: `{season: "hellweek" \| "immaculate" \| "christmas" \| null, today, range?: {start, end}}` |
 | GET | `/api/admin/check` | admin | checks the admin token |
 | POST | `/api/modules` | admin | multipart zip, or JSON `{files: {path: text \| {base64}}}`; `?dryRun=1`, `?allowDowngrade=1` (a downgrade otherwise returns 409), `?keepAssets=1` (keep the installed version's `assets/` and `sources/` when re-importing pasted bundle text) |
 | PATCH | `/api/modules/:id` | admin | `{enabled?, order?, current?, course?}` (`current` rolls back to a stored version; `course` overrides the manifest's course, `""` clears the override) |

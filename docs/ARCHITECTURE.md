@@ -56,7 +56,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | Folder | Owns |
 |---|---|
 | `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage`, `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
-| `modules/` | `store.tsx` loads and caches full modules from the API; `useIndex.ts` `useModuleIndex()` gives cross-module pages `GET /api/index` instead; `logicPool.ts` caps live workers (4, 60 s idle), and `logic.ts` starts a worker only on its first call; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker; `harden.ts` removes network, storage and nested-worker globals first and fails closed; `courses.ts`/`courseGroups.ts` group modules by course |
+| `modules/` | `store.tsx` loads and caches full modules from the API; `useIndex.ts` `useModuleIndex()` gives cross-module pages `GET /api/index` instead; `logicPool.ts` caps live workers (4, 60 s idle), and `logic.ts` starts a worker only on its first call; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker; `harden.ts` removes network, storage and nested-worker globals first and fails closed; `courses.ts`/`courseGroups.ts` group modules by course, and within a course by the test they're assessed in (manifest `assessment`) |
 | `tabs/` | `ModulePage` (module route shell; adds a "Mock exam" tab when the module has `exam.yaml`), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` (notebook cells; a decision option's `outcomes` show what running it does) |
 | `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit; a running attempt resumes from `localStorage` and warns before leaving) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
 | `py/` | Python in the browser: `pyodide.worker.ts` (Pyodide in a module Worker, notebook-style cells) and `python.ts` (`PythonKernel`: run, restart, 20 s timeout). Pyodide's files are served from `/pyodide/` |
@@ -67,7 +67,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `plan/` | Exam study plan: `studyPlan.ts` (pure scheduler), `usePlan.ts`, `stepStatus.ts` (shared with PathTab) |
 | `glossary/` | `notes.ts` (one note per term id across modules), `ForceGraph.tsx` |
 | `christmas/` | `ChristmasPage`, `useChristmas.ts`, `banner.ts`, `Decorations.tsx` |
-| `season/` | `useSeason.ts` (fetch + `<html data-season>`), `SeasonDecor.tsx` (Hell Week fire, brimstone and devil; Marian crown and lilies), `SeasonGreeting.tsx` (dashboard title with rotating quotes or verses) |
+| `season/` | `useSeason.ts` (fetch + `<html data-season>`), `SeasonDecor.tsx` (Hell Week fire, brimstone and devil; Marian crown and lilies), `SeasonGreeting.tsx` (dashboard title with rotating quotes or verses), `HellWeekCalendar.tsx` + `calendar.ts` (the season's exams day by day: manifest `assessmentDate`s, overridden by the learner's Settings exams) |
 | `admin/` | `AdminPage`, `ImportPanel` (zip/folder/paste), `ReportView`, `token.ts` (admin token in `sessionStorage`, never IndexedDB) |
 | `lib/` | `api.ts` (every server call + response types), `md.tsx`, `calc.ts`, shared UI bits |
 

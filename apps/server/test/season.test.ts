@@ -23,7 +23,10 @@ describe('seasonal look', () => {
     expect(seasonStatus(new Date('2026-12-07T15:59:00Z'), 'auto').season).toBe('hellweek');
     // Dec 8, 00:01 Manila, still Dec 7 in UTC
     const s = seasonStatus(new Date('2026-12-07T16:01:00Z'), 'auto');
-    expect(s).toEqual({ season: 'immaculate', today: '2026-12-08' });
+    expect(s).toEqual({ season: 'immaculate', today: '2026-12-08', range: { start: '2026-12-08', end: '2026-12-08' } });
+    expect(seasonStatus(new Date(), 'auto', 'Asia/Manila', '2026-11-11').range).toEqual({ start: '2026-11-10', end: '2026-12-07' });
+    expect(seasonStatus(new Date(), 'auto', 'Asia/Manila', '2027-01-03').range).toEqual({ start: '2026-12-09', end: '2027-01-06' });
+    expect(seasonStatus(new Date(), 'auto', 'Asia/Manila', '2027-03-01')).toEqual({ season: null, today: '2027-03-01' });
     expect(seasonStatus(new Date('2026-12-08T16:30:00Z'), 'auto').season).toBe('christmas');
   });
 

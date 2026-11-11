@@ -265,6 +265,8 @@ interface Manifest {
   shortTitle: string;              // ≤ 12 chars (label in the course menu)
   summary: Markdown;               // ≤ 50 words
   course?: string;                 // course code, e.g. BDCC. Always set it (see "Courses" below)
+  assessment?: string;             // the test it is examined in, e.g. 'Long Quiz 4' (see "Assessments" below)
+  assessmentDate?: string;         // that test's syllabus date, quoted 'YYYY-MM-DD'
   order?: number;                  // position in the course's menu (10, 20, 30…)
   color?: string;                  // hex accent, e.g. '#0ea5e9'
   icon?: string;                   // a lucide icon name, e.g. shopping-basket, users, grid-3x3
@@ -288,6 +290,15 @@ top bar has one dropdown per course listing its modules, and **a quiz only ever 
 code the user gives you, with the same spelling and case as the course's other modules, because a different code creates
 a separate course. If `course` is missing, the site files the module under its default course and the validator warns.
 `order` sorts modules inside their course's menu.
+
+**Assessments.** `assessment` names the course test the module is examined in, e.g. `Long Quiz 4` or `Midterm`, taken
+from the course syllabus. Modules with the same label are grouped under it in the course menu, on the dashboard, and in
+Settings, where an exam can be narrowed to one test's modules in one click. Spell a label exactly as the course's other
+modules do (it is ≤ 40 characters; a different spelling makes a separate group). A case study takes the label of the
+module session where it is discussed. Leave it out when the syllabus doesn't say; a course with no labels is listed as
+one plain list. `assessmentDate` (quoted `'YYYY-MM-DD'`) is that test's date from the syllabus; give every module of the
+same test the same date. It puts the test on the Hell Week calendar for everyone, and a learner's own exam in Settings
+with the same name (e.g. `INTB Long Quiz 4`) or the same modules replaces it, so a moved test can be fixed per learner.
 
 ### 5.2 `SOURCE_NOTES.md` (required; not rendered to learners, kept for audit)
 

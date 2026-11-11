@@ -18,6 +18,8 @@ import { cn, timeAgo } from '../lib/util';
 import { useChristmas } from '../christmas/useChristmas';
 import { christmasHighlight } from '../christmas/banner';
 import { SeasonGreeting } from '../season/SeasonGreeting';
+import { HellWeekCalendar } from '../season/HellWeekCalendar';
+import { groupByAssessment } from '../modules/courseGroups';
 
 export function Dashboard() {
   const store = useModuleStore();
@@ -74,6 +76,7 @@ export function Dashboard() {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 py-6">
       <SeasonGreeting />
+      <HellWeekCalendar />
       <Highlights items={[...(xmas ? [xmas] : []), ...(backup ? [BACKUP_HIGHLIGHT] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">
@@ -138,15 +141,27 @@ export function Dashboard() {
       {focusGroup && (() => {
         const g = focusGroup;
         const loaded = g.modules.map((e) => mods.find((m) => m.id === e.id)).filter((m): m is ModuleIndex => !!m);
+        const sections = groupByAssessment(g.modules);
         return (
           <section ref={panel} id="course-panel" key={g.course} className="mt-6" aria-label={`${g.course} modules`} data-testid={`course-${g.course}`}>
             <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-line pb-2">
               <h3 className="mr-auto flex items-center gap-2 font-semibold"><GraduationCap size={18} className="text-accent" /> {g.course} <span className="text-xs font-normal text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</span></h3>
               <Link to={`/quiz?course=${q(g.course)}`} className="btn btn-sm"><Dumbbell size={14} /> Quiz on {g.course}</Link>
             </div>
+            {sections.length > 1 && sections.map((s) => {
+              const cards = s.modules.map((e) => loaded.find((m) => m.id === e.id)).filter((m): m is ModuleIndex => !!m);
+              return cards.length > 0 && (
+                <div key={s.assessment ?? '-'} className="mb-6" data-testid="assessment-group">
+                  <h4 className="label mb-2">{s.assessment ?? 'Other modules'} <span className="font-normal normal-case tracking-normal">· {s.modules.length} module{s.modules.length === 1 ? '' : 's'}</span></h4>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {cards.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
+                  </div>
+                </div>
+              );
+            })}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {loading && !loaded.length && g.modules.filter((e) => !errors[e.id]).map((m) => <div key={m.id} className="card h-56 animate-pulse" />)}
-              {loaded.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
+              {sections.length === 1 && loaded.map((mod) => <ModuleCard key={mod.id} mod={mod} progress={progress} mastery={mastery} />)}
               {g.modules.filter((e) => errors[e.id]).map((e) => (
                 <div key={e.id} className="card border-bad/40 p-4 text-sm"><div className="font-semibold text-bad">{e.id} failed to load</div><pre className="mt-1 whitespace-pre-wrap text-xs text-muted">{errors[e.id]}</pre></div>
               ))}

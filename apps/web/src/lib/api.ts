@@ -5,6 +5,10 @@ export interface ModuleListEntry {
   /** course code (manifest `course`, or the admin override, or the server's default course) */
   course: string;
   courseSource: 'admin' | 'manifest' | 'default';
+  /** manifest `assessment`: the course test this module belongs to, e.g. 'Long Quiz 4' */
+  assessment?: string;
+  /** manifest `assessmentDate` (YYYY-MM-DD): the syllabus date of that test */
+  assessmentDate?: string;
   color?: string; icon?: string; enabled: boolean; origin: 'builtin' | 'imported'; versions: string[]; hasBuiltin: boolean;
   prerequisites: string[];
   health: { status: 'pending' | 'valid' | 'warnings' | 'errors'; errors: number; warnings: number };
@@ -25,7 +29,7 @@ async function j<T>(res: Response): Promise<T> {
 
 /** GET /api/season: the cosmetic theme for today (server calendar, Asia/Manila by default) */
 export type Season = 'hellweek' | 'immaculate' | 'christmas';
-export interface SeasonStatus { season: Season | null; today: string }
+export interface SeasonStatus { season: Season | null; today: string; range?: { start: string; end: string } }
 
 export const api = {
   list: () => fetch('/api/modules').then((r) => j<ModuleListEntry[]>(r)),
