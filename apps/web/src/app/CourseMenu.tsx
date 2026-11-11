@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Dumbbell, GraduationCap } from 'lucide-react';
 import type { CourseGroup } from '../modules/courses';
+import { groupByAssessment } from '../modules/courseGroups';
 import { ModuleIcon } from './icons';
 import { cn } from '../lib/util';
 
@@ -20,7 +21,10 @@ export function CourseMenu({ group, open, onOpenChange }: { group: CourseGroup; 
   const [focus, setFocus] = useState(0);
   const current = group.modules.find((m) => loc.pathname.startsWith(`/m/${m.id}/`) || loc.pathname === `/m/${m.id}`);
   const quizTo = `/quiz?course=${encodeURIComponent(group.course)}`;
-  const itemCount = group.modules.length + 1; // modules + "Quiz this course"
+  // modules grouped by the test they're assessed in (one unlabelled section when the course has no labels)
+  const sections = groupByAssessment(group.modules);
+  const ordered = sections.flatMap((s) => s.modules);
+  const itemCount = ordered.length + 1; // modules + "Quiz this course"
 
   // place under the trigger, clamped to the viewport (16px gutter)
   useLayoutEffect(() => {
@@ -53,7 +57,7 @@ export function CourseMenu({ group, open, onOpenChange }: { group: CourseGroup; 
   // keyboard: focus the current module (or the first) when opening
   useEffect(() => {
     if (!open) return;
-    const i = Math.max(0, group.modules.findIndex((m) => m.id === current?.id));
+    const i = Math.max(0, ordered.findIndex((m) => m.id === current?.id));
     setFocus(i);
     requestAnimationFrame(() => menu.current?.querySelectorAll<HTMLElement>('[role=menuitem]')[i]?.focus());
   }, [open]);
@@ -116,7 +120,13 @@ export function CourseMenu({ group, open, onOpenChange }: { group: CourseGroup; 
             <span className="text-[11px] text-muted">{group.modules.length} module{group.modules.length === 1 ? '' : 's'}</span>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
-            {group.modules.map((m, i) => {
+            {sections.map((s) => (
+              <div key={s.assessment ?? '-'} role="group" aria-label={s.assessment ?? undefined}>
+                {sections.length > 1 && (
+                  <div className="px-2.5 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted" aria-hidden>{s.assessment ?? 'Other'}</div>
+                )}
+            {s.modules.map((m) => {
+              const i = ordered.indexOf(m);
               const active = m.id === current?.id;
               return (
                 <Link
@@ -138,6 +148,8 @@ export function CourseMenu({ group, open, onOpenChange }: { group: CourseGroup; 
                 </Link>
               );
             })}
+              </div>
+            ))}
           </div>
           <div className="mt-1 border-t border-line pt-1">
             <button

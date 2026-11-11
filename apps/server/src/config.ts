@@ -1,6 +1,7 @@
 /** Server configuration: the only place that reads environment variables. */
 import path from 'node:path';
 import { parseMode, type ChristmasMode } from './christmas/schedule';
+import { parseSeasonMode, type SeasonMode } from './season';
 
 export interface ServerConfig {
   port: number;
@@ -17,6 +18,8 @@ export interface ServerConfig {
   /** HSTS=1: send strict-transport-security (only when every client reaches the site over HTTPS) */
   hsts: boolean;
   christmas: { mode: ChristmasMode; tz: string; now?: string };
+  /** seasonal look; shares the Christmas time zone and fake date */
+  season: { mode: SeasonMode };
   logLevel: string;
   defaultCourse: string;
 }
@@ -36,6 +39,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     hsts: env.HSTS === '1' || env.HSTS?.toLowerCase() === 'true',
     // Christmas countdown: auto (calendar) | on (open everything now) | off; CHRISTMAS_NOW=YYYY-MM-DD fakes the date
     christmas: { mode: parseMode(env.CHRISTMAS_QUIZ), tz: env.CHRISTMAS_TZ || 'Asia/Manila', now: env.CHRISTMAS_NOW },
+    // seasonal look: auto (calendar) | off | hellweek | immaculate | christmas (force one)
+    season: { mode: parseSeasonMode(env.SEASON_THEME) },
     logLevel: env.LOG_LEVEL ?? 'info',
     defaultCourse: (env.DEFAULT_COURSE ?? '').trim() || 'BDCC',
   };

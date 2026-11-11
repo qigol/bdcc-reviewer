@@ -5,6 +5,10 @@ export interface ModuleListEntry {
   /** course code (manifest `course`, or the admin override, or the server's default course) */
   course: string;
   courseSource: 'admin' | 'manifest' | 'default';
+  /** manifest `assessment`: the course test this module belongs to, e.g. 'Long Quiz 4' */
+  assessment?: string;
+  /** manifest `assessmentDate` (YYYY-MM-DD): the syllabus date of that test */
+  assessmentDate?: string;
   color?: string; icon?: string; enabled: boolean; origin: 'builtin' | 'imported'; versions: string[]; hasBuiltin: boolean;
   prerequisites: string[];
   health: { status: 'pending' | 'valid' | 'warnings' | 'errors'; errors: number; warnings: number };
@@ -23,10 +27,15 @@ async function j<T>(res: Response): Promise<T> {
   return body as T;
 }
 
+/** GET /api/season: the cosmetic theme for today (server calendar, Asia/Manila by default) */
+export type Season = 'hellweek' | 'immaculate' | 'christmas';
+export interface SeasonStatus { season: Season | null; today: string; range?: { start: string; end: string } }
+
 export const api = {
   list: () => fetch('/api/modules').then((r) => j<ModuleListEntry[]>(r)),
   index: () => fetch('/api/index').then((r) => j<{ modules: (ModuleIndex | { id: string; error: string })[] }>(r)),
   christmas: () => fetch('/api/christmas').then((r) => j<ChristmasStatus>(r)),
+  season: () => fetch('/api/season').then((r) => j<SeasonStatus>(r)),
   files: (id: string) => fetch(`/api/modules/${id}/files`).then((r) => j<{ files: Record<string, string>; binary: string[] }>(r)),
   report: (id: string) => fetch(`/api/modules/${id}/report`).then((r) => j<ValidationReport>(r)),
   fileUrl: (id: string, path: string) => `/api/modules/${id}/files/${path}`,

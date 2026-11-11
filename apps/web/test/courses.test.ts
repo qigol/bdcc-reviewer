@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupByCourse, splitByCourse } from '../src/modules/courseGroups';
+import { groupByAssessment, groupByCourse, splitByCourse } from '../src/modules/courseGroups';
 import { MixedCourseError, newSession } from '../src/quiz/session';
 import type { ModuleListEntry } from '../src/lib/api';
 
@@ -15,6 +15,14 @@ describe('course grouping', () => {
     const g = groupByCourse(list);
     expect(g.map((x) => x.course)).toEqual(['MARK 3336', 'BDCC']);
     expect(g[1].modules.map((m) => m.id)).toEqual(['fim', 'nb-cf', 'lf-cf']);
+  });
+
+  it('groups a course by assessment in syllabus order, unlabelled modules last; no labels means one plain group', () => {
+    const lab = (id: string, order: number, assessment?: string) => ({ ...entry(id, 'INTB', order), ...(assessment && { assessment }) });
+    const g = groupByAssessment([lab('a', 100, 'Long Quiz 4'), lab('b', 10, 'Long Quiz 3'), lab('c', 5), lab('d', 20, 'Long Quiz 3'), lab('e', 50, ' Long Quiz 4 ')]);
+    expect(g.map((s) => s.assessment)).toEqual(['Long Quiz 3', 'Long Quiz 4', null]);
+    expect(g.map((s) => s.modules.map((m) => m.id))).toEqual([['b', 'd'], ['a', 'e'], ['c']]);
+    expect(groupByAssessment(list)).toEqual([{ assessment: null, modules: list }]);
   });
 
   it('splits quiz items into one batch per course', () => {

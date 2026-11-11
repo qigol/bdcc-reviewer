@@ -60,7 +60,8 @@ Imported modules and module settings (enabled flags, order, course overrides) go
 | `DEFAULT_COURSE` | `BDCC` | course for modules whose manifest has no `course:` (and no course set in Admin) |
 | `MODULES_BUILTIN` / `WEB_DIR` | `./modules` / `./web` | built-in modules folder · built SPA folder (resolved from the working directory) |
 | `CHRISTMAS_QUIZ` | `auto` | Christmas countdown quiz: `auto` (one day opens at a time from Dec 13) · `on` (all open now) · `off` |
-| `CHRISTMAS_TZ` / `CHRISTMAS_NOW` | `Asia/Manila` / (unset) | time zone for the countdown · fake today's date (`YYYY-MM-DD`) to preview a day |
+| `CHRISTMAS_TZ` / `CHRISTMAS_NOW` | `Asia/Manila` / (unset) | time zone for the countdown and the seasonal look · fake today's date (`YYYY-MM-DD`) to preview a day |
+| `SEASON_THEME` | `auto` | seasonal look: `auto` (Hell Week Nov 10 – Dec 7, Immaculate Conception Dec 8, Christmas Dec 9 – Jan 6) · `off` · `hellweek` / `immaculate` / `christmas` (force one). `CHRISTMAS_QUIZ=off` also drops the Christmas look |
 | `LOG_LEVEL` | `info` | Fastify log level |
 
 ### Running behind TLS / a reverse proxy
@@ -144,6 +145,7 @@ docker/           Dockerfile, compose.yml
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |
 | GET | `/api/christmas` | | Christmas countdown status; only unlocked days carry their content |
+| GET | `/api/season` | | today's seasonal look: `{season: "hellweek" \| "immaculate" \| "christmas" \| null, today, range?: {start, end}}` |
 | GET | `/api/admin/check` | admin | checks the admin token |
 | POST | `/api/modules` | admin | multipart zip, or JSON `{files: {path: text \| {base64}}}`; `?dryRun=1`, `?allowDowngrade=1` (a downgrade otherwise returns 409), `?keepAssets=1` (keep the installed version's `assets/` and `sources/` when re-importing pasted bundle text) |
 | PATCH | `/api/modules/:id` | admin | `{enabled?, order?, current?, course?}` (`current` rolls back to a stored version; `course` overrides the manifest's course, `""` clears the override) |

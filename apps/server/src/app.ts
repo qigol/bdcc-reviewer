@@ -14,6 +14,7 @@ import crypto from 'node:crypto';
 import { readZip, writeZip, widgetsMarkdown, normalizePath, isTextPath, type FileMap, type LogicHostFactory } from '@kodigo/schema';
 import { Registry } from './registry';
 import { christmasStatus } from './christmas/schedule';
+import { seasonStatus } from './season';
 import { securityHeaders } from './headers';
 import { WEAK_TOKEN_REASON, type ServerConfig } from './config';
 import { createFailureLimiter } from './rateLimit';
@@ -89,6 +90,11 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
   app.get('/api/christmas', async (_req, reply) => {
     reply.header('cache-control', 'no-store');
     return christmasStatus(now(), cfg.christmas.mode, cfg.christmas.tz, cfg.christmas.now);
+  });
+
+  app.get('/api/season', async (_req, reply) => {
+    reply.header('cache-control', 'no-store');
+    return seasonStatus(now(), cfg.season.mode, cfg.christmas.tz, cfg.christmas.now, cfg.christmas.mode);
   });
 
   app.get('/api/modules', async () => {

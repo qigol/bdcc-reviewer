@@ -25,6 +25,10 @@ export interface ModuleEntry {
   course: string;
   /** where `course` came from */
   courseSource: 'admin' | 'manifest' | 'default';
+  /** manifest `assessment`: the course test this module belongs to (groups modules within a course) */
+  assessment?: string;
+  /** manifest `assessmentDate` (YYYY-MM-DD): the syllabus date of that test */
+  assessmentDate?: string;
   color?: string;
   icon?: string;
   enabled: boolean;
@@ -255,6 +259,8 @@ export class Registry {
         order: st?.order ?? Number(manifest.order ?? 1000),
         course: normCourse(st?.course) || normCourse(manifest.course) || DEFAULT_COURSE,
         courseSource: normCourse(st?.course) ? 'admin' : normCourse(manifest.course) ? 'manifest' : 'default',
+        ...(typeof manifest.assessment === 'string' && manifest.assessment.trim() && { assessment: manifest.assessment.trim() }),
+        ...(typeof manifest.assessmentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(manifest.assessmentDate) && { assessmentDate: manifest.assessmentDate }),
         color: manifest.color,
         icon: manifest.icon,
         enabled: st?.enabled ?? true,

@@ -8,6 +8,7 @@ import { useCourses } from '../modules/courses';
 import { toYmd } from '../plan/studyPlan';
 import { exportProgress, importProgress, resetProgress } from '../storage/exportImport';
 import { useModuleStore } from '../modules/store';
+import { groupByAssessment } from '../modules/courseGroups';
 import { download } from '../lib/util';
 
 export function SettingsPage() {
@@ -107,6 +108,17 @@ function ExamsEditor() {
               {mods.length > 1 && (
                 <details>
                   <summary className="cursor-pointer text-xs text-muted">Covers {picked ? `${picked.length} of ${mods.length} modules` : `all ${mods.length} modules`}</summary>
+                  {groupByAssessment(mods).filter((s) => s.assessment).length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="text-muted">Just one test:</span>
+                      {groupByAssessment(mods).filter((s) => s.assessment).map((s) => (
+                        <button key={s.assessment} type="button" className="btn btn-sm" data-testid="exam-assessment"
+                          onClick={() => update(ex.id, { moduleIds: s.modules.length < mods.length ? s.modules.map((m) => m.id) : undefined, ...(ex.name === `${ex.course} exam` && { name: `${ex.course} ${s.assessment}` }) })}>
+                          {s.assessment}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                     {mods.map((m) => (
                       <label key={m.id} className="flex items-center gap-1.5 text-xs">

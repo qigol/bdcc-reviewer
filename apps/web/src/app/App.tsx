@@ -5,6 +5,7 @@ import { useCourses } from '../modules/courses';
 import { CourseMenu } from './CourseMenu';
 import { getSession } from '../quiz/sessionStore';
 import { Decorations } from '../christmas/Decorations';
+import { SeasonDecor } from '../season/SeasonDecor';
 import { migrateExamDate, useDueReviews, useSetting } from '../storage/progress';
 import { cn } from '../lib/util';
 import { useReducedMotion } from '../lib/reducedMotion';
@@ -139,6 +140,7 @@ function Shell() {
     <div className="flex min-h-full flex-col">
       {!isEmbedded && <TopBar onSearch={() => setPalette(true)} />}
       {!isEmbedded && <Decorations />}
+      <SeasonDecor decorate={!isEmbedded} />
       <main className="flex flex-1 flex-col">
         <Suspense fallback={<PageSkeleton />}>
         <Routes>
