@@ -27,6 +27,7 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `apps/server/src/rateLimit.ts` | Failed-admin-auth limiter (10 per IP per 15 min, then 429) |
 | `apps/server/src/validation.ts` | zod schemas for admin request bodies (`ModulePatch`) |
 | `apps/server/src/christmas/` | 12-day Christmas countdown quiz: `days.ts` (content), `schedule.ts` (which days are open) |
+| `apps/server/src/season.ts` | Seasonal look by calendar date (`GET /api/season`, `SEASON_THEME`): Hell Week, Immaculate Conception, Christmas |
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
 | `packages/sdk/src/index.ts` | The `sdk` given to `logic.js` as `register(sdk)`: seeded RNG, formatting, vectors, matrices, least squares, sets |
 | `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`) |
@@ -66,6 +67,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `plan/` | Exam study plan: `studyPlan.ts` (pure scheduler), `usePlan.ts`, `stepStatus.ts` (shared with PathTab) |
 | `glossary/` | `notes.ts` (one note per term id across modules), `ForceGraph.tsx` |
 | `christmas/` | `ChristmasPage`, `useChristmas.ts`, `banner.ts`, `Decorations.tsx` |
+| `season/` | `useSeason.ts` (fetch + `<html data-season>`), `SeasonDecor.tsx` (Hell Week fire, brimstone and devil; Marian crown and lilies), `SeasonGreeting.tsx` (dashboard title with rotating quotes or verses) |
 | `admin/` | `AdminPage`, `ImportPanel` (zip/folder/paste), `ReportView`, `token.ts` (admin token in `sessionStorage`, never IndexedDB) |
 | `lib/` | `api.ts` (every server call + response types), `md.tsx`, `calc.ts`, shared UI bits |
 
@@ -99,6 +101,10 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
   merges by key with the later `updatedAt` winning, skips invalid rows, and rejects files from a newer format. Quiz sessions and runs live in `localStorage`. The study plan is recomputed from progress, never stored.
 - **Christmas:** `CHRISTMAS_QUIZ` (`auto`|`on`|`off`), `CHRISTMAS_TZ` (default Asia/Manila), `CHRISTMAS_NOW`
   (fake date) → `GET /api/christmas`. Only unlocked days' content leaves the server. Answers are kept apart from study stats.
+- **Seasonal look:** `season.ts` (`SEASON_THEME`, shares `CHRISTMAS_TZ`/`CHRISTMAS_NOW`) → `GET /api/season` → `season/useSeason.ts`
+  sets `<html data-season>`; `styles.css` swaps the accent and surface tokens for it (light and dark), `SeasonDecor` draws
+  the decorations and `SeasonGreeting` the dashboard title. Christmas lights and snow show from Dec 9 (`season === 'christmas'`)
+  while the countdown's doors still open from Dec 13. Cosmetic only: no content or progress changes.
 
 ## How to add…
 

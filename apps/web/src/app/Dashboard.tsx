@@ -17,6 +17,7 @@ import { Markdown } from '../lib/md';
 import { cn, timeAgo } from '../lib/util';
 import { useChristmas } from '../christmas/useChristmas';
 import { christmasHighlight } from '../christmas/banner';
+import { SeasonGreeting } from '../season/SeasonGreeting';
 
 export function Dashboard() {
   const store = useModuleStore();
@@ -72,10 +73,7 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 py-6">
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold">Qdigo</h1>
-        <p className="text-muted">Q's got your Qs.</p>
-      </div>
+      <SeasonGreeting />
       <Highlights items={[...(xmas ? [xmas] : []), ...(backup ? [BACKUP_HIGHLIGHT] : []), ...HIGHLIGHTS.filter((h) => !h.course || courses.some((g) => g.course === h.course))]} />
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="card flex items-center gap-3 p-4 md:col-span-2">

@@ -1,14 +1,16 @@
 import { useChristmas } from './useChristmas';
+import { useSeason } from '../season/useSeason';
 
 const BULBS = 28;
 const FLAKES = 26;
 // fixed pseudo-random layout so flakes don't jump between renders
 const rnd = (i: number, k: number) => ((Math.sin(i * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
 
-/** String lights under the top bar and light snowfall, only while the Christmas countdown is live. Purely visual. */
+/** String lights under the top bar and light snowfall, from Dec 9 (the Christmas season look) or while the countdown is live. Purely visual. */
 export function Decorations() {
   const s = useChristmas();
-  if (!s?.active) return null;
+  const season = useSeason();
+  if (!s?.active && season !== 'christmas') return null;
   return (
     <div className="no-print pointer-events-none" aria-hidden data-testid="xmas-decor">
       <div className="xmas-lights">
