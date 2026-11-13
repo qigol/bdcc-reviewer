@@ -8,7 +8,7 @@ import JSZip from 'jszip';
 import type { LogicHost, ParsedModule } from '@kodigo/schema';
 import { esc, type RenderLog } from './markdown';
 import { moduleChapters, type Chapter, type ModuleBook } from './content';
-import { CSS } from './style';
+import { CSS, moduleCss } from './style';
 
 export interface EpubModule {
   parsed: ParsedModule;
@@ -38,12 +38,12 @@ export interface EpubReport {
 
 const MEDIA: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml' };
 
-const xhtml = (title: string, body: string) =>
+const xhtml = (title: string, body: string, cls?: string) =>
   `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
 <head><meta charset="UTF-8" /><title>${esc(title)}</title><link rel="stylesheet" type="text/css" href="style.css" /></head>
-<body>
+<body${cls ? ` class="${cls}"` : ""}>
 ${body}
 </body>
 </html>
@@ -99,7 +99,7 @@ export async function buildEpub(modules: EpubModule[], opts: EpubOptions): Promi
   ];
   const spine: string[] = [];
   chapters.forEach((c, i) => {
-    const html = xhtml(c.title, c.body);
+    const html = xhtml(c.title, c.body, c.module ? `m-${c.module}` : undefined);
     zip.file(`OEBPS/${c.file}`, html);
     const props = html.includes('<math') ? ' properties="mathml"' : '';
     manifest.push(`<item id="c${i}" href="${esc(c.file)}" media-type="application/xhtml+xml"${props}/>`);
@@ -115,7 +115,7 @@ export async function buildEpub(modules: EpubModule[], opts: EpubOptions): Promi
       manifest.push(`<item id="img${img++}" href="${esc(out)}" media-type="${MEDIA[ext]}"/>`);
     }
   }
-  zip.file('OEBPS/style.css', CSS);
+  zip.file('OEBPS/style.css', CSS + books.map((b) => moduleCss(b.id, b.color)).join(''));
 
   // navigation: modules → their chapters
   const navItems = books.map((b) => {

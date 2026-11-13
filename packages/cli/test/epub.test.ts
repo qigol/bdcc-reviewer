@@ -83,18 +83,31 @@ describe.each(['cost-behavior', 'pandas-select-rows'])('epub export of %s', (id)
     expect(Object.keys(report.skipped).filter((k) => k.startsWith('unresolved'))).toEqual([]);
   });
 
-  it('links every question to its answer and back', async () => {
+  it('follows every question with its own answer, and every link resolves', async () => {
     const all: Record<string, string> = {};
     for (const name of Object.keys(zip.files).filter((f) => f.endsWith('.xhtml'))) all[name.replace(/^OEBPS\//, '')] = await zip.file(name)!.async('string');
-    let links = 0;
+    let questions = 0;
     for (const [file, text] of Object.entries(all)) {
-      for (const m of text.matchAll(/href="([^"#]+\.xhtml)#([^"]+)"/g)) {
-        links++;
+      // each question block ends, then the answer block with the same number starts right away
+      const qs = [...text.matchAll(/<div class="question[^"]*" id="q-(\d+)">/g)].map((m) => m[1]);
+      const pairs = [...text.matchAll(/id="q-(\d+)">[\s\S]*?<\/div><div class="answer" id="a-(\d+)">/g)];
+      expect(pairs.map((m) => m[1]), file).toEqual(qs);
+      for (const m of pairs) expect(m[2], file).toBe(m[1]);
+      questions += qs.length;
+      const ids = [...text.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+      expect(new Set(ids).size, `${file} has duplicate ids`).toBe(ids.length);
+      for (const m of text.matchAll(/href="([^"#]+\.xhtml)(?:#([^"]+))?"/g)) {
         expect(all[m[1]], `${file} → ${m[1]}`).toBeDefined();
-        expect(all[m[1]], `${file} → ${m[1]}#${m[2]}`).toContain(`id="${m[2]}"`);
+        if (m[2]) expect(all[m[1]], `${file} → ${m[1]}#${m[2]}`).toContain(`id="${m[2]}"`);
       }
     }
-    expect(links).toBeGreaterThan(10);
-    expect(all[`${id}-answers.xhtml`]).toMatch(/id="a-/);
+    expect(questions).toBeGreaterThan(10);
+    expect(all[`${id}-answers.xhtml`]).toBeUndefined();
+  });
+
+  it('gives the module its accent colour, darkened enough to read on white', async () => {
+    const css = await zip.file('OEBPS/style.css')!.async('string');
+    expect(css).toContain(`.m-${id} h1`);
+    expect(await zip.file(`OEBPS/${id}-intro.xhtml`)!.async('string')).toContain(`<body class="m-${id}">`);
   });
 });

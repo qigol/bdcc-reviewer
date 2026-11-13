@@ -31,7 +31,7 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
 | `packages/sdk/src/index.ts` | The `sdk` given to `logic.js` as `register(sdk)`: seeded RNG, formatting, vectors, matrices, least squares, sets |
 | `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`), `epub` (`epubCmd.ts`) |
-| `packages/cli/src/epub/` | EPUB 3 export for e-readers: `index.ts` `buildEpub(modules, {hostFactory})` (zip, OPF, nav, NCX), `content.ts` (module → chapters along the learning path, scopes from `runDerive`), `widgets.ts` (static widget renderings), `questions.ts` (quiz instances → question + answer), `markdown.ts` (Markdown/TeX → XHTML + MathML), `style.ts` |
+| `packages/cli/src/epub/` | EPUB 3 export for e-readers: `index.ts` `buildEpub(modules, {hostFactory})` (zip, OPF, nav, NCX), `content.ts` (module → chapters along the learning path, scopes from `runDerive`), `widgets.ts` (static widget renderings), `questions.ts` (quiz instances → question + answer, the answer on the next page), `markdown.ts` (Markdown/TeX → XHTML + MathML), `style.ts` (page breaks, palette, per-module accent from manifest `color`) |
 | `apps/web/src/` | React SPA, one lazy chunk per route (Vite, Tailwind, react-router, framer-motion, KaTeX, Shiki, Dexie) (see below) |
 | `modules/<id>/` | Built-in modules. List them with `ls modules`; course per module: `grep -H "^course:" modules/*/manifest.yaml` |
 | `animations/` | HyperFrames source for `Animation` widget clips. Not shipped; renders go to `modules/<id>/assets/anim/` |

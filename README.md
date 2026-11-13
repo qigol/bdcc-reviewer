@@ -187,8 +187,9 @@ pnpm kodigo epub modules                         # one book per module
 ```
 
 Each module follows its learning path (Intuition scenes and workbench sections interleaved, then the case). After that come
-practice questions from the quiz bank, the glossary, and answers at the back. Every question links to its answer, and each answer
-links back. Numbers come from `logic.js`, as they do on the site. Math is MathML. Tables, schedules, journals, formulas, code and
+practice questions from the quiz bank and the glossary. Every question starts a new page, and its answer is alone on the page after
+it, so turning the page reveals it. Headings and question labels use the module's colour. Callouts are coloured by kind, and answers
+are green. Body text stays black, so the books still read well on grayscale e-ink. Numbers come from `logic.js`, as they do on the site. Math is MathML. Tables, schedules, journals, formulas, code and
 images are kept, and charts become data tables. Sliders, drag-and-drop and step players are left out, and the command lists what
 it left out. Kobo opens the file directly. For a Kindle, use Amazon's Send to Kindle, which accepts EPUB.
 

@@ -1,6 +1,7 @@
 /**
  * One module → the chapters of the book, in the order of its learning path (scenes and sections interleaved,
- * then the case), then practice questions, the glossary and the answers. Numbers come from logic.js: every
+ * then the case), then practice questions and the glossary. Every question is followed by its answer on the
+ * next page (page breaks in style.ts). Numbers come from logic.js: every
  * scope is datasets + state + derive, run in the given LogicHost, before any text is interpolated.
  */
 import {
@@ -22,6 +23,8 @@ export interface Chapter {
 export interface ModuleBook {
   id: string;
   title: string;
+  /** the module's accent colour (manifest `color`), used for headings and question labels */
+  color?: string;
   chapters: Chapter[];
   /** module asset path → book path, for every image the chapters use */
   assets: Map<string, string>;
@@ -48,7 +51,6 @@ export async function moduleChapters(mod: ParsedModule, host: LogicHost, opts: C
     step: (i: number) => `${id}-${String(i + 1).padStart(2, '0')}.xhtml`,
     practice: `${id}-practice.xhtml`,
     glossary: `${id}-glossary.xhtml`,
-    answers: `${id}-answers.xhtml`,
   };
   const base: Omit<RenderCtx, 'scope'> = {
     log: opts.log,
@@ -70,18 +72,20 @@ export async function moduleChapters(mod: ParsedModule, host: LogicHost, opts: C
   const ctxFor = (scope: Scope): RenderCtx => ({ ...base, scope, exercise: (label, q, a) => qa(label, q, a, 'question check') });
   const data = allDatasetPayloads(mod);
 
-  // ---------------------------------------------------------- answers (two-way links)
-  const answers: { n: number; file: string; label: string; html: string }[] = [];
+  // ---------------------------------------------------------- questions: the question on one page, its answer on the next
   let current = '';
+  const counters = new Map<string, number>();
   // the same question in the same chapter (a stage widget drawn again) keeps its number and answer
   const seen = new Map<string, string>();
   const qa = (label: string, question: string, answer: string, cls = 'question') => {
     const key = JSON.stringify([current, label, question, answer]);
     const prev = seen.get(key);
     if (prev) return prev;
-    const n = answers.length + 1;
-    answers.push({ n, file: current, label, html: answer });
-    const html = `<div class="${cls}" id="q-${id}-${n}"><p class="q-label">${esc(label)} <span class="qnum">${n}</span></p>${question}<p class="to-answer"><a href="${f.answers}#a-${id}-${n}">Answer ${n}</a></p></div>`;
+    const n = (counters.get(current) ?? 0) + 1;
+    counters.set(current, n);
+    const html =
+      `<div class="${cls}" id="q-${n}"><p class="q-label">${esc(label)} ${n}</p>${question}<p class="turn">Answer on the next page</p></div>` +
+      `<div class="answer" id="a-${n}"><p class="a-label">Answer · ${esc(label)} ${n}</p>${answer}</div>`;
     seen.set(key, html);
     return html;
   };
@@ -245,7 +249,7 @@ export async function moduleChapters(mod: ParsedModule, host: LogicHost, opts: C
       m.course ? `<p class="course">${esc(m.course)}${m.assessment ? ` · ${esc(m.assessment)}` : ''}</p>` : '',
       mdi(ctx0, m.summary),
       m.objectives?.length ? `<h3>After this module you can</h3><ul>${m.objectives.map((o) => `<li>${mdi(ctx0, o.text, true)}</li>`).join('')}</ul>` : '',
-      `<h3>Contents</h3><ol class="toc">${path.map((p, i) => `<li><a href="${f.step(i)}">${esc(p.title)}</a> <span class="muted">(${p.kind === 'scene' ? 'Intuition' : p.kind === 'section' ? esc(wb) : 'Application'})</span></li>`).join('')}<li><a href="${f.practice}">Practice questions</a></li><li><a href="${f.glossary}">Glossary</a></li><li><a href="${f.answers}">Answers</a></li></ol>`,
+      `<h3>Contents</h3><ol class="toc">${path.map((p, i) => `<li><a href="${f.step(i)}">${esc(p.title)}</a> <span class="muted">(${p.kind === 'scene' ? 'Intuition' : p.kind === 'section' ? esc(wb) : 'Application'})</span></li>`).join('')}<li><a href="${f.practice}">Practice questions</a></li><li><a href="${f.glossary}">Glossary</a></li></ol>`,
       m.sources.length ? `<p class="muted">Sources: ${esc(m.sources.map((s) => s.title + (s.sessions ? ` (${s.sessions})` : '')).join('; '))}</p>` : '',
     ].join('\n'),
   });
@@ -270,12 +274,5 @@ export async function moduleChapters(mod: ParsedModule, host: LogicHost, opts: C
       `<dt id="term-${id}-${t.id}">${esc(t.term)}${t.aka?.length ? ` <span class="muted">(${esc(t.aka.join(', '))})</span>` : ''}</dt><dd>${mdi(ctx0, t.short)}${t.formula ? texi(ctx0, t.formula) : ''}${t.long ? mdi(ctx0, t.long) : ''}</dd>`), '</dl>'].join('\n'),
   });
 
-  chapters.push({
-    file: f.answers,
-    title: 'Answers',
-    body: ['<h1>Answers</h1>', ...answers.map((a) =>
-      `<div class="answer" id="a-${id}-${a.n}"><p class="q-label"><a href="${a.file}#q-${id}-${a.n}">${esc(a.label)} ${a.n}</a></p>${a.html}</div>`)].join('\n'),
-  });
-
-  return { id, title: m.title, chapters, assets };
+  return { id, title: m.title, color: m.color, chapters, assets };
 }
