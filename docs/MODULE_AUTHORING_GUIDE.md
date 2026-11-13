@@ -164,8 +164,9 @@ id: fim
 
 ### 4.2 Markdown (`Markdown` fields)
 CommonMark + GFM tables. Inline math `$…$`, display math `$$…$$` (KaTeX). Interpolation `{=…}` is allowed (§4.4). Keep prose short (word limits in §11).
+**A dollar amount is written `\$4,700`.** Two bare `$` on one line are read as math (`$2,400 … $1,700` turns everything between them into a formula or a red KaTeX error). `\$` works in plain and single-quoted YAML; inside a double-quoted YAML string it is an invalid escape, so switch that string to single quotes.
 
-**Term links.** `[[term-id]]` shows the glossary term's name; `[[term-id|shown text]]` shows your own words (use it mid-sentence: `its [[manufacturing-overhead|manufacturing overhead]]`). Either renders as a dotted-underlined word whose hover card gives the term's definition. Use them in narration, summaries, prompts and explanations whenever a term appears *after* the beat that defines it. Every id must be a glossary term (validated).
+**Term links.** `[[term-id]]` shows the glossary term's name; `[[term-id|shown text]]` shows your own words (use it mid-sentence: `its [[manufacturing-overhead|manufacturing overhead]]`). Either renders as a dotted-underlined word whose hover card gives the term's definition. Use them in narration, summaries, prompts and explanations whenever a term appears *after* the beat that defines it. Every id must be a glossary term (validated). Keep a whole link on one line: a link whose text wraps onto the next line of a YAML block is not recognised and shows as raw `[[…]]` (break the line before `[[` instead).
 
 ### 4.3 TeX (`Tex` fields) and math anchors
 - KaTeX-compatible LaTeX only (no `\usepackage`, no `align` environments; use `\begin{aligned}…\end{aligned}` inside display math).
