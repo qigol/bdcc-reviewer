@@ -59,6 +59,7 @@ Imported modules and module settings (enabled flags, order, course overrides) go
 | `MAX_UPLOAD_MB` | `30` | zip/paste upload limit |
 | `DEFAULT_COURSE` | `BDCC` | course for modules whose manifest has no `course:` (and no course set in Admin) |
 | `MODULES_BUILTIN` / `WEB_DIR` | `./modules` / `./web` | built-in modules folder · built SPA folder (resolved from the working directory) |
+| `EPUB_DIR` | `./epub` | e-reader books from `kodigo epub modules <dir> --catalog` (Docker: `/app/epub`); missing means no downloads |
 | `CHRISTMAS_QUIZ` | `auto` | Christmas countdown quiz: `auto` (one day opens at a time from Dec 13) · `on` (all open now) · `off` |
 | `CHRISTMAS_TZ` / `CHRISTMAS_NOW` | `Asia/Manila` / (unset) | time zone for the countdown and the seasonal look · fake today's date (`YYYY-MM-DD`) to preview a day |
 | `SEASON_THEME` | `auto` | seasonal look: `auto` (Hell Week Nov 10 – Dec 7, Immaculate Conception Dec 8, Christmas Dec 9 – Jan 6) · `off` · `hellweek` / `immaculate` / `christmas` (force one). `CHRISTMAS_QUIZ=off` also drops the Christmas look |
@@ -144,6 +145,7 @@ docker/           Dockerfile, compose.yml
 | GET | `/api/modules/:id/report` | | server-side validation report |
 | GET | `/api/modules/:id/export` | | zip |
 | GET | `/api/widgets.md` | | widget reference for module authors |
+| GET | `/api/epub` · `/api/epub/:file` | | e-reader books built with the image (list · download one listed in `index.json`) |
 | GET | `/api/christmas` | | Christmas countdown status; only unlocked days carry their content |
 | GET | `/api/season` | | today's seasonal look: `{season: "hellweek" \| "immaculate" \| "christmas" \| null, today, range?: {start, end}}` |
 | GET | `/api/admin/check` | admin | checks the admin token |
@@ -184,7 +186,13 @@ pnpm kodigo json-schema schema.json              # JSON Schemas for editors
 pnpm kodigo epub modules/<id>                    # dist/epub/<id>@<version>.epub
 pnpm kodigo epub modules --course MANACC         # one book with every module of a course (dist/epub/manacc.epub)
 pnpm kodigo epub modules                         # one book per module
+pnpm kodigo epub modules dist/epub --catalog     # every module and every course, plus index.json for the site
 ```
+
+The Docker image builds the catalog (`--catalog`) and the site offers it under **Settings → E-reader books**:
+one book per course and one per module. Run outside Docker, the server reads `EPUB_DIR` (`pnpm dev` points it at
+`dist/epub`, so run the `--catalog` command once first). The books cover the built-in modules as the image was built.
+Admin-imported modules aren't included.
 
 Each module follows its learning path (Intuition scenes and workbench sections interleaved, then the case). After that come
 practice questions from the quiz bank and the glossary. Every question starts a new page, and its answer is alone on the page after

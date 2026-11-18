@@ -31,7 +31,12 @@ async function j<T>(res: Response): Promise<T> {
 export type Season = 'hellweek' | 'immaculate' | 'christmas';
 export interface SeasonStatus { season: Season | null; today: string; range?: { start: string; end: string } }
 
+/** GET /api/epub: e-reader books built with the image (one per module, one per course) */
+export interface EpubBook { file: string; kind: 'module' | 'course'; title: string; course?: string; id?: string; modules?: number; chapters: number; bytes: number }
+
 export const api = {
+  epubs: () => fetch('/api/epub').then((r) => j<{ books: EpubBook[] }>(r)),
+  epubUrl: (file: string) => `/api/epub/${encodeURIComponent(file)}`,
   list: () => fetch('/api/modules').then((r) => j<ModuleListEntry[]>(r)),
   index: () => fetch('/api/index').then((r) => j<{ modules: (ModuleIndex | { id: string; error: string })[] }>(r)),
   christmas: () => fetch('/api/christmas').then((r) => j<ChristmasStatus>(r)),
