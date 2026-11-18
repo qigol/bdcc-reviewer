@@ -1,0 +1,611 @@
+scenes:
+  # ------------------------------------------------------------------ 1
+  - id: params-hyper
+    title: What training learns, and what you choose
+    goal: Which numbers in a network does the computer learn, and which ones must a person pick?
+    skills: [params-vs-hyper]
+    data: [net]
+    state: { pUp: 1 }
+    derive:
+      - { fn: paramGrid, in: { layers: '@net.layers', upTo: '@pUp' }, out: pg }
+      - { fn: paramCount, in: { layers: '@net.layers' }, out: pc }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@pg', rowHeader: layer, title: '2 inputs → 64 ReLU → 64 ReLU → 1 output' }
+      - id: total
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'parameters to learn', value: '@pc.total', format: comma, tone: good }
+      - id: sorter
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: w13, label: 'The weight from input 1 to unit 3' }
+            - { id: bout, label: 'The output bias' }
+            - { id: lr, label: 'The learning rate' }
+            - { id: bs, label: 'The batch size' }
+            - { id: drop, label: 'The dropout rate' }
+            - { id: layers, label: 'The number of hidden layers' }
+          bins:
+            - { id: par, label: 'Parameter: learned' }
+            - { id: hyp, label: 'Hyperparameter: chosen' }
+          solution: { w13: par, bout: par, lr: hyp, bs: hyp, drop: hyp, layers: hyp }
+          check: instant
+    beats:
+      - say: |
+          A **model** is a recipe with adjustable numbers that turns facts about a case into a guess. **Training** adjusts
+          those numbers using examples with known answers. The **loss** is one number that says how wrong the guesses
+          are; training pushes it down.
+        define: [model, training, loss]
+      - say: |
+          This network has two inputs, two hidden layers of 64 units and one output. Each connection carries a
+          **weight**; each unit adds a **bias**. Together they are the **parameters**: the numbers training learns.
+        define: [weight, bias, parameter]
+      - say: Layer 1 has $2 \cdot 64 = 128$ weights and 64 biases, so 192. Layer 2 connects 64 units to 64 units.
+        gate:
+          type: predict
+          question: How many parameters does layer 2 have?
+          answer: { value: 4160, tol: 0 }
+          explain: '$64\cdot64 + 64 = 4{,}096 + 64 = 4{,}160$.'
+      - say: With the output layer's 65, the network learns 4,417 numbers.
+        set: { pUp: 3 }
+        show: [total]
+      - say: |
+          The learning rate, the batch size, the dropout rate and the number of layers are different: you choose them.
+          Settings you choose rather than learn are **hyperparameters**. Sort these.
+        define: [hyperparameter]
+        show: [sorter]
+        gate:
+          type: event
+          prompt: Place every card.
+          target: sorter
+          event: solved
+          hint: Does gradient descent change it at every step, or do you set it?
+      - say: Count the parameters of another network.
+        gate:
+          type: practice
+          template: param-count
+    takeaway: Training learns thousands of weights and biases; you choose a handful of hyperparameters that steer it.
+
+  # ------------------------------------------------------------------ 2
+  - id: learning-rate
+    title: How big a step to take
+    goal: How far should each correction move the weights?
+    skills: [learning-rate]
+    data: [lrruns]
+    state: { eta: 0.1 }
+    derive:
+      - { fn: bowl, in: { eta: '@eta', theta0: 2, steps: 15 }, out: b }
+      - { fn: tableGrid, in: { table: '@lrruns' }, out: lt }
+    stage:
+      - id: path
+        widget: Chart
+        props: { kind: line, series: '@b.series', xLabel: step, yLabel: loss, title: 'Loss on the bowl ½θ², starting at θ = 2' }
+      - id: info
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'factor 1 − η', value: '@b.factor' }
+            - { label: 'verdict', value: '{=b.verdict}', tone: accent }
+      - id: eta-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'learning rate η', min: 0.1, max: 2.5, step: 0.1 }
+        bind: { value: eta }
+      - id: lr-table
+        widget: Matrix
+        hidden: true
+        props: { data: '@lt', rowHeader: run, title: 'The network with four learning rates (SGD, batch 16, 200 epochs)' }
+    beats:
+      - say: |
+          Picture the loss as a bowl, lowest at $\theta = 0$. The **gradient** is its slope: it points uphill. Here the
+          gradient is just $\theta$.
+        define: [gradient]
+      - say: |
+          **Gradient descent** steps the other way: $\theta \leftarrow \theta - \eta \cdot \text{gradient}$. The
+          **learning rate** $\eta$ ("eta") sets the step size. Start at $\theta = 2$.
+        define: [gradient-descent, learning-rate]
+        gate:
+          type: predict
+          question: 'With η = 0.8, where is θ after one step?'
+          answer: { value: 0.4, tol: 0.01 }
+          explain: '$2 - 0.8 \cdot 2 = 0.4$. Each step multiplies θ by $1 - 0.8 = 0.2$.'
+      - say: |
+          Each step multiplies $\theta$ by $1 - \eta$. Too small creeps; a little above 1 bounces from side to side but
+          settles. Push further and each bounce lands higher than the last: **divergence**.
+        define: [divergence]
+        show: [eta-slider, info]
+        gate:
+          type: when
+          prompt: Find a learning rate that makes the loss blow up.
+          when: "b.verdict == 'diverges'"
+          hint: The bounce grows once $1 - \eta$ is below $-1$.
+      - say: |
+          On the real network the safe range cannot be computed in advance, so rates are tried on a log scale: 0.003,
+          0.03, 0.3, 3.
+        set: { eta: 0.8 }
+        gate:
+          type: predict
+          question: Which learning rate do you think gave the lowest **validation** loss?
+          options: ['η = 0.03', 'η = 0.3', 'η = 0.003', 'η = 3.0']
+          answer: 0
+          optionFeedback:
+            '1': It had the lowest training loss (0.112), but validation loss 0.343.
+            '2': It barely moved in 200 epochs.
+            '3': It jumped erratically and ended worse.
+          explain: 'η = 0.03: validation loss 0.255. The lowest training loss is not automatically the best choice.'
+      - say: The table, from the notebook.
+        show: [lr-table]
+        gate:
+          type: practice
+          template: bowl-step
+    takeaway: Small steps creep, good steps settle, too-large steps overshoot and diverge; pick η on validation evidence.
+
+  # ------------------------------------------------------------------ 3
+  - id: batches
+    title: Batches, steps and epochs
+    goal: How many examples should the network look at before each correction?
+    skills: [batch-size]
+    data: [batchruns]
+    state: { B: 160 }
+    derive:
+      - { fn: steps, in: { N: 160, B: '@B', epochs: 200 }, out: s }
+      - { fn: tableGrid, in: { table: '@batchruns' }, out: bt }
+    stage:
+      - id: b-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props: { label: 'batch size B', options: [{ value: 4, label: '4' }, { value: 16, label: '16' }, { value: 160, label: '160 (all)' }] }
+        bind: { value: B }
+      - id: count
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: 'training examples N', value: '160' }
+            - { label: 'steps per epoch', value: '@s.perEpoch', tone: accent }
+            - { label: 'steps in 200 epochs', value: '@s.total', format: comma }
+      - id: b-table
+        widget: Matrix
+        hidden: true
+        props: { data: '@bt', rowHeader: run, title: 'Three batch sizes (SGD, η = 0.1, 200 epochs)' }
+    beats:
+      - say: |
+          A **batch** is the group of examples used to compute one gradient. One **step** is one update from one batch.
+          One **epoch** is one full pass over all $N$ training examples.
+        define: [training-batch, update-step, epoch]
+      - say: |
+          Between using all 160 examples per step (full batch) and one example per step lies
+          **mini-batch gradient descent**, with $\lceil N/B \rceil$ steps per epoch.
+        define: [mini-batch-gd]
+        gate:
+          type: predict
+          question: With 160 examples and batch size 16, how many steps per epoch?
+          answer: { value: 10, tol: 0 }
+          explain: '$160/16 = 10$.'
+      - say: Switch the batch size and watch the count.
+        show: [b-choice, count]
+        gate:
+          type: when
+          prompt: Choose the batch size that takes 40 steps per epoch.
+          when: 's.perEpoch == 40'
+          hint: '$160/B = 40$.'
+      - say: |
+          Per epoch, $B = 4$ pulled ahead: 40 steps for each full-batch step. But each small-batch gradient is rough:
+          random batches of 4 scattered 1.48 gradient-lengths from the true direction, batches of 64 only 0.29.
+        show: [b-table]
+      - say: |
+          In PyTorch every step is the same five lines: `zero_grad()` clears old gradients, the forward pass predicts,
+          the loss is computed, `backward()` finds the gradients, `step()` updates. Count steps for another dataset.
+        gate:
+          type: practice
+          template: steps-epoch
+    takeaway: Small batches take many rough steps per epoch; large batches take few steady ones. Change B, retune η.
+
+  # ------------------------------------------------------------------ 4
+  - id: momentum-adam
+    title: Momentum and Adam
+    goal: Can earlier steps help decide the next one?
+    skills: [momentum, optimizers]
+    data: [toys, optruns]
+    state: { momWalk: 0 }
+    derive:
+      - { fn: momSheet, in: { grads: '@toys.mom.grads', beta: 0.9, eta: 0.1, walk: '@momWalk' }, out: ms }
+      - { fn: tableGrid, in: { table: '@optruns' }, out: ot }
+      - { fn: valleyChart, in: { runs: [['SGD', 0.038], ['Momentum', 0.005], ['Adam', 0.2]] }, out: vc }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { data: '@ms', rowHeader: step, title: 'A steady gradient of 1, β = 0.9, η = 0.1' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: momWalk, in: { grads: '@toys.mom.grads', beta: 0.9, eta: 0.1 }, roles: { sheet: sheet }, speed: 0.6 }
+      - id: valley
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@vc.series', xLabel: θ1 (gentle), yLabel: θ2 (steep), title: 'Paths through a narrow valley, 40 steps' }
+      - id: opt-table
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { data: '@ot', rowHeader: run, title: 'SGD vs Adam on the network' }
+    beats:
+      - say: |
+          **Momentum** gives the updates a memory. It keeps a velocity $v$: each step keeps $\beta$ ("beta") of the old
+          velocity and adds the new gradient, $v \leftarrow \beta v + g$, then moves by $\eta v$.
+        define: [momentum]
+        gate:
+          type: predict
+          question: 'With β = 0.9 and a gradient of 1 every step, what is v after 3 steps?'
+          answer: { value: 2.71, tol: 0.01 }
+          explain: '$v = 1$, then $0.9 + 1 = 1.9$, then $1.71 + 1 = 2.71$.'
+      - say: Play five steps.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          Steady directions build speed toward $1/(1-0.9) = 10$ plain steps; back-and-forth gradients cancel. The rule
+          that turns gradients into steps is the **optimizer**. Plain **SGD** moves every parameter by $\eta$ times its
+          own gradient.
+        define: [optimizer, sgd]
+      - say: |
+          **Adam** keeps momentum and also divides each parameter's step by the size of its recent gradients. In a
+          narrow valley one direction is steep (gradient 40), the other gentle (gradient 4).
+        define: [adam]
+        show: [valley]
+        gate:
+          type: predict
+          question: 'With η = 0.2, about how big is Adam''s first step in the steep direction?'
+          options: ['About 0.2, the same as in the gentle one', '8, which is η × 40', '40, the gradient itself', '0.02, ten times smaller than the gentle one']
+          answer: 0
+          optionFeedback:
+            '1': That is SGD's step, $\eta g$.
+            '2': Adam divides by the gradient's own size.
+            '3': Both directions move about η at first.
+          explain: 'At the first step $\hat m/\sqrt{\hat s} = g/|g|$, so every parameter moves by about η.'
+      - say: |
+          On the network, Adam at $\eta = 0.003$ trained smoothly; Adam at 0.1, a rate that suits SGD, was erratic.
+        show: [opt-table]
+        gate:
+          type: reflect
+          prompt: Why can you not keep the same learning rate when you switch from SGD to Adam, or turn on momentum?
+          model: |
+            The learning rate only means something together with the update rule. Momentum adds up past gradients, so
+            with β = 0.9 steps along a steady slope become up to ten times larger. Adam rescales each parameter's step
+            to about η regardless of its gradient. So each optimizer, and each momentum setting, needs its own η, chosen
+            on validation data.
+      - say: Compute a velocity yourself.
+        gate:
+          type: practice
+          template: mom-velocity
+    takeaway: Momentum adds up steady directions; Adam evens out step sizes per parameter; each needs its own learning rate.
+
+  # ------------------------------------------------------------------ 5
+  - id: selection
+    title: Choosing honestly
+    goal: If you try fifty settings and keep the best score, can you trust that score?
+    skills: [hp-selection]
+    stage:
+      - id: luck
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: 'true accuracy of every configuration', value: '0.850' }
+            - { label: 'score of the "best" of 50', value: '0.890', tone: bad }
+      - id: jobs
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: fit, label: 'Fit the weights' }
+            - { id: pick, label: 'Choose the dropout rate' }
+            - { id: lr, label: 'Compare three learning rates' }
+            - { id: final, label: 'Report one final accuracy' }
+            - { id: mean, label: 'Compute the scaling mean' }
+          bins:
+            - { id: tr, label: 'Training set' }
+            - { id: va, label: 'Validation set' }
+            - { id: te, label: 'Test set' }
+          solution: { fit: tr, pick: va, lr: va, final: te, mean: tr }
+          check: instant
+    beats:
+      - say: |
+          The two-moons data are split once, before any training. The **training set** (160 points) fits the weights.
+          The **validation set** (300) compares settings. The **test set** (1,000) gives one final estimate.
+        define: [training-set, validation-set, test-set]
+      - say: |
+          Every score includes some luck: which examples happen to be in the set. Fifty configurations, each truly 85%
+          accurate, are scored on the same 300 examples, and we keep the highest.
+        gate:
+          type: predict
+          question: What does the "best" one score?
+          options: ['Several points above 85%', 'Exactly 85%', 'Below 85%', 'Exactly 100%']
+          answer: 0
+          optionFeedback:
+            '1': Keeping the maximum of 50 noisy scores picks a lucky one.
+            '2': The maximum of many scores sits above their average.
+            '3': There is noise, but not that much.
+          explain: It scored 0.890. If we tuned on the test set, its score would be optimistic in exactly this way.
+      - say: |
+          So every choice uses validation data, and the test set is used once. Even scaling follows the rule:
+          **standardization** subtracts a mean and divides by a spread computed from the training set only.
+        define: [feature-standardization]
+        show: [luck, jobs]
+        gate:
+          type: event
+          prompt: Send each job to its set.
+          target: jobs
+          event: solved
+          hint: Only one job belongs to the test set.
+      - say: Why lock the test set away?
+        gate:
+          type: reflect
+          prompt: Why must hyperparameters be chosen on the validation set and never on the test set?
+          model: |
+            Choosing the best of many configurations on a set keeps the luckiest score, so that set's score becomes
+            optimistic. If the test set were used to choose, nothing would be left to give an honest estimate. So the
+            validation set absorbs all the choosing, and the test set is used once, at the end, for the chosen model.
+    takeaway: Fit on training, choose on validation, report once on test; even scaling uses training statistics only.
+
+  # ------------------------------------------------------------------ 6
+  - id: diagnose
+    title: Reading the two loss curves
+    goal: How can two lines on a chart tell you what is wrong with a training run?
+    skills: [diagnose]
+    state: { kind: good }
+    derive:
+      - { fn: shapeCurves, in: { kind: '@kind' }, out: sc }
+    stage:
+      - id: curves
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@sc.series', xLabel: epoch, yLabel: loss, title: 'Illustrative training runs' }
+      - id: run-choice
+        widget: Choice
+        region: side
+        hidden: true
+        props: { label: run, options: [{ value: good, label: 'Run A' }, { value: underfit, label: 'Run B' }, { value: lr-high, label: 'Run C' }, { value: overfit, label: 'Run D' }, { value: lr-low, label: 'Run E' }] }
+        bind: { value: kind }
+    beats:
+      - say: |
+          Two curves per run: training loss and validation loss. When both stay high, the model has not captured the
+          pattern yet: **underfitting**.
+        define: [underfitting]
+      - say: |
+          When training loss keeps falling but validation loss rises, the model is fitting noise in its examples:
+          **overfitting**. What we care about is **generalization**, how well it does on new data.
+        define: [overfitting, generalization]
+        gate:
+          type: predict
+          question: In the overfitting run, where is the best moment to have stopped?
+          options: ['Where validation loss is lowest', 'The last epoch, where training loss is lowest', 'The first epoch', 'Where the two curves cross']
+          answer: 0
+          optionFeedback:
+            '1': Training loss is always lowest at the end, when overfitting is worst.
+            '2': Nothing has been learned yet.
+            '3': The curves need not cross at all.
+          explain: The bottom of the validation curve is the best generalization the run reached.
+      - say: Five runs, unlabelled. Look at each pair of curves.
+        show: [curves, run-choice]
+        gate:
+          type: when
+          prompt: Find the run that overfits.
+          when: "kind == 'overfit'"
+          hint: Training keeps falling while validation turns upward.
+      - say: |
+          Run C's spikes are a learning rate that is too large; Run E's barely moving lines, one too small. Changes to
+          training meant to reduce overfitting are **regularization**. Too much of it causes underfitting.
+        define: [regularization]
+        gate:
+          type: predict
+          question: 'The notebook''s 1,000-epoch run: validation accuracy barely moves after the best epoch, yet validation loss climbs. Why?'
+          options: ['The model grows over-confident; confident mistakes cost a lot of loss', 'The validation set changed', 'Accuracy is computed on the training set', 'Loss ignores wrong answers']
+          answer: 0
+          optionFeedback:
+            '1': The validation set is fixed.
+            '2': Both are computed on validation data.
+            '3': Loss punishes confident wrong answers most.
+          explain: Most points stay on the right side, but the probabilities become extreme, and cross-entropy punishes confident mistakes.
+    takeaway: Both high is underfitting, a rising validation curve is overfitting, spikes or flat lines point at the learning rate.
+
+  # ------------------------------------------------------------------ 7
+  - id: early-stopping
+    title: Knowing when to quit
+    goal: How can the validation curve decide how long to train?
+    skills: [early-stopping]
+    data: [valhist, stopruns]
+    state: { stopWalk: 0 }
+    derive:
+      - { fn: stopSheet, in: { val: '@valhist.val', patience: 3, minDelta: 0.01, walk: '@stopWalk' }, out: ss }
+      - { fn: tableGrid, in: { table: '@stopruns' }, out: st }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { data: '@ss', rowHeader: epoch, title: 'Validation loss per epoch (an illustrative run); patience 3, δ = 0.01' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: stopWalk, in: { val: '@valhist.val', patience: 3, minDelta: 0.01 }, roles: { sheet: sheet }, speed: 0.6 }
+      - id: stop-table
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { data: '@st', rowHeader: run, title: 'On the network: 1,000 epochs vs early stopping' }
+    beats:
+      - say: |
+          **Early stopping** watches validation loss after every epoch, stops once it has stopped improving, and goes
+          back to the best epoch's weights.
+        define: [early-stopping]
+      - say: |
+          Curves are noisy, so it waits: **patience** is how many epochs in a row without improvement it tolerates. And a
+          drop only counts if it beats the best by more than the **minimum improvement** δ ("delta").
+        define: [patience, min-delta]
+        gate:
+          type: predict
+          question: With patience 3 and δ = 0.01, at which epoch does training stop?
+          answer: { value: 7, tol: 0 }
+          explain: 'Best 0.53 at epoch 4. Epoch 5''s 0.525 does not beat $0.53 - 0.01 = 0.52$, so the wait reaches 3 at epoch 7.'
+      - say: Play the rule epoch by epoch.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          It stops at 7 and restores epoch 4. On the real network the long run ended at validation loss 0.484; early
+          stopping halted at epoch 136 with 0.235.
+        show: [stop-table]
+        gate:
+          type: practice
+          template: stop-epoch
+    takeaway: Stop when validation loss has not improved by more than δ for 'patience' epochs, then restore the best weights.
+
+  # ------------------------------------------------------------------ 8
+  - id: dropout
+    title: Switching units off at random
+    goal: What happens if random parts of the network go missing during training?
+    skills: [dropout]
+    data: [toys]
+    state: { pp: 0.5 }
+    derive:
+      - { fn: dropout, in: { a: '@toys.drop.a', mask: '@toys.drop.mask', p: '@pp' }, out: d }
+    stage:
+      - id: units
+        widget: Readout
+        props:
+          items:
+            - { label: 'four hidden values', value: '1.2, 0, 0.8, 2' }
+            - { label: 'this step keeps units', value: '1 and 3' }
+      - id: outv
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'scale 1/(1 − p)', value: '@d.scale', tone: accent }
+            - { label: 'values passed on', value: '{=d.out|list}' }
+      - id: p-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'dropout rate p', min: 0.1, max: 0.9, step: 0.05 }
+        bind: { value: pp }
+    beats:
+      - say: |
+          **Dropout** switches off each hidden unit with probability $p$, a fresh random set at every training step. No
+          unit can rely on particular partners, so the network spreads what it learns.
+        define: [dropout]
+      - say: |
+          To keep the overall signal the same as at prediction time, when nothing is dropped, survivors are divided by
+          $1 - p$. This is **inverted dropout**.
+        define: [inverted-dropout]
+        gate:
+          type: predict
+          question: 'With p = 0.5, what does the first unit (value 1.2) pass on if it survives?'
+          answer: { value: 2.4, tol: 0.01 }
+          explain: '$1.2/(1 - 0.5) = 2.4$.'
+      - say: Change the rate and watch the scale.
+        show: [outv, p-slider]
+        gate:
+          type: when
+          prompt: Set the rate so survivors are multiplied by 4.
+          when: 'd.scale == 4'
+          hint: '$1/(1 - p) = 4$ means $1 - p = 0.25$.'
+      - say: |
+          On the network, $p = 0.3$ slowed overfitting; $p = 0.9$ left too few units and underfit. At prediction time,
+          `model.eval()` turns dropout off.
+        set: { pp: 0.5 }
+        gate:
+          type: practice
+          template: drop-scale
+    takeaway: Dropout zeroes random units only while training and scales the survivors by 1/(1 − p).
+
+  # ------------------------------------------------------------------ 9
+  - id: l2
+    title: Charging for large weights
+    goal: Why would we make the network pay for using big numbers?
+    skills: [l2]
+    data: [wsize]
+    state: { lam: 0 }
+    derive:
+      - { fn: bestWeight, in: { lam: '@lam' }, out: bw }
+      - { fn: tableGrid, in: { table: '@wsize' }, out: wt }
+    stage:
+      - id: curve
+        widget: FunctionPlot
+        props: { fn: penaltyCurve, args: { lam: '@lam' }, domain: [-1, 5], showMin: true, xLabel: 'w', yLabel: 'L_{\text{total}}' }
+      - id: best
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'best weight', value: '@bw.w', tone: good }
+      - id: lam-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'λ', min: 0, max: 3, step: 0.25 }
+        bind: { value: lam }
+      - id: w-table
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { data: '@wt', rowHeader: run, title: 'Sum of squared weights after training' }
+    beats:
+      - say: |
+          Large weights let the output change sharply between neighbouring points, which is how a network bends around
+          noisy examples. **L2 regularization** adds $\tfrac{\lambda}{2}\sum w^2$ to the loss, with $\lambda$ ("lambda")
+          setting the price.
+        define: [l2-regularization]
+      - say: |
+          One weight: the data alone prefer $w = 3$, with loss $\tfrac12(w - 3)^2$. The curve shows that with
+          $\lambda = 0$.
+        gate:
+          type: predict
+          question: 'With λ = 0.5, where is the total loss lowest?'
+          answer: { value: 2, tol: 0.01 }
+          explain: 'The best weight is $3/(1 + \lambda) = 3/1.5 = 2$: the penalty pulls it toward 0.'
+      - say: Raise the price and watch the bottom move.
+        show: [best, lam-slider]
+        gate:
+          type: when
+          prompt: Find the λ that makes the best weight 1.
+          when: 'bw.w == 1'
+          hint: '$3/(1 + \lambda) = 1$.'
+      - say: |
+          With SGD the penalty's gradient $\lambda w$ shrinks every weight by a fixed fraction $1 - \eta\lambda$ each
+          step: **weight decay**. On the network, λ = 0.01 shrank the weights from 373.9 to 23.4 and gave the lowest
+          validation loss; λ = 0.05 underfit.
+        define: [weight-decay]
+        show: [w-table]
+      - say: When does more regularization stop helping?
+        gate:
+          type: reflect
+          prompt: Early stopping, dropout and L2 all fight overfitting. Why can each of them also make a model worse?
+          model: |
+            Each makes training shorter or harder: stopping early, removing units, or charging for weights. A little
+            removes the memorizing of noise; too much stops the network from learning the real pattern, and it
+            underfits, with both losses high. Only validation loss shows where the balance is.
+      - say: One update with weight decay.
+        gate:
+          type: practice
+          template: l2-step
+    takeaway: L2 charges λ/2·Σw²; under SGD it shrinks every weight each step. Too large a λ underfits.

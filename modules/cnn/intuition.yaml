@@ -1,0 +1,744 @@
+scenes:
+  # ------------------------------------------------------------------ 1
+  - id: why-conv
+    title: Too many weights for one photo
+    goal: Why can't we just feed a photo's pixels into an ordinary network?
+    skills: [conv-why]
+    state: { side: 150, units: 512, filters: 32 }
+    derive:
+      - { fn: denseVsConv, in: { n: '@side', c: 3, units: '@units', filters: '@filters', m: 3 }, out: d }
+    stage:
+      - id: px
+        widget: Readout
+        props:
+          items:
+            - { label: 'photo side (pixels)', value: '@side' }
+            - { label: 'numbers in the photo', value: '@d.inputs', format: comma }
+      - id: dense
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: 'dense layer parameters', value: '@d.dense', format: comma, tone: bad }
+      - id: conv
+        widget: Readout
+        hidden: true
+        props:
+          items:
+            - { label: 'convolution parameters', value: '@d.conv', format: comma, tone: good }
+      - id: side-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'photo side', min: 50, max: 400, step: 10 }
+        bind: { value: side }
+    beats:
+      - say: |
+          A **model** is a recipe with adjustable numbers that turns facts about a case into a guess, here "cat" or
+          "dog". **Training** adjusts those numbers using photos whose answers we already know.
+        define: [model, training]
+      - say: |
+          A photo is a grid of **pixels**, one number per dot. A colour photo stacks three such grids, red, green and
+          blue, called **channels**. A 150 × 150 colour photo holds $150 \cdot 150 \cdot 3 = 67{,}500$ numbers.
+        define: [pixel, channel]
+      - say: |
+          The networks you have met so far use a **dense layer**: every input connects to every unit. Each connection
+          has its own **weight**, and each unit adds one **bias**.
+        define: [dense-layer, weight, bias]
+      - say: |
+          Every weight and bias is a **parameter**: a number training must learn. Picture a dense layer of 512 units on
+          those 67,500 inputs.
+        define: [parameter]
+        gate:
+          type: predict
+          question: About how many parameters does that dense layer have?
+          options: ['About 35 million', 'About 68 thousand', 'About 512 thousand', 'About 900']
+          answer: 0
+          optionFeedback:
+            '1': That is the number of inputs. Each of the 512 units needs a weight for every one of them.
+            '2': That is 1,000 per unit; each unit needs 67,500 weights.
+            '3': That is closer to what a convolution needs.
+          explain: '$(67{,}500 + 1)\cdot 512 = 34{,}560{,}512$ parameters for one layer.'
+      - say: |
+          Nearby pixels belong together: an eye is a small patch, not the whole photo. So let each output look only at
+          a small patch. That is **local connectivity**. The small grid of weights that reads one patch is a **filter**.
+        show: [dense]
+        define: [local-connectivity, filter]
+      - say: |
+          Now reuse the **same** filter at every position, so a pattern learned in one corner is found everywhere. That
+          is **parameter sharing**. A network built from such layers is a **convolutional network (CNN)**.
+        define: [parameter-sharing, cnn]
+        gate:
+          type: predict
+          question: 'A layer of 32 filters, each 3 × 3 on all 3 channels plus one bias. How many parameters?'
+          answer: { value: 896, tol: 0 }
+          explain: '$(3\cdot3\cdot3 + 1)\cdot 32 = 28\cdot 32 = 896$.'
+      - say: Change the photo size and watch both counts.
+        show: [conv, side-slider]
+        gate:
+          type: when
+          prompt: Drag the photo side to 300 or more.
+          when: 'side >= 300'
+          hint: The slider on the side sets the photo's side.
+      - say: |
+          The dense layer grows with every pixel; the convolution stays at 896. Try one with new numbers.
+        gate:
+          type: practice
+          template: dense-vs-conv-count
+      - say: Why does the convolution layer's size not depend on the photo?
+        gate:
+          type: reflect
+          prompt: In your own words, why does a convolution layer keep the same number of parameters for any photo size?
+          model: |
+            Its parameters are only the filters' weights and biases. Each filter is small and fixed in size, and the
+            same filter is reused at every position. A larger photo just means more positions for the same filter, so
+            the feature map grows but the weights do not.
+    takeaway: Local patches and one shared filter replace millions of dense weights with a few hundred.
+
+  # ------------------------------------------------------------------ 2
+  - id: conv1d-slide
+    title: Sliding a filter along a row of numbers
+    goal: What exactly does a filter compute as it moves along its input?
+    skills: [conv1d, cross-correlation]
+    data: [conv1d]
+    state: { c1Walk: 0 }
+    derive:
+      - { fn: conv1dGrid, in: { x: '@conv1d.x', w: '@conv1d.w' }, out: g }
+      - { fn: conv1dSheet, in: { x: '@conv1d.x', w: '@conv1d.w', p: 0, s: 2, walk: '@c1Walk' }, out: sh }
+    stage:
+      - id: xs
+        widget: Matrix
+        props: { data: '@g', rowHeader: row, title: 'Input x on top, the flipped filter under its first window' }
+      - id: sheet
+        widget: Matrix
+        region: side
+        props: { data: '@sh', rowHeader: output, title: 'Outputs, stride 2' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: conv1dWalk, in: { x: '@conv1d.x', w: '@conv1d.w', p: 0, s: 2 }, roles: { sheet: sheet, xs: xs }, speed: 0.6 }
+    beats:
+      - say: |
+          Start in one dimension. The input is $x = [3, 2, 1, 7, 1, 2, 5, 4]$ and the filter is $w = [0.5, 0.75, 1, 0.25]$.
+          **Convolution** first flips the filter end to end: $[0.25, 1, 0.75, 0.5]$, the bottom row.
+        define: [convolution]
+      - say: |
+          Lay the flipped filter under the first four inputs. Multiply each pair that lines up, then add the four
+          products. That sum is the first output, $y[0]$.
+        gate:
+          type: predict
+          question: What is $y[0]$?
+          answer: { value: 7, tol: 0.01 }
+          explain: '$3\cdot0.25 + 2\cdot1 + 1\cdot0.75 + 7\cdot0.5 = 0.75 + 2 + 0.75 + 3.5 = 7$.'
+      - say: |
+          Then slide. Here the filter jumps 2 cells at a time: the **stride** is $s = 2$. The next window starts at
+          position 2.
+        define: [stride]
+        gate:
+          type: predict
+          question: With 8 inputs, a filter of length 4 and stride 2, how many outputs are there?
+          options: ['2', '3', '4', '5']
+          shuffle: false
+          answer: 1
+          optionFeedback:
+            '0': Count the starts 0, 2 and 4. All three windows fit.
+            '2': A window starting at 6 would need positions 6 to 9, but the input ends at 7.
+            '3': That is the count for stride 1.
+          explain: Windows start at 0, 2 and 4; a start at 6 would hang over the end.
+      - say: Play all three stops.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          $y = [7, 9, 8]$. PyTorch and Keras skip the flip: they slide the filter **as written**. That is
+          **cross-correlation**.
+        define: [cross-correlation]
+        gate:
+          type: predict
+          question: With the filter as written, $[0.5, 0.75, 1, 0.25]$, what is the first output?
+          answer: { value: 5.75, tol: 0.01 }
+          explain: '$3\cdot0.5 + 2\cdot0.75 + 1\cdot1 + 7\cdot0.25 = 1.5 + 1.5 + 1 + 1.75 = 5.75$, not 7.'
+      - say: |
+          Different numbers. With the flipped filter, cross-correlation gives exactly the convolution's numbers. A
+          network learns its filter, so it simply learns the flipped one. Now slide one yourself.
+        gate:
+          type: practice
+          template: conv1d-out
+    takeaway: Flip the filter, slide it by the stride, and add the lined-up products at each stop.
+
+  # ------------------------------------------------------------------ 3
+  - id: padding-size
+    title: Padding, stride and the output size
+    goal: How long is the output, and how can we stop it from shrinking?
+    skills: [padding-stride]
+    data: [pad1d]
+    state: { n: 8, m: 3, pp: 0, ss: 1 }
+    derive:
+      - { fn: padModes, in: { x: '@pad1d.x', w: '@pad1d.w' }, out: pm }
+      - { fn: outSize, in: { n: '@n', m: '@m', p: '@pp', s: '@ss' }, out: os }
+    stage:
+      - id: modes
+        widget: Matrix
+        hidden: true
+        props: { data: '@pm.grid', rowHeader: padding, title: '8 values, filter [1, 1, 1]' }
+      - id: f
+        widget: Formula
+        region: bottom
+        hidden: true
+        props:
+          size: lg
+          tex: 'o = \left\lfloor \frac{\anchor{n}{n} + 2\anchor{p}{p} - \anchor{m}{m}}{\anchor{s}{s}} \right\rfloor + 1'
+      - id: p-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'padding p', min: 0, max: 3, step: 1 }
+        bind: { value: pp }
+      - id: s-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'stride s', min: 1, max: 3, step: 1 }
+        bind: { value: ss }
+      - id: o-out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'n, m', value: '8, 3' }
+            - { label: 'outputs o', value: '@os.o', tone: accent }
+    beats:
+      - say: |
+          Slide the filter $[1, 1, 1]$, which adds three neighbours, along the same 8 values with stride 1. It can only
+          sit where all three cells exist. Using no extra zeros is **valid padding**.
+        define: [valid-padding]
+        gate:
+          type: predict
+          question: How many outputs does valid padding give here?
+          answer: { value: 6, tol: 0 }
+          explain: The filter can start at positions 0 to 5, so 6 outputs. The output is shorter than the input.
+      - say: |
+          To reach the edges, add zeros at both ends: **padding**. Just enough zeros to keep the length, here one on
+          each side, is **same padding**: $p = (m - 1)/2$ for an odd-length filter.
+        define: [padding, same-padding]
+        show: [modes]
+      - say: |
+          The table also shows **full** padding, $p = m - 1$, which makes the output longer; CNNs rarely use it. One
+          rule predicts every length: the **output-size formula**.
+        define: [output-size-formula]
+        show: [f]
+        gate:
+          type: predict
+          question: 'With $n = 10$, $m = 5$, $p = 2$ and $s = 1$, how many outputs?'
+          answer: { value: 10, tol: 0 }
+          explain: '$\lfloor (10 + 4 - 5)/1 \rfloor + 1 = 9 + 1 = 10$: same padding keeps the length.'
+      - say: |
+          Now control it yourself. The input has 8 values and the filter 3. Set the stride to 2, then find the padding
+          that gives exactly 5 outputs.
+        show: [p-slider, s-slider, o-out]
+        gate:
+          type: when
+          prompt: Make the output 5 long with stride 2.
+          when: 'ss == 2 and os.o == 5'
+          hint: 'Try $p = 2$: $\lfloor (8 + 4 - 3)/2 \rfloor + 1$.'
+      - say: |
+          The floor ⌊ ⌋ rounds down: with stride 2, a last jump that would hang over the end is skipped. Try one with
+          new numbers.
+        set: { pp: 2, ss: 2 }
+        gate:
+          type: practice
+          template: out-size
+    takeaway: 'Padding adds room, stride divides it: o = ⌊(n + 2p − m)/s⌋ + 1.'
+
+  # ------------------------------------------------------------------ 4
+  - id: conv2d-grid
+    title: Convolution on an image
+    goal: How does a small filter slide over a whole picture, and what does its output show?
+    skills: [conv2d]
+    data: [conv2d, edge]
+    state: { c2Walk: 0, showEdge: 0 }
+    derive:
+      - { fn: paddedGrid, in: { X: '@conv2d.X', p: 1 }, out: xg }
+      - { fn: flippedGrid, in: { W: '@conv2d.W' }, out: wg }
+      - { fn: conv2dSheet, in: { X: '@conv2d.X', W: '@conv2d.W', p: 1, s: 2, walk: '@c2Walk' }, out: yg }
+      - { fn: matGrid, in: { M: '@edge.X' }, out: eg }
+      - { fn: conv2dSheet, in: { X: '@edge.X', W: '@edge.W', flip: false, upTo: '@showEdge' }, out: emg }
+    stage:
+      - id: xp
+        widget: Matrix
+        props: { data: '@xg', rowHeader: 'X^p', title: 'A 3 × 3 input with a ring of zeros (p = 1)' }
+      - id: wr
+        widget: Matrix
+        region: side
+        props: { data: '@wg', rowHeader: 'W^r', title: 'The filter rotated 180°' }
+      - id: out
+        widget: Matrix
+        region: side
+        props: { data: '@yg', rowHeader: 'Y', title: 'Output, stride 2' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: conv2dWalk, in: { X: '@conv2d.X', W: '@conv2d.W', p: 1, s: 2 }, roles: { out: out, xp: xp }, speed: 0.5 }
+      - id: img
+        widget: Matrix
+        hidden: true
+        props: { data: '@eg', format: int, rowHeader: img, title: 'A tiny image: bright left half (9), dark right half (0)' }
+      - id: em
+        widget: Matrix
+        hidden: true
+        props: { data: '@emg', format: int, rowHeader: map, title: 'Output of the vertical-edge filter [[1,0,−1],[1,0,−1],[1,0,−1]]' }
+    beats:
+      - say: |
+          In 2D the filter is a small square. Convolution rotates it 180°, the input gets a ring of zeros, and the filter
+          jumps 2 cells across and down. Each stop multiplies the overlapping numbers and adds them.
+        gate:
+          type: predict
+          question: 'The padded input is 5 × 5, the filter 3 × 3, the stride 2. What size is the output?'
+          options: ['2 × 2', '3 × 3', '1 × 1', '5 × 5']
+          answer: 0
+          optionFeedback:
+            '1': That is stride 1 without padding, or stride 2 on a larger grid. Here $\lfloor (5 - 3)/2 \rfloor + 1 = 2$.
+            '2': The filter fits more than once each way.
+            '3': Only same padding with stride 1 keeps the size.
+          explain: '$\lfloor (3 + 2 - 3)/2 \rfloor + 1 = 2$ each way.'
+      - say: |
+          At the top-left stop most of the window is padding. Only the cells that hold real numbers give non-zero
+          products.
+        gate:
+          type: predict
+          question: What is $Y[0, 0]$?
+          answer: { value: 4.6, tol: 0.01 }
+          explain: 'Non-zero products: $0.4\cdot2 + 0.3\cdot1 + 0.7\cdot5 = 0.8 + 0.3 + 3.5 = 4.6$.'
+      - say: Play all four stops.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          Why bother? Take a tiny image with a bright left half and a dark right half. Slide a vertical-edge filter over
+          it the way PyTorch does, as written.
+        hide: [player]
+        show: [img]
+        gate:
+          type: predict
+          question: Where will the filter's output be large?
+          options: ['Only in the two middle columns, where bright meets dark', 'Everywhere on the bright half', 'Only on the dark half', 'Nowhere: every output is 0']
+          answer: 0
+          optionFeedback:
+            '1': On the flat bright part, $9 - 9 = 0$ in every row.
+            '2': On the dark part, $0 - 0 = 0$.
+            '3': Windows that straddle the edge give $9 - 0$ in every row.
+          explain: 'Left column minus right column is 0 on flat areas and $3 \times 9 = 27$ across the edge.'
+      - say: |
+          The output is a **feature map**: a picture of **where** the filter's pattern appears. This filter's numbers add
+          up to 0, so flat areas vanish and only edges remain. A blur's numbers add up to 1 and keep the brightness.
+        set: { showEdge: 99 }
+        show: [em]
+        define: [feature-map]
+      - say: Now compute one output yourself.
+        gate:
+          type: practice
+          template: conv2d-cell
+    takeaway: A 2D filter slides across and down; its feature map lights up wherever the input looks like it.
+
+  # ------------------------------------------------------------------ 5
+  - id: max-pool
+    title: Max pooling
+    goal: How can a network shrink its feature maps without losing the strong signals?
+    skills: [pooling]
+    data: [pool]
+    state: { poolWalk: 0 }
+    derive:
+      - { fn: matGrid, in: { M: '@pool.X1' }, out: g1 }
+      - { fn: matGrid, in: { M: '@pool.X2' }, out: g2 }
+      - { fn: poolSheet, in: { X: '@pool.X1', walk: '@poolWalk' }, out: ps }
+      - { fn: poolSame, in: { X1: '@pool.X1', X2: '@pool.X2' }, out: same }
+      - { fn: shiftCols, in: { X: '@pool.X1', k: 1 }, out: sh }
+    stage:
+      - id: pin
+        widget: Matrix
+        props: { data: '@g1', format: int, rowHeader: X1, title: 'A 6 × 6 feature map, X1' }
+      - id: pout
+        widget: Matrix
+        region: side
+        props: { data: '@ps', format: int, rowHeader: pooled, title: 'X1 after 2 × 2 max pooling' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: poolWalk, in: { X: '@pool.X1' }, roles: { pin: pin, pout: pout }, speed: 0.8 }
+      - id: x2
+        widget: Matrix
+        hidden: true
+        props: { data: '@g2', format: int, rowHeader: X2, title: 'A different map, X2' }
+      - id: x2p
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { data: '@same.grid2', format: int, rowHeader: pooled, title: 'X2 after 2 × 2 max pooling' }
+      - id: shifted
+        widget: Matrix
+        region: side
+        hidden: true
+        props: { data: '@sh.pooledGrid', format: int, rowHeader: pooled, title: 'X1 shifted one column right, then pooled' }
+    beats:
+      - say: |
+          Cut the map into 2 × 2 squares and keep only the **largest** number in each. That is **max pooling**. The
+          6 × 6 map becomes 3 × 3.
+        define: [max-pooling]
+        gate:
+          type: predict
+          question: 'The middle square covers rows 2–3 and columns 2–3: 150, 0, 10, 10. What does it become?'
+          answer: { value: 150, tol: 0 }
+          explain: The largest of 150, 0, 10 and 10 is 150.
+      - say: Play the nine squares.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          **Average pooling** keeps the mean of each square instead. Pooling has no weights at all: nothing to learn.
+        define: [average-pooling]
+        gate:
+          type: predict
+          question: 'What would average pooling give for the top-left square (10, 255, 70, 255)?'
+          answer: { value: 147.5, tol: 0.01 }
+          explain: '$(10 + 255 + 70 + 255)/4 = 590/4 = 147.5$, where max pooling keeps 255.'
+      - say: Here is a quite different map, X2.
+        show: [x2]
+        gate:
+          type: predict
+          question: Will X2 give the same pooled map as X1?
+          options: ['Yes, exactly the same', 'No, every value changes', 'Only the first row matches', 'No, it gives a 2 × 2 map']
+          answer: 0
+          optionFeedback:
+            '1': 'Check each square''s largest value; they all match.'
+            '2': All nine largest values match, not just the first row.
+            '3': A 6 × 6 map always pools to 3 × 3.
+          explain: Each square's largest value is the same in both, so small changes elsewhere vanish.
+      - say: |
+          Same result. But shift X1 one column to the right: numbers move into different squares, and several pooled
+          values change. The robustness has limits.
+        show: [x2p, shifted]
+        gate:
+          type: reflect
+          prompt: Why does max pooling help a CNN, and why does a one-column shift still change some of its outputs?
+          model: |
+            Pooling halves each map, so later layers do less work, and it has nothing to learn. It keeps only each
+            square's strongest value, so small changes that leave that value alone do not matter. A whole-column shift
+            moves the strong values into different squares, so some squares now hold a different largest number.
+      - say: Pool one square yourself.
+        gate:
+          type: practice
+          template: pool-cell
+    takeaway: Max pooling keeps each square's strongest value, halving the map with no parameters.
+
+  # ------------------------------------------------------------------ 6
+  - id: shape-table
+    title: A whole CNN, layer by layer
+    goal: How big is each layer of a digit-reading network, and how many numbers does it learn?
+    skills: [cnn-shapes]
+    data: [mnist]
+    state: { tblWalk: 0, tblUp: 0 }
+    derive:
+      - { fn: cnnTable, in: { input: '@mnist.input', spec: '@mnist.spec', upTo: '@tblUp', walk: '@tblWalk' }, out: t }
+    stage:
+      - id: tbl
+        widget: Matrix
+        props: { data: '@t.grid', rowHeader: layer, title: 'The MNIST CNN (28 × 28 grey digits)' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: cnnWalk, in: { input: '@mnist.input', spec: '@mnist.spec', stopAt: 8 }, roles: { tbl: tbl }, speed: 0.5 }
+      - id: total-out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'total parameters', value: '@t.total', format: comma, tone: good }
+    beats:
+      - say: |
+          A CNN repeats three steps: convolution, then **ReLU**, which turns negative values into 0, then pooling. These
+          stages form the **convolutional base**. Here the input is one 28 × 28 grey digit.
+        define: [relu, convolutional-base]
+      - say: |
+          On a multi-channel input each filter has a 3 × 3 slice **for every channel**, and the products from all
+          channels are added into one feature map. The first layer has 32 filters on 1 channel.
+        gate:
+          type: predict
+          question: How many parameters does the first convolution layer have?
+          answer: { value: 320, tol: 0 }
+          explain: '$(3\cdot3\cdot1 + 1)\cdot 32 = 10\cdot 32 = 320$.'
+      - say: |
+          It outputs 26 × 26 × 32: 32 feature maps. The pool halves that to 13 × 13 × 32. The next convolution has 64
+          filters, each spanning all 32 channels.
+        gate:
+          type: predict
+          question: How many parameters does the second convolution layer have?
+          answer: { value: 18496, tol: 0 }
+          explain: '$(3\cdot3\cdot32 + 1)\cdot 64 = 289\cdot 64 = 18{,}496$.'
+      - say: |
+          Its output is 11 × 11 × 64. Then another 2 × 2 pool.
+        gate:
+          type: predict
+          question: What size does pooling turn 11 × 11 into?
+          options: ['5 × 5', '6 × 6', '5.5 × 5.5', '11 × 11']
+          answer: 0
+          optionFeedback:
+            '1': Rounding up would need a square hanging over the edge; the floor drops it.
+            '2': Sizes are whole numbers; the formula rounds down.
+            '3': Pooling with stride 2 halves the side.
+          explain: '$\lfloor (11 - 2)/2 \rfloor + 1 = 5$: the last row and column are dropped.'
+      - say: |
+          At the end, **flatten** unrolls the maps into one long list, and the **classifier**, ordinary dense layers,
+          reads it.
+        define: [flatten, classifier-head]
+      - say: |
+          **Dropout** switches off half of the 64 values at random during training only. The last layer outputs 10 raw
+          scores, one per digit, called **logits**. Play the table up to dropout.
+        define: [dropout, logit]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: One row is left, the last dense layer, with 64 inputs and 10 logits.
+        gate:
+          type: predict
+          question: How many parameters does the last dense layer have?
+          answer: { value: 650, tol: 0 }
+          explain: '$(64 + 1)\cdot 10 = 650$.'
+      - say: The finished table. Pooling, flatten and dropout have no parameters.
+        hide: [player]
+        set: { tblUp: 9 }
+        show: [total-out]
+        gate:
+          type: practice
+          template: conv-params
+    takeaway: Convolutions trim the side and set the channels, pools halve it, flatten multiplies out; only conv and dense layers learn.
+
+  # ------------------------------------------------------------------ 7
+  - id: overfit-augment
+    title: When the network memorizes the photos
+    goal: How can we tell that a network is memorizing its training photos, and how do we stop it?
+    skills: [overfit-augment]
+    data: [noaug, aug]
+    derive:
+      - { fn: curves, in: { hist: '@noaug' }, out: cn }
+      - { fn: bothAcc, in: { a: '@noaug', b: '@aug' }, out: both }
+    stage:
+      - id: loss-chart
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@cn.loss', xLabel: epoch, yLabel: loss, title: 'Small CNN, no augmentation (an illustrative run)' }
+      - id: best
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'lowest validation loss at epoch', value: '@cn.bestEpoch', tone: good }
+            - { label: 'final training accuracy', value: '@cn.finalTrainAcc', format: 3 }
+            - { label: 'final validation accuracy', value: '@cn.finalValAcc', format: 3, tone: bad }
+      - id: acc-chart
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@both.series', xLabel: epoch, yLabel: accuracy, title: 'Accuracy with and without augmentation (illustrative)' }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: rot, label: 'Rotate a training photo by 30°' }
+            - { id: flip, label: 'Mirror a training photo left to right' }
+            - { id: zoom, label: 'Zoom a training photo in by 15%' }
+            - { id: val, label: 'Rotate the validation photos' }
+            - { id: label, label: 'Relabel a rotated cat as a dog' }
+          bins:
+            - { id: ok, label: 'Good augmentation' }
+            - { id: bad, label: 'Breaks the evaluation or the labels' }
+          solution: { rot: ok, flip: ok, zoom: ok, val: bad, label: bad }
+          check: instant
+    beats:
+      - say: |
+          The cats-vs-dogs photos are split three ways. The **training set** (2,000 photos) is what the network learns
+          from. The **validation set** (1,000) is checked as training goes. A **test set** is used once at the end;
+          this dataset has none.
+        define: [training-set, validation-set, test-set]
+      - say: |
+          One **epoch** is one full pass over the training photos. After each epoch we record the loss, how wrong the
+          network is, on both sets. Training loss keeps falling as the network studies its photos.
+        define: [epoch]
+        gate:
+          type: predict
+          question: With only 2,000 photos, what happens to validation loss after many epochs?
+          options: ['It falls for a while, then rises', 'It keeps falling with the training loss', 'It stays flat from the start', 'It rises from the very first epoch']
+          answer: 0
+          optionFeedback:
+            '1': Training loss keeps falling, but the network starts learning details that only fit its own photos.
+            '2': The network does learn something general at first, so it falls at first.
+            '3': Early epochs teach general patterns, so validation loss falls first.
+          explain: Early on the network learns patterns that generalize; later it memorizes its own photos.
+      - say: |
+          This is a drawn example of a typical run. Validation loss bottoms out early and then climbs while training
+          loss keeps falling. That is **overfitting**: memorizing the training photos instead of the general pattern.
+        define: [overfitting]
+        show: [loss-chart, best]
+      - say: |
+          The fix: **data augmentation**. Each epoch, show randomly rotated, shifted, zoomed or mirrored versions of the
+          training photos. A rotated cat is still a cat, so the network cannot memorize exact pixels.
+        define: [data-augmentation]
+        gate:
+          type: predict
+          question: With augmentation, what happens to **training** accuracy compared with the run without it?
+          options: ['It is lower', 'It is higher', 'It is the same', 'It drops to 50%']
+          answer: 0
+          optionFeedback:
+            '1': The photos keep changing, so the training task is harder.
+            '2': The task changed, because no two epochs show the same photos.
+            '3': The network still learns; it just cannot memorize.
+          explain: Training gets harder, so training accuracy is lower, but validation accuracy holds up better.
+      - say: |
+          Lower training accuracy, but a much smaller gap, and validation keeps improving. The course slides report
+          about 70–73% without augmentation and 83–85% with it after long training.
+        show: [acc-chart]
+      - say: Sort these changes.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Place every card in the right bin.
+          target: bins
+          event: solved
+          hint: Augmentation changes training pictures, never labels, never the validation photos.
+      - say: Why must the validation photos stay untouched?
+        gate:
+          type: reflect
+          prompt: Why is augmentation applied only to training photos, and why does training accuracy fall when you use it?
+          model: |
+            Validation photos must measure how the network does on real, unchanged photos, so we never alter them.
+            Augmented training photos change every epoch, so the network cannot memorize exact pixels; the task is
+            harder, so training accuracy is lower, but the network learns patterns that carry over to new photos.
+      - say: Read a run yourself.
+        gate:
+          type: practice
+          template: best-epoch
+    takeaway: A widening train–validation gap means overfitting; augmenting only the training photos narrows it.
+
+  # ------------------------------------------------------------------ 8
+  - id: transfer
+    title: Borrowing a network that has already learned to see
+    goal: With only 2,000 photos, how can we get a network that sees as well as one trained on a million?
+    skills: [transfer]
+    data: [vgg16]
+    derive:
+      - { fn: vgg, in: { input: '@vgg16.input', blocks: '@vgg16.blocks', head: 256 }, out: v }
+    stage:
+      - id: blocks
+        widget: Text
+        props:
+          body: |
+            **VGG16's base:** block 1, 2 convs with 64 filters · block 2, 2 × 128 · block 3, 3 × 256 · block 4,
+            3 × 512 · block 5, 3 × 512. Every conv is 3 × 3 with same padding; every block ends with a 2 × 2 max pool.
+      - id: sizes
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'sides after each pool', value: '{=v.sizesText}' }
+            - { label: 'features per photo', value: '@v.features', format: comma, tone: accent }
+      - id: counts
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'frozen base', value: '@v.base', format: comma, tone: muted }
+            - { label: 'trainable head', value: '@v.head', format: comma, tone: good }
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: once, label: 'The base runs once per photo; features are stored' }
+            - { id: fast, label: 'Very fast to train' }
+            - { id: noaug, label: 'Augmentation is impossible' }
+            - { id: block5, label: 'Block 5 is retrained with the head' }
+            - { id: tiny, label: 'Uses a tiny learning rate, about 0.00001' }
+            - { id: aug, label: 'Augmentation is possible' }
+          bins:
+            - { id: fe, label: 'Feature extraction' }
+            - { id: ft, label: 'Fine-tuning' }
+          solution: { once: fe, fast: fe, noaug: fe, block5: ft, tiny: ft, aug: ft }
+          check: instant
+    beats:
+      - say: |
+          A **pre-trained network** has already been trained on a huge dataset, usually **ImageNet**: about 1.4 million
+          photos in 1,000 classes, cats and dogs included. Its base already detects edges, textures, ears and eyes.
+        define: [pretrained-network, imagenet]
+      - say: |
+          **Transfer learning** keeps that base, throws away its old 1,000-class classifier, and trains a new one for our
+          two classes. The base here is **VGG16**: 13 convolution layers in 5 blocks, plus 3 dense layers we drop.
+        define: [transfer-learning, vgg16]
+        gate:
+          type: predict
+          question: 'Same padding keeps each block''s side; each pool halves it, rounding down. Starting from 150, what is the side after block 5?'
+          answer: { value: 4, tol: 0 }
+          explain: '$150 \to 75 \to 37 \to 18 \to 9 \to 4$.'
+      - say: Each photo becomes $4 \cdot 4 \cdot 512 = 8{,}192$ numbers.
+        show: [sizes]
+      - say: |
+          **Feature extraction**: run every photo through the base once, store its 8,192 features, and train a small new
+          classifier on them. The base is a **frozen layer** stack: its weights are never updated.
+        define: [feature-extraction, frozen-layer]
+        gate:
+          type: predict
+          question: 'The new head has 256 units and one output. About how many parameters are trained?'
+          options: ['About 2.1 million: only the new head', 'About 16.8 million: base and head', 'About 14.7 million: only the base', 'None: everything is pre-trained']
+          answer: 0
+          optionFeedback:
+            '1': The base is frozen, so its 14.7 million weights do not train.
+            '2': The base is the part that stays fixed.
+            '3': The new head starts untrained and must learn.
+          explain: '$(8{,}192 + 1)\cdot256 + (256 + 1) = 2{,}097{,}665$, while 14,714,688 base weights stay frozen.'
+      - say: |
+          Borrowed features usually jump validation accuracy to about 90%. Then **fine-tuning**: unfreeze only block 5
+          and train it with the classifier at a tiny learning rate, about $10^{-5}$, with augmentation. The slides
+          report about 94%.
+        define: [fine-tuning]
+        show: [counts]
+      - say: Sort what belongs to each method.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Place every card.
+          target: bins
+          event: solved
+          hint: Feature extraction never runs the base again; fine-tuning does.
+      - say: Why freeze the base before the head is trained?
+        gate:
+          type: reflect
+          prompt: Why is reusing a pre-trained base better than training from scratch on 2,000 photos, and why must the base stay frozen until the new classifier is trained?
+          model: |
+            2,000 photos are too few to learn good general features, so a CNN trained from scratch overfits. The
+            ImageNet base already has those features. A brand-new classifier makes large random errors at first; if
+            the base could change then, those errors would overwrite what it learned. Once the head is trained, the top
+            block can be nudged gently with a tiny learning rate.
+      - say: Count the trainable parameters for a different head.
+        gate:
+          type: practice
+          template: vgg-trainable
+    takeaway: Reuse a pre-trained base, freeze it, train a small head, then gently fine-tune the top block.

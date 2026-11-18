@@ -1,0 +1,682 @@
+scenes:
+  # ------------------------------------------------------------------ 1
+  - id: order-matters
+    title: Same words, different story
+    goal: Why can two reviews with exactly the same words mean opposite things?
+    skills: [seq-order]
+    data: [reviews]
+    state: { carry: 0.8 }
+    derive:
+      - { fn: bagOfWords, in: { a: '@reviews.a', b: '@reviews.b' }, out: bw }
+      - { fn: notesChart, in: { a: '@reviews.a', b: '@reviews.b', carry: '@carry' }, out: nc }
+    stage:
+      - id: counts
+        widget: Matrix
+        props: { data: '@bw.grid', format: int, rowHeader: word, title: 'Word counts of the two reviews' }
+      - id: summary-chart
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@nc.series', xLabel: word number, yLabel: running summary }
+      - id: finals
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'final summary, review 1', value: '@nc.finalA', format: 3 }
+            - { label: 'final summary, review 2', value: '@nc.finalB', format: 3 }
+      - id: carry-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'carry (how much of the old summary is kept)', min: 0, max: 1, step: 0.1 }
+        bind: { value: carry }
+    beats:
+      - say: |
+          A **model** is a recipe with adjustable numbers that turns facts into a guess, here "positive" or "negative".
+          **Training** adjusts those numbers using reviews whose answers are known.
+        define: [model, training]
+      - say: |
+          A review is a **sequence**: its words arrive in an order that carries meaning. Each position, word 1, word 2
+          and so on, is a **time step**.
+        define: [sequence, time-step]
+      - say: |
+          Review 1 reads "the first half was good but the ending was bad". Review 2 swaps *good* and *bad*. Describing
+          a text only by how often each word appears is a **bag of words**.
+        define: [bag-of-words]
+        gate:
+          type: predict
+          question: Do the two reviews look different to a bag-of-words model?
+          options: ['No, their counts are identical', 'Yes, review 1 has more negative words', 'Yes, review 2 is longer', 'Only if "but" is counted twice']
+          answer: 0
+          optionFeedback:
+            '1': Each review has one "good" and one "bad".
+            '2': Both have the same ten words.
+            '3': '"but" appears once in each.'
+          explain: Every word appears the same number of times in both, as the table shows. Only the order differs.
+      - say: |
+          Read the words in order instead, and keep notes. Score *good* as +1, *bad* as −1, anything else 0, and update
+          $h_t = \tanh(0.8\,h_{t-1} + x_t)$ from $h_0 = 0$. The running notes are a **hidden state**.
+        define: [hidden-state]
+        gate:
+          type: predict
+          question: Review 1 ends with "bad". What sign will its final summary have?
+          options: ['Negative', 'Positive', 'Exactly zero', 'It depends on the review length only']
+          answer: 0
+          optionFeedback:
+            '1': The last scored word is "bad", and recent words weigh more.
+            '2': The +1 from "good" has faded by 0.8 several times.
+            '3': Length alone does not set the sign; the order of good and bad does.
+          explain: Review 1 ends near −0.67 and review 2 near +0.67. Same words, opposite summaries.
+      - say: |
+          The summary remembers a score after the word has passed, fading by the carry factor 0.8 at each step. Lower
+          the carry and see how fast the memory fades.
+        show: [summary-chart, finals, carry-slider]
+        gate:
+          type: when
+          prompt: Set the carry to 0.3 or below.
+          when: 'carry <= 0.3'
+          hint: Drag the slider on the side to the left.
+      - say: With little carry, the summary forgets "good" almost at once. Check yourself.
+        set: { carry: 0.8 }
+        gate:
+          type: practice
+          template: order-mcq
+    takeaway: Order carries meaning; a hidden state is a running summary that remembers, with fading weight, what came before.
+
+  # ------------------------------------------------------------------ 2
+  - id: task-types
+    title: What goes in, what comes out
+    goal: Which sequence problems look alike, and how do they differ?
+    skills: [seq-categories]
+    stage:
+      - id: types
+        widget: Text
+        props:
+          body: |
+            **One-to-one:** one photo → one label. **One-to-many:** one input → a sequence. **Many-to-one:** a sequence →
+            one output. **Many-to-many:** a sequence → a sequence, aligned (one output per step) or delayed (read all,
+            then write).
+      - id: bins
+        widget: DropBins
+        hidden: true
+        props:
+          chips:
+            - { id: caption, label: 'Photo → caption' }
+            - { id: review, label: 'Review → positive or negative' }
+            - { id: forecast, label: '12 months → month 13' }
+            - { id: tagging, label: 'Sentence → one tag per word' }
+            - { id: translate, label: 'English → Filipino sentence' }
+          bins:
+            - { id: o2m, label: 'one-to-many' }
+            - { id: m2o, label: 'many-to-one' }
+            - { id: m2m, label: 'many-to-many' }
+          solution: { caption: o2m, review: m2o, forecast: m2o, tagging: m2m, translate: m2m }
+          check: instant
+    beats:
+      - say: |
+          Sequence tasks are sorted by what goes in and what comes out. A **many-to-one** task reads a whole sequence,
+          then gives one output. A **one-to-many** task turns one input into a sequence.
+        define: [many-to-one, one-to-many]
+        gate:
+          type: predict
+          question: Forecasting next month from the last 12 months is which type?
+          options: ['many-to-one', 'one-to-many', 'one-to-one', 'many-to-many']
+          answer: 0
+          optionFeedback:
+            '1': The input is 12 values, not one.
+            '2': The input is a sequence.
+            '3': Only one value comes out.
+          explain: Twelve months in, one forecast out.
+      - say: |
+          In a **many-to-many** task both sides are sequences: aligned, one output per input step, or delayed, the whole
+          input read before any output is written.
+        define: [many-to-many]
+        gate:
+          type: predict
+          question: Translating an English sentence into Filipino is which kind of many-to-many?
+          options: ['Delayed: read the whole sentence first, then write', 'Aligned: one Filipino word per English word', 'It is many-to-one', 'It is one-to-many']
+          answer: 0
+          optionFeedback:
+            '1': Word counts and word order differ between languages, so outputs cannot line up step by step.
+            '2': The output is a whole sentence, not one value.
+            '3': The input is a whole sentence, not one item.
+          explain: The whole input is read before the output sequence is written.
+      - say: Now sort these tasks by type.
+        show: [bins]
+        gate:
+          type: event
+          prompt: Sort every task.
+          target: bins
+          event: solved
+          hint: Count how many outputs each task needs, and when.
+      - say: |
+          These types describe the problem, not the model: sentiment can also come from word counts, and translation
+          today mostly uses Transformers. Both of this module's applications are many-to-one.
+        gate:
+          type: practice
+          template: categories-mcq
+    takeaway: Name the task by its inputs and outputs; the RNN is one way to handle each type.
+
+  # ------------------------------------------------------------------ 3
+  - id: rnn-cell
+    title: The recurrent cell
+    goal: How does a network carry what it has seen into the next step?
+    skills: [rnn-cell]
+    state: { hp: 0 }
+    derive:
+      - { fn: rnnStep, in: { x: 1, hprev: '@hp', wxh: 0.5, whh: 0.8, bh: 0.1 }, out: st }
+    stage:
+      - id: f
+        widget: Formula
+        props:
+          size: lg
+          tex: 'h_t = \anchor{tanh}{\tanh}\big(\anchor{new}{W_{xh}x_t} + \anchor{mem}{W_{hh}h_{t-1}} + \anchor{b}{b_h}\big)'
+      - id: step-out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'previous state', value: '@hp' }
+            - { label: 'z', value: '@st.z', format: 4 }
+            - { label: 'new state h_t', value: '@st.h', format: 4, tone: accent }
+      - id: hp-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'previous state h_(t−1)', min: -1, max: 1, step: 0.1 }
+        bind: { value: hp }
+    beats:
+      - say: |
+          A **recurrent network (RNN)** has one extra arrow: a **recurrent connection** that feeds the hidden layer's
+          own previous value, $h_{t-1}$, back in at the next step.
+        define: [rnn, recurrent-connection]
+      - say: |
+          Each arrow has a **weight**, and each unit adds a **bias**. Every weight and bias the network learns is a
+          **parameter**. $W_{xh}$ weighs what is new, $W_{hh}$ what is remembered.
+        define: [weight, bias, parameter]
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:mem', tone: accent } }
+      - say: |
+          The sum is squashed by **tanh**, an S-curve that keeps every state between −1 and 1. Take one unit with
+          $w_{xh} = 0.5$, $w_{hh} = 0.8$, $b_h = 0.1$, the input $x_t = 1$ and the previous state $0.9$.
+        define: [tanh]
+        gate:
+          type: predict
+          question: 'What is $z = 0.5\cdot1 + 0.8\cdot0.9 + 0.1$?'
+          answer: { value: 1.32, tol: 0.01 }
+          explain: '$0.5 + 0.72 + 0.1 = 1.32$, and $h_t = \tanh(1.32) = 0.8668$.'
+      - say: Now feed the same input $x_t = 1$ after different pasts.
+        show: [step-out, hp-slider]
+        gate:
+          type: when
+          prompt: Find a previous state that makes the new state negative.
+          when: 'st.h < 0'
+          hint: 'The new part adds 0.6; the memory term must pull below −0.6.'
+      - say: |
+          Same input, different result: what the network makes of $x_t$ depends on what came before. The weights have no
+          subscript $t$: the same **shared weights** serve every step. Drawing one copy of the cell per step is
+          **unfolding**; the copies share one set of weights.
+        define: [shared-weights, unfolding]
+        set: { hp: -0.9 }
+      - say: Check the difference between the state and the output.
+        gate:
+          type: practice
+          template: hidden-not-output
+    takeaway: Each step mixes the new input with the previous state through shared weights, then squashes with tanh.
+
+  # ------------------------------------------------------------------ 4
+  - id: forward-hand
+    title: Running an RNN by hand
+    goal: What does a tiny RNN remember as it reads three numbers?
+    skills: [rnn-forward, rnn-params]
+    data: [toy]
+    state: { rnnWalk: 0, rnnUp: 0, showY: false }
+    derive:
+      - { fn: rnnSheet, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', upTo: '@rnnUp', walk: '@rnnWalk' }, out: sh }
+      - { fn: rnnForward, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why' }, out: f }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { data: '@sh', rowHeader: step, title: 'w_xh = 0.5, w_hh = 0.8, b_h = 0.1, h_0 = 0' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: rnnWalk, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', from: 1 }, roles: { sheet: sheet }, speed: 0.5 }
+      - id: yout
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'final state h_3', value: '@f.hT', format: 4 }
+            - { label: 'prediction 2·h_3', value: '@f.yhat', format: 4, tone: good }
+    beats:
+      - say: |
+          One input feature, one hidden unit, three steps: $x = (1, 0, -0.5)$ and $h_0 = 0$. At step 1 the memory term is
+          $0.8 \cdot 0 = 0$.
+        gate:
+          type: predict
+          question: 'What is $h_1 = \tanh(0.5\cdot1 + 0 + 0.1)$? (3 decimals)'
+          answer: { value: 0.537, tol: 0.002 }
+          explain: '$z_1 = 0.6$ and $\tanh(0.6) = 0.5370$.'
+      - say: Play steps 2 and 3, each feeding the state forward.
+        set: { rnnUp: 1 }
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          At step 2 the input is 0, yet $h_2 = 0.4851$: the network remembers $x_1$. At step 3 the input is negative,
+          yet $h_3$ stays positive. A many-to-one task now applies the output layer once, $\hat y = 2\,h_3$, giving the
+          **prediction**.
+        define: [prediction]
+        gate:
+          type: predict
+          question: 'What is $\hat y = 2 \times 0.2337$? (3 decimals)'
+          answer: { value: 0.467, tol: 0.002 }
+          explain: '$\hat y = 0.4674$: a different number from the hidden state.'
+      - say: |
+          How many parameters does such a layer have? $W_{xh}$ is $m \times d$, $W_{hh}$ is $m \times m$, $b_h$ has $m$,
+          once, for any length. The sentiment model reads $d = 32$ numbers per word with $m = 32$ units.
+        hide: [player]
+        set: { rnnUp: 3 }
+        show: [yout]
+        gate:
+          type: predict
+          question: 'How many parameters is $32(32 + 32 + 1)$?'
+          answer: { value: 2080, tol: 0 }
+          explain: '$32 \times 65 = 2{,}080$; PyTorch adds a second bias of 32, giving 2,112.'
+      - say: Run one step yourself.
+        gate:
+          type: practice
+          template: forward-h
+    takeaway: Carry each hidden state into the next step; read the output once, from the last state.
+
+  # ------------------------------------------------------------------ 5
+  - id: tanh-memory
+    title: tanh and how long memory lasts
+    goal: Why squash the state, and what decides how long a network remembers?
+    skills: [tanh-memory]
+    state: { z: 0.5, whh: 0.5 }
+    derive:
+      - { fn: tanhAt, in: { z: '@z' }, out: t }
+      - { fn: spikeChart, in: { ws: [0.5, 0.8, 0.95, 1.2] }, out: sc }
+      - { fn: spike, in: { whh: '@whh' }, out: sp }
+    stage:
+      - id: tplot
+        widget: FunctionPlot
+        props: { fn: tanhCurve, domain: [-4, 4], showTangent: true, xLabel: z, yLabel: '\tanh z' }
+        bind: { x: z }
+      - id: tvals
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'tanh(z)', value: '@t.tanh', format: 4 }
+            - { label: 'slope 1 − tanh²', value: '@t.slope', format: 4 }
+      - id: spikes
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@sc.series', xLabel: step, yLabel: h_t, title: 'What remains of one spike x_1 = 1' }
+      - id: whh-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'recurrent weight w_hh', min: 0, max: 1.5, step: 0.05 }
+        bind: { value: whh }
+      - id: spike-out
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'state after 15 steps', value: '@sp.last', format: 3, tone: accent }
+    beats:
+      - say: |
+          tanh keeps the state in $(-1, 1)$, so a state fed back into itself cannot blow up. It is zero-centred, so a
+          unit can hold positive or negative evidence. Near $z = 0$ its slope is 1.
+        gate:
+          type: predict
+          question: 'At $z = 2$, is the slope of tanh large or small?'
+          options: ['Small, about 0.07', 'Large, about 1', 'Exactly 0.5', 'Negative']
+          answer: 0
+          optionFeedback:
+            '1': The slope is 1 only at z = 0.
+            '2': It is 0.42 at z = 1 and falls further.
+            '3': tanh always rises, so its slope is never negative.
+          explain: '$\tanh(2) = 0.964$, slope $1 - 0.964^2 = 0.0707$.'
+      - say: |
+          Where the curve is flat the unit is in **saturation**: its slope is near 0, so little error signal passes back
+          through it. Drag the point along the curve.
+        define: [saturation]
+        show: [tvals]
+        gate:
+          type: when
+          prompt: Find a z where the slope drops below 0.01.
+          when: 't.slope < 0.01'
+          hint: Try z = 3 or beyond, or −3.
+      - say: |
+          Now memory. Feed a single spike, $x_1 = 1$, then zeros. Every step multiplies what is remembered by about
+          $w_{hh}$ times the tanh slope.
+        show: [spikes, whh-slider, spike-out]
+        gate:
+          type: when
+          prompt: Find a recurrent weight that never lets the state return to 0.
+          when: 'whh >= 1.1'
+          hint: Weights above 1 keep feeding the state back stronger.
+      - say: Why is a bounded, zero-centred state a sensible default, and what is its cost?
+        gate:
+          type: reflect
+          prompt: Why does an RNN usually squash its hidden state with tanh, and what problem does that cause?
+          model: |
+            The state is fed back into itself at every step, so an unbounded activation could let it grow without
+            limit. tanh keeps it in (−1, 1) and centred on 0, so units hold positive or negative evidence. The cost is
+            saturation: for large inputs the slope is nearly 0, so gradients shrink, and a bounded state cannot follow
+            values far outside what it saw in training.
+    takeaway: tanh bounds the state but saturates; the recurrent weight sets how long a memory lasts.
+
+  # ------------------------------------------------------------------ 6
+  - id: bptt-chain
+    title: Learning through time
+    goal: How does an error at the last step reach the weights used at the first?
+    skills: [bptt]
+    data: [toy]
+    state: { bpttWalk: 0 }
+    derive:
+      - { fn: bptt, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', lr: '@toy.lr' }, out: b }
+      - { fn: bpttSheet, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', walk: '@bpttWalk' }, out: bs }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { data: '@bs', rowHeader: step, title: 'Backward through the toy RNN (target y = 1)' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: bpttWalk, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y' }, roles: { sheet: sheet }, speed: 0.5 }
+      - id: upd
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'gradient of w_hh (sum of pieces)', value: '@b.g.whh', format: 4 }
+            - { label: 'new w_hh', value: '@b.next.whh', format: 4 }
+            - { label: 'loss before', value: '@b.L', format: 4 }
+            - { label: 'loss after one step', value: '@b.newL', format: 4, tone: good }
+    beats:
+      - say: |
+          The toy RNN predicts 0.4674 but the target is 1. The **loss** here is the squared miss,
+          $(0.4674 - 1)^2 = 0.2837$.
+        define: [loss]
+      - say: |
+          **Backpropagation** sends the error back with the chain rule. Unfolded, the RNN is a 3-layer network whose
+          layers share weights; running backpropagation on it is **Backpropagation Through Time (BPTT)**. The signal
+          starts at $h_3$: $2(\hat y - y)\,w_{hy}$.
+        define: [backpropagation, bptt]
+        gate:
+          type: predict
+          question: 'What is $\partial L/\partial h_3 = 2(0.4674 - 1)\cdot 2$? (3 decimals)'
+          answer: { value: -2.13, tol: 0.003 }
+          explain: '$2 \times (-0.5326) \times 2 = -2.1305$.'
+      - say: |
+          Each step back multiplies the signal by $w_{hh}(1 - h_t^2)$, here between 0.61 and 0.76. Play the backward pass.
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          $w_{hh}$ was used at every step, so it collects one piece per step: 0 at step 1 (it multiplied $h_0 = 0$),
+          −0.6617 at step 2 and −0.9771 at step 3.
+        gate:
+          type: predict
+          question: What single gradient does $w_{hh}$ get? (3 decimals)
+          answer: { value: -1.639, tol: 0.003 }
+          explain: '$0 - 0.6617 - 0.9771 = -1.6388$: the pieces are added.'
+      - say: |
+          **Gradient descent** then moves each weight against its gradient, scaled by the **learning rate** $\eta = 0.02$.
+          The loss falls from 0.2837 to 0.0432.
+        define: [gradient-descent, learning-rate]
+        hide: [player]
+        set: { bpttWalk: 3 }
+        show: [upd]
+      - say: Step an error back yourself.
+        gate:
+          type: practice
+          template: back-step
+    takeaway: BPTT is backpropagation on the unfolded network; shared weights add up their per-step pieces before one update.
+
+  # ------------------------------------------------------------------ 7
+  - id: fading-memory
+    title: Why long memories fade
+    goal: Why does an RNN struggle to use something it read 150 words ago?
+    skills: [vanishing]
+    state: { w: 0.9 }
+    derive:
+      - { fn: vanishTable, in: {}, out: vt }
+      - { fn: vanish, in: { w: '@w', k: 50 }, out: v50 }
+    stage:
+      - id: vplot
+        widget: FunctionPlot
+        hidden: true
+        props: { fn: vanishCurve, args: { w: '@w' }, domain: [0, 50], xLabel: steps back k, yLabel: 'signal left' }
+      - id: w-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'per-step factor w', min: 0.5, max: 1.5, step: 0.05 }
+        bind: { value: w }
+      - id: v50
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'signal after 50 steps', value: '@v50.scale', format: 4, tone: accent }
+      - id: vtab
+        widget: Matrix
+        hidden: true
+        props: { data: '@vt.grid', rowHeader: factor, title: 'w^k after 20 and 50 steps' }
+    beats:
+      - say: |
+          A **long-range dependency** links elements far apart, such as a verdict in a review's first sentence and its
+          label. The hidden state can carry it in principle; whether training learns to use it depends on BPTT.
+        define: [long-range-dependency]
+      - say: |
+          Picture every step back multiplying the signal by the same factor, $w = 0.9$. After $k$ steps it is scaled by
+          $0.9^k$.
+        gate:
+          type: predict
+          question: About how much of the signal is left 50 steps back?
+          options: ['About 0.5%', 'About 45%', 'About 10%', 'About 90%']
+          shuffle: false
+          answer: 0
+          optionFeedback:
+            '1': That treats it as 50 × 0.9, not 0.9 multiplied 50 times.
+            '2': That is roughly 20 steps back.
+            '3': That is one step back.
+          explain: '$0.9^{50} \approx 0.00515$.'
+      - say: |
+          That is a **vanishing gradient**: early steps get almost no signal. With a factor above 1 the signal grows
+          instead, an **exploding gradient**. Change the factor.
+        define: [vanishing-gradient, exploding-gradient]
+        show: [vplot, w-slider, v50, vtab]
+        gate:
+          type: when
+          prompt: Make the signal explode past 100 after 50 steps.
+          when: 'v50.scale > 100'
+          hint: A factor of 1.1 already gives about 117.
+      - say: |
+          In the trained sentiment model, a "terrible" verdict at the end flipped the prediction to 0.03; the same
+          verdict 150 words earlier left it near 0.97. **Gradient clipping** caps huge gradients; **truncated BPTT**
+          stops after $k$ steps. Neither restores a vanished signal.
+        define: [gradient-clipping, truncated-bptt]
+        set: { w: 0.9 }
+        gate:
+          type: reflect
+          prompt: The hidden state passes from every step to the next. Why doesn't that guarantee the network learns to use information from 150 steps back?
+          model: |
+            Carrying the state is not the same as learning to use it. Training needs the error signal to reach the early
+            steps, and BPTT multiplies it by a factor at every step back. Factors below 1, made smaller by tanh
+            saturation, shrink it toward zero over 150 steps, so the weights get almost no information about how early
+            words affected the loss.
+      - say: Compute a fading signal yourself.
+        gate:
+          type: practice
+          template: vanish-num
+    takeaway: Repeated multiplication over many steps makes gradients vanish or explode; clipping only fixes the explosions.
+
+  # ------------------------------------------------------------------ 8
+  - id: sentiment
+    title: Reading movie reviews
+    goal: How do we turn 25,000 movie reviews into something an RNN can learn from?
+    skills: [sentiment]
+    data: [imdbhist, imdbtest]
+    derive:
+      - { fn: historyChart, in: { table: '@imdbhist' }, out: hc }
+      - { fn: confusion, in: { tn: '@imdbtest.tn', fp: '@imdbtest.fp', fn: '@imdbtest.fn', tp: '@imdbtest.tp' }, out: cm }
+      - { fn: padPre, in: { ids: [1, 14, 22, 16], maxLen: 6 }, out: pp }
+    stage:
+      - id: pipeline
+        widget: Text
+        props:
+          body: |
+            **Review ids** (1 = start, 2 = unknown, 0 = padding) → **embedding** (32 numbers per word) → **RNN** (32
+            units, final state) → **dense** (one score) → **sigmoid** → P(positive).
+      - id: hist
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@hc.acc', xLabel: epoch, yLabel: accuracy, title: 'Training vs validation accuracy' }
+      - id: cmat
+        widget: Matrix
+        hidden: true
+        props: { data: '@cm.grid', format: int, rowHeader: actual, title: '25,000 test reviews' }
+    beats:
+      - say: |
+          Each word is an id, but id 75 is a label, not a quantity. An **embedding** is a trainable table with one row
+          of 32 numbers per word; the id picks its row. Reviews are cut or padded to 200 ids: **sequence padding**.
+        define: [embedding, sequence-padding]
+        gate:
+          type: predict
+          question: 'With padding at the start, what does the review [1, 14, 22, 16] become at length 6?'
+          options: ['[0, 0, 1, 14, 22, 16]', '[1, 14, 22, 16, 0, 0]', '[14, 22, 16, 0, 0, 0]', '[0, 1, 14, 22, 16, 0]']
+          answer: 0
+          optionFeedback:
+            '1': That pads at the end, so the RNN would read zeros right before its final state.
+            '2': The start marker 1 is kept.
+            '3': All the zeros go in front.
+          explain: Zeros in front, so the real words are read last, right before the final hidden state.
+      - say: |
+          The dense layer gives one score; the **sigmoid** squashes it into a probability $p$. The loss is
+          **binary cross-entropy**, small when $p$ is high for the true class.
+        define: [sigmoid, binary-cross-entropy]
+      - say: |
+          The **training set** (20,000 reviews) is learned from; the **validation set** (5,000) is checked as training
+          goes; the **test set** (25,000) is used once at the end.
+        define: [training-set, validation-set, test-set]
+      - say: |
+          One **epoch** is one pass over the training reviews. Training accuracy keeps climbing while validation stalls:
+          **overfitting**. A **checkpoint** keeps the weights of the best validation epoch.
+        define: [epoch, overfitting, checkpoint]
+        show: [hist]
+        gate:
+          type: predict
+          question: Which epoch does the checkpoint restore?
+          options: ['Epoch 4', 'Epoch 6', 'Epoch 2', 'Epoch 1']
+          answer: 0
+          optionFeedback:
+            '1': Epoch 6 has the best training accuracy, not validation.
+            '2': Epoch 2 had validation accuracy 0.8558, below epoch 4's.
+            '3': Epoch 1 had barely learned.
+          explain: Validation accuracy peaked at 0.8596 in epoch 4.
+      - say: On the untouched test reviews the restored model scores this confusion matrix.
+        show: [cmat]
+        gate:
+          type: predict
+          question: 'What is the test accuracy, $(11{,}507 + 9{,}781)/25{,}000$? (as a decimal, 4 places)'
+          answer: { value: 0.8515, tol: 0.0005 }
+          explain: '$21{,}288 / 25{,}000 = 0.8515$.'
+      - say: |
+          Strong words drive it; negation and contrast ("not bad", "brilliant but boring") trip it up. A bag-of-words
+          model reaches the high 80s too, so this task needs little long-range memory.
+        gate:
+          type: practice
+          template: pad-mcq
+    takeaway: Ids → embedding → RNN → sigmoid; choose the epoch on validation, then test once.
+
+  # ------------------------------------------------------------------ 9
+  - id: forecast
+    title: Forecasting CO₂ with an RNN
+    goal: Can an RNN reading past months forecast next month better than copying last month?
+    skills: [seq-forecast]
+    data: [co2, co2val, co2test]
+    derive:
+      - { fn: windowGrid, in: { series: '@co2', size: 12, show: 2 }, out: wg }
+      - { fn: tableGrid, in: { table: '@co2val' }, out: vg }
+      - { fn: tableGrid, in: { table: '@co2test' }, out: tg }
+    stage:
+      - id: win
+        widget: Matrix
+        props: { data: '@wg', rowHeader: example, title: 'The first two windows (ppm)' }
+      - id: val
+        widget: Matrix
+        hidden: true
+        props: { data: '@vg', rowHeader: model, title: 'Validation scores (1994–1997)' }
+      - id: test
+        widget: Matrix
+        hidden: true
+        props: { data: '@tg', rowHeader: model, title: 'Test scores (1998–2001), used once' }
+    beats:
+      - say: |
+          A **sliding window** turns 516 monthly readings into examples: 12 months in order, then the next month as the
+          target, then slide one month on.
+        define: [sliding-window]
+        gate:
+          type: predict
+          question: How many (window, target) pairs do 516 months give with 12-month windows?
+          answer: { value: 504, tol: 0 }
+          explain: The first 12 months have no full window before them, so $516 - 12 = 504$.
+      - say: |
+          The data is cut by date, a **chronological split**: train to 1993, validate 1994–1997, test 1998–2001. Values
+          are rescaled by **standardization**, using the training months' mean and spread only.
+        define: [chronological-split, feature-standardization]
+      - say: |
+          The yardstick is the **naive forecast**: copy last month. Errors are scored by **MAE**, the average size of the
+          misses. On the test months the naive MAE is 1.08 ppm.
+        define: [naive-forecast, mae]
+        show: [val]
+        gate:
+          type: predict
+          question: Every test month is above the highest training value. How will an RNN on raw levels do on the test months?
+          options: ['Far worse than naive', 'Slightly better than naive', 'About as well as the best model', 'Perfectly, because it saw the trend']
+          answer: 0
+          optionFeedback:
+            '1': Validation already showed it slipping below the rising values.
+            '2': Its bounded units cannot follow values beyond training.
+            '3': It never saw values that high.
+          explain: Its test MAE was 5.12 ppm, almost five times the naive forecast's.
+      - say: |
+          The fix is **differencing**: forecast the monthly change, then add it to last month's value. The changes stay in
+          the training range. Now open the test scores.
+        define: [differencing]
+        show: [test]
+        gate:
+          type: reflect
+          prompt: The RNN on changes matched, but did not beat, a linear regression with month columns. Was the extra complexity worth it here?
+          model: |
+            Not on this evidence. The RNN cut the naive error to about a quarter, but the simpler regression did as well,
+            trains instantly, gives the same answer every time and has readable coefficients. What mattered most for both
+            was the representation: month columns for the regression, changes instead of levels for the RNN.
+      - say: Count windows yourself.
+        gate:
+          type: practice
+          template: window-count
+    takeaway: Window the series in order, split by date, beat the naive baseline, and model changes when the trend leaves the training range.

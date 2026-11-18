@@ -7,6 +7,7 @@
  *   kodigo widgets-doc <out.md>         generate WIDGETS.md from the widget catalog
  *   kodigo json-schema <out.json>       export the module JSON Schemas
  *   kodigo animation <render> <prefix>  convert a HyperFrames render to .webm + .mp4 + poster for the Animation widget
+ *   kodigo epub <dir|folder> [outDir]   write an EPUB per module (or one per course with --course <name>) for Kindle/Kobo
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -16,6 +17,7 @@ import {
 } from '@kodigo/schema';
 import { createNodeHost, readModuleDir } from '@kodigo/schema/node';
 import { parseAnimationArgs, convertAnimation } from './animation';
+import { cmdEpub } from './epubCmd';
 
 const c = {
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
@@ -132,8 +134,10 @@ async function main() {
       convertAnimation(input, out, opts);
       return;
     }
+    case 'epub':
+      return cmdEpub(rest);
     default:
-      console.log('kodigo <validate|pack|unbundle|widgets-doc|json-schema|animation> …');
+      console.log('kodigo <validate|pack|unbundle|widgets-doc|json-schema|animation|epub> …');
       if (cmd) process.exitCode = 1;
   }
 }

@@ -1,0 +1,876 @@
+templates:
+  # ------------------------------------------------------------ why order matters
+  - id: order-mcq
+    type: mcq
+    skills: [seq-order]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: order-matters }
+    prompt: '"The first half was good but the ending was bad" and "The first half was bad but the ending was good" get identical inputs from one kind of model. Which?'
+    options:
+      - A model that only counts how often each word appears
+      - A recurrent network that reads the words in order
+      - A model that reads one word per time step and keeps a running summary
+      - A model with one input column per word position
+    answer: 0
+    optionFeedback:
+      '1': An RNN reads in order, so the two reviews end with different summaries.
+      '2': That is exactly what an RNN does; it sees the order.
+      '3': Position columns keep the order, so the inputs differ.
+    explanation: Both reviews contain the same words the same number of times; only a [[bag-of-words]] view makes them identical.
+    variants:
+      - prompt: The first 24 monthly CO₂ readings are shuffled. What stays the same?
+        options:
+          - Their mean and spread
+          - The seasonal pattern
+          - Which month follows which
+          - How well next month can be forecast
+        answer: 0
+        optionFeedback:
+          '1': Shuffling destroys the seasonal pattern.
+          '2': That is exactly what shuffling changes.
+          '3': With the order gone there is nothing to forecast from.
+        explanation: The same 24 numbers have the same mean (316.43) and spread (1.80); only the order, and with it the forecastable pattern, is gone.
+      - prompt: Why can't you shuffle the months of a series before splitting it into training and test data?
+        options:
+          - The order is the information; shuffling lets the model learn from the future
+          - Shuffling changes the values of the readings
+          - Shuffling makes the series longer
+          - Shuffling removes the missing months
+        answer: 0
+        optionFeedback:
+          '1': The values stay the same; only their order changes.
+          '2': The length is unchanged.
+          '3': Shuffling does not fill or remove anything.
+        explanation: Elements of a sequence depend on each other, so the order must be kept and the split made by date.
+
+  - id: order-two-tier
+    type: two-tier
+    skills: [seq-order]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: order-matters }
+    prompt: A regression on lag columns (`lag_1` … `lag_12`) and an RNN both see the last 12 months. What does the RNN do differently?
+    options: ['It applies the same weights at every step and carries a hidden state forward', 'It gives every lag its own weight', 'It ignores the order of the 12 months']
+    answer: 0
+    reasons:
+      - Shared weights let a pattern learned at one lag be reused at any other, for any sequence length
+      - More weights always make a better forecast
+      - Order does not matter once the values are scaled
+    reasonAnswer: 0
+    optionFeedback:
+      '1': That is the lag-column regression; each column has its own coefficient.
+      '2': It reads the months strictly in order.
+    reasonFeedback:
+      '1': The RNN has fewer, shared weights, and here it did not beat the regression.
+      '2': Order is exactly what both models use.
+    explanation: Lag columns give each position its own coefficient; the RNN reuses one set of weights and a [[hidden-state]].
+
+  # ------------------------------------------------------------ task types
+  - id: categories-match
+    type: match
+    skills: [seq-categories]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: task-types }
+    prompt: Match each task to its type.
+    pairs:
+      - ['Photo → a caption sentence', 'one-to-many']
+      - ['Movie review → positive or negative', 'many-to-one']
+      - ['Sentence → one tag per word', 'many-to-many, aligned']
+      - ['English sentence → Filipino sentence', 'many-to-many, delayed']
+      - ['One photo → one label', 'one-to-one']
+    explanation: The type describes what goes in and what comes out, not the model used.
+
+  - id: categories-mcq
+    type: mcq
+    skills: [seq-categories]
+    difficulty: 1
+    tags: [application]
+    lessonRef: { tab: intuition, id: task-types }
+    prompt: A bank reads a customer's last 30 days of transactions and outputs one fraud score. What type of task is it?
+    options: [many-to-one, one-to-many, 'many-to-many, aligned', one-to-one]
+    answer: 0
+    optionFeedback:
+      '1': One-to-many starts from a single input.
+      '2': Aligned would need one score per transaction.
+      '3': The input is a sequence of 30 days, not one item.
+    explanation: A sequence goes in and one output comes out after reading all of it.
+    variants:
+      - prompt: A speech app writes one letter for every 20-millisecond slice of audio. What type of task is it?
+        options: ['many-to-many, aligned', many-to-one, one-to-many, one-to-one]
+        answer: 0
+        optionFeedback:
+          '1': There is an output at every step, not one at the end.
+          '2': The input is a sequence, not one item.
+          '3': Both sides are sequences.
+        explanation: One output per input step is aligned many-to-many.
+      - prompt: A music app turns one mood choice ("calm") into a 16-note melody. What type of task is it?
+        options: [one-to-many, many-to-one, 'many-to-many, delayed', one-to-one]
+        answer: 0
+        optionFeedback:
+          '1': The input is one choice, not a sequence.
+          '2': The input is not a sequence.
+          '3': The output is a sequence of 16 notes.
+        explanation: One input, a sequence out.
+
+  # ------------------------------------------------------------ the recurrent cell
+  - id: hidden-not-output
+    type: mcq
+    skills: [rnn-cell]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: rnn-cell }
+    prompt: In a many-to-one RNN, which statement is true?
+    options:
+      - Every step computes a hidden state, but the output layer is applied once, to the last one
+      - Every step produces a prediction, and the predictions are averaged
+      - The hidden state is the prediction
+      - Each step uses its own weight matrices
+    answer: 0
+    optionFeedback:
+      '1': Many-to-one reads only the final hidden state.
+      '2': The hidden state is an internal summary; the output layer turns it into a prediction.
+      '3': The same weights are shared by all steps.
+    explanation: '$h_1, \dots, h_T$ are all computed; $\hat y = W_{hy}h_T + b_y$ is computed once.'
+    variants:
+      - prompt: An RNN reads a 3-step and a 300-step sequence. What changes?
+        options:
+          - The number of steps unfolded; the weights stay the same
+          - The number of weight matrices, one per step
+          - The size of W_hh, which grows with the length
+          - Nothing at all, because the RNN reads only the last step
+        answer: 0
+        optionFeedback:
+          '1': Weights are shared; there is one set for all steps.
+          '2': W_hh is m × m, whatever the length.
+          '3': It reads every step; the hidden state carries them forward.
+        explanation: Unfolding just draws more copies of the same cell.
+      - prompt: What does the recurrent connection feed back into the hidden layer?
+        options:
+          - The previous hidden state h_(t−1)
+          - The previous prediction ŷ_(t−1)
+          - The previous input x_(t−1)
+          - The loss of the previous step
+        answer: 0
+        optionFeedback:
+          '1': A vanilla RNN loops back the hidden state, not the output.
+          '2': The past input reaches the present only through the hidden state.
+          '3': The loss is only used during training.
+        explanation: The loop feeds back the hidden state, the network's running summary.
+
+  - id: rnn-cell-cloze
+    type: code-fill
+    lang: text
+    skills: [rnn-cell]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: rnn-cell }
+    prompt: Fill in the missing words.
+    code: |
+      The network's running summary is the __BLANK_1__ state. It is squashed into (−1, 1) by the __BLANK_2__
+      activation. Drawing one copy of the cell per time step is called __BLANK_3__.
+    blanks:
+      '1': { accept: [hidden], hint: 'h…' }
+      '2': { accept: [tanh, hyperbolic tangent], hint: 't…' }
+      '3': { accept: [unfolding, unrolling, unfolding through time], hint: 'u…' }
+    hints: [All three were defined in the scene on the recurrent cell.]
+    explanation: Hidden state, tanh, unfolding.
+
+  - id: code-rnn-step
+    type: code-fill
+    skills: [rnn-cell, rnn-forward]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: rnn-step }
+    prompt: Complete one step of a one-unit RNN.
+    code: |
+      import math
+
+      def rnn_step(x_t, h_prev, w_xh, w_hh, b_h):
+          z = w_xh * x_t + __BLANK_1__ + b_h
+          return __BLANK_2__
+    blanks:
+      '1': { accept: ['w_hh * h_prev', 'h_prev * w_hh', 'w_hh*h_prev'] }
+      '2': { accept: ['math.tanh(z)'] }
+    hints:
+      - The memory term multiplies the previous state by the recurrent weight.
+    explanation: '`z = w_xh * x_t + w_hh * h_prev + b_h`, then `math.tanh(z)`.'
+
+  # ------------------------------------------------------------ forward pass
+  - id: forward-h
+    type: numeric
+    skills: [rnn-forward]
+    difficulty: 1
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: rnn-step }
+    prompt: |
+      A one-unit RNN has $w_{xh} = {=wxh}$, $w_{hh} = {=whh}$, $b_h = {=bh}$. Its previous state is $h_0 = {=h0}$ and the
+      new input is $x_1 = {=xLast}$. Compute $h_1$ (3 decimals).
+    answer: { var: h, tol: 0.002 }
+    hints:
+      - '$z = w_{xh}x_1 + w_{hh}h_0 + b_h$.'
+      - Then take tanh of $z$.
+    explanation: |
+      $z = {=wxh}\cdot({=xLast}) + {=whh}\cdot({=h0}) + ({=bh}) = {=z|4}$, so $h_1 = \tanh({=z|4}) = {=h|4}$.
+
+  - id: forward-hand
+    type: hand-calc
+    skills: [rnn-forward]
+    difficulty: 2
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: intuition, id: forward-hand }
+    prompt: |
+      Run the RNN by hand: $w_{xh} = {=wxh}$, $w_{hh} = {=whh}$, $b_h = {=bh}$, $h_0 = 0$, inputs
+      $x = ({=x|list})$, output weight $w_{hy} = {=why}$, $b_y = 0$. Give each value to 3 decimals.
+    steps:
+      - prompt: '$h_1$'
+        answer: { var: h1, tol: 0.002 }
+        hint: 'With $h_0 = 0$ the memory term is 0: $h_1 = \tanh(w_{xh}x_1 + b_h)$.'
+      - prompt: '$h_2$'
+        answer: { var: h, tol: 0.002 }
+        hint: '$z_2 = w_{xh}x_2 + w_{hh}h_1 + b_h$.'
+        misconceptions:
+          - { var: noMem, feedback: 'Include the memory term $w_{hh}h_1$.' }
+          - { var: noTanh, feedback: 'That is $z_2$. Take its tanh.' }
+      - prompt: 'The prediction $\hat y$'
+        answer: { var: yhat, tol: 0.003 }
+        misconceptions:
+          - { var: noOut, feedback: 'That is $h_2$. Multiply by $w_{hy}$.' }
+    hints:
+      - Carry each hidden state into the next step.
+    explanation: |
+      $h = [{=hs|list}]$, and $\hat y = {=why}\cdot{=h|4} = {=yhat|4}$.
+
+  - id: forward-yhat
+    type: numeric
+    skills: [rnn-forward, rnn-cell]
+    difficulty: 3
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: forward-pass }
+    prompt: |
+      $w_{xh} = {=wxh}$, $w_{hh} = {=whh}$, $b_h = {=bh}$, $h_0 = 0$, inputs $x = ({=x|list})$, $w_{hy} = {=why}$,
+      $b_y = 0$. The output layer reads only the final state. What is $\hat y$ (3 decimals)?
+    answer: { var: yhat, tol: 0.003 }
+    hints:
+      - Three hidden states, each fed into the next.
+      - '$\hat y = w_{hy}h_3$.'
+    explanation: |
+      $h = [{=hs|list}]$ ($z_3 = {=z|4}$), so $\hat y = {=why}\cdot{=h|4} = {=yhat|4}$.
+
+  - id: forward-find-error
+    type: find-error
+    skills: [rnn-forward, rnn-cell]
+    difficulty: 2
+    tags: [math]
+    generator: forwardQ
+    lessonRef: { tab: math-code, id: forward-pass }
+    prompt: |
+      A classmate runs $w_{xh} = {=wxh}$, $w_{hh} = {=whh}$, $b_h = {=bh}$, $h_0 = 0$ on $x = ({=x|list})$. **One step is
+      wrong.** Click it, then give the correct $h_2$ (3 decimals).
+    steps:
+      - '$z_1 = {=wxh}\cdot({=x.0}) + {=whh}\cdot 0 + ({=bh}) = {=zs.0|4}$'
+      - '$h_1 = \tanh({=zs.0|4}) = {=hs.0|4}$'
+      - '$h_2 = \tanh({=wxh}\cdot({=x.1}) + ({=bh})) = {=noMem|4}$'
+    wrong: 2
+    fix: { var: h, tol: 0.002 }
+    fixPrompt: The correct $h_2$
+    misconceptions:
+      - { var: noMem, feedback: 'Still missing $w_{hh}h_1$.' }
+    hints:
+      - Which term carries the memory of step 1?
+    explanation: |
+      Step 2 dropped $w_{hh}h_1 = {=whh}\cdot{=hs.0|4}$. Correct: $z_2 = {=z|4}$, $h_2 = {=h|4}$.
+
+  # ------------------------------------------------------------ tanh and memory
+  - id: tanh-mcq
+    type: mcq
+    skills: [tanh-memory]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: tanh-memory }
+    prompt: Why is tanh a common choice for the hidden state?
+    options:
+      - It is bounded in (−1, 1), so a state fed back into itself cannot grow without limit
+      - It outputs only positive numbers, which makes the state easy to read
+      - Its slope is 1 everywhere, so gradients never shrink
+      - It is unbounded, so the state can represent any value
+    answer: 0
+    optionFeedback:
+      '1': tanh is zero-centred; it outputs negative values too.
+      '2': Its slope is 1 only at z = 0 and falls toward 0 when it saturates.
+      '3': tanh is bounded; that is also why it cannot represent large values.
+    explanation: Bounded and zero-centred, close to linear near 0, but it saturates for $|z| > 2$.
+    variants:
+      - prompt: 'A tanh unit receives $z = 3$. What is true?'
+        options:
+          - Its output is near 1 and its slope is near 0, so little gradient passes back
+          - Its output is 3 and its slope is 1
+          - Its output is near 0 and its slope is near 1
+          - Its output is near −1 and its slope is near 1
+        answer: 0
+        optionFeedback:
+          '1': tanh never exceeds 1.
+          '2': That describes z near 0.
+          '3': z = 3 is positive, so the output is near +1.
+        explanation: '$\tanh(3) = 0.9951$ and its slope $1 - 0.9951^2 \approx 0.0099$: saturated.'
+      - prompt: An RNN trained on CO₂ levels between −1.7 and +1.9 (standardized) must forecast inputs near +2.9. What goes wrong?
+        options:
+          - Its bounded tanh units saturate and its forecasts flatten below the rising values
+          - It forecasts exactly, because tanh is linear for large inputs
+          - It crashes, because tanh cannot take inputs above 1
+          - Nothing, because scaling removes the trend
+        answer: 0
+        optionFeedback:
+          '1': tanh is flat, not linear, for large inputs.
+          '2': tanh accepts any input; its output is what is bounded.
+          '3': Scaling does not remove a trend; the test values were above anything seen.
+        explanation: Beyond the training range the bounded units cannot follow the trend, so under-forecasts grow.
+
+  - id: memory-mcq
+    type: mcq
+    skills: [tanh-memory]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: tanh-memory }
+    prompt: 'A one-unit RNN gets a single spike ($x_1 = 1$, then zeros). With which recurrent weight does the spike fade fastest?'
+    options: ['$w_{hh} = 0.5$', '$w_{hh} = 0.8$', '$w_{hh} = 0.95$', '$w_{hh} = 1.2$']
+    shuffle: false
+    answer: 0
+    optionFeedback:
+      '1': It fades, but more slowly than with 0.5.
+      '2': This one remembers for many steps.
+      '3': With 1.2 the state never returns to 0.
+    explanation: Each step multiplies the remembered part by about $w_{hh}$ (times the tanh slope); the smaller the weight, the faster the memory fades.
+
+  - id: saturation-multi
+    type: multi
+    skills: [tanh-memory]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: tanh-memory }
+    prompt: Which statements about tanh in an RNN are true?
+    options:
+      - '$\tanh(z) = 2\sigma(2z) - 1$'
+      - Its slope is $1 - \tanh^2(z)$
+      - For $|z| > 2$ its slope is below 0.07
+      - It can output values above 1 when the input is large
+      - Its slope is largest when the state is near ±1
+    answer: [0, 1, 2]
+    optionFeedback:
+      '3': The output is always between −1 and 1.
+      '4': The slope is largest at 0 and smallest near ±1.
+    hints: ['Recall the curve and its slope at 0, 1, 2 and 3.']
+    explanation: Slopes 1, 0.42, 0.071, 0.0099 at z = 0, 1, 2, 3.
+
+  # ------------------------------------------------------------ parameters
+  - id: rnn-params-count
+    type: numeric
+    skills: [rnn-params]
+    difficulty: 1
+    tags: [math]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: rnn-params }
+    prompt: |
+      An RNN layer reads $d = {=d}$ features per step and has $m = {=m}$ hidden units. Each sequence is {=steps} steps
+      long. Counting one bias vector, how many parameters does the RNN layer have?
+    answer: { var: rnn, tol: 0 }
+    hints:
+      - '$W_{xh}$ is $m \times d$, $W_{hh}$ is $m \times m$, $b_h$ has $m$.'
+      - The sequence length does not matter.
+    explanation: |
+      $m(d + m + 1) = {=m}({=d} + {=m} + 1) = {=rnn}$, for any number of steps.
+
+  - id: rnn-params-total
+    type: numeric
+    skills: [rnn-params, sentiment]
+    difficulty: 3
+    tags: [math]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: rnn-params }
+    prompt: |
+      A sentiment model: embedding of a {=vocab}-word vocabulary into {=d}-number vectors, an RNN with {=m} units (one
+      bias vector), and a dense layer to {=k} output(s). Reviews are {=steps} words long. Total parameters?
+    answer: { var: total, tol: 0 }
+    hints:
+      - 'Embedding: vocabulary × vector size.'
+      - 'RNN $m(d + m + 1)$; dense $(m + 1)\cdot k$.'
+    explanation: |
+      Embedding ${=embedding}$ + RNN ${=rnn}$ + dense ${=dense}$ = ${=total}$.
+
+  - id: params-two-tier
+    type: two-tier
+    skills: [rnn-params]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: forward-hand }
+    prompt: Reviews are kept at 500 words instead of 200. What happens to the RNN layer's parameter count?
+    options: ['It stays at 2,112', 'It grows 2.5 times', 'It shrinks']
+    answer: 0
+    reasons:
+      - The same weights are reused at every step; only training time grows
+      - Each extra word needs its own weights
+      - Longer sequences need a smaller hidden state
+    reasonAnswer: 0
+    optionFeedback:
+      '1': The training time grows about 2.5 times, not the weights.
+      '2': Nothing about the layer changes.
+    reasonFeedback:
+      '1': That is how lag columns behave, not an RNN.
+      '2': The hidden size is a choice, unrelated to the length.
+    explanation: '[[shared-weights|Shared weights]]: $32(32 + 32 + 1) + 32 = 2{,}112$ for any length.'
+
+  - id: code-params
+    type: code-fill
+    skills: [rnn-params]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: rnn-params }
+    prompt: Complete the parameter count of a vanilla RNN layer (one bias vector).
+    code: |
+      def rnn_params(d, m):
+          w_xh = m * d
+          w_hh = __BLANK_1__
+          b_h = m
+          return w_xh + w_hh + b_h
+    blanks:
+      '1': { accept: ['m * m', 'm*m', 'm ** 2', 'm**2'] }
+    hints: [The recurrent matrix maps the state to itself.]
+    explanation: '$W_{hh}$ is $m \times m$; the total is $m(d + m + 1)$.'
+
+  # ------------------------------------------------------------ BPTT
+  - id: back-step
+    type: numeric
+    skills: [bptt]
+    difficulty: 2
+    tags: [math]
+    generator: backStepQ
+    lessonRef: { tab: math-code, id: bptt }
+    prompt: |
+      During BPTT, $\partial L/\partial h_t = {=dh}$, the recurrent weight is $w_{hh} = {=whh}$ and the state is
+      $h_t = {=h}$. Compute $\partial L/\partial h_{t-1}$ (3 decimals).
+    answer: { var: ans, tol: 0.002 }
+    hints:
+      - 'One step back multiplies by $w_{hh}(1 - h_t^2)$.'
+    explanation: |
+      $w_{hh}(1 - h_t^2) = {=whh}(1 - {=hsq}) = {=f|4}$, so ${=dh}\times{=f|4} = {=ans|4}$.
+
+  - id: back-hand
+    type: hand-calc
+    skills: [bptt, tanh-memory]
+    difficulty: 2
+    tags: [math]
+    generator: backStepQ
+    lessonRef: { tab: intuition, id: bptt-chain }
+    prompt: |
+      Step the error back once: $\partial L/\partial h_t = {=dh}$, $w_{hh} = {=whh}$, $h_t = {=h}$.
+    steps:
+      - prompt: 'First square the state: $h_t^2$'
+        answer: { var: hsq, tol: 0.001 }
+        hint: 'Multiply $h_t$ by itself.'
+      - prompt: 'The factor $w_{hh}(1 - h_t^2)$ (4 decimals)'
+        answer: { var: f, tol: 0.001 }
+        misconceptions:
+          - { var: whh, feedback: 'Multiply the weight by the slope $1 - h_t^2$.' }
+      - prompt: '$\partial L/\partial h_{t-1}$ (3 decimals)'
+        answer: { var: ans, tol: 0.002 }
+        misconceptions:
+          - { var: noSlope, feedback: 'Use the factor, not $w_{hh}$ alone.' }
+    hints:
+      - Square, subtract from 1, multiply by the weight, then by the incoming signal.
+    explanation: |
+      $h_t^2 = {=hsq}$; factor $= {=f|4}$; $\partial L/\partial h_{t-1} = {=dh}\times{=f|4} = {=ans|4}$.
+
+  - id: shared-sum
+    type: numeric
+    skills: [bptt]
+    difficulty: 1
+    tags: [math]
+    generator: sharedQ
+    lessonRef: { tab: math-code, id: bptt }
+    prompt: |
+      BPTT finds that steps 1, 2 and 3 contribute ${=pieces.0}$, ${=pieces.1}$ and ${=pieces.2}$ to the gradient of the
+      shared weight $w_{hh}$. What gradient is used for the single update?
+    answer: { var: sum, tol: 0.01 }
+    hints:
+      - The same weight is used at every step.
+    explanation: |
+      The pieces are added: ${=pieces.0} + ({=pieces.1}) + ({=pieces.2}) = {=sum}$.
+
+  - id: bptt-parsons
+    type: order
+    skills: [bptt]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: bptt-chain }
+    prompt: Put one training step on a sequence in order. One line does not belong.
+    items:
+      - 'Forward: compute h_1, h_2, …, h_T from left to right'
+      - Compute the prediction from h_T and the loss
+      - 'Backward: send ∂L/∂h_t from step T back to step 1'
+      - Add each shared weight's per-step pieces into one gradient
+      - Update every shared weight once with gradient descent
+    distractors:
+      - Update the weights separately after each time step's piece
+    hints: [The shared weights get one update per sequence.]
+    explanation: BPTT is ordinary backpropagation on the unfolded network; the pieces are summed before the single update.
+
+  - id: code-bptt
+    type: code-fill
+    skills: [bptt]
+    difficulty: 3
+    tags: [code]
+    lessonRef: { tab: math-code, id: bptt }
+    prompt: Complete the backward loop of the one-unit RNN.
+    code: |
+      g_whh = 0.0
+      dh = dL_dhT
+      for t in range(T, 0, -1):
+          dz = dh * (1 - h[t] ** 2)
+          g_whh = g_whh + __BLANK_1__
+          dh = __BLANK_2__
+    blanks:
+      '1': { accept: ['dz * h[t - 1]', 'dz*h[t-1]', 'h[t - 1] * dz'] }
+      '2': { accept: ['dz * w_hh', 'dz*w_hh', 'w_hh * dz', 'dh * w_hh * (1 - h[t] ** 2)'] }
+    hints:
+      - "Step t's piece for w_hh uses the state it multiplied, h[t − 1]."
+    explanation: '`g_whh += dz * h[t-1]`; one step back `dh = dz * w_hh`, which is $\partial L/\partial h_t\,w_{hh}(1 - h_t^2)$.'
+
+  - id: bptt-explain
+    type: explain
+    skills: [bptt, vanishing]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: bptt-chain }
+    prompt: Explain Backpropagation Through Time and why the first words of a long review get little training signal.
+    model: |
+      BPTT unfolds the RNN into one copy per time step and runs ordinary backpropagation from the loss back to step 1.
+      Each step back multiplies the error signal by $w_{hh}(1 - h_t^2)$. Because the same weights appear at every step,
+      their per-step gradient pieces are added before one update. Over many steps the factors multiply: below 1 the
+      signal vanishes, above 1 it explodes. So words far from the end barely affect the update.
+    checklist:
+      - The network is unfolded through time and backpropagated from the end
+      - Each step back multiplies by a factor w_hh(1 − h²)
+      - Shared-weight gradients are summed over steps
+      - Repeated factors below 1 make the early signal vanish
+    hints: [What happens to a number multiplied by 0.9 fifty times?]
+    explanation: Unfold, backpropagate, sum; repeated multiplication fades the early signal.
+
+  # ------------------------------------------------------------ vanishing / exploding
+  - id: vanish-num
+    type: numeric
+    skills: [vanishing]
+    difficulty: 2
+    tags: [math]
+    generator: vanishQ
+    lessonRef: { tab: math-code, id: vanishing }
+    prompt: |
+      Each step back multiplies the error signal by a fixed factor $w = {=w}$. What multiple of the original signal is
+      left after $k = {=k}$ steps? (Answer within 2%.)
+    answer: { var: v, relTol: 0.02 }
+    hints:
+      - The factor is applied once per step.
+    explanation: |
+      ${=w}^{ {=k} } = {=v|4}$: the signal {=kind}.
+
+  - id: vanish-mcq
+    type: mcq
+    skills: [vanishing]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: fading-memory }
+    prompt: 'Training an RNN, the loss suddenly jumps to huge values and the weights become NaN. What helps most directly?'
+    options:
+      - Gradient clipping, which rescales any gradient whose size exceeds a limit
+      - Truncated BPTT to only 5 steps, to make vanishing worse
+      - Removing tanh so the state is unbounded
+      - Training for more epochs
+    answer: 0
+    optionFeedback:
+      '1': Truncation is about cost and stability over long sequences; it is not the targeted fix here.
+      '2': An unbounded state makes explosions more likely.
+      '3': More epochs repeat the same unstable updates.
+    explanation: Huge updates are exploding gradients; clipping caps their size.
+    variants:
+      - prompt: Words 150 steps before the end of a review barely change the prediction. Will gradient clipping fix that?
+        options:
+          - No, clipping limits large gradients; it does nothing for vanishing ones
+          - Yes, clipping makes small gradients larger
+          - Yes, clipping removes the tanh slope
+          - No, because the embedding layer is too small
+        answer: 0
+        optionFeedback:
+          '1': Clipping only scales gradients down.
+          '2': Clipping does not touch the activation.
+          '3': The issue is the repeated factors in BPTT, not the embedding.
+        explanation: That is a vanishing gradient over a long-range dependency; gated cells such as LSTM and GRU address it.
+      - prompt: 'With $w = 0.9$ per step, about how much of the signal reaches 50 steps back?'
+        options: ['About 0.5%', 'About 45%', 'About 10%', 'About 90%']
+        answer: 0
+        optionFeedback:
+          '1': That would be 50 × 0.9, not 0.9⁵⁰.
+          '2': That is about 20 steps back.
+          '3': That is one step back.
+        explanation: '$0.9^{50} \approx 0.00515$.'
+
+  - id: vanish-match
+    type: match
+    skills: [vanishing]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: fading-memory }
+    prompt: Match each term to what it means.
+    pairs:
+      - ['Vanishing gradient', 'The error signal shrinks toward 0 over many steps back']
+      - ['Exploding gradient', 'The error signal grows huge over many steps back']
+      - ['Gradient clipping', 'Rescales a gradient that is too large']
+      - ['Truncated BPTT', 'Backpropagates through only the last k steps']
+      - ['Long-range dependency', 'A link between elements far apart in a sequence']
+    explanation: Clipping fights explosions; truncation saves cost; neither restores a vanished signal.
+
+  # ------------------------------------------------------------ sentiment
+  - id: pad-mcq
+    type: mcq
+    skills: [sentiment]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: sentiment }
+    prompt: Why are short reviews padded with zeros at the **start** for a many-to-one RNN?
+    options:
+      - The real words are then the last thing read before the final hidden state
+      - Zeros at the start are cheaper to store
+      - The embedding layer only accepts zeros at the start
+      - It removes the start-of-review marker
+    answer: 0
+    optionFeedback:
+      '1': Storage is the same either way.
+      '2': The embedding accepts id 0 anywhere.
+      '3': The start marker 1 is kept.
+    explanation: With padding at the end, the network would read dozens of zeros after the last word, blurring its summary.
+    variants:
+      - prompt: A review has 450 words and MAX_LEN is 200 with Keras-style "pre" truncation. Which words does the model see?
+        options:
+          - The last 200 words
+          - The first 200 words
+          - Every second word
+          - All 450 words
+        answer: 0
+        optionFeedback:
+          '1': '"Pre" cuts from the start, keeping the end.'
+          '2': Words are never skipped.
+          '3': Every review is cut or padded to exactly 200.
+        explanation: Pre-truncation drops the first 250 words.
+      - prompt: Why can the word id 75 not be fed to the RNN as the number 75?
+        options:
+          - An id is a label, not a quantity; an embedding looks up a learned vector for it
+          - It is too large for tanh
+          - Ids must be negative
+          - The RNN only reads ids below 10
+        answer: 0
+        optionFeedback:
+          '1': Any number can be fed in; the problem is meaning.
+          '2': Ids are counts in a ranking, never negative.
+          '3': The vocabulary has 10,000 ids.
+        explanation: Word 76 is not "slightly more" than word 75; each id selects its own row of the embedding table.
+
+  - id: sentiment-order
+    type: order
+    skills: [sentiment]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: sentiment }
+    prompt: Put the sentiment model's pipeline in order, input first.
+    items:
+      - Review as a list of word ids, padded to 200
+      - Embedding layer turns each id into a 32-number vector
+      - RNN reads the 200 vectors and keeps its final hidden state
+      - Dense layer gives one score
+      - Sigmoid turns the score into P(positive)
+    explanation: Many-to-one; the loss is binary cross-entropy.
+
+  - id: sentiment-case
+    type: case
+    skills: [sentiment, rnn-params]
+    difficulty: 3
+    tags: [application]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: rnn-params }
+    prompt: |
+      **A Taglish product-review classifier.** An online shop in Pasig builds a sentiment RNN: a {=vocab}-word
+      vocabulary embedded in {=d} numbers, an RNN of {=m} units (one bias vector), and a dense output of {=k} unit(s).
+      Reviews are cut to {=steps} words.
+    parts:
+      - type: numeric
+        prompt: Embedding parameters
+        answer: { var: embedding, tol: 0 }
+        explanation: '${=vocab}\cdot{=d} = {=embedding}$.'
+      - type: numeric
+        prompt: RNN layer parameters
+        answer: { var: rnn, tol: 0 }
+        explanation: '${=m}({=d} + {=m} + 1) = {=rnn}$.'
+      - type: numeric
+        prompt: Total parameters
+        answer: { var: total, tol: 0 }
+        explanation: '${=embedding} + {=rnn} + {=dense} = {=total}$.'
+      - type: mcq
+        prompt: Where do most of the parameters live?
+        options: ['In the embedding table', 'In the recurrent matrix W_hh', 'In the output layer']
+        answer: 0
+        explanation: Word vectors dominate; the recurrent layer is small because its weights are shared across all steps.
+    hints:
+      - The review length never multiplies the parameters.
+    explanation: Embedding {=embedding}, RNN {=rnn}, dense {=dense}, total {=total}.
+
+  - id: checkpoint-mcq
+    type: mcq
+    skills: [sentiment]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: sentiment }
+    prompt: The training history is shown below. Which epoch's weights does the checkpoint restore?
+    show:
+      - { id: h, widget: Matrix, props: { data: { rows: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'], cols: [loss, acc, val_loss, val_acc], values: [[0.6064, 0.6522, 0.4109, 0.8250], [0.3655, 0.8438, 0.3459, 0.8558], [0.2808, 0.8881, 0.4101, 0.8394], [0.2362, 0.9083, 0.3786, 0.8596], [0.1889, 0.9293, 0.3810, 0.8326], [0.1546, 0.9442, 0.4023, 0.8288]] }, rowHeader: epoch } }
+    options: ['Epoch 4, the best validation accuracy', 'Epoch 6, the last one', 'Epoch 2, the lowest validation loss', 'Epoch 6, the best training accuracy']
+    answer: 0
+    optionFeedback:
+      '1': The last epoch has started to overfit.
+      '2': This checkpoint was chosen on validation accuracy, not loss.
+      '3': Training accuracy keeps rising while the model memorizes.
+    explanation: The checkpoint kept the epoch with the best validation accuracy, 0.8596 at epoch 4; test accuracy was then 0.8515.
+
+  # ------------------------------------------------------------ forecasting
+  - id: window-count
+    type: numeric
+    skills: [seq-forecast]
+    difficulty: 1
+    tags: [math]
+    generator: windowQ
+    lessonRef: { tab: math-code, id: windows }
+    prompt: |
+      A series has $n = {=n}$ values. Windows of $L = {=L}$ values in order, each followed by its target.
+      How many (window, target) pairs are there?
+    answer: { var: count, tol: 0 }
+    hints:
+      - The first $L$ values have no full window before them.
+    explanation: |
+      {=count} pairs.
+
+  - id: window-count-changes
+    type: numeric
+    skills: [seq-forecast]
+    difficulty: 3
+    tags: [math]
+    generator: windowQ
+    lessonRef: { tab: math-code, id: windows }
+    prompt: |
+      A monthly series has $n = {=n}$ values. You first replace it by its month-to-month changes, then cut windows of
+      $L = {=L}$ changes, each followed by its target change. How many pairs are there?
+    answer: { var: count, tol: 0 }
+    hints:
+      - Differencing loses one value.
+      - Then the first $L$ changes are never targets.
+    explanation: |
+      $({=n} - 1) - {=L} = {=count}$ pairs.
+
+  - id: naive-mae
+    type: numeric
+    skills: [seq-forecast]
+    difficulty: 2
+    tags: [math]
+    generator: naiveQ
+    lessonRef: { tab: math-code, id: naive-baseline }
+    prompt: |
+      The series below is forecast one month ahead with the [[naive-forecast]] for months 4, 5 and 6. What is the [[mae|MAE]]?
+    show:
+      - { id: s, widget: Matrix, props: { data: '@grid', rowHeader: series } }
+    answer: { var: mae, tol: 0.01 }
+    hints:
+      - Each forecast is the previous month's value.
+      - Average the absolute misses.
+    explanation: |
+      Forecasts $[{=yhat|list}]$ for actuals $[{=y|list}]$: MAE $= {=mae}$.
+
+  - id: change-forecast
+    type: numeric
+    skills: [seq-forecast]
+    difficulty: 1
+    tags: [math]
+    generator: changeQ
+    lessonRef: { tab: intuition, id: forecast }
+    prompt: |
+      An RNN trained on monthly **changes** predicts $\hat\Delta_t = {=change}$ ppm. Last month's reading was ${=last}$ ppm.
+      What is the forecast for this month, in ppm?
+    answer: { var: yhat, tol: 0.01 }
+    hints:
+      - '$\hat y_t = y_{t-1} + \hat\Delta_t$.'
+    explanation: |
+      ${=last} + ({=change}) = {=yhat}$ ppm.
+
+  - id: levels-two-tier
+    type: two-tier
+    skills: [seq-forecast, tanh-memory]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: forecast }
+    prompt: On the 48 test months the RNN on CO₂ **levels** had an MAE of 5.12 ppm against 1.08 for the naive forecast. Why?
+    options: ['Every test month was above the training range, and its bounded units could not follow', 'It was trained for too few epochs', 'The windows were 12 months long']
+    answer: 0
+    reasons:
+      - tanh units are bounded and it never learned what to do with inputs beyond training
+      - A longer training would make it extrapolate
+      - Twelve-month windows hide the seasonal pattern
+    reasonAnswer: 0
+    optionFeedback:
+      '1': Its best epoch was chosen on validation; more epochs do not teach it unseen ranges.
+      '2': The changes model used the same windows and did well.
+    reasonFeedback:
+      '1': No amount of training data covered values that high.
+      '2': The changes model learned the season from the same windows.
+    explanation: Model the change, like ARIMA's differencing; the changes stay in the training range and the MAE drops to 0.26.
+
+  - id: scaling-mcq
+    type: mcq
+    skills: [seq-forecast]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: forecast }
+    prompt: A power co-op in Bohol standardizes monthly demand before training an RNN. Which mean and spread should it use?
+    options:
+      - Those of the training months only
+      - Those of all months, including the test months
+      - Those of the test months only
+      - The mean of the most recent 12 months
+    answer: 0
+    optionFeedback:
+      '1': That leaks information about the future into training.
+      '2': The model must not see the test months at all while it is built.
+      '3': Recent months may include validation or test data.
+    explanation: Fit any scaling on the training months only, then apply it to validation and test.
+    variants:
+      - prompt: A hospital forecasts daily patient arrivals with an RNN. How should it pick the training epoch?
+        options:
+          - Keep the epoch with the lowest loss on a later, chronological validation period
+          - Keep the epoch with the lowest test error
+          - Keep the last epoch always
+          - Keep the epoch with the lowest training loss
+        answer: 0
+        optionFeedback:
+          '1': The test period must be used once, at the very end.
+          '2': The last epoch may overfit.
+          '3': Training loss keeps falling as it memorizes.
+        explanation: A [[checkpoint]] chosen on a chronological validation period keeps the test score honest.
+      - prompt: A rice trader wants to know whether an RNN forecast of weekly prices is worth using. What is the first check?
+        options:
+          - Beat the naive forecast on the same test weeks
+          - Reach a training loss below 0.01
+          - Use more hidden units than weeks
+          - Beat the RNN's own validation score
+        answer: 0
+        optionFeedback:
+          '1': A low training loss can mean memorizing.
+          '2': Size says nothing about usefulness.
+          '3': Validation was used to build it; the baseline is the yardstick.
+        explanation: A model that cannot beat "copy last week" has learned nothing useful.

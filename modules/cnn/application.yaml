@@ -1,0 +1,219 @@
+intro: |
+  Everything in this module comes together when a team with a small photo collection needs an image classifier. You
+  will size a CNN by hand, read its training curves, choose augmentations, and decide how to reuse a pre-trained
+  VGG16, the same decisions the notebook made for cats and dogs.
+
+case:
+  id: palay-leaf
+  title: A rice-leaf blast detector for a farmers' co-op
+  story: |
+    A farmers' co-op in Nueva Ecija wants a phone app that flags rice blast, a fungal disease, from a photo of a leaf.
+    An agronomist has labelled 1,200 photos, half healthy and half with blast, resized to 128 × 128 colour images.
+    1,000 are for training and 200 for validation. A student intern proposes a small CNN; the co-op's adviser
+    suggests VGG16. You review both.
+  data: [leaf]
+  derive:
+    - { fn: cnnTable, in: { input: '@leaf.input', spec: '@leaf.spec', upTo: 1 }, out: t1 }
+    - { fn: cnnTable, in: { input: '@leaf.input', spec: '@leaf.spec' }, out: tAll }
+    - { fn: vgg, in: { input: '@leaf.vgg.input', blocks: '@leaf.vgg.blocks', head: 256 }, out: v }
+  cells:
+    - id: design
+      title: The intern's network
+      say: |
+        Input 128 × 128 × 3. Three stages, each a 3 × 3 convolution without padding, then ReLU, then a 2 × 2 max
+        pool, with 32, 64 and 128 filters. Then flatten, a dense layer of 128 units, and one output logit for
+        "blast". The table shows the first layer only.
+      stage:
+        - { id: t1tab, widget: Matrix, props: { data: '@t1.grid', rowHeader: layer, title: 'The first layer' } }
+      decision:
+        prompt: How long is the flattened vector that feeds the dense layer?
+        type: mcq
+        options:
+          - '25,088: the side goes 126 → 63 → 61 → 30 → 28 → 14, and 14 · 14 · 128'
+          - '32,768: halving 128 three times gives 16, and 16 · 16 · 128'
+          - '28,800: the side goes 126 → 63 → 61 → 31 → 29 → 15, and 15 · 15 · 128'
+          - '100,352: 28 · 28 · 128, flattening before the last pool'
+        answer: 0
+        optionFeedback:
+          '1': That ignores the 2 pixels each 3 × 3 convolution trims without padding.
+          '2': Pooling 61 rounds **down** to 30, not up to 31.
+          '3': The last pool comes before flatten and halves 28 to 14.
+        model: |
+          Each convolution trims 2: 128 → 126; pool → 63; → 61; pool $\lfloor 59/2 \rfloor + 1 = 30$; → 28; pool → 14.
+          Flatten: $14 \cdot 14 \cdot 128 = 25{,}088$.
+
+    - id: dense-size
+      title: Where the parameters live
+      say: |
+        The flattened 25,088 numbers feed a dense layer of 128 units. The whole table, with every parameter count,
+        appears once you answer.
+      stage:
+        - { id: tall, widget: Matrix, hidden: true, props: { data: '@tAll.grid', rowHeader: layer, title: 'The full shape table' } }
+      decision:
+        prompt: How many parameters does that dense layer have?
+        type: mcq
+        options:
+          - '3,211,392: (25,088 + 1) · 128'
+          - '3,211,264: 25,088 · 128, without biases'
+          - '25,216: 25,088 + 128'
+          - '73,856: the same as the third convolution'
+        answer: 0
+        optionFeedback:
+          '1': Each of the 128 units also has a bias.
+          '2': Every input connects to every unit, so multiply.
+          '3': That is the third convolution, $(3\cdot3\cdot64 + 1)\cdot128$.
+        model: |
+          $(25{,}088 + 1)\cdot128 = 3{,}211{,}392$, about 97% of the network's 3,304,769 parameters. The three
+          convolutions together need under 100,000.
+
+    - id: curves
+      title: The intern's training run
+      say: |
+        After 30 epochs the intern reports training accuracy 0.99 and validation accuracy 0.74. Validation loss was
+        lowest at epoch 8 and has risen since.
+      decision:
+        prompt: What do these numbers say?
+        type: mcq
+        options:
+          - The network overfits after about epoch 8; it memorizes the 1,000 training photos
+          - The network underfits; it needs more epochs
+          - The validation set must be mislabelled, because training accuracy is high
+          - The network is ready; 0.99 is what counts
+        answer: 0
+        optionFeedback:
+          '1': Underfitting means low training accuracy too. Here training is near perfect.
+          '2': A gap that grows during training points to memorizing, not bad labels.
+          '3': Training accuracy measures memory of photos it has already seen.
+        model: A 25-point train–validation gap and validation loss rising after epoch 8 are overfitting. Keep the epoch-8 model and fight the memorizing.
+
+    - id: augment
+      title: Choosing augmentations
+      say: |
+        Leaves are photographed at any angle and distance. Blast shows as grey-centred, brown-edged lesions, so colour
+        matters.
+      decision:
+        prompt: Which augmentation plan fits this problem?
+        type: mcq
+        options:
+          - Random rotation, horizontal flip and zoom on training photos only; leave colours and validation photos alone
+          - Random rotation and zoom on both training and validation photos, so they match
+          - Swap colour channels on training photos to create more variety
+          - Augment by copying each training photo three times
+        answer: 0
+        optionFeedback:
+          '1': Validation photos must stay real, or the score no longer measures real performance.
+          '2': Colour is the disease signal; swapping channels can make a healthy leaf look ill.
+          '3': Exact copies add no variety, so the network can still memorize them.
+        model: Rotations, flips and zooms are realistic and keep the label true. Colour changes would fake the disease signal, and validation photos stay untouched.
+
+    - id: vgg
+      title: The adviser's suggestion
+      say: |
+        The adviser suggests VGG16's ImageNet base on the same 128 × 128 photos, with a new head of 256 units and one
+        logit. The size of the features each photo becomes appears once you answer.
+      stage:
+        - id: vr
+          widget: Readout
+          hidden: true
+          props:
+            items:
+              - { label: 'sides', value: '{=v.sizesText}' }
+              - { label: 'features', value: '@v.features', format: comma }
+              - { label: 'trainable head', value: '@v.head', format: comma, tone: good }
+      decision:
+        prompt: How many features does VGG16's base produce per 128 × 128 photo?
+        type: mcq
+        options:
+          - '8,192: 128 → 64 → 32 → 16 → 8 → 4, and 4 · 4 · 512'
+          - '25,088: 7 · 7 · 512, as on 224 × 224 photos'
+          - '2,048: 2 · 2 · 512, after six pools'
+          - '32,768: 8 · 8 · 512, after four pools'
+        answer: 0
+        optionFeedback:
+          '1': 7 × 7 comes from 224 × 224 inputs; here the input is 128.
+          '2': VGG16 has five pools, one per block.
+          '3': Block 5 ends with a pool too.
+        model: Five pools halve 128 to 4; the last block has 512 filters, so $4\cdot4\cdot512 = 8{,}192$, the same as for 150 × 150 photos.
+
+    - id: plan
+      title: The training plan
+      say: |
+        The co-op has one laptop GPU for an afternoon. They want the best validation accuracy they can get from the
+        1,000 training photos.
+      decision:
+        prompt: Which plan do you recommend?
+        type: mcq
+        options:
+          - Train the new head on frozen VGG16 features first, then fine-tune block 5 with a tiny learning rate and augmentation
+          - Unfreeze all of VGG16 at once and train with the usual learning rate
+          - Keep the intern's small CNN and train it for 200 epochs without augmentation
+          - Fine-tune block 5 first, then attach an untrained head
+        answer: 0
+        optionFeedback:
+          '1': A random new head would send large errors into every pre-trained layer, wiping out what they learned.
+          '2': More epochs make its overfitting worse.
+          '3': Fine-tuning before the head is trained lets the head's random errors damage block 5.
+        model: Feature extraction is fast and usually gives a big jump; fine-tuning the top block gently, with augmentation, can add a few more points.
+
+    - id: explain
+      title: Report to the co-op
+      say: |
+        The co-op's board is not technical. Write two or three sentences they can act on.
+      decision:
+        prompt: What do you tell the board?
+        type: open
+        model: |
+          With only 1,000 labelled photos, a network built from scratch memorizes them and reaches about 74% on new
+          leaves. Reusing a network that already learned to see from a million photos, and training only a small part
+          of it on our leaves, is faster and should be much more accurate. More labelled photos, especially of early
+          blast, would help most next.
+
+atScale:
+  title: Image models in production
+  body: |
+    In practice nobody draws shape tables for VGG16 by hand: `torchinfo.summary(model, (1, 3, 128, 128))` prints every
+    layer's shape and parameter count, exactly as the notebook's `layer_summary` does. Photos are streamed from disk in
+    batches by a `DataLoader` with several worker processes, and augmentation runs on the fly in that pipeline, so a
+    new random version is made every epoch at no storage cost. Training runs on a GPU; a pre-trained base runs once per
+    photo for feature extraction (minutes) but once per photo per epoch for fine-tuning (hours). Newer bases such as
+    ResNet or EfficientNet are used the same way and are far smaller than VGG16's 14.7 million base weights. For a phone
+    app the trained model is exported (TorchScript or ONNX) and often shrunk to 8-bit weights.
+  code:
+    - title: Transfer learning in PyTorch
+      source: |
+        from torchvision import models
+        import torch.nn as nn, torch
+
+        base = models.vgg16(weights="IMAGENET1K_V1").features
+        for p in base.parameters():
+            p.requires_grad = False                  # freeze
+        head = nn.Sequential(nn.Flatten(), nn.Linear(4 * 4 * 512, 256), nn.ReLU(),
+                             nn.Dropout(0.5), nn.Linear(256, 1))
+        model = nn.Sequential(base, head)
+
+        # later: fine-tune block 5 only (its 3 convs are the last layers of `base`)
+        for p in base[24:].parameters():
+            p.requires_grad = True
+        opt = torch.optim.RMSprop([p for p in model.parameters() if p.requires_grad], lr=1e-5)
+
+tradeoffs:
+  title: Four ways to build the classifier
+  columns: [Approach, What trains, Speed, Augmentation, Typical result on 2,000 photos]
+  rows:
+    - ['Small CNN from scratch', 'Everything (a few million weights)', Fast per epoch, Optional, '70–73% (overfits)']
+    - ['Small CNN + augmentation', Everything, Fast per epoch, Yes, '83–85%']
+    - ['VGG16 feature extraction', 'New head only (2.1 M)', Very fast, 'No: features are stored', 'About 90%']
+    - ['VGG16 fine-tuning', 'Head + block 5 (9.2 M)', 'Slow: base runs every epoch', Yes, 'About 94%']
+
+connections:
+  - module: neural-networks
+    note: The classifier at the end of every CNN is the same dense network trained by backpropagation and gradient descent.
+
+explainBack:
+  prompt: Explain to a classmate how a CNN turns a 128 × 128 photo into a "blast / healthy" score, and why reusing VGG16 beats training from scratch on 1,000 photos.
+  rubric:
+    - Filters slide over the image and produce feature maps; each filter spans all channels
+    - Convolutions trim or keep the side, pools halve it, flatten unrolls the maps for dense layers
+    - Few parameters thanks to local connectivity and parameter sharing
+    - Small datasets overfit; augmentation of training photos helps
+    - A pre-trained frozen base gives general features; a new head is trained, then the top block fine-tuned gently

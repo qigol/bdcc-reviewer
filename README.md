@@ -176,6 +176,23 @@ pnpm kodigo pack modules/<id> [outDir]           # <id>@<version>.zip + .bundle.
 pnpm kodigo json-schema schema.json              # JSON Schemas for editors
 ```
 
+## Reading on a Kindle or Kobo
+
+`pnpm kodigo epub` turns modules into EPUB 3 ebooks for e-readers:
+
+```bash
+pnpm kodigo epub modules/<id>                    # dist/epub/<id>@<version>.epub
+pnpm kodigo epub modules --course MANACC         # one book with every module of a course (dist/epub/manacc.epub)
+pnpm kodigo epub modules                         # one book per module
+```
+
+Each module follows its learning path (Intuition scenes and workbench sections interleaved, then the case). After that come
+practice questions from the quiz bank and the glossary. Every question starts a new page, and its answer is alone on the page after
+it, so turning the page reveals it. Headings and question labels use the module's colour. Callouts are coloured by kind, and answers
+are green. Body text stays black, so the books still read well on grayscale e-ink. Numbers come from `logic.js`, as they do on the site. Math is MathML. Tables, schedules, journals, formulas, code and
+images are kept, and charts become data tables. Sliders, drag-and-drop and step players are left out, and the command lists what
+it left out. Kobo opens the file directly. For a Kindle, use Amazon's Send to Kindle, which accepts EPUB.
+
 Validation runs `logic.js` in a sandbox (a Web Worker in the browser, `node:vm` in Node) with no network, no timers
 and no `Math.random`. **Import is blocked if any lecture example fails to reproduce.**
 

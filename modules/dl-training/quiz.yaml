@@ -1,0 +1,990 @@
+templates:
+  # ------------------------------------------------------------ parameters vs hyperparameters
+  - id: param-count
+    type: numeric
+    skills: [params-vs-hyper]
+    difficulty: 1
+    tags: [math]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: param-count }
+    prompt: |
+      A fully connected network has layer sizes {=shape} (inputs first). How many [[parameter|parameters]] does
+      training have to learn?
+    answer: { var: total, tol: 0 }
+    hints:
+      - 'Each layer has (inputs × units) weights.'
+      - Add one bias per unit; the inputs have none.
+    explanation: |
+      Per layer, $n_{in}\cdot n_{out} + n_{out}$: {=perLayer|list}. Total {=total}.
+
+  - id: hyper-multi
+    type: multi
+    skills: [params-vs-hyper]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: params-hyper }
+    prompt: Which of these are **hyperparameters** of a neural network?
+    options:
+      - The learning rate
+      - The dropout rate
+      - The number of hidden layers
+      - A weight from input 1 to hidden unit 3
+      - The bias of the output unit
+    answer: [0, 1, 2]
+    optionFeedback:
+      '3': Weights are learned by gradient descent; they are parameters.
+      '4': Biases are learned too; they are parameters.
+    hints: [Ask who sets it, the training algorithm or you.]
+    explanation: Hyperparameters are chosen by us and judged on validation data; weights and biases are learned.
+
+  - id: hyper-match
+    type: match
+    skills: [params-vs-hyper]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: params-hyper }
+    prompt: Match each hyperparameter to its family.
+    pairs:
+      - ['Number of hidden layers', 'Architecture']
+      - ['Neurons per layer', 'Architecture']
+      - ['Batch size', 'Optimization and training']
+      - ['Momentum β', 'Optimization and training']
+      - ['Dropout rate p', 'Regularization']
+      - ['L2 strength λ', 'Regularization']
+    explanation: What the model is, how it learns, and how learning is constrained. The families overlap; this is their main role.
+
+  - id: hyper-why-mcq
+    type: mcq
+    skills: [params-vs-hyper, hp-selection]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: params-hyper }
+    prompt: Why are hyperparameters not simply chosen to minimize the training loss?
+    options:
+      - That would always pick the biggest network, longest training and no regularization, which invites memorizing
+      - Hyperparameters have no effect on the training loss
+      - The training loss cannot be computed until training is over
+      - Gradient descent already chooses them automatically
+    answer: 0
+    optionFeedback:
+      '1': They change the training loss a lot; that is exactly the problem.
+      '2': Training loss is computed every step.
+      '3': Gradient descent learns weights and biases, not the learning rate or the number of layers.
+    explanation: Hyperparameters must be judged on data the model was not trained on, the validation set.
+    variants:
+      - prompt: Gradient descent learns the weights. Why can it not also learn the number of layers?
+        options:
+          - The number of layers is not a smooth number that a small gradient step can change
+          - It can, but only with Adam
+          - The number of layers has no effect on the loss
+          - The number of layers is fixed by the dataset
+        answer: 0
+        optionFeedback:
+          '1': No optimizer takes gradient steps on a whole number of layers.
+          '2': It changes the loss a lot.
+          '3': You choose it; the data do not fix it.
+        explanation: Many hyperparameters are not continuous, and the rest would overfit if chosen on training loss.
+      - prompt: A student tunes the dropout rate by picking whichever value gives the lowest **training** loss. What will they pick?
+        options:
+          - 'p = 0, no dropout, because dropout makes training harder'
+          - The largest dropout rate tried
+          - The value that is best on new data
+          - A random value; training loss does not depend on p
+        answer: 0
+        optionFeedback:
+          '1': Heavy dropout raises training loss.
+          '2': Training loss cannot tell what is best on new data.
+          '3': Dropout changes training loss directly.
+        explanation: Regularization always looks bad on training loss; only validation data can show it helped.
+
+  - id: param-hyper-cloze
+    type: code-fill
+    lang: text
+    skills: [params-vs-hyper, hp-selection]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: params-hyper }
+    prompt: Fill in the missing words.
+    code: |
+      Weights and biases are __BLANK_1__: training learns them from the training loss. The learning rate and dropout
+      rate are __BLANK_2__: we choose them, judging each choice on the __BLANK_3__ set.
+    blanks:
+      '1': { accept: [parameters], hint: 'p…' }
+      '2': { accept: [hyperparameters], hint: 'h…' }
+      '3': { accept: [validation], hint: 'v…' }
+    hints: [The test set is used only once, at the end.]
+    explanation: Parameters are learned; hyperparameters are chosen on validation data.
+
+  # ------------------------------------------------------------ learning rate
+  - id: bowl-step
+    type: numeric
+    skills: [learning-rate]
+    difficulty: 1
+    tags: [math]
+    generator: bowlQ
+    lessonRef: { tab: math-code, id: gd-step }
+    prompt: |
+      The loss is $L = \tfrac{1}{2}\,{=c}\,\theta^2$, so its [[gradient]] is ${=c}\,\theta$. Starting at
+      $\theta = {=theta0}$ with learning rate $\eta = {=eta}$, where is $\theta$ after {=k} gradient-descent step(s)?
+    answer: { var: ans, tol: 0.01 }
+    hints:
+      - '$\theta \leftarrow \theta - \eta\cdot c\,\theta$, so each step multiplies $\theta$ by $(1 - \eta c)$.'
+    explanation: |
+      Each step multiplies $\theta$ by $1 - {=eta}\cdot{=c} = {=factor}$, so after {=k} step(s) $\theta = {=ans}$.
+
+  - id: bowl-hand
+    type: hand-calc
+    skills: [learning-rate]
+    difficulty: 2
+    tags: [math]
+    generator: bowlQ
+    lessonRef: { tab: intuition, id: learning-rate }
+    prompt: |
+      Bowl loss $L = \tfrac12\,{=c}\,\theta^2$, start $\theta = {=theta0}$, $\eta = {=eta}$. One step by hand.
+    steps:
+      - prompt: The gradient at the start
+        answer: { var: g0, tol: 0.01 }
+        hint: '$c\,\theta$.'
+      - prompt: The factor $1 - \eta c$ that each step multiplies $\theta$ by
+        answer: { var: factor, tol: 0.01 }
+        hint: 'A factor below 0 means the step overshoots the bottom.'
+    hints:
+      - Gradient first, then the update rule.
+    explanation: |
+      Gradient ${=g0}$; factor ${=factor}$. The run {=verdict}.
+
+  - id: lr-curves-mcq
+    type: mcq
+    skills: [learning-rate, diagnose]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: learning-rate }
+    prompt: Training loss jumps up and down wildly and ends higher than where it started. What is the most likely cause?
+    options:
+      - The learning rate is too large, so steps overshoot
+      - The learning rate is too small
+      - The model is underfitting because it has too few layers
+      - The validation set is too small
+    answer: 0
+    optionFeedback:
+      '1': A small rate gives a flat, slowly falling curve, not spikes.
+      '2': Too few layers gives a high, smooth curve, not spikes.
+      '3': The validation set does not affect the training loss.
+    explanation: Steps that overshoot the valley land higher than they started, the bowl's η = 2.1 picture.
+    variants:
+      - prompt: Training loss falls, but so slowly that after 200 epochs it has barely moved. What should you try?
+        options:
+          - A larger learning rate, about ten times bigger
+          - A smaller learning rate
+          - More dropout
+          - Using the test set for tuning
+        answer: 0
+        optionFeedback:
+          '1': A smaller rate would be even slower.
+          '2': Dropout makes training harder, not faster.
+          '3': The test set is never used for tuning.
+        explanation: The η = 0.003 run barely moved; learning rates are searched on a log scale.
+      - prompt: 'On the bowl $L = \tfrac12\theta^2$, which learning rate makes $\theta$ flip sign every step yet still settle at 0?'
+        options: ['1.8', '0.1', '0.8', '2.1']
+        answer: 0
+        optionFeedback:
+          '1': 'Factor 0.9: it creeps, never flipping sign.'
+          '2': 'Factor 0.2: it settles fast without flipping.'
+          '3': 'Factor −1.1: it flips and grows; it diverges.'
+        explanation: 'The factor $1 - \eta = -0.8$: the sign flips but the size shrinks.'
+
+  - id: lr-table-mcq
+    type: mcq
+    skills: [learning-rate, hp-selection]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: learning-rate }
+    prompt: 'In the learning-rate table, η = 0.3 has the lowest training loss (0.112) and η = 0.03 the lowest validation loss (0.255). Which do you keep?'
+    options:
+      - 'η = 0.03, because validation loss judges new data'
+      - 'η = 0.3, because its training loss is lowest'
+      - 'η = 3.0, because it trains fastest'
+      - 'Whichever does best on the test set'
+    answer: 0
+    optionFeedback:
+      '1': The lowest training loss is not automatically the best choice.
+      '2': It jumps erratically and ends worse on both.
+      '3': The test set is used once, at the end, never to choose.
+    explanation: Hyperparameters are chosen on validation evidence.
+
+  # ------------------------------------------------------------ batches, steps, epochs
+  - id: steps-epoch
+    type: numeric
+    skills: [batch-size]
+    difficulty: 1
+    tags: [math]
+    generator: stepsQ
+    lessonRef: { tab: math-code, id: steps-epoch }
+    prompt: |
+      A training set has $N = {=N}$ examples and the [[training-batch]] size is $B = {=B}$. How many update steps happen in one
+      [[epoch]]?
+    answer: { var: perEpoch, tol: 0 }
+    hints:
+      - Divide $N$ by $B$.
+      - A leftover partial batch still makes one step, so round up.
+    explanation: |
+      $N/B = {=ratio}$, rounded up: {=perEpoch} steps (the last batch holds {=lastBatch} examples).
+
+  - id: steps-total
+    type: numeric
+    skills: [batch-size]
+    difficulty: 2
+    tags: [math]
+    generator: stepsQ
+    lessonRef: { tab: math-code, id: steps-epoch }
+    prompt: |
+      $N = {=N}$ training examples, batch size {=B}, {=epochs} epochs. How many parameter updates in total?
+    answer: { var: total, tol: 0 }
+    hints:
+      - Steps per epoch is $\lceil N/B \rceil$.
+      - Multiply by the number of epochs.
+    explanation: |
+      $\lceil {=N}/{=B} \rceil = {=perEpoch}$ per epoch, times {=epochs} epochs $= {=total}$.
+
+  - id: batch-mcq
+    type: mcq
+    skills: [batch-size]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: batches }
+    prompt: 'Per epoch, batch size 4 pulled ahead of the full batch (160). Why?'
+    options:
+      - It takes 40 steps per epoch while the full batch takes one
+      - Each of its gradients is more accurate than the full batch's
+      - It uses a larger learning rate automatically
+      - Small batches skip the noisy examples
+    answer: 0
+    optionFeedback:
+      '1': Its gradients are noisier, not more accurate.
+      '2': All three runs used η = 0.1.
+      '3': Every example is still used once per epoch.
+    explanation: More steps per epoch, each rougher. Per **step**, the full batch makes steadier progress.
+    variants:
+      - prompt: You switch from batch size 16 to 256. What else should you expect to re-tune?
+        options:
+          - The learning rate, since the step count and gradient noise change
+          - Nothing; batch size is independent of every other setting
+          - The number of hidden layers
+          - The test set
+        answer: 0
+        optionFeedback:
+          '1': Changing B usually means re-tuning η.
+          '2': Architecture is a separate family.
+          '3': The test set is never tuned.
+        explanation: Fewer, steadier steps per epoch usually suit a different learning rate.
+      - prompt: Which batch size gives the noisiest single gradient?
+        options: ['B = 1', 'B = 16', 'B = 64', 'B = N, the full set']
+        answer: 0
+        optionFeedback:
+          '1': Sixteen examples average out some noise.
+          '2': The notebook's scatter shrank from 1.48 (B = 4) to 0.29 (B = 64).
+          '3': The full batch has no sampling noise at all.
+        explanation: One example's gradient is the roughest guess of the true direction.
+
+  - id: train-loop-order
+    type: order
+    skills: [batch-size]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: intuition, id: batches }
+    prompt: Put one PyTorch training step in order, for one batch. One line does not belong.
+    code: true
+    items:
+      - 'optimizer.zero_grad()'
+      - 'logits = model(inputs)'
+      - 'loss = loss_fn(logits, targets)'
+      - 'loss.backward()'
+      - 'optimizer.step()'
+    distractors:
+      - 'model.eval()'
+    hints: [Clear old gradients first; update last.]
+    explanation: 'Clear gradients, forward, loss, backward, update. `model.eval()` switches dropout off; it belongs to validation, not to a training step.'
+
+  # ------------------------------------------------------------ momentum and optimizers
+  - id: mom-velocity
+    type: numeric
+    skills: [momentum]
+    difficulty: 2
+    tags: [math]
+    generator: momQ
+    lessonRef: { tab: math-code, id: momentum-update }
+    prompt: |
+      SGD with [[momentum]] $\beta = {=beta}$, starting from $v_0 = 0$. The gradients at steps 1 to {=T} are shown. What
+      is the velocity $v_{{=T}}$?
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: step } }
+    answer: { var: v, tol: 0.01 }
+    hints:
+      - '$v_t = \beta v_{t-1} + g_t$.'
+      - Go step by step from $v_0 = 0$.
+    explanation: |
+      Velocities {=vs|list}, so $v_{{=T}} = {=v}$.
+
+  - id: mom-hand
+    type: hand-calc
+    skills: [momentum]
+    difficulty: 3
+    tags: [math]
+    generator: momQ
+    lessonRef: { tab: intuition, id: momentum-adam }
+    prompt: |
+      Momentum $\beta = {=beta}$, $\eta = {=eta}$, $\theta_0 = 1$, $v_0 = 0$, gradients shown. Work to the end.
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: step } }
+    steps:
+      - prompt: 'The last velocity $v_{{=T}}$'
+        answer: { var: v, tol: 0.01 }
+        misconceptions:
+          - { var: noMem, feedback: 'Add $\beta$ times the previous velocity.' }
+      - prompt: 'The parameter $\theta$ after the last step (3 decimals)'
+        answer: { var: theta, tol: 0.002 }
+        hint: 'Each step subtracts $\eta v_t$.'
+    hints:
+      - Keep a running pair $(v, \theta)$.
+    explanation: |
+      Velocities {=vs|list}; $\theta$ ends at {=theta|4}.
+
+  - id: mom-mcq
+    type: mcq
+    skills: [momentum]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: momentum-adam }
+    prompt: 'With the gradient pointing the same way every step, why does β = 0.9 make steps up to about ten times larger?'
+    options:
+      - 'The velocity adds 1 + 0.9 + 0.81 + … of the gradient, which approaches 1/(1 − 0.9) = 10'
+      - The learning rate is multiplied by ten when momentum is on
+      - Momentum skips nine of every ten steps
+      - The gradient itself grows ten times larger
+    answer: 0
+    optionFeedback:
+      '1': η is unchanged; the velocity grows.
+      '2': Every step is taken.
+      '3': The gradient is the same; the velocity accumulates it.
+    explanation: A geometric sum. Back-and-forth gradients cancel instead, which is why momentum smooths zig-zags.
+    variants:
+      - prompt: 'With η = 0.01 fixed, β = 0.9 trained faster than β = 0. Which plain SGD run behaves most like β = 0.9 at η = 0.01?'
+        options: ['SGD with η = 0.1', 'SGD with η = 0.001', 'SGD with η = 0.01', 'SGD with η = 0.009']
+        answer: 0
+        optionFeedback:
+          '1': That would be ten times slower still.
+          '2': That is the β = 0 run itself.
+          '3': That is 0.9 × 0.01, the wrong direction.
+        explanation: 'Momentum and learning rate must be chosen together: β = 0.9 makes effective steps about 10× η.'
+      - prompt: In a long, narrow valley, plain SGD zig-zags across it. What does momentum do?
+        options:
+          - The back-and-forth parts cancel while speed builds along the valley floor
+          - It makes the zig-zag larger, so the minimum is found faster
+          - It stops all movement across the valley
+          - It changes the shape of the valley
+        answer: 0
+        optionFeedback:
+          '1': Opposite gradients cancel in the velocity.
+          '2': It damps them; it does not stop them completely.
+          '3': The loss surface is fixed; only the path changes.
+        explanation: Consistent directions add up; alternating ones cancel.
+
+  - id: adam-mcq
+    type: mcq
+    skills: [optimizers]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: momentum-adam }
+    prompt: 'Adam with η = 0.003 trained smoothly; Adam with η = 0.1 was erratic, though 0.1 suits SGD. Why?'
+    options:
+      - Adam scales each step by the size of recent gradients, so its sensible η is different from SGD's
+      - Adam ignores the learning rate
+      - Adam always needs a larger learning rate than SGD
+      - Adam has no momentum, so it needs tiny steps
+    answer: 0
+    optionFeedback:
+      '1': Its steps are about η in size; η matters a lot.
+      '2': Here the smaller rate worked; the larger was erratic.
+      '3': Adam keeps momentum.
+    explanation: Each optimizer needs its own learning rate; choosing one is not choosing the other.
+    variants:
+      - prompt: 'In the valley, the steep direction has gradient 40 and the shallow one gradient 4. What is the size of Adam''s first step in each, with η = 0.2?'
+        options: ['About 0.2 in both', '8 and 0.8', '40 and 4', '0.2 in the steep one, 0.02 in the shallow one']
+        answer: 0
+        optionFeedback:
+          '1': That is SGD, $\eta g$.
+          '2': Those are the gradients themselves.
+          '3': Adam divides by each parameter's own gradient size, so both come out near η.
+        explanation: '$\hat m/\sqrt{\hat s} = g/|g|$ on the first step, so each parameter moves by about η.'
+      - prompt: Adam lowered training loss faster than SGD. What did its validation loss do?
+        options:
+          - It reached its lowest point earlier and then rose
+          - It kept falling to the last epoch
+          - It stayed exactly equal to SGD's
+          - It could not be measured with Adam
+        answer: 0
+        optionFeedback:
+          '1': Faster training brings overfitting sooner.
+          '2': 0.381 vs SGD's 0.280 at the end.
+          '3': Validation loss is measured the same way for any optimizer.
+        explanation: Faster training also brings overfitting sooner; watch validation loss.
+
+  - id: opt-two-tier
+    type: two-tier
+    skills: [optimizers, momentum]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: momentum-adam }
+    prompt: A colleague switches from SGD (η = 0.1) to Adam and keeps η = 0.1. What do you expect?
+    options: ['Erratic training; retune η for Adam', 'Smoother training, same η is fine', 'Exactly the same curves']
+    answer: 0
+    reasons:
+      - Adam's steps are about η per parameter regardless of gradient size, so a rate tuned for SGD is too big
+      - Adam always divides η by ten internally
+      - The optimizer does not change the update rule
+    reasonAnswer: 0
+    optionFeedback:
+      '1': In the notebook, Adam at η = 0.1 had validation loss 0.573, the worst run.
+      '2': Adam and SGD use different update rules.
+    reasonFeedback:
+      '1': There is no hidden division; the per-parameter rescaling is what changes the step size.
+      '2': Adam rescales each parameter's step; SGD does not.
+    explanation: Each optimizer needs its own learning rate.
+
+  - id: code-momentum
+    type: code-fill
+    skills: [momentum, optimizers]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: momentum-update }
+    prompt: Complete SGD with momentum, as the notebook's optimizer writes it.
+    code: |
+      def momentum_step(theta, v, grad, lr, beta):
+          v = __BLANK_1__
+          theta = theta - __BLANK_2__
+          return theta, v
+    blanks:
+      '1': { accept: ['beta * v + grad', 'beta*v + grad', 'grad + beta * v'] }
+      '2': { accept: ['lr * v', 'lr*v', 'v * lr'] }
+    hints:
+      - The new velocity keeps β of the old one and adds the gradient.
+    explanation: '`v = beta * v + grad`, then `theta = theta - lr * v`.'
+
+  # ------------------------------------------------------------ selection
+  - id: test-locked-mcq
+    type: mcq
+    skills: [hp-selection]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: selection }
+    prompt: 'Fifty equally good configurations (each truly 85% accurate) are scored on the same 300 examples; the best scores 89%. Why?'
+    options:
+      - Every score includes luck, and picking the highest picks the luckiest
+      - That configuration really is better than the others
+      - The examples were mislabelled
+      - The configurations were trained on the test set
+    answer: 0
+    optionFeedback:
+      '1': They are all equally good by design.
+      '2': Nothing is mislabelled; the gap is luck.
+      '3': They were scored, not trained, on it.
+    explanation: That is why tuning uses the validation set and the test set is used once, at the end.
+    variants:
+      - prompt: A team tries 40 learning rates and reports the best one's **test** accuracy as their final score. What is wrong?
+        options:
+          - The test score is now optimistic, because it was used to choose
+          - Nothing, as long as they report it honestly
+          - They should have tried more learning rates
+          - Test accuracy can never be reported
+        answer: 0
+        optionFeedback:
+          '1': Honest reporting does not remove the selection bias.
+          '2': More tries make the bias worse.
+          '3': It is reported once, for the chosen model.
+        explanation: Choose on validation; test once.
+      - prompt: Which set picks the dropout rate?
+        options: ['Validation', 'Training', 'Test', 'All three, averaged']
+        answer: 0
+        optionFeedback:
+          '1': Training loss always prefers no regularization.
+          '2': The test set gives one final estimate only.
+          '3': Mixing them leaks the test set into the choice.
+        explanation: Training fits parameters, validation picks hyperparameters, test reports once.
+
+  - id: scale-two-tier
+    type: two-tier
+    skills: [hp-selection]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: selection }
+    prompt: Where should the mean and standard deviation used to standardize the features come from?
+    options: ['The training set only', 'All the data', 'The test set']
+    answer: 0
+    reasons:
+      - Using validation or test values would leak information about them into training
+      - The training set is the largest set
+      - It makes no difference to the scores
+    reasonAnswer: 0
+    optionFeedback:
+      '1': All the data includes validation and test, which must stay unseen.
+      '2': The test set must not influence anything before the final check.
+    reasonFeedback:
+      '1': Here the training set (160) is the smallest; size is not the reason.
+      '2': Leakage can make validation and test scores look better than they really are.
+    explanation: Statistics come from the training set, then the same numbers scale every set.
+
+  - id: split-match
+    type: match
+    skills: [hp-selection]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: selection }
+    prompt: Match each set to its job.
+    pairs:
+      - ['Training set', 'Fits the weights and biases']
+      - ['Validation set', 'Compares configurations and picks hyperparameters']
+      - ['Test set', 'Gives one final, honest estimate']
+    explanation: The notebook split two moons 160 / 300 / 1000.
+
+  - id: selection-order
+    type: order
+    skills: [hp-selection]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: selection }
+    prompt: Put an honest tuning workflow in order.
+    items:
+      - Split the data once into training, validation and test sets
+      - Compute the scaling mean and spread on the training set only
+      - Train each candidate configuration on the training set
+      - Compare the candidates on the validation set and pick one
+      - Evaluate the chosen model once on the test set
+    hints: [The test set comes last, and only once.]
+    explanation: Split first, fit statistics and weights on training data, choose on validation, report on test.
+
+  - id: code-scale
+    type: code-fill
+    skills: [hp-selection]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: split-scale }
+    prompt: Standardize without leakage.
+    code: |
+      mu = X_train.mean(axis=0)
+      sd = X_train.std(axis=0)
+      X_train_s = (X_train - mu) / sd
+      X_val_s = (X_val - __BLANK_1__) / __BLANK_2__
+    blanks:
+      '1': { accept: ['mu'] }
+      '2': { accept: ['sd'] }
+    hints: [Validation data reuse the training statistics.]
+    explanation: Every set is scaled with the training mean and standard deviation.
+
+  # ------------------------------------------------------------ diagnosis
+  - id: diagnose-mcq
+    type: mcq
+    skills: [diagnose]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: diagnose }
+    prompt: Training loss keeps falling while validation loss has been rising for 100 epochs. What is the diagnosis?
+    options: ['Overfitting', 'Underfitting', 'A good fit', 'A learning rate that is too small']
+    answer: 0
+    optionFeedback:
+      '1': Underfitting keeps both losses high.
+      '2': A good fit keeps both low and close.
+      '3': A tiny rate gives slowly falling losses, not rising validation loss.
+    explanation: The model is fitting noise in the training examples.
+    variants:
+      - prompt: Both training and validation loss stay high and close together. What is the diagnosis?
+        options: ['Underfitting', 'Overfitting', 'A good fit', 'Leakage']
+        answer: 0
+        optionFeedback:
+          '1': Overfitting has low training loss and a gap.
+          '2': High losses are not a good fit.
+          '3': Leakage makes validation look too good, not bad.
+        explanation: The model has not captured the pattern yet; train longer, bigger, or with less regularization.
+      - prompt: 'With p = 0.9, training loss stays high and the boundary is crude. What happened?'
+        options: ['Too much regularization caused underfitting', 'The model overfits', 'Dropout was off', 'The learning rate diverged']
+        answer: 0
+        optionFeedback:
+          '1': Overfitting has low training loss.
+          '2': It was on, very strongly.
+          '3': Divergence makes loss grow and spike.
+        explanation: Too little and too much regularization both hurt, in different ways.
+
+  - id: val-acc-mcq
+    type: mcq
+    skills: [diagnose]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: diagnose }
+    prompt: After the best epoch, validation **accuracy** barely changes but validation **loss** climbs. How can both be true?
+    options:
+      - The model still gets most points on the right side but grows over-confident, and confident mistakes cost a lot of loss
+      - Accuracy and loss measure the same thing, so one must be wrong
+      - The validation set changed during training
+      - Loss only counts the training points
+    answer: 0
+    optionFeedback:
+      '1': Accuracy only checks which side of 0.5; loss weighs how confident each prediction is.
+      '2': The validation set is fixed.
+      '3': Validation loss is computed on validation points.
+    explanation: Binary cross-entropy grows without limit for confident mistakes.
+
+  # ------------------------------------------------------------ early stopping
+  - id: stop-epoch
+    type: numeric
+    skills: [early-stopping]
+    difficulty: 2
+    tags: [math]
+    generator: stopQ
+    lessonRef: { tab: math-code, id: early-stop }
+    prompt: |
+      Validation losses per epoch are shown. [[early-stopping|Early stopping]] uses [[patience]] {=patience} and
+      [[min-delta|minimum improvement]] $\delta = {=minDelta}$. At which epoch does training stop?
+    show:
+      - { id: v, widget: Matrix, props: { data: '@grid', rowHeader: epoch } }
+    answer: { var: stopEpoch, tol: 0 }
+    hints:
+      - A loss improves only if it is below best − δ.
+      - Count epochs in a row without improvement; stop when the count reaches the patience.
+    explanation: |
+      Best at epoch {=bestEpoch} ({=best}); after {=patience} epochs without improvement it stops at epoch {=stopEpoch}.
+
+  - id: stop-case
+    type: case
+    skills: [early-stopping, diagnose]
+    difficulty: 3
+    tags: [application]
+    generator: stopQ
+    lessonRef: { tab: intuition, id: early-stopping }
+    prompt: |
+      **A delivery-time model.** A logistics startup trains a network to predict delivery times and logs validation loss
+      each epoch (shown). It uses early stopping with patience {=patience} and $\delta = {=minDelta}$.
+    show:
+      - { id: v, widget: Matrix, props: { data: '@grid', rowHeader: epoch } }
+    parts:
+      - type: numeric
+        prompt: At which epoch does training stop?
+        answer: { var: stopEpoch, tol: 0 }
+        explanation: 'Stops at epoch {=stopEpoch}.'
+      - type: numeric
+        prompt: Which epoch's weights are restored?
+        answer: { var: bestEpoch, tol: 0 }
+        misconceptions:
+          - { var: lastBest, feedback: 'Restore the best epoch, not the one where training stopped.' }
+        explanation: 'The last real improvement was epoch {=bestEpoch}.'
+      - type: mcq
+        prompt: Why restore those weights instead of keeping the final ones?
+        options:
+          - The epochs after the best were, by definition, not improvements
+          - The final weights are always lost
+          - Restoring makes training faster
+        answer: 0
+        explanation: The waiting epochs only fitted the training data more.
+    hints:
+      - Track best, best epoch and the wait count epoch by epoch.
+    explanation: Stop at {=stopEpoch}; restore epoch {=bestEpoch}.
+
+  - id: stop-mcq
+    type: mcq
+    skills: [early-stopping]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: early-stopping }
+    prompt: Why does early stopping use a patience of several epochs instead of stopping at the first worse epoch?
+    options:
+      - Validation curves are noisy; one bad epoch should not end training
+      - Patience makes each epoch faster
+      - It guarantees the lowest possible training loss
+      - The first worse epoch is always the best epoch
+    answer: 0
+    optionFeedback:
+      '1': Patience changes when training stops, not how fast an epoch runs.
+      '2': Early stopping deliberately stops before training loss is lowest.
+      '3': A loss can dip again after a bump.
+    explanation: Very short patience can stop on a temporary plateau; very long patience wastes epochs.
+    variants:
+      - prompt: 'The baseline ran 1,000 epochs (validation loss 0.484); early stopping stopped at 136 (0.235). What does that show?'
+        options:
+          - Stopping near the best epoch avoided the overfitting of the long run
+          - Early stopping always trains for exactly 136 epochs
+          - More epochs always help
+          - The baseline used a different network
+        answer: 0
+        optionFeedback:
+          '1': The stopping epoch depends on the curve and the patience.
+          '2': The long run's validation loss doubled.
+          '3': Same network; only early stopping was added.
+        explanation: Early stopping chooses the number of epochs from validation data during one run.
+      - prompt: What does the minimum improvement δ protect against?
+        options:
+          - Counting a tiny, meaningless drop as a real improvement
+          - Training for too few epochs
+          - Exploding gradients
+          - Overly large weights
+        answer: 0
+        optionFeedback:
+          '1': It can make training stop sooner, not later.
+          '2': That is gradient clipping's job.
+          '3': That is L2's job.
+        explanation: Only a drop larger than δ resets the patience counter.
+
+  - id: code-stop
+    type: code-fill
+    skills: [early-stopping]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: early-stop }
+    prompt: Complete the notebook's early-stopping rule.
+    code: |
+      def find_stopping_point(val_losses, patience, min_delta):
+          best_loss, best_epoch, wait = float("inf"), 0, 0
+          for epoch, loss in enumerate(val_losses, start=1):
+              if loss < __BLANK_1__:
+                  best_loss, best_epoch, wait = loss, epoch, 0
+              else:
+                  wait += 1
+              if wait >= __BLANK_2__:
+                  return best_epoch, epoch
+          return best_epoch, len(val_losses)
+    blanks:
+      '1': { accept: ['best_loss - min_delta', 'best_loss-min_delta'] }
+      '2': { accept: ['patience'] }
+    hints:
+      - An improvement must beat the best by more than δ.
+    explanation: '`loss < best_loss - min_delta`, and stop when `wait >= patience`.'
+
+  # ------------------------------------------------------------ dropout
+  - id: drop-scale
+    type: numeric
+    skills: [dropout]
+    difficulty: 1
+    tags: [math]
+    generator: dropQ
+    lessonRef: { tab: math-code, id: dropout-mask }
+    prompt: |
+      [[dropout|Dropout]] rate $p = {=rate}$ with [[inverted-dropout]]. During training, a hidden unit with value {=a}
+      survives. What value does it pass on?
+    answer: { var: ans, tol: 0.01 }
+    hints:
+      - Survivors are scaled by $1/(1 - p)$.
+    explanation: |
+      $1 - p = {=keep}$, so ${=a}/{=keep} = {=ans}$. At prediction time it would pass {=a}, unscaled.
+
+  - id: drop-find-error
+    type: find-error
+    skills: [dropout]
+    difficulty: 2
+    tags: [math]
+    generator: dropQ
+    lessonRef: { tab: math-code, id: dropout-mask }
+    prompt: |
+      A classmate applies inverted dropout with $p = {=rate}$ to a unit with value {=a}. **One step is wrong.** Click it
+      and give the correct value.
+    steps:
+      - 'Keep probability $1 - p = {=keep}$'
+      - 'The surviving unit becomes ${=a} \times {=keep} = {=times}$'
+      - 'Dropped units become 0, and at prediction time nothing is dropped'
+    wrong: 1
+    fix: { var: ans, tol: 0.01 }
+    fixPrompt: What should the surviving unit pass on?
+    misconceptions:
+      - { var: times, feedback: 'Still multiplying. Divide by the keep probability.' }
+    hints:
+      - Survivors are scaled **up**, so the expected total stays the same.
+    explanation: '${=a}/{=keep} = {=ans}$, not ${=a}\times{=keep}$.'
+
+  - id: drop-mcq
+    type: mcq
+    skills: [dropout]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: dropout }
+    prompt: What does dropout do when the trained network makes predictions?
+    options:
+      - Nothing; every unit is active and nothing is random
+      - It drops the same units as in the last training step
+      - It drops a fresh random set, so predictions vary
+      - It halves every unit's value
+    answer: 0
+    optionFeedback:
+      '1': Masks are only drawn during training.
+      '2': Prediction is deterministic; the notebook checked it.
+      '3': Scaling happened during training, so inference needs none.
+    explanation: '`model.eval()` switches dropout off; `model.train()` switches it back on.'
+    variants:
+      - prompt: Why does dropout reduce overfitting?
+        options:
+          - No unit can rely on particular neighbours, so learning spreads across many units
+          - It removes training examples at random
+          - It lowers the learning rate
+          - It shrinks the weights toward zero
+        answer: 0
+        optionFeedback:
+          '1': It drops hidden units, not examples.
+          '2': The learning rate is unchanged.
+          '3': That is L2 regularization.
+        explanation: Fragile, very specific connections cannot form when partners keep disappearing.
+      - prompt: 'With p = 0.3 and 200 hidden units, about how many are active in a training step?'
+        options: ['About 140', 'About 60', 'All 200', 'About 170']
+        answer: 0
+        optionFeedback:
+          '1': That is how many are dropped.
+          '2': All are active only at prediction time.
+          '3': 'That would be p = 0.15.'
+        explanation: '$200 \times (1 - 0.3) = 140$ on average.'
+
+  # ------------------------------------------------------------ L2
+  - id: l2-penalty
+    type: numeric
+    skills: [l2]
+    difficulty: 1
+    tags: [math]
+    generator: l2Q
+    lessonRef: { tab: math-code, id: l2-decay }
+    prompt: |
+      A tiny network has weights $w = [{=w|list}]$. With $\lambda = {=lam}$, what is the
+      [[l2-regularization|L2 penalty]] $\tfrac{\lambda}{2}\sum w^2$ added to the loss?
+    answer: { var: penalty, tol: 0.001 }
+    hints:
+      - Square each weight and add them.
+      - 'Multiply by $\lambda/2$.'
+    explanation: |
+      $\sum w^2 = {=sumSq}$, so $\tfrac{{=lam}}{2}\cdot{=sumSq} = {=penalty}$.
+
+  - id: l2-step
+    type: numeric
+    skills: [l2]
+    difficulty: 2
+    tags: [math]
+    generator: l2Q
+    lessonRef: { tab: math-code, id: l2-decay }
+    prompt: |
+      SGD with L2 strength $\lambda = {=lam}$ and $\eta = {=eta}$. A weight $w = {=w0}$ has data gradient $g = {=g}$.
+      What is the weight after one step (4 decimals if needed)?
+    answer: { var: next, tol: 0.001 }
+    hints:
+      - 'The penalty adds $\lambda w$ to the gradient.'
+      - '$w - \eta(g + \lambda w)$.'
+    explanation: |
+      $w = {=w0} - {=eta}({=g} + {=lam}\cdot{=w0}) = {=next}$; the same as shrinking by ${=shrink}$ first: [[weight-decay]].
+
+  - id: l2-mcq
+    type: mcq
+    skills: [l2]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: l2 }
+    prompt: 'The data alone prefer a single weight w = 3. With the penalty λ/2·w² and λ = 0.5, where is the total loss lowest?'
+    options: ['w = 2', 'w = 3', 'w = 1.5', 'w = 0']
+    answer: 0
+    optionFeedback:
+      '1': The penalty pulls the best weight toward 0.
+      '2': That would need λ = 1.
+      '3': Only an enormous λ pushes it all the way to 0.
+    explanation: '$3/(1 + \lambda) = 3/1.5 = 2$.'
+    variants:
+      - prompt: 'λ = 0.05 gave a nearly straight boundary on the two moons. What went wrong?'
+        options: ['Too much regularization: underfitting', 'Too little regularization: overfitting', 'The learning rate diverged', 'Dropout was too strong']
+        answer: 0
+        optionFeedback:
+          '1': Overfitting bends the boundary around points; this one is too straight.
+          '2': Divergence would blow up the loss.
+          '3': This run changed only λ.
+        explanation: λ = 0.01 gave the lowest validation loss; 0.05 pushed too hard.
+      - prompt: Why are biases usually left out of the L2 penalty?
+        options:
+          - They shift the output without making it steeper
+          - They are always zero
+          - They have no gradient
+          - Penalizing them would cause overfitting
+        answer: 0
+        optionFeedback:
+          '1': They start at zero but are learned.
+          '2': They have gradients like any parameter.
+          '3': It would not cause overfitting; it is just not useful.
+        explanation: Large weights make the function steep; biases only move it.
+
+  - id: code-l2
+    type: code-fill
+    skills: [l2]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: l2-decay }
+    prompt: Complete the L2 penalty and its gradient for a weight matrix `W`.
+    code: |
+      penalty = 0.5 * lam * __BLANK_1__
+      grad_W = data_grad_W + __BLANK_2__
+    blanks:
+      '1': { accept: ['np.sum(W ** 2)', 'np.sum(W**2)', '(W ** 2).sum()', '(W**2).sum()'] }
+      '2': { accept: ['lam * W', 'lam*W', 'W * lam'] }
+    hints: [The derivative of λ/2·w² is λw.]
+    explanation: Penalty $\tfrac{\lambda}{2}\sum w^2$; its gradient $\lambda w$ is added to the data gradient.
+
+  # ------------------------------------------------------------ transfer and explain
+  - id: app-tune-mcq
+    type: mcq
+    skills: [diagnose, dropout, l2]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: diagnose }
+    prompt: 'A hospital''s readmission network reaches training accuracy 0.99 but validation 0.71, and the gap grows each epoch. What is the best next step?'
+    options:
+      - Add regularization (dropout, L2 or early stopping) and compare on validation
+      - Train for more epochs
+      - Remove the validation set and train on it too
+      - Raise the learning rate tenfold
+    answer: 0
+    optionFeedback:
+      '1': More epochs widen the gap.
+      '2': Then nothing would show whether the fix worked.
+      '3': The problem is overfitting, not slow training.
+    explanation: Overfitting calls for regularization, judged on validation evidence.
+    variants:
+      - prompt: A retail demand network has training and validation loss both stuck high. What is the best next step?
+        options:
+          - Reduce regularization or use a bigger network, and check the learning rate
+          - Add more dropout
+          - Stop training earlier
+          - Raise λ
+        answer: 0
+        optionFeedback:
+          '1': More dropout makes underfitting worse.
+          '2': Earlier stopping trains even less.
+          '3': A larger λ constrains the network more.
+        explanation: Underfitting calls for more capacity or less constraint.
+      - prompt: A fintech fraud model's loss spikes up and down from the first epoch. What do you change first?
+        options:
+          - Lower the learning rate
+          - Add dropout
+          - Add L2
+          - Use more epochs
+        answer: 0
+        optionFeedback:
+          '1': Dropout does not fix overshooting steps.
+          '2': L2 does not fix overshooting steps.
+          '3': More of a diverging run does not help.
+        explanation: Spiking loss points to steps that are too large.
+
+  - id: reg-explain
+    type: explain
+    skills: [early-stopping, dropout, l2]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: l2 }
+    prompt: Explain how early stopping, dropout and L2 each reduce overfitting, and why their effect must be checked on validation data.
+    model: |
+      Early stopping ends training once validation loss stops improving and restores the best weights, so the model
+      never reaches the epochs that memorize noise. Dropout switches off random hidden units in each training step, so
+      no unit can depend on fragile partners. L2 charges for large weights, keeping the function smooth. Each makes
+      training harder or shorter; too much of any causes underfitting, so only validation loss can show whether it
+      helped.
+    checklist:
+      - Early stopping uses validation loss, patience and restores the best epoch
+      - Dropout drops random units during training only
+      - L2 penalizes large weights, which keeps the function smooth
+      - Too much regularization underfits, so check on validation data
+    hints: [What does each one change, and what can go wrong with too much?]
+    explanation: Three different brakes on memorizing; validation evidence decides how hard to press.

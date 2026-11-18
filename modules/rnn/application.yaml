@@ -1,0 +1,194 @@
+intro: |
+  Recurrent networks are tempting whenever data comes in order. Here a utility weighs an RNN against simple baselines:
+  you will frame the task, build its windows, size the network, read a training failure and decide what to ship.
+
+case:
+  id: water-demand
+  title: Forecasting a Laguna water district's monthly demand
+  story: |
+    A water district in Laguna plans pumping and chlorine orders a month ahead. Its analyst has 18 months of demand, in
+    thousands of cubic metres, with a rising trend from new subdivisions and a dry-season peak. A consultant proposes a
+    small RNN that reads the last 6 months and forecasts the next. The first 12 months are for training. You review the
+    plan before anyone pays for it.
+  data: [water]
+  derive:
+    - { fn: windowGrid, in: { series: '@water.series', size: 6, show: 3 }, out: wg }
+    - { fn: naive, in: { series: '@water.series', from: 14 }, out: nv }
+  cells:
+    - id: framing
+      title: What kind of task?
+      say: |
+        Each forecast reads the last 6 months, in order, and gives one number for next month.
+      decision:
+        prompt: Which task type is this?
+        type: mcq
+        options: ['many-to-one', 'one-to-many', 'many-to-many, aligned', 'one-to-one']
+        answer: 0
+        optionFeedback:
+          '1': The input is six values, not one.
+          '2': Only one value comes out per window.
+          '3': The input is a sequence.
+        model: Six months in, one forecast out, as in the CO₂ and sentiment models.
+
+    - id: windows
+      title: How many examples?
+      say: |
+        The 18 monthly values are cut into windows of 6 months, each followed by its target. The first three windows are
+        shown.
+      stage:
+        - { id: wtab, widget: Matrix, props: { data: '@wg', rowHeader: example, title: 'Windows of 6 months and their targets' } }
+      decision:
+        prompt: How many (window, target) pairs do the 18 months give?
+        type: mcq
+        options: ['12', '13', '18', '3']
+        answer: 0
+        optionFeedback:
+          '1': The first 6 months have no full window before them; there is no 13th target.
+          '2': Not every month can be a target.
+          '3': Windows overlap; they slide one month at a time.
+        model: '$18 - 6 = 12$ pairs, of shape (12, 6, 1).'
+
+    - id: size
+      title: How big is the network?
+      say: |
+        The consultant's RNN has 8 hidden units, one input feature per month and one output.
+      decision:
+        prompt: How many parameters, counting one bias vector?
+        type: mcq
+        options: ['89: 8(1 + 8 + 1) = 80 in the RNN plus 9 in the output layer', '17: 8 + 8 + 1', '534: 80 per step for 6 steps plus 54', '153: with a 64-number W_hh counted twice']
+        answer: 0
+        optionFeedback:
+          '1': That forgets the recurrent matrix W_hh, which has 8 × 8 = 64 numbers.
+          '2': The weights are shared across steps, so the window length does not multiply them.
+          '3': W_hh is counted once.
+        model: '$m(d + m + 1) = 8(1 + 8 + 1) = 80$ plus $(8 + 1)\cdot1 = 9$: 89 parameters, for any window length.'
+
+    - id: baseline
+      title: The bar to clear
+      say: |
+        For the last 4 months, actual demand was 463, 474, 484 and 492. The naive forecast copies the previous month,
+        so it predicted 454, 463, 474 and 484.
+      stage:
+        - id: nvout
+          widget: Readout
+          hidden: true
+          props:
+            items:
+              - { label: 'naive MAE (last 4 months)', value: '@nv.mae', tone: accent }
+      decision:
+        prompt: What is the naive forecast's MAE over those 4 months?
+        type: mcq
+        options: ['9.5', '−9.5', '10.0', '38']
+        answer: 0
+        optionFeedback:
+          '1': MAE averages the **absolute** misses, so it is never negative.
+          '2': The misses are 9, 11, 10 and 8; their mean is 9.5.
+          '3': That is the total, not the average.
+        model: '$(9 + 11 + 10 + 8)/4 = 9.5$ thousand m³. Any model must beat this on the same months.'
+
+    - id: failure
+      title: The consultant's first run
+      say: |
+        The RNN was trained on raw demand levels, which reached at most 446 during the training months. On the recent
+        months, 452 to 492, its forecasts sit lower and lower below the actual values.
+      decision:
+        prompt: What is the most likely cause?
+        type: mcq
+        options:
+          - Its tanh units are bounded and it never saw levels this high, so it cannot follow the trend
+          - It needs more hidden units to remember six months
+          - Its gradients exploded, so it should use gradient clipping
+          - The windows should be shuffled before training
+        answer: 0
+        optionFeedback:
+          '1': Six steps is short; size is not the issue here.
+          '2': Exploding gradients make training unstable; this is a steady under-forecast.
+          '3': Shuffling the order before the split leaks the future.
+        model: The trend took demand above the training range. As with CO₂, the bounded network cannot extrapolate; forecast the monthly change and add it to last month's value.
+
+    - id: decision
+      title: What to ship
+      say: |
+        Refitted on monthly changes, the RNN beats the naive forecast. A linear regression on lag columns and a
+        dry-season flag does about as well, trains in a second and its coefficients can be read by the board.
+      decision:
+        prompt: What do you recommend?
+        type: mcq
+        options:
+          - Ship the regression now, and revisit the RNN when years of data or richer inputs arrive
+          - Ship the RNN, because deep learning is more accurate
+          - Ship the naive forecast, because it is simplest
+          - Ship the RNN on raw levels, retrained more often
+        answer: 0
+        optionFeedback:
+          '1': It is not more accurate here, and it is harder to run and explain.
+          '2': Both models clearly beat it.
+          '3': The level model fails beyond the training range however often it is retrained.
+        model: With 18 months, a well-designed simple model matches the RNN; representation (changes, a season flag) mattered more than architecture.
+
+    - id: brief
+      title: Note to the general manager
+      say: Write two or three sentences the general manager can act on.
+      decision:
+        prompt: What do you write?
+        type: open
+        model: |
+          Next month's demand is forecast from the recent monthly changes, which beats simply repeating last month by a
+          clear margin. A simple regression does as well as the neural network and is easier to check, so we use it.
+          With two or three more years of data we will test the neural network again.
+
+atScale:
+  title: Sequence models in production
+  body: |
+    Real pipelines build windows with array slicing (`numpy.lib.stride_tricks.sliding_window_view`) or a PyTorch
+    `Dataset` that cuts them on the fly, and feed batches shaped (batch, steps, features) with `batch_first=True`. Text
+    pipelines learn a vocabulary on the training set only, map rare words to an unknown id, and pad each batch to its
+    own longest review instead of one fixed length. Long sequences are trained with gradient clipping and sometimes
+    truncated BPTT. Plain RNNs are rarely used now: LSTMs and GRUs handle longer memory, and Transformers process whole
+    sequences in parallel. For forecasting, a strong classical baseline (seasonal naive, ARIMA, regression on lags) is
+    always run next to any neural model.
+  code:
+    - title: A many-to-one RNN forecaster in PyTorch
+      source: |
+        import torch, torch.nn as nn
+
+        class Forecaster(nn.Module):
+            def __init__(self, hidden=16):
+                super().__init__()
+                self.rnn = nn.RNN(input_size=1, hidden_size=hidden, batch_first=True)
+                self.out = nn.Linear(hidden, 1)
+
+            def forward(self, x):                 # x: (batch, 12, 1)
+                states, h_last = self.rnn(x)      # h_last: (1, batch, hidden)
+                return self.out(h_last[-1])       # one forecast per window
+
+        loss = nn.MSELoss()(model(xb), yb)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+
+tradeoffs:
+  title: Ways to use the past
+  columns: [Approach, How order enters, Strength, Weakness]
+  rows:
+    - ['Lag columns + regression', 'One weight per lag position', 'Fast, deterministic, readable', 'Window length fixed; patterns not shared across lags']
+    - ['1D CNN', 'A filter slides along time', 'Shares weights; parallel', 'Short local windows unless stacked']
+    - ['Vanilla RNN', 'Hidden state carried step by step, shared weights', 'Any length; learns order itself', 'Sequential, vanishing gradients, bounded tanh']
+    - ['Naive forecast', 'Copies the last value', 'Free; the bar to beat', 'No trend or season']
+
+connections:
+  - module: neural-networks
+    note: BPTT is the chain rule and gradient descent of the backpropagation module, applied to an unfolded network with shared weights.
+  - module: time-series
+    note: Sliding windows, chronological splits, naive baselines, MAE and differencing come from the classical forecasting module.
+  - module: cnn
+    note: Shared weights across time are the sequence version of a CNN filter shared across positions.
+
+explainBack:
+  prompt: Explain to a classmate how an RNN turns a 12-month window into a forecast, how it learns, and when you would not use one.
+  rubric:
+    - The hidden state is updated at every step with the same weights and squashed by tanh
+    - The output layer reads only the final hidden state
+    - BPTT backpropagates through the unfolded steps and sums shared-weight gradients
+    - Gradients fade over many steps (vanishing) or blow up (exploding)
+    - Bounded units cannot follow a trend beyond the training range; a simple baseline may do as well

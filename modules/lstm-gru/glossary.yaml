@@ -1,0 +1,268 @@
+terms:
+  - id: model
+    term: model
+    short: A recipe with adjustable numbers that turns the facts we know about a case into a guess about what we want to know.
+    related: [training, parameter]
+    skills: [long-memory]
+
+  - id: training
+    term: training
+    aka: [learning, fitting]
+    short: Adjusting a model's numbers using examples with known answers, so its guesses get closer to those answers.
+    related: [model, bptt]
+    skills: [long-memory]
+
+  - id: sequence
+    term: sequence
+    aka: [sequential data]
+    short: Data whose values arrive in an order that carries meaning, such as the words of a review or monthly readings.
+    related: [rnn, long-range-dependency]
+    skills: [long-memory]
+
+  - id: rnn
+    term: recurrent network (RNN)
+    aka: [RNN, vanilla RNN, recurrent neural network]
+    short: A network for sequences that feeds its own hidden state back in, so each step remembers what came before.
+    formula: 'h_t = \tanh(W_{xh} x_t + W_{hh} h_{t-1} + b_h)'
+    related: [hidden-state, tanh, lstm, gru]
+    skills: [long-memory]
+
+  - id: hidden-state
+    term: hidden state
+    aka: [h_t, state]
+    short: The vector a recurrent network carries from step to step, its running summary of everything read so far.
+    related: [rnn, cell-state]
+    skills: [long-memory, gru-step]
+
+  - id: tanh
+    term: tanh
+    aka: [hyperbolic tangent]
+    short: An S-shaped function that squashes any number into the range −1 to 1; its slope is at most 1.
+    formula: '\tanh(z) = \frac{e^z - e^{-z}}{e^z + e^{-z}}'
+    related: [rnn, sigmoid, vanishing-gradient]
+    skills: [long-memory, lstm-step]
+
+  - id: bptt
+    term: Backpropagation Through Time (BPTT)
+    aka: [BPTT, backpropagation through time]
+    short: Training a recurrent network by unfolding it over its time steps and sending the error backward through every step.
+    related: [vanishing-gradient, exploding-gradient, training]
+    skills: [long-memory]
+
+  - id: vanishing-gradient
+    term: vanishing gradient
+    aka: [vanishing gradients]
+    short: An error signal that shrinks toward zero as it is multiplied by factors below 1 on its way back through many steps.
+    long: With one unit and weight $w$, going back $k$ steps scales the signal by about $w^k$. The [[cell-state]] and the GRU's gated [[hidden-state|state]] add a path that avoids it.
+    related: [exploding-gradient, bptt, long-range-dependency]
+    skills: [long-memory]
+
+  - id: exploding-gradient
+    term: exploding gradient
+    aka: [exploding gradients]
+    short: An error signal that grows huge as it is multiplied by factors above 1 over many steps, making updates unstable.
+    related: [vanishing-gradient, gradient-clipping]
+    skills: [long-memory]
+
+  - id: gradient-clipping
+    term: gradient clipping
+    aka: [clip_grad_norm_]
+    short: Shrinking the gradient whenever its size passes a limit, which stops exploding updates but does not help vanishing ones.
+    related: [exploding-gradient]
+    skills: [long-memory, compare]
+
+  - id: long-range-dependency
+    term: long-range dependency
+    aka: [long-term dependency]
+    short: A relationship between two elements far apart in a sequence, such as a verdict in a review's first sentence.
+    related: [sequence, vanishing-gradient, gate]
+    skills: [long-memory, gate-memory]
+
+  - id: lstm
+    term: LSTM
+    aka: [long short-term memory, nn.LSTM]
+    short: A recurrent unit with a separate cell state and three gates that decide what to forget, what to write and what to show.
+    formula: 'C_t = f_t \odot C_{t-1} + i_t \odot \tilde C_t, \quad h_t = o_t \odot \tanh(C_t)'
+    long: Built by Hochreiter and Schmidhuber (1997); the [[forget-gate]] was added in 2000. It passes both $h_t$ and $C_t$ to the next step.
+    related: [cell-state, forget-gate, input-gate, output-gate, gru]
+    skills: [lstm-design, lstm-step]
+
+  - id: cell-state
+    term: cell state
+    aka: [C_t, memory cell, constant error carousel]
+    short: The LSTM's long-term memory, carried from step to step and changed only by one scaling and one addition.
+    long: Along this path $\partial C_t/\partial C_{t-1} = f_t$, so with $f_t \approx 1$ information and its gradient cross many steps almost unchanged.
+    related: [lstm, forget-gate, hidden-state]
+    skills: [lstm-design, lstm-step]
+
+  - id: sigmoid
+    term: sigmoid
+    aka: [logistic function, σ]
+    short: An S-shaped function that squashes any number into the range 0 to 1, so it can act as a dial from block to pass.
+    formula: '\sigma(z) = \frac{1}{1 + e^{-z}}'
+    related: [gate, tanh]
+    skills: [lstm-design]
+
+  - id: gate
+    term: gate
+    aka: [gating]
+    short: A small layer with a sigmoid output between 0 and 1 for each memory element, computed from the current input and previous state.
+    related: [sigmoid, forget-gate, input-gate, output-gate, update-gate, reset-gate]
+    skills: [lstm-design, gate-memory]
+
+  - id: forget-gate
+    term: forget gate
+    aka: [f_t]
+    short: The LSTM gate that scales the old cell state, deciding how much of each memory element to keep.
+    long: Not in the 1997 design; Gers, Schmidhuber and Cummins added it in 2000 so the cell could clear outdated content.
+    related: [cell-state, input-gate]
+    skills: [lstm-design, lstm-step]
+
+  - id: input-gate
+    term: input gate
+    aka: [i_t]
+    short: The LSTM gate that decides how much of the candidate content is written into the cell state.
+    related: [candidate, forget-gate]
+    skills: [lstm-step]
+
+  - id: candidate
+    term: candidate
+    aka: [candidate content, C̃_t, h̃_t]
+    short: New content proposed at this step by a tanh layer, before a gate decides how much of it is used.
+    related: [input-gate, update-gate]
+    skills: [lstm-step, gru-step]
+
+  - id: output-gate
+    term: output gate
+    aka: [o_t]
+    short: The LSTM gate that decides which parts of the squashed cell state are exposed as the hidden state.
+    related: [cell-state, hidden-state]
+    skills: [lstm-step]
+
+  - id: element-wise
+    term: element-wise multiplication
+    aka: [⊙, Hadamard product]
+    short: Multiplying two vectors position by position, so each gate value scales only its own memory element.
+    related: [gate]
+    skills: [lstm-step]
+
+  - id: gru
+    term: GRU
+    aka: [gated recurrent unit, nn.GRU]
+    short: A recurrent unit with no separate cell state and two gates, update and reset, that control its hidden state directly.
+    formula: 'h_t = z_t \odot h_{t-1} + (1 - z_t) \odot \tilde h_t'
+    long: Proposed by Cho et al. (2014). It has three weight blocks to the [[lstm|LSTM]]'s four and no output gate.
+    related: [update-gate, reset-gate, lstm]
+    skills: [gru-step]
+
+  - id: update-gate
+    term: update gate
+    aka: [z_t]
+    short: The GRU gate that sets what share of the old state is kept; the rest is replaced by the candidate.
+    long: Some textbooks swap the roles of $z_t$ and $1 - z_t$. This module uses Cho et al. and PyTorch's convention.
+    related: [reset-gate, candidate, gru]
+    skills: [gru-step]
+
+  - id: reset-gate
+    term: reset gate
+    aka: [r_t]
+    short: The GRU gate that sets how much of the previous state the candidate may use, so the unit can start fresh.
+    related: [update-gate, candidate]
+    skills: [gru-step]
+
+  - id: parameter
+    term: parameter
+    aka: [trainable parameter]
+    short: A number the model learns during training; in a neural network, every weight and every bias.
+    related: [weight-block, model]
+    skills: [gated-params]
+
+  - id: weight-block
+    term: weight block
+    aka: [stacked block]
+    short: One small layer inside a recurrent unit, with weights for the input, weights for the previous state and biases.
+    formula: 'm(d + m) + m'
+    long: 'A vanilla RNN has 1 block, a GRU 3 and an LSTM 4, so for the same sizes their parameters are in the ratio 1 to 3 to 4. PyTorch keeps two bias vectors per block.'
+    related: [parameter, lstm, gru]
+    skills: [gated-params]
+
+  - id: embedding
+    term: embedding
+    aka: [word embedding, nn.Embedding]
+    short: A trainable lookup table with one row of numbers per word; a word's integer id picks its row.
+    related: [many-to-one, parameter]
+    skills: [gated-params, compare]
+
+  - id: many-to-one
+    term: many-to-one
+    short: A sequence task with a whole sequence in and one output after reading all of it, such as review sentiment.
+    related: [sequence, embedding]
+    skills: [compare]
+
+  - id: validation-set
+    term: validation set
+    aka: [validation data]
+    short: Data held back from training and checked after every epoch, to compare models and watch for overfitting.
+    related: [packed-sequence]
+    skills: [compare]
+
+  - id: packed-sequence
+    term: packed sequence
+    aka: [pack_padded_sequence]
+    short: Telling the recurrent layer each sequence's true length, so it stops at the last real word instead of reading padding zeros.
+    related: [many-to-one]
+    skills: [compare]
+
+  - id: skip-connection
+    term: skip connection
+    aka: [shortcut, identity shortcut, residual connection]
+    short: A path that adds a layer block's input unchanged to its output, so the block only learns a correction.
+    formula: 'y = F(x) + x'
+    long: Its derivative is $F'(x) + 1$, so the signal passes back even when $F'(x)$ is tiny, the same additive idea as the [[cell-state]], across depth instead of time.
+    related: [resnet, degradation]
+    skills: [skip-connections]
+
+  - id: resnet
+    term: ResNet
+    aka: [residual network, residual block]
+    short: A very deep network built from residual blocks, each adding its input back to its output through a skip connection.
+    related: [skip-connection, degradation]
+    skills: [skip-connections]
+
+  - id: degradation
+    term: degradation problem
+    aka: [deeper is worse]
+    short: Adding layers to a deep plain network raises its training error, because it becomes harder to optimize, not because it overfits.
+    related: [resnet, skip-connection]
+    skills: [skip-connections]
+
+  - id: self-attention
+    term: self-attention
+    aka: [attention]
+    short: Each position builds its new representation as a weighted average of all positions, with weights from comparing them.
+    long: Any two positions are one step apart, and all positions are processed at once, but the cost grows with the square of the length.
+    related: [attention-weight, transformer, positional-encoding]
+    skills: [attention]
+
+  - id: attention-weight
+    term: attention weight
+    aka: [softmax weight]
+    short: How much one position draws on another; a softmax of the comparison scores, so the weights are positive and add up to 1.
+    formula: 'w_j = \frac{e^{s_j}}{\sum_k e^{s_k}}, \quad s_j = q \cdot k_j'
+    related: [self-attention]
+    skills: [attention]
+
+  - id: transformer
+    term: Transformer
+    aka: [Transformers]
+    short: A network built on attention, which lets every word look directly at every other word, so whole sequences are processed at once.
+    long: Every attention and feed-forward sub-layer is wrapped as $x + \text{Sublayer}(x)$, the [[skip-connection]] idea again.
+    related: [self-attention, skip-connection]
+    skills: [attention]
+
+  - id: positional-encoding
+    term: position information
+    aka: [positional encoding]
+    short: Numbers added to each word's vector to say where it sits, because attention alone ignores word order.
+    related: [self-attention, transformer]
+    skills: [attention]

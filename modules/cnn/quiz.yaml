@@ -1,0 +1,897 @@
+templates:
+  # ------------------------------------------------------------ why convolution
+  - id: dense-vs-conv-count
+    type: numeric
+    skills: [conv-why]
+    difficulty: 1
+    tags: [math]
+    generator: denseVsConvQ
+    lessonRef: { tab: math-code, id: dense-vs-conv }
+    prompt: |
+      A {=n} × {=n} colour photo is flattened and fed to a [[dense-layer]] of {=units} units. How many
+      [[parameter|parameters]] does that one layer have?
+    answer: { var: dense, tol: 0 }
+    hints:
+      - Count the inputs first; a colour pixel holds 3 numbers.
+      - 'Each unit has one weight per input plus one bias: $(d_{in} + 1)\cdot d_{out}$.'
+    explanation: |
+      Inputs $= {=n}\cdot{=n}\cdot 3 = {=inputs}$. Parameters $= ({=inputs} + 1)\cdot{=units} = {=dense|comma0}$. A
+      convolution with {=filters} filters of 3×3×3 needs only {=conv}.
+
+  - id: why-conv-mcq
+    type: mcq
+    skills: [conv-why]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-conv }
+    prompt: Why does a convolution layer need far fewer parameters than a dense layer on the same image?
+    options:
+      - Each output looks at a small patch, and the same small filter is reused at every position
+      - It skips most of the image's pixels, so there are fewer inputs to connect
+      - It stores its weights in fewer bits, so each weight counts as less than one parameter
+      - It has no biases, and biases are most of a dense layer's parameters
+    answer: 0
+    optionFeedback:
+      '1': Every pixel is still read; the filter just reuses its weights at each stop.
+      '2': Parameters are counted, not bits. The saving comes from sharing.
+      '3': Each filter does have a bias, and biases are a tiny share of any layer.
+    explanation: '[[local-connectivity|Local connectivity]] plus [[parameter-sharing]]: one 3×3×3 filter has 28 parameters, whatever the image size.'
+    variants:
+      - prompt: A convolution layer's parameter count stays the same when the input photo grows from 150 × 150 to 600 × 600. Why?
+        options:
+          - Its filters have a fixed size and are reused at every position, however many positions there are
+          - It shrinks every photo to 150 × 150 before applying its filters
+          - Its number of filters drops when the photo grows, to keep the count fixed
+          - It only reads the centre of the photo, so the edges never add weights
+        answer: 0
+        optionFeedback:
+          '1': Nothing is resized; the filter just visits more positions.
+          '2': The number of filters is a choice you make; it does not change with the photo.
+          '3': The filter slides over the whole photo, edges included.
+        explanation: A larger photo only means more stops for the same filter, so the feature map grows but the weights do not.
+      - prompt: A dog's ear appears at the top left of one photo and the bottom right of another. Why can one convolution filter detect it in both places?
+        options:
+          - The same filter weights are used at every position, so a pattern learned in one place is found everywhere
+          - The network stores a separate ear detector for each corner of the photo
+          - Pooling moves the ear to the centre before the filter is applied
+          - The filter is as large as the whole photo, so it covers every corner at once
+        answer: 0
+        optionFeedback:
+          '1': That would multiply the weights by the number of positions, which convolution avoids.
+          '2': Pooling shrinks maps; it does not move objects.
+          '3': Filters are small, usually 3 × 3.
+        explanation: That is [[parameter-sharing]].
+
+  - id: dense-vs-conv-two-tier
+    type: two-tier
+    skills: [conv-why]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: why-conv }
+    prompt: A team doubles the side of its input photos (300 × 300 instead of 150 × 150). What happens to the parameters of a 32-filter 3×3 convolution layer?
+    options: [They stay at 896, They double, They grow four times]
+    answer: 0
+    reasonPrompt: Why?
+    reasons:
+      - A filter's size and count do not depend on the photo; it just visits more positions
+      - Twice the side means twice as many pixels, so twice as many weights
+      - Four times the pixels need four times the weights
+    reasonAnswer: 0
+    optionFeedback:
+      '1': That is how a dense layer would behave, roughly. A filter keeps its size.
+      '2': Four times the pixels gives four times the feature-map values, not more weights.
+    reasonFeedback:
+      '1': Pixels are inputs, not weights. The same 27 weights and 1 bias per filter are reused.
+      '2': The feature map grows four times; the filter stays 3 × 3 × 3.
+    explanation: '$(3\cdot3\cdot3 + 1)\cdot32 = 896$, for any photo size. Only the feature map grows.'
+
+  # ------------------------------------------------------------ 1D convolution
+  - id: conv1d-out
+    type: numeric
+    skills: [conv1d]
+    difficulty: 1
+    tags: [math]
+    generator: conv1dQ
+    lessonRef: { tab: math-code, id: conv1d }
+    prompt: |
+      Input $x = [{=x|list}]$, filter $w = [{=w|list}]$, no padding, stride $s = {=s}$. Compute the
+      [[convolution]] output $y[{=k}]$ (outputs are counted from 0).
+    answer: { var: y, tol: 0.01 }
+    hints:
+      - Flip the filter first.
+      - 'Output $y[k]$ uses the window that starts at position $k\cdot s$.'
+    explanation: |
+      Flipped filter $[{=wrText}]$. Window $[{=win|list}]$: $y[{=k}] = {=terms} = {=y}$.
+
+  - id: conv1d-hand
+    type: hand-calc
+    skills: [conv1d, padding-stride]
+    difficulty: 3
+    tags: [math]
+    generator: conv1dQ
+    lessonRef: { tab: intuition, id: conv1d-slide }
+    prompt: |
+      Input $x = [{=x|list}]$, filter $w = [{=w|list}]$, padding $p = {=p}$, stride $s = {=s}$. Work it like the
+      lesson: flip, pad, count, then one output.
+    steps:
+      - prompt: How many outputs are there?
+        answer: { var: o, tol: 0 }
+        hint: 'Padded length is $n + 2p$; then $\lfloor(n + 2p - m)/s\rfloor + 1$.'
+      - prompt: 'What is $y[{=k}]$?'
+        answer: { var: y, tol: 0.01 }
+        hint: 'Padded input $[{=padText}]$. The window for $y[{=k}]$ starts at position ${=start}$.'
+        misconceptions:
+          - { var: yc, feedback: 'Flip the filter before sliding it.' }
+    hints:
+      - Write the padded input out in full before you slide anything.
+    explanation: |
+      Padded $[{=padText}]$, flipped filter $[{=wrText}]$, {=o} outputs. $y[{=k}] = {=terms} = {=y}$.
+
+  - id: xcorr-out
+    type: numeric
+    skills: [cross-correlation]
+    difficulty: 2
+    tags: [math]
+    generator: conv1dQ
+    lessonRef: { tab: intuition, id: conv1d-slide }
+    prompt: |
+      PyTorch's `nn.Conv1d` computes [[cross-correlation]]. With input $x = [{=x|list}]$, filter $w = [{=w|list}]$,
+      no padding and stride {=s}, what is output number {=k} (counting from 0)?
+    answer: { var: yc, tol: 0.01 }
+    hints:
+      - Do **not** flip the filter.
+      - 'The window for output $k$ starts at position $k\cdot s$.'
+    explanation: |
+      Slide $w$ as written: ${=termsC} = {=yc}$. True convolution would give ${=y}$.
+
+  - id: xcorr-mcq
+    type: mcq
+    skills: [cross-correlation]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: conv1d-slide }
+    prompt: PyTorch layers slide the filter without flipping it. Why does that not matter for a CNN?
+    options:
+      - The network learns its filter values, so it simply learns the flipped version
+      - The two operations always give the same numbers for any filter
+      - PyTorch flips the image instead, which cancels out
+      - Flipping only matters in 1D, never for images
+    answer: 0
+    optionFeedback:
+      '1': They differ for a non-symmetric filter, as the [5.75, 9, …] vs [7, 7.25, …] example showed.
+      '2': The image is not flipped; the layer just skips the filter flip.
+      '3': A 2D filter is rotated 180° in convolution, so it matters there too.
+    explanation: With the flipped filter, cross-correlation gives exactly the convolution's numbers. Since training chooses the filter, the difference disappears.
+    variants:
+      - prompt: You copy a hand-designed filter into `nn.Conv2d` and get different numbers from your hand convolution. What fixes it?
+        options:
+          - Copy the filter rotated 180°, because the layer does not flip it
+          - Add padding, because the layer drops the edges
+          - Use a stride of 2, because the layer skips every other position
+          - Transpose the input image before the layer
+        answer: 0
+        optionFeedback:
+          '1': Padding changes the size, not the values in the middle.
+          '2': Stride changes how many outputs there are, not each output's value.
+          '3': Transposing is not a 180° rotation of the filter.
+        explanation: 'The notebook does exactly this. With `W[::-1, ::-1]` copied in, `nn.Conv2d` reproduces 4.6, 1.6, 7.5, 2.9.'
+      - prompt: For which filter do convolution and cross-correlation give identical outputs?
+        options:
+          - '$[1, 2, 1]$, which reads the same backwards'
+          - '$[1, 2, 3]$, because its numbers grow'
+          - '$[0.5, 0.75, 1, 0.25]$, the lesson filter'
+          - '$[2, 1]$, because it is short'
+        answer: 0
+        optionFeedback:
+          '1': Reversed it becomes [3, 2, 1], a different filter.
+          '2': Reversed it is [0.25, 1, 0.75, 0.5], and the outputs differed.
+          '3': Reversed it becomes [1, 2].
+        explanation: Only a symmetric filter is unchanged by the flip.
+
+  - id: code-conv1d
+    type: code-fill
+    skills: [conv1d]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: conv1d }
+    prompt: Complete the 1D convolution.
+    code: |
+      def conv1d(x, w, p=0, s=1):
+          w_r = __BLANK_1__
+          x_pad = [0] * p + x + [0] * p
+          m = len(w_r)
+          n_out = (len(x_pad) - m) // s + 1
+          y = []
+          for i in range(n_out):
+              window = x_pad[__BLANK_2__ : i * s + m]
+              y.append(sum(a * b for a, b in zip(window, w_r)))
+          return y
+    blanks:
+      '1': { accept: ['w[::-1]', 'list(reversed(w))', 'list(w[::-1])'] }
+      '2': { accept: ['i * s', 'i*s', 's * i'] }
+    hints:
+      - The filter is flipped once, before the loop.
+    explanation: '`w_r = w[::-1]` flips the filter; window $i$ starts at `i * s`.'
+
+  # ------------------------------------------------------------ padding, stride, output size
+  - id: out-size
+    type: numeric
+    skills: [padding-stride]
+    difficulty: 1
+    tags: [math]
+    generator: outSizeQ
+    lessonRef: { tab: math-code, id: out-size }
+    prompt: |
+      An input of length $n = {=n}$, a filter of length $m = {=m}$, [[padding]] $p = {=p}$ and [[stride]] $s = {=s}$.
+      How many outputs are there?
+    answer: { var: o, tol: 0 }
+    hints:
+      - 'Use $o = \lfloor (n + 2p - m)/s \rfloor + 1$.'
+      - Padding is added on both ends.
+    explanation: |
+      $o = \lfloor ({=n} + 2\cdot{=p} - {=m})/{=s} \rfloor + 1 = \lfloor {=num}/{=s} \rfloor + 1 = {=o}$.
+
+  - id: out-size-hard
+    type: numeric
+    skills: [padding-stride]
+    difficulty: 3
+    tags: [math]
+    generator: outSizeQ
+    lessonRef: { tab: math-code, id: out-size }
+    prompt: |
+      A {=n} × {=n} feature map, a {=m} × {=m} filter, padding {=p} and stride {=s}. What is the side of the output?
+    answer: { var: o, tol: 0 }
+    estimate:
+      prompt: Does the division come out whole here?
+      options: ['No, so round down', 'Yes, it divides exactly']
+      answer: 0
+    hints:
+      - 'Compute $n + 2p - m$, divide by $s$, round down, add 1.'
+    explanation: |
+      $({=n} + 2\cdot{=p} - {=m})/{=s} = {=raw}$, rounded down to {=steps}; plus 1 gives {=o}.
+
+  - id: pad-match
+    type: match
+    skills: [padding-stride]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: padding-size }
+    prompt: Match each padding choice (filter of odd length $m$, stride 1) to its result.
+    pairs:
+      - ['valid, $p = 0$', 'Output shorter than the input']
+      - ['same, $p = (m-1)/2$', 'Output as long as the input']
+      - ['full, $p = m - 1$', 'Output longer than the input']
+    explanation: On the lesson's 8 values with $[1, 1, 1]$, valid gives 6 outputs, same 8 and full 10.
+
+  - id: same-pad-cloze
+    type: code-fill
+    lang: text
+    skills: [padding-stride]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: padding-size }
+    prompt: Fill in the missing words.
+    code: |
+      Zeros added around the input are called __BLANK_1__. How many cells the filter jumps between stops is the
+      __BLANK_2__. With a 5-long filter and stride 1, "same" padding adds __BLANK_3__ zeros on each side.
+    blanks:
+      '1': { accept: [padding, zero padding], hint: 'p…' }
+      '2': { accept: [stride], hint: 's…' }
+      '3': { accept: ['2', two] }
+    hints: ['Same padding is $(m-1)/2$.']
+    explanation: 'Padding, stride, and $(5 - 1)/2 = 2$.'
+
+  - id: code-outsize
+    type: code-fill
+    skills: [padding-stride]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: out-size }
+    prompt: Complete the output-size function.
+    code: |
+      def output_size(n, m, p=0, s=1):
+          return (n + __BLANK_1__ - m) __BLANK_2__ s + 1
+    blanks:
+      '1': { accept: ['2 * p', '2*p', 'p * 2', 'p + p'] }
+      '2': { accept: ['//'] }
+    hints:
+      - Integer division rounds down.
+    explanation: '`(n + 2 * p - m) // s + 1`: `//` is the floor.'
+
+  # ------------------------------------------------------------ 2D convolution and feature maps
+  - id: conv2d-cell
+    type: numeric
+    skills: [conv2d]
+    difficulty: 2
+    tags: [math]
+    generator: conv2dQ
+    lessonRef: { tab: math-code, id: conv2d }
+    prompt: |
+      Input $X$ and 2 × 2 filter $W$ below, no padding, stride 1. Using **{=mode}**, compute $Y[{=i}, {=j}]$ (rows
+      and columns counted from 0).
+    show:
+      - { id: x, widget: Matrix, props: { data: '@Xg', rowHeader: 'X', format: int } }
+      - { id: w, widget: Matrix, props: { data: '@Wg', rowHeader: 'W', format: int } }
+    answer: { var: y, tol: 0.01 }
+    hints:
+      - The window for $Y[i, j]$ has its top-left corner at row $i$, column $j$.
+      - Multiply each window number by the filter number on top of it, then add.
+    explanation: |
+      Non-zero products: ${=tex} = {=y}$.
+
+  - id: conv2d-hand
+    type: hand-calc
+    skills: [conv2d, padding-stride]
+    difficulty: 2
+    tags: [math]
+    generator: conv2dQ
+    lessonRef: { tab: intuition, id: conv2d-grid }
+    prompt: |
+      Input $X$ ({=n} × {=n}) and 2 × 2 filter $W$, no padding, stride 1, **{=mode}**.
+    show:
+      - { id: x, widget: Matrix, props: { data: '@Xg', rowHeader: 'X', format: int } }
+      - { id: w, widget: Matrix, props: { data: '@Wg', rowHeader: 'W', format: int } }
+    steps:
+      - prompt: How many rows does the output have?
+        answer: { var: o1, tol: 0 }
+        hint: '$n - m + 1$.'
+      - prompt: 'What is $Y[{=i}, {=j}]$?'
+        answer: { var: y, tol: 0.01 }
+        misconceptions:
+          - { var: yAlt, feedback: 'Check the flip: this question says {=mode}.' }
+          - { var: windowSum, feedback: 'Multiply by the filter weights before adding.' }
+    hints:
+      - Size first, then one window.
+    explanation: |
+      {=o1} × {=o2} output. $Y[{=i}, {=j}] = {=tex} = {=y}$.
+
+  - id: kernel-sum-mcq
+    type: mcq
+    skills: [conv2d]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: conv2d-grid }
+    prompt: 'A 3 × 3 filter''s numbers add up to **0**, for example $[[0, 1, 0], [1, -4, 1], [0, 1, 0]]$. What does its feature map show on a photo?'
+    options:
+      - Flat areas become 0, and only edges remain
+      - The photo with the same overall brightness, slightly blurred
+      - A brighter copy of the photo
+      - Nothing at all, because the output is always 0
+    answer: 0
+    optionFeedback:
+      '1': That is a filter whose numbers add up to 1, such as a blur.
+      '2': A sum above 1 brightens; a sum of 0 removes flat areas.
+      '3': Only flat regions give 0. Where brightness changes, the output is large.
+    explanation: On a flat patch every value is the same, so the products cancel. At an edge they do not.
+    variants:
+      - prompt: 'A filter is $\tfrac19$ in every cell of a 3 × 3 grid. What does it do?'
+        options:
+          - Averages each 3 × 3 patch, a box blur that keeps the overall brightness
+          - Detects vertical edges and removes flat areas
+          - Doubles the brightness of every pixel
+          - Sharpens the photo by boosting the centre pixel
+        answer: 0
+        optionFeedback:
+          '1': Its numbers add up to 1, not 0, so flat areas survive.
+          '2': Nine weights of 1/9 sum to 1, so the brightness stays.
+          '3': Sharpening needs a large centre and negative neighbours.
+        explanation: The numbers add up to 1, so a flat area keeps its value; detail is averaged away.
+      - prompt: 'A vertical-edge filter $[[1, 0, -1], [1, 0, -1], [1, 0, -1]]$ slides over an image that is the same grey everywhere. What is the feature map?'
+        options:
+          - All zeros
+          - The same grey as the input
+          - Large values in the middle column
+          - Large values along the top row
+        answer: 0
+        optionFeedback:
+          '1': The filter's numbers add up to 0, so a constant patch gives 0.
+          '2': There is no edge, so no column lights up.
+          '3': There is no edge anywhere to find.
+        explanation: Left column minus right column is 0 when the patch is flat.
+
+  - id: feature-map-mcq
+    type: mcq
+    skills: [conv2d]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: conv2d-grid }
+    prompt: 'The vertical-edge filter, slid as written, gives a feature map whose two middle columns are 27 and whose outer columns are 0. What does that tell you?'
+    options:
+      - The image has a vertical edge between those columns, and is flat elsewhere
+      - The image is bright in its two middle columns only
+      - The filter failed on the outer columns because they hold zeros
+      - The image has a horizontal edge across the middle
+    answer: 0
+    optionFeedback:
+      '1': A feature map shows where the pattern is, not where the image is bright.
+      '2': The outer windows are flat (all 9s or all 0s), so the products cancel.
+      '3': A horizontal edge would light up rows, not columns.
+    explanation: A [[feature-map]] is large where the image looks like the filter, here a bright-to-dark change from left to right.
+
+  # ------------------------------------------------------------ pooling
+  - id: pool-cell
+    type: numeric
+    skills: [pooling]
+    difficulty: 1
+    tags: [math]
+    generator: poolQ
+    lessonRef: { tab: math-code, id: max-pool }
+    prompt: |
+      Apply 2 × 2 [[max-pooling]] with stride 2 to the 4 × 4 map below. What is output $({=i}, {=j})$ (counted from 0)?
+    show:
+      - { id: x, widget: Matrix, props: { data: '@Xg', rowHeader: 'X', format: int } }
+    answer: { var: y, tol: 0 }
+    hints:
+      - 'Output $(i, j)$ covers rows $2i, 2i+1$ and columns $2j, 2j+1$.'
+      - Keep the largest of the four.
+    explanation: |
+      Rows {=rowA}–{=rowB}, columns {=colA}–{=colB}: the largest number is {=y} (the average would be {=avg}).
+
+  - id: pool-why
+    type: multi
+    skills: [pooling]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: max-pool }
+    prompt: Which statements about 2 × 2 max pooling are true?
+    options:
+      - It halves the height and the width of each feature map
+      - It has no weights to learn
+      - It keeps the result the same when small changes leave each square's largest value unchanged
+      - It gives the same result after the map is shifted by a whole column
+      - It adds a new channel for every square it pools
+    answer: [0, 1, 2]
+    optionFeedback:
+      '3': A whole-column shift moves numbers into different squares; in the lesson some outputs changed.
+      '4': Pooling keeps the number of channels; it only shrinks height and width.
+    hints: [Think about what happens to the numbers in each square.]
+    explanation: Smaller maps, nothing to learn, robust to small changes. Its robustness has limits, as the shifted matrix showed.
+
+  - id: code-pool
+    type: code-fill
+    skills: [pooling]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: max-pool }
+    prompt: Complete 2 × 2 max pooling with stride 2.
+    code: |
+      def max_pool2d(X, size=2):
+          o = (len(X) - size) // size + 1
+          out = []
+          for i in range(o):
+              row = []
+              for j in range(o):
+                  square = [X[i * size + a][j * size + b] for a in range(size) for b in range(size)]
+                  row.append(__BLANK_1__)
+              out.append(row)
+          return out
+    blanks:
+      '1': { accept: ['max(square)'] }
+    hints:
+      - Keep the largest number in the square.
+    explanation: '`max(square)`. Average pooling would use `sum(square) / len(square)`.'
+
+  # ------------------------------------------------------------ parameters and shapes
+  - id: conv-params
+    type: numeric
+    skills: [cnn-shapes]
+    difficulty: 1
+    tags: [math]
+    generator: convParamQ
+    lessonRef: { tab: math-code, id: layer-params }
+    prompt: |
+      A convolution layer has {=cout} filters of size {=m} × {=m} and its input has {=cin} [[channel|channels]]. How
+      many parameters does it have?
+    answer: { var: params, tol: 0 }
+    hints:
+      - A filter has an $m \times m$ slice for every input channel.
+      - Add one bias per filter.
+    explanation: |
+      $({=m}\cdot{=m}\cdot{=cin} + 1)\cdot{=cout} = {=perFilter}\cdot{=cout} = {=params}$.
+
+  - id: params-find-error
+    type: find-error
+    skills: [cnn-shapes]
+    difficulty: 2
+    tags: [math]
+    generator: convParamQ
+    lessonRef: { tab: math-code, id: layer-params }
+    prompt: |
+      A classmate counts the parameters of a convolution layer with {=cout} filters of {=m} × {=m} on an input with
+      {=cin} channels. **One step is wrong.** Click it, then give the correct total.
+    steps: '@errSteps'
+    wrong: 0
+    fix: { var: params, tol: 0 }
+    fixPrompt: What is the correct number of parameters?
+    misconceptions:
+      - { var: noCin, feedback: 'That still ignores the {=cin} input channels.' }
+    hints:
+      - How many input channels does each filter span?
+    explanation: |
+      A filter has ${=m}\cdot{=m}\cdot{=cin}$ weights, not ${=m}\cdot{=m}$. Correct total $({=m}\cdot{=m}\cdot{=cin} + 1)\cdot{=cout} = {=params}$.
+
+  - id: flatten-dense
+    type: numeric
+    skills: [cnn-shapes]
+    difficulty: 2
+    tags: [math]
+    generator: stackQ
+    lessonRef: { tab: math-code, id: shape-table }
+    prompt: |
+      A {=n} × {=n} × {=cin} input passes through: {=stagesText}. Convolutions use no padding and stride 1. How many
+      numbers does [[flatten]] produce?
+    answer: { var: feats, tol: 0 }
+    hints:
+      - Each 3 × 3 convolution trims 2 from each side.
+      - 'Each pool: $\lfloor (n - 2)/2 \rfloor + 1$. Then multiply height, width and channels.'
+    explanation: |
+      {=shapes}. Flatten: ${=side}\cdot{=side}\cdot{=lastConv} = {=feats}$.
+
+  - id: shape-case
+    type: case
+    skills: [cnn-shapes, padding-stride]
+    difficulty: 3
+    tags: [application]
+    generator: stackQ
+    lessonRef: { tab: math-code, id: shape-table }
+    prompt: |
+      **A satellite-tile classifier.** An agency labels {=n} × {=n} × {=cin} map tiles. The model: {=stagesText}; then
+      flatten, a dense layer of {=units} units and an output layer. Convolutions use no padding and stride 1.
+    parts:
+      - type: numeric
+        prompt: Parameters of the first convolution layer
+        answer: { var: firstConv, tol: 0 }
+        explanation: '$(3\cdot3\cdot{=cin} + 1)\cdot{=firstFilters} = {=firstConv}$.'
+      - type: numeric
+        prompt: Side of the last feature map after the last pool
+        answer: { var: side, tol: 0 }
+        explanation: '{=shapes}.'
+      - type: numeric
+        prompt: Length of the flattened vector
+        answer: { var: feats, tol: 0 }
+        explanation: '${=side}\cdot{=side}\cdot{=lastConv} = {=feats}$.'
+      - type: numeric
+        prompt: Parameters of the dense layer of {=units} units
+        answer: { var: dense1, tol: 0 }
+        explanation: '$({=feats} + 1)\cdot{=units} = {=dense1}$.'
+    hints:
+      - Track height × width × channels layer by layer.
+      - Pooling rounds down.
+    explanation: '{=shapes}; flatten {=feats}; dense {=dense1} parameters.'
+
+  - id: cnn-order
+    type: order
+    skills: [cnn-shapes]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: shape-table }
+    prompt: Put the stages of the MNIST CNN in order, input first.
+    items:
+      - 'Input image, 28 × 28 × 1'
+      - 'Convolution with 32 filters, then ReLU'
+      - 2 × 2 max pooling
+      - 'Two more convolution stages, ending at 3 × 3 × 64'
+      - Flatten to 576 numbers
+      - 'Dense 64 + ReLU, then dropout'
+      - Dense 10, one logit per digit
+    explanation: The convolutional base shrinks the maps and adds channels; the classifier reads the flattened features.
+
+  - id: code-cnn-parsons
+    type: order
+    skills: [cnn-shapes]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: shape-table }
+    prompt: Build the MNIST network's layers in PyTorch, in order. One line does not belong.
+    code: true
+    items:
+      - 'nn.Conv2d(1, 32, kernel_size=3), nn.ReLU(), nn.MaxPool2d(2),'
+      - 'nn.Conv2d(32, 64, kernel_size=3), nn.ReLU(), nn.MaxPool2d(2),'
+      - 'nn.Conv2d(64, 64, kernel_size=3), nn.ReLU(),'
+      - 'nn.Flatten(),'
+      - 'nn.Linear(3 * 3 * 64, 64), nn.ReLU(), nn.Dropout(0.5),'
+      - 'nn.Linear(64, 10),'
+    distractors:
+      - 'nn.Linear(28 * 28, 64),'
+    hints: [The first dense layer reads the flattened 3 × 3 × 64 maps.]
+    explanation: '`nn.Linear(28 * 28, 64)` would read the raw image; after the convolutions there are only $3\cdot3\cdot64 = 576$ numbers.'
+
+  - id: code-cnn
+    type: code-fill
+    skills: [cnn-shapes]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: layer-params }
+    prompt: Complete the parameter counts.
+    code: |
+      def conv_params(m, c_in, c_out):
+          return (m * m * __BLANK_1__ + 1) * c_out
+
+      def dense_params(d_in, d_out):
+          return (d_in + __BLANK_2__) * d_out
+    blanks:
+      '1': { accept: ['c_in'] }
+      '2': { accept: ['1'] }
+    hints:
+      - Each filter spans every input channel; each unit has one bias.
+    explanation: '$(m\cdot m\cdot C_{in} + 1)\cdot C_{out}$ and $(d_{in} + 1)\cdot d_{out}$.'
+
+  - id: terms-match
+    type: match
+    skills: [cnn-shapes, pooling]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: shape-table }
+    prompt: Match each layer to how many parameters it has.
+    pairs:
+      - ['`nn.Conv2d(3, 32, 3)`', '896']
+      - ['`nn.MaxPool2d(2)`', '0']
+      - ['`nn.Linear(64, 10)`', '650']
+      - ['`nn.Conv2d(32, 64, 3)`', '18,496']
+    explanation: 'Conv: $(9\cdot3 + 1)\cdot32$ and $(9\cdot32 + 1)\cdot64$; dense: $(64+1)\cdot10$; pooling has none.'
+
+  # ------------------------------------------------------------ overfitting and augmentation
+  - id: best-epoch
+    type: numeric
+    skills: [overfit-augment]
+    difficulty: 2
+    tags: [math]
+    generator: curveQ
+    lessonRef: { tab: math-code, id: best-epoch }
+    prompt: |
+      Training and [[validation-set|validation]] loss of a 12-epoch run are plotted below. At which [[epoch]] would you
+      stop to keep the model that does best on new photos?
+    show:
+      - { id: c, widget: Chart, props: { kind: line, series: '@lossSeries', xLabel: epoch, yLabel: loss } }
+    answer: { var: bestEpoch, tol: 0 }
+    hints:
+      - Ignore the training curve; it falls to the end.
+      - Find the lowest point of the validation curve.
+    explanation: |
+      Validation loss is lowest at epoch {=bestEpoch} ({=minValLoss}) and rises after it: the model starts to overfit.
+
+  - id: curves-mcq
+    type: mcq
+    skills: [overfit-augment]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: overfit-augment }
+    prompt: Training accuracy climbs toward 100% while validation accuracy stalls near 71% and validation loss rises. What is happening?
+    options:
+      - The network is overfitting, memorizing the training photos
+      - The network is underfitting and needs fewer epochs
+      - The validation photos are mislabelled
+      - The learning rate is zero, so nothing is learned
+    answer: 0
+    optionFeedback:
+      '1': Underfitting shows low training accuracy too. Here training accuracy is near 100%.
+      '2': Nothing points to bad labels; the gap opened as training went on.
+      '3': Training accuracy is rising, so the network is learning.
+    explanation: A growing train–validation gap with rising validation loss is the classic sign of [[overfitting]].
+    variants:
+      - prompt: In a run with augmentation, training accuracy is a little **below** validation accuracy for the first epochs. Is something wrong?
+        options:
+          - No. Training images keep changing and dropout is on, so training is harder than validation
+          - Yes, validation images must have leaked into training
+          - Yes, the model is overfitting
+          - No, but only because the validation set is larger
+        answer: 0
+        optionFeedback:
+          '1': Leakage would push validation up suspiciously, not explain a small gap like this.
+          '2': 'Overfitting is the opposite gap, with training far above validation.'
+          '3': The sizes do not cause it; the harder training task does.
+        explanation: Training results are averaged during the epoch with dropout on and augmented photos; validation is measured after it on clean photos.
+      - prompt: Validation loss bottoms out at epoch 6 of 20 and then rises. Which model should you keep?
+        options:
+          - The one from epoch 6, with the lowest validation loss
+          - The one from epoch 20, because it trained longest
+          - The one from epoch 1, before any overfitting
+          - The one with the lowest training loss
+        answer: 0
+        optionFeedback:
+          '1': By epoch 20 it has memorized the training photos.
+          '2': At epoch 1 it has barely learned.
+          '3': Training loss is lowest at the end, when overfitting is worst.
+        explanation: Keep the epoch that does best on data the model did not train on.
+
+  - id: augment-multi
+    type: multi
+    skills: [overfit-augment]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: overfit-augment }
+    prompt: Which are correct ways to use data augmentation for the cats-vs-dogs CNN?
+    options:
+      - Randomly rotate training photos by up to ±40°
+      - Randomly mirror training photos left to right
+      - Randomly zoom training photos by up to ±20%
+      - Apply the same random rotations to the validation photos
+      - Swap some photos' labels from cat to dog
+    answer: [0, 1, 2]
+    optionFeedback:
+      '3': Validation photos stay untouched; they must measure performance on real photos.
+      '4': Augmentation never changes the label. A rotated cat is still a cat.
+    hints: [Augmentation changes the picture, never the answer, and only for training.]
+    explanation: Rotate, shift, zoom and flip the training photos only, keeping their labels.
+
+  - id: augment-transfer
+    type: mcq
+    skills: [overfit-augment]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: overfit-augment }
+    prompt: A bank trains a CNN to read handwritten digits on cheques. Which augmentation is a **bad** idea here?
+    options:
+      - Flipping digits upside down, which can turn a 6 into a 9
+      - Rotating digits by a few degrees
+      - Shifting digits a few pixels sideways
+      - Zooming digits in or out slightly
+    answer: 0
+    optionFeedback:
+      '1': People write at a slight slant, so small rotations are realistic.
+      '2': Digits are not always centred; small shifts are realistic.
+      '3': Handwriting size varies; small zooms are realistic.
+    explanation: An augmentation must keep the label true. An upside-down 6 reads as 9.
+    variants:
+      - prompt: A clinic trains a CNN on chest X-rays, where the heart is on the patient's left. Which augmentation is risky?
+        options:
+          - Mirroring left to right, which puts the heart on the wrong side
+          - Changing brightness slightly
+          - Zooming in by up to 10%
+          - Shifting the image a few pixels
+        answer: 0
+        optionFeedback:
+          '1': Exposure varies between machines, so mild brightness changes are realistic.
+          '2': Patients stand at slightly different distances.
+          '3': Positioning varies a little.
+        explanation: A left–right mirror creates anatomy that does not exist, and some findings depend on the side.
+      - prompt: A farm co-op classifies rice-leaf photos taken from any angle. Which augmentation adds the least realistic variety?
+        options:
+          - Swapping the red and green channels, so leaves turn reddish
+          - Rotating by up to ±40°
+          - Mirroring left to right
+          - Zooming in by up to 20%
+        answer: 0
+        optionFeedback:
+          '1': Leaves appear at every angle.
+          '2': A mirrored leaf is still a leaf with the same disease.
+          '3': Photos are taken from different distances.
+        explanation: Colour can be the disease signal itself; swapping channels can turn a healthy leaf into something that looks ill.
+
+  # ------------------------------------------------------------ transfer learning
+  - id: vgg-trainable
+    type: numeric
+    skills: [transfer]
+    difficulty: 2
+    tags: [math]
+    generator: vggQ
+    lessonRef: { tab: math-code, id: vgg-transfer }
+    prompt: |
+      VGG16's [[convolutional-base]] is [[frozen-layer|frozen]] and run on {=side} × {=side} photos. A new classifier
+      of {=head} ReLU units and one output logit is put on top. How many **trainable** parameters are there?
+    answer: { var: trainable, tol: 0 }
+    hints:
+      - Five pools halve the side, rounding down; the last block has 512 channels.
+      - 'Head: $(\text{features} + 1)\cdot u + (u + 1)$. Frozen weights do not count.'
+    explanation: |
+      {=sizes}, so the base outputs ${=fside}\cdot{=fside}\cdot512 = {=features}$ features. Trainable
+      $= ({=features} + 1)\cdot{=head} + ({=head} + 1) = {=trainable|comma0}$.
+
+  - id: transfer-order
+    type: order
+    skills: [transfer]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: transfer }
+    prompt: Put the notebook's transfer-learning steps in order. One step does not belong.
+    items:
+      - Load VGG16 with its ImageNet weights and keep only the convolutional base
+      - Run every photo through the frozen base once and store the 8,192 features
+      - Train a small new classifier on the stored features
+      - Join base and trained classifier, still freezing the base
+      - Unfreeze block 5 and train it with the classifier at a tiny learning rate, with augmentation
+    distractors:
+      - Unfreeze every block and train with a large learning rate from the start
+    hints: [Train the new classifier before touching the base.]
+    explanation: An untrained classifier makes large random errors; if the base could change then, those errors would wipe out what it learned on ImageNet.
+
+  - id: transfer-choose
+    type: mcq
+    skills: [transfer]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: transfer }
+    prompt: A small bakery wants to tell its 6 kinds of bread apart from 400 phone photos. What is the best first approach?
+    options:
+      - Feature extraction with a pre-trained base such as VGG16 and a new small classifier
+      - Train a deep CNN from scratch on the 400 photos
+      - Fine-tune every layer of VGG16 with a large learning rate
+      - Use a dense network on the flattened photos
+    answer: 0
+    optionFeedback:
+      '1': 400 photos are far too few to learn good features from scratch.
+      '2': Changing every layer with few photos invites overfitting, and a large rate destroys the learned features.
+      '3': Far more parameters and no notion of local patterns.
+    explanation: Borrow general visual features; train only a small new classifier. Fine-tune the top block later if needed.
+    variants:
+      - prompt: Feature extraction already gives 90% validation accuracy. How can you try to go higher?
+        options:
+          - Fine-tune the top block with a tiny learning rate and augmentation
+          - Unfreeze every block and raise the learning rate
+          - Remove the base and train only the classifier on raw pixels
+          - Add augmentation to the stored features
+        answer: 0
+        optionFeedback:
+          '1': Changing all blocks with 2,000 photos invites overfitting; a large rate wrecks the features.
+          '2': Without the base there are no good features to classify.
+          '3': Stored features never change, so augmentation is impossible there.
+        explanation: Nudge the most specialized features toward your classes, gently.
+      - prompt: Why can feature extraction not use data augmentation?
+        options:
+          - Each photo's features are computed once and stored, so a new random version is never seen
+          - The pre-trained base was trained without augmentation
+          - Augmentation would change the labels
+          - The classifier is too small to use augmented data
+        answer: 0
+        optionFeedback:
+          '1': How the base was trained does not matter here.
+          '2': Augmentation never changes labels.
+          '3': Size is not the issue; the inputs never change.
+        explanation: To augment, the base must run on every new random version of each photo, every epoch.
+
+  - id: transfer-match
+    type: match
+    skills: [transfer]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: transfer }
+    prompt: Match each term to what it means.
+    pairs:
+      - ['Pre-trained network', 'Already trained on ImageNet; its weights are downloaded']
+      - ['Frozen layer', 'Its weights are never updated']
+      - ['Feature extraction', 'Base runs once per photo; only the new head trains']
+      - ['Fine-tuning', 'The top block is retrained gently with the head']
+    explanation: Transfer learning reuses the base; freezing protects it; fine-tuning nudges its top block.
+
+  - id: fine-tune-two-tier
+    type: two-tier
+    skills: [transfer]
+    difficulty: 3
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: transfer }
+    prompt: When fine-tuning VGG16's block 5, which learning rate should you use?
+    options: ['A tiny one, about $10^{-5}$', 'The usual $10^{-3}$', 'A large one, so it adapts fast']
+    answer: 0
+    reasons:
+      - The block already holds good features; large steps would overwrite them
+      - A smaller rate always gives higher accuracy for any network
+      - The base was trained with this exact rate, so it must be reused
+    reasonAnswer: 0
+    optionFeedback:
+      '1': That is the rate for training a new network; it moves the pre-trained weights too far.
+      '2': Large steps destroy what ImageNet taught the block.
+    reasonFeedback:
+      '1': Too small a rate can stall training; it is a trade-off, not a rule.
+      '2': The rate is chosen for this task, not copied from pre-training.
+    explanation: Fine-tuning nudges good features toward your classes; tiny steps keep them good.
+
+  - id: transfer-explain
+    type: explain
+    skills: [transfer, overfit-augment]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: transfer }
+    prompt: Explain when reusing a pre-trained network is better than training a CNN from scratch, and why the base is frozen first.
+    model: |
+      With few labelled images, a CNN trained from scratch cannot learn good general features and overfits. A network
+      pre-trained on ImageNet already detects edges, textures and parts that suit almost any photo. We keep its base
+      and train a new classifier for our classes. The base is frozen at first because the untrained classifier makes
+      large random errors that would overwrite the learned features; once the classifier is trained, the top block can
+      be fine-tuned gently.
+    checklist:
+      - Few labelled images make training from scratch overfit
+      - The pre-trained base already holds general visual features
+      - Only a new classifier is trained at first
+      - Freezing protects the base from the new classifier's large early errors
+    hints: [What does the base already know, and what would a random classifier do to it?]
+    explanation: Borrow features when data is scarce; protect them until the new head is trained.

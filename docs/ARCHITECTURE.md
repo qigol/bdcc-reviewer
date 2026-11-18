@@ -30,7 +30,8 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `apps/server/src/season.ts` | Seasonal look by calendar date (`GET /api/season`, `SEASON_THEME`): Hell Week, Immaculate Conception, Christmas |
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
 | `packages/sdk/src/index.ts` | The `sdk` given to `logic.js` as `register(sdk)`: seeded RNG, formatting, vectors, matrices, least squares, sets |
-| `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`) |
+| `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`), `epub` (`epubCmd.ts`) |
+| `packages/cli/src/epub/` | EPUB 3 export for e-readers: `index.ts` `buildEpub(modules, {hostFactory})` (zip, OPF, nav, NCX), `content.ts` (module → chapters along the learning path, scopes from `runDerive`), `widgets.ts` (static widget renderings), `questions.ts` (quiz instances → question + answer, the answer on the next page), `markdown.ts` (Markdown/TeX → XHTML + MathML), `style.ts` (page breaks, palette, per-module accent from manifest `color`) |
 | `apps/web/src/` | React SPA, one lazy chunk per route (Vite, Tailwind, react-router, framer-motion, KaTeX, Shiki, Dexie) (see below) |
 | `modules/<id>/` | Built-in modules. List them with `ls modules`; course per module: `grep -H "^course:" modules/*/manifest.yaml` |
 | `animations/` | HyperFrames source for `Animation` widget clips. Not shipped; renders go to `modules/<id>/assets/anim/` |
@@ -96,6 +97,10 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
   raises nothing. Saved as one `attempts` row with mode `exam-coding` (no mastery or SRS change). After submit, `exam/ExamWalkthrough` runs each problem's walkthrough steps
   and twists in the same kernel (every problem, or only those that lost points). Pyodide 0.27.8 (Python 3.12 + pandas 2.2) is fetched into
   `apps/web/public/pyodide/` (gitignored) by `scripts/fetch-pyodide.mjs`, which `pnpm dev` and the web build run.
+- **E-reader export:** `pnpm kodigo epub` → `epubCmd.ts` validates each module → `epub/buildEpub`. Per module it walks
+  `learningPath`, builds every scope (datasets, state, each beat's `set`, then `runDerive` in the node host), and interpolates
+  before rendering. Questions use `buildInstance` with a fixed seed (practice chapter seed + 1). Widgets without a static form
+  are counted and left out.
 - **Progress:** Dexie DB `kodigo`, tables `progress`, `attempts`, `srs`, `mastery`, `notes`, `bookmarks`, `settings`
   (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Answers are recorded in one transaction. Export/import
   merges by key with the later `updatedAt` winning, skips invalid rows, and rejects files from a newer format. Quiz sessions and runs live in `localStorage`. The study plan is recomputed from progress, never stored.

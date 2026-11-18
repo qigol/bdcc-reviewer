@@ -1009,7 +1009,7 @@ export function lintModule(mod: ParsedModule): Issue[] {
 }
 
 // ------------------------------------------------------------ steps 5–6: logic + quiz smoke
-async function runDerive(host: LogicHost, derive: Derive[] | undefined, scope: Scope): Promise<Scope> {
+export async function runDerive(host: LogicHost, derive: Derive[] | undefined, scope: Scope): Promise<Scope> {
   for (const d of derive ?? []) {
     const args = resolveRefs(d.in, scope);
     scope[d.out] = await host.call(d.fn, args);

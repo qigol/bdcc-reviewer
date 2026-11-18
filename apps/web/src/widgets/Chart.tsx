@@ -55,7 +55,7 @@ export default function Chart({ props, marks }: WidgetRenderProps<P>) {
   return (
     <div ref={box} className="card p-3">
       {props.title && <div className="mb-1 text-xs font-semibold text-muted"><Markdown text={props.title} inline /></div>}
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={props.title ? plainText(props.title) : `${props.kind} chart of ${series.map((s) => s.name).join(', ')}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto w-full max-w-[640px]" role="img" aria-label={props.title ? plainText(props.title) : `${props.kind} chart of ${series.map((s) => s.name).join(', ')}`}>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={L} x2={W - R} y1={sy(props.logY ? Math.pow(10, t) : t)} y2={sy(props.logY ? Math.pow(10, t) : t)} stroke="rgb(var(--line))" strokeDasharray="3 3" />

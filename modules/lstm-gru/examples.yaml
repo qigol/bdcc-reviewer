@@ -1,0 +1,165 @@
+examples:
+  - id: fade-09
+    source: 'LSTM/GRU notebook, section 1 (0.9^50 ≈ 0.005)'
+    fn: chainFactor
+    in: { w: 0.9, k: 50 }
+    expect: { plain: 0.0052, kind: vanishes }
+    tol: 0.0005
+
+  - id: fade-11
+    source: 'LSTM/GRU notebook, section 1 (1.1^50 ≈ 117)'
+    fn: chainFactor
+    in: { w: 1.1, k: 50 }
+    expect: { plain: 117.39, kind: explodes }
+    tol: 0.5
+
+  - id: chain-code
+    source: 'LSTM/GRU notebook, section 1 (step-through)'
+    fn: chainCode
+    in: { w: 0.9, k: 50 }
+    expect: { signal: 0.0052 }
+    tol: 0.0005
+
+  - id: lstm-toy
+    source: Built for this module (the notebook's update equations, section 2.2)
+    fn: lstmUpdate
+    in: { cprev: 0.8, f: 0.9, i: 0.3, ct: 0.5, o: 0.6 }
+    expect: { keep: 0.72, write: 0.15, C: 0.87, h: 0.4208 }
+    tol: 0.001
+
+  - id: lstm-code
+    source: Built for this module (step-through)
+    fn: lstmCode
+    in: { cprev: 0.8, f: 0.9, i: 0.3, ct: 0.5, o: 0.6 }
+    expect: { C: 0.87, h: 0.4208 }
+    tol: 0.001
+
+  - id: lstm-net
+    source: Built for this module (all four layers from weights)
+    fn: lstmStep
+    in: { x: '@lstmnet.x', hprev: '@lstmnet.hprev', cprev: '@lstmnet.cprev', W: '@lstmnet.W' }
+    expect: { zf: 1.5, f: 0.8176, i: 0.6225, ct: 0.8483, o: 0.6792, C: 1.1821, h: 0.5624 }
+    tol: 0.001
+
+  - id: lstm-walk
+    source: Built for this module (count-along)
+    fn: lstmWalk
+    in: { net: '@lstmnet' }
+    expect: { trace.7.vars.h: 0.5624, trace.5.vars.C: 1.1821 }
+    tol: 0.001
+
+  - id: gru-toy
+    source: Built for this module (the notebook's update, section 3.2)
+    fn: gruUpdate
+    in: { z: 0.7, hprev: 0.5, ht: -0.4 }
+    expect: { keep: 0.35, add: -0.12, h: 0.23, swapped: -0.13 }
+
+  - id: gru-code
+    source: Built for this module (step-through)
+    fn: gruCode
+    in: { z: 0.7, hprev: 0.5, ht: -0.4 }
+    expect: { h: 0.23 }
+
+  - id: gru-net
+    source: Built for this module (reset, update and candidate from weights)
+    fn: gruStep
+    in: { x: '@grunet.x', hprev: '@grunet.hprev', W: '@grunet.W' }
+    expect: { r: 0.6225, z: 0.7311, ht: 0.8646, h: 0.5981, noReset: 0.9051 }
+    tol: 0.001
+
+  - id: gru-walk
+    source: Built for this module (count-along)
+    fn: gruWalk
+    in: { net: '@grunet' }
+    expect: { trace.5.vars.h: 0.5981 }
+    tol: 0.001
+
+  - id: retain-09
+    source: 'LSTM/GRU notebook, section 3.2 panel (a): a stored value keeps g^k'
+    fn: retain
+    in: { g: 0.9, k: 10 }
+    expect: { share: 0.3487 }
+    tol: 0.001
+
+  - id: retain-code
+    source: 'LSTM/GRU notebook, section 3.2 (step-through)'
+    fn: retainCode
+    in: { g: 0.99, k: 50 }
+    expect: { share: 0.605 }
+    tol: 0.001
+
+  - id: gate-demo
+    source: 'LSTM/GRU notebook, section 3.2 panel (b), with hand-chosen gates'
+    fn: gateDemo
+    in: { c: '@gatedemo.c', gates: '@gatedemo.gates' }
+    expect: { learned.1: 0.855, learned.6: 0.7729, learned.7: -0.7214 }
+    tol: 0.001
+
+  - id: params-d32
+    source: 'LSTM/GRU notebook, section 3.2 printout (d = 32, m = 32)'
+    fn: paramTable
+    in: { d: 32, m: 32, extra: 320033 }
+    expect: { rnn: 2112, lstm: 8448, gru: 6336, grid.values.0.2: 322145, grid.values.1.2: 328481, grid.values.2.2: 326369 }
+
+  - id: params-textbook
+    source: 'LSTM/GRU notebook, section 3.2 (one bias per block instead of PyTorch''s two)'
+    fn: gatedParams
+    in: { d: 32, m: 32, kind: lstm, torch: false }
+    expect: { params: 8320 }
+
+  - id: params-code
+    source: 'LSTM/GRU notebook, section 3.2 (step-through)'
+    fn: paramsCode
+    in: { d: 32, m: 32, kind: gru }
+    expect: { params: 6336, perBlock: 2112 }
+
+  - id: compare-table
+    source: 'LSTM/GRU notebook, section 4 results table'
+    fn: compare
+    in: { table: '@results' }
+    expect: { best: GRU, bestAcc: 0.83, out.1.accGain: 0.052, out.2.accGain: 0.078, out.1.paramRatio: 4, out.2.paramRatio: 3 }
+
+  - id: compare-code
+    source: 'LSTM/GRU notebook, section 4 (step-through)'
+    fn: compareCode
+    in: { table: '@results' }
+    expect: { trace.2.vars.gain: 0.078 }
+
+  - id: residual-one
+    source: Beyond the notebook (section 5.2's derivative of y = F(x) + x)
+    fn: residual
+    in: { dF: 0.05, L: 3 }
+    expect: { one: 1.05, plain: 0.000125, res: 1.157625 }
+
+  - id: residual-code
+    source: Beyond the notebook (step-through)
+    fn: residualCode
+    in: { dF: 0.05, L: 3 }
+    expect: { res: 1.157625 }
+
+  - id: attn-good
+    source: Beyond the notebook (a hand-sized self-attention example)
+    fn: attention
+    in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V' }
+    expect: { scores: [2, 1, 1], w: [0.5761, 0.2119, 0.2119], out.0: -0.2582 }
+    tol: 0.001
+
+  - id: attn-walk
+    source: Beyond the notebook (count-along)
+    fn: attnWalk
+    in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V', words: '@attn.words' }
+    expect: { w: [0.5761, 0.2119, 0.2119] }
+    tol: 0.001
+
+  - id: attn-code
+    source: Beyond the notebook (step-through)
+    fn: attnCode
+    in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V' }
+    expect: { out.0: -0.2582 }
+    tol: 0.001
+
+  - id: path-200
+    source: 'LSTM/GRU notebook, section 5.3 (path length and quadratic cost)'
+    fn: pathLength
+    in: { T: 200 }
+    expect: { rnnSteps: 199, attnSteps: 1, pairs: 40000 }
