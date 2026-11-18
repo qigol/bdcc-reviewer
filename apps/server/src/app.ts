@@ -169,6 +169,31 @@ export async function buildApp(cfg: ServerConfig, deps: AppDeps = {}) {
     return reply.send(Buffer.from(zip));
   });
 
+  // e-reader books, generated at image build time (`kodigo epub modules <dir> --catalog`); only files in index.json are served
+  const epubBooks = async (): Promise<{ file: string }[]> => {
+    try {
+      const idx = JSON.parse(await fs.promises.readFile(path.join(cfg.epubDir, 'index.json'), 'utf8'));
+      return Array.isArray(idx?.books) ? idx.books.filter((b: any) => typeof b?.file === 'string' && /^[\w.@-]+\.epub$/.test(b.file)) : [];
+    } catch { return []; }
+  };
+
+  app.get('/api/epub', async (_req, reply) => {
+    reply.header('cache-control', 'no-cache');
+    return { books: await epubBooks() };
+  });
+
+  // not compressed: an .epub is already a zip
+  app.get<{ Params: { file: string } }>('/api/epub/:file', { compress: false }, async (req, reply) => {
+    const book = (await epubBooks()).find((b) => b.file === req.params.file);
+    const full = book && path.join(cfg.epubDir, book.file);
+    if (!full || !fs.existsSync(full)) return reply.code(404).send({ error: 'not found' });
+    reply.header('content-type', 'application/epub+zip');
+    reply.header('content-disposition', `attachment; filename="${book.file}"`);
+    reply.header('cache-control', 'no-cache');
+    reply.header('content-length', fs.statSync(full).size);
+    return reply.send(fs.createReadStream(full));
+  });
+
   app.get('/api/widgets.md', async (_req, reply) => {
     reply.header('content-type', 'text/markdown; charset=utf-8');
     reply.header('content-disposition', 'attachment; filename="WIDGETS.md"');

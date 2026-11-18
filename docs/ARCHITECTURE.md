@@ -30,13 +30,13 @@ Modules live on the server. Learner progress lives only in the browser (IndexedD
 | `apps/server/src/season.ts` | Seasonal look by calendar date (`GET /api/season`, `SEASON_THEME`): Hell Week, Immaculate Conception, Christmas |
 | `packages/schema/src/` | Isomorphic core, shared by web, server and CLI (see below) |
 | `packages/sdk/src/index.ts` | The `sdk` given to `logic.js` as `register(sdk)`: seeded RNG, formatting, vectors, matrices, least squares, sets |
-| `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`), `epub` (`epubCmd.ts`) |
+| `packages/cli/src/index.ts` | `kodigo` CLI: `validate`, `pack`, `unbundle`, `widgets-doc`, `json-schema`, `animation` (`animation.ts`), `epub` (`epubCmd.ts`; `--catalog` writes every module and course book plus `index.json`) |
 | `packages/cli/src/epub/` | EPUB 3 export for e-readers: `index.ts` `buildEpub(modules, {hostFactory})` (zip, OPF, nav, NCX), `content.ts` (module → chapters along the learning path, scopes from `runDerive`), `widgets.ts` (static widget renderings), `questions.ts` (quiz instances → question + answer, the answer on the next page), `markdown.ts` (Markdown/TeX → XHTML + MathML), `style.ts` (page breaks, palette, per-module accent from manifest `color`) |
 | `apps/web/src/` | React SPA, one lazy chunk per route (Vite, Tailwind, react-router, framer-motion, KaTeX, Shiki, Dexie) (see below) |
 | `modules/<id>/` | Built-in modules. List them with `ls modules`; course per module: `grep -H "^course:" modules/*/manifest.yaml` |
 | `animations/` | HyperFrames source for `Animation` widget clips. Not shipped; renders go to `modules/<id>/assets/anim/` |
 | `.github/workflows/ci.yml` | CI: install, lint, typecheck, test, module validation, build, bundle size, audit, smoke, the CSP check on Firefox and WebKit, and a Docker job on the default branch |
-| `docker/` | `Dockerfile` (build stage runs `kodigo validate modules` and fetches Pyodide through the web build; runtime has `index.js` and `logic-child.mjs` and no node_modules) and `compose.yml` |
+| `docker/` | `Dockerfile` (build stage runs `kodigo validate modules`, `kodigo epub modules /src/epub --catalog`, and fetches Pyodide through the web build; runtime has `index.js`, `logic-child.mjs` and the books in `/app/epub`, and no node_modules) and `compose.yml` |
 | `apps/web/docsPlugin.ts` | Serves `/docs/*.md` from `docs/` in dev and emits them into the build (no copies in `public/`) |
 | `scripts/` | `fetch-pyodide.mjs`: the pinned Pyodide release for the coding exam, checked by sha256 · `exam-check/`: runs a coding exam's shipped cells (walkthrough steps, tests, twists) in real pandas for many seeds (see its README) |
 | `data/` | Local DATA_DIR (imported modules + `state.json`); mounted at `/data` in Docker |
@@ -56,7 +56,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 
 | Folder | Owns |
 |---|---|
-| `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage`, `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
+| `app/` | Shell and pages: `App.tsx` (routes), `Dashboard`, `PlanPage`, `GlossaryPage`, `CheatsheetPage`, `SettingsPage` (includes EPUB downloads), `CourseMenu`, `CommandPalette`, `highlights.ts` (dashboard banner entries) |
 | `modules/` | `store.tsx` loads and caches full modules from the API; `useIndex.ts` `useModuleIndex()` gives cross-module pages `GET /api/index` instead; `logicPool.ts` caps live workers (4, 60 s idle), and `logic.ts` starts a worker only on its first call; `logic.ts` + `logic.worker.ts` run `logic.js` in a Web Worker; `harden.ts` removes network, storage and nested-worker globals first and fails closed; `courses.ts`/`courseGroups.ts` group modules by course, and within a course by the test they're assessed in (manifest `assessment`) |
 | `tabs/` | `ModulePage` (module route shell; adds a "Mock exam" tab when the module has `exam.yaml`), `PathTab`, `IntuitionTab`, `MathCodeTab`, `ApplicationTab` (notebook cells; a decision option's `outcomes` show what running it does) |
 | `exam/` | `ExamTab`: mock-exam runner (one seed per attempt, items revealed and locked in order, scored on submit; a running attempt resumes from `localStorage` and warns before leaving) and its mode switch; `CodingExam` + `CodeCell` (the "write the code" version); `ExamWalkthrough` (after submit: step-by-step solution and twists, for every problem or only the missed ones); `ExamTools` (guide, hints, scratchpad, row marking) |
@@ -100,7 +100,9 @@ Routes (`app/App.tsx`): `/`, `/m/:id/{path,intuition[/:sceneId],math-code[/:sect
 - **E-reader export:** `pnpm kodigo epub` → `epubCmd.ts` validates each module → `epub/buildEpub`. Per module it walks
   `learningPath`, builds every scope (datasets, state, each beat's `set`, then `runDerive` in the node host), and interpolates
   before rendering. Questions use `buildInstance` with a fixed seed (practice chapter seed + 1). Widgets without a static form
-  are counted and left out.
+  are counted and left out. **Downloads on the site:** the Docker build runs `--catalog` → `EPUB_DIR` (`index.json` + books) →
+  `GET /api/epub` (list) and `/api/epub/:file` (only files `index.json` lists, uncompressed) → `app/SettingsPage` "E-reader books".
+  Built-in modules only, as of the image build; nothing is generated at runtime.
 - **Progress:** Dexie DB `kodigo`, tables `progress`, `attempts`, `srs`, `mastery`, `notes`, `bookmarks`, `settings`
   (`storage/db.ts`). Adding an **indexed** field needs a `this.version(n)` bump; unindexed fields don't. Answers are recorded in one transaction. Export/import
   merges by key with the later `updatedAt` winning, skips invalid rows, and rejects files from a newer format. Quiz sessions and runs live in `localStorage`. The study plan is recomputed from progress, never stored.

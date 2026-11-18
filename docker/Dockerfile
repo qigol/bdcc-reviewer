@@ -21,6 +21,7 @@ COPY docs ./docs
 COPY scripts ./scripts
 # fail the image build if a built-in module is invalid
 RUN pnpm kodigo validate modules \
+ && pnpm kodigo epub modules /src/epub --catalog \
  && pnpm --filter @kodigo/web build \
  && pnpm --filter @kodigo/server build
 
@@ -28,11 +29,12 @@ RUN pnpm kodigo validate modules \
 # The server is bundled by esbuild (index.js plus the isolated logic host's logic-child.mjs), so the runtime image needs no node_modules.
 FROM node:22-alpine
 WORKDIR /app
-ENV NODE_ENV=production PORT=8080 HOST=0.0.0.0 DATA_DIR=/data MODULES_BUILTIN=/app/modules WEB_DIR=/app/web
+ENV NODE_ENV=production PORT=8080 HOST=0.0.0.0 DATA_DIR=/data MODULES_BUILTIN=/app/modules WEB_DIR=/app/web EPUB_DIR=/app/epub
 COPY --from=build /src/apps/server/dist/index.js ./server/index.js
 COPY --from=build /src/apps/server/dist/logic-child.mjs ./server/logic-child.mjs
 COPY --from=build /src/apps/web/dist ./web
 COPY --from=build /src/modules ./modules
+COPY --from=build /src/epub ./epub
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]

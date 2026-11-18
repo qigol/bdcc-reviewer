@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { BookOpen, CalendarDays, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useSetting, type Exam } from '../storage/progress';
 import { useAdminToken } from '../admin/token';
 import { useBackupDue, usePersisted } from '../storage/persist';
@@ -10,6 +10,7 @@ import { exportProgress, importProgress, resetProgress } from '../storage/export
 import { useModuleStore } from '../modules/store';
 import { groupByAssessment } from '../modules/courseGroups';
 import { download } from '../lib/util';
+import { api, type EpubBook } from '../lib/api';
 
 export function SettingsPage() {
   const [theme, setTheme] = useSetting('theme');
@@ -31,6 +32,7 @@ export function SettingsPage() {
         <Row label="Reduce motion (fades instead of tweens)"><input type="checkbox" checked={reduced} onChange={(e) => setReduced(e.target.checked)} className="h-4 w-4 accent-[rgb(var(--accent))]" /></Row>
       </div>
       <ExamsEditor />
+      <EreaderBooks />
       <h2 className="mb-2 mt-6 font-semibold">Your progress</h2>
       <p className="mb-2 text-sm text-muted">Progress lives in this browser (IndexedDB). Download it to back it up or move it to another device (e.g. laptop → phone), then import it there. Imports merge; for conflicts, the newer entry wins.</p>
       {backup && <p className="mb-2 text-sm font-semibold text-warn" data-testid="backup-reminder">Back up your progress: download it below. This browser may clear it under storage pressure.</p>}
@@ -65,6 +67,50 @@ export function SettingsPage() {
         <button className="btn ml-auto" onClick={() => { setToken(null); setMsg('Admin token forgotten in this tab.'); }}>Forget admin token</button>
       </div>
     </div>
+  );
+}
+
+/** EPUB downloads for Kindle and Kobo: one book per course, and one per module, built with the server image. */
+function EreaderBooks() {
+  const [books, setBooks] = useState<EpubBook[] | null>(null);
+  useEffect(() => { api.epubs().then((r) => setBooks(r.books), () => setBooks([])); }, []);
+  const courses = useMemo(() => {
+    const byCourse = new Map<string, { book?: EpubBook; modules: EpubBook[] }>();
+    for (const b of books ?? []) {
+      const key = b.course ?? 'Other';
+      const g = byCourse.get(key) ?? { modules: [] };
+      if (b.kind === 'course') g.book = b; else g.modules.push(b);
+      byCourse.set(key, g);
+    }
+    return [...byCourse.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [books]);
+  const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+  return (
+    <>
+      <h2 className="mb-2 mt-6 flex items-center gap-2 font-semibold"><BookOpen size={17} /> E-reader books</h2>
+      <p className="mb-2 text-sm text-muted">EPUBs for Kobo (copy the file over) or Kindle (Send to Kindle). Interactive widgets are left out; each practice question has its answer on the next page.</p>
+      <div className="card divide-y divide-line" data-testid="epub-books">
+        {books === null && <p className="px-4 py-3 text-sm text-muted">Loading…</p>}
+        {books?.length === 0 && <p className="px-4 py-3 text-sm text-muted">No books on this server. They're built with the Docker image, or locally with <code>pnpm kodigo epub modules dist/epub --catalog</code>.</p>}
+        {courses.map(([course, g]) => (
+          <details key={course} className="px-4 py-3">
+            <summary className="flex cursor-pointer flex-wrap items-center gap-2">
+              <span className="font-medium">{course}</span>
+              <span className="text-sm text-muted">{g.modules.length} module{g.modules.length === 1 ? '' : 's'}</span>
+              {g.book && <a className="btn btn-sm ml-auto" href={api.epubUrl(g.book.file)} download onClick={(e) => e.stopPropagation()}><Download size={14} /> Whole course · {kb(g.book.bytes)}</a>}
+            </summary>
+            <ul className="mt-2 space-y-1">
+              {g.modules.map((b) => (
+                <li key={b.file} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{b.title}</span>
+                  <a className="btn btn-sm" href={api.epubUrl(b.file)} download><Download size={14} /> {kb(b.bytes)}</a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+    </>
   );
 }
 

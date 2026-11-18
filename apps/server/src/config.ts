@@ -9,6 +9,8 @@ export interface ServerConfig {
   dataDir: string;
   modulesBuiltin: string;
   webDir: string;
+  /** EPUBs written by `kodigo epub modules <dir> --catalog` (index.json + .epub files); missing means no downloads */
+  epubDir: string;
   maxUploadMb: number;
   prod: boolean;
   /** token is '' when admin is disabled; disabledReason says why (never contains the token) */
@@ -32,6 +34,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     dataDir: path.resolve(env.DATA_DIR ?? './data'),
     modulesBuiltin: path.resolve(env.MODULES_BUILTIN ?? './modules'),
     webDir: path.resolve(env.WEB_DIR ?? './web'),
+    epubDir: path.resolve(env.EPUB_DIR ?? './epub'),
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 30),
     prod,
     admin: adminConfig(env.ADMIN_TOKEN, prod),
