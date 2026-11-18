@@ -1,0 +1,158 @@
+examples:
+  - id: net-params
+    source: 'Hyperparameter notebook, Part A (parameter table)'
+    fn: paramCount
+    in: { layers: [2, 64, 64, 1] }
+    expect: { total: 4417, perLayer: [192, 4160, 65] }
+
+  - id: net-params-code
+    source: 'Hyperparameter notebook, Part A'
+    fn: paramCode
+    in: { layers: [2, 64, 64, 1] }
+    expect: { total: 4417, trace.2.vars.count: 4160 }
+
+  - id: bowl-small
+    source: 'Hyperparameter notebook, Part B1 (bowl, η = 0.1, too small)'
+    fn: bowl
+    in: { eta: 0.1, theta0: 2 }
+    expect: { thetas.1: 1.8, factor: 0.9, verdict: creeps }
+
+  - id: bowl-good
+    source: 'Hyperparameter notebook, Part B1 (η = 0.8, reasonable)'
+    fn: bowl
+    in: { eta: 0.8, theta0: 2 }
+    expect: { thetas.1: 0.4, thetas.2: 0.08, factor: 0.2 }
+
+  - id: bowl-oscillate
+    source: 'Hyperparameter notebook, Part B1 (η = 1.8, oscillates)'
+    fn: bowl
+    in: { eta: 1.8, theta0: 2 }
+    expect: { thetas.1: -1.6, thetas.2: 1.28, verdict: oscillates but settles }
+
+  - id: bowl-diverge
+    source: 'Hyperparameter notebook, Part B1 (η = 2.1, diverges)'
+    fn: bowl
+    in: { eta: 2.1, theta0: 2 }
+    expect: { thetas.1: -2.2, thetas.2: 2.42, verdict: diverges }
+
+  - id: bowl-code
+    source: 'Hyperparameter notebook, Part B1 (gradient_descent_on_bowl)'
+    fn: bowlCode
+    in: { eta: 0.8, theta0: 2, steps: 4 }
+    expect: { thetas.4: 0.0032 }
+    tol: 0.0001
+
+  - id: steps-b4
+    source: 'Hyperparameter notebook, Part B2 table (B = 4)'
+    fn: steps
+    in: { N: 160, B: 4, epochs: 200 }
+    expect: { perEpoch: 40, total: 8000 }
+
+  - id: steps-b16
+    source: 'Hyperparameter notebook, Part B2 table (B = 16)'
+    fn: stepsCode
+    in: { N: 160, B: 16, epochs: 200 }
+    expect: { perEpoch: 10, total: 2000 }
+
+  - id: steps-b160
+    source: 'Hyperparameter notebook, Part B2 table (full batch)'
+    fn: steps
+    in: { N: 160, B: 160, epochs: 200 }
+    expect: { perEpoch: 1, total: 200 }
+
+  - id: momentum-ten
+    source: 'Hyperparameter notebook, Part B4 (β = 0.9: steps grow up to about ten times)'
+    fn: momentum
+    in: { grads: [1, 1, 1, 1, 1], beta: 0.9, eta: 0.1 }
+    expect: { vs: [1, 1.9, 2.71, 3.439, 4.0951], limit: 10 }
+
+  - id: momentum-code
+    source: Momentum update on a constant gradient (beyond the notebook)
+    fn: momCode
+    in: { grads: [1, 1, 1, 1, 1], beta: 0.9, eta: 0.1 }
+    expect: { thetas.2: -0.561 }
+
+  - id: adam-first-step
+    source: 'Hyperparameter notebook, Part B5 (Adam on the valley, η = 0.2, steep gradient 50·0.8 = 40)'
+    fn: adamStep
+    in: { g: 40, eta: 0.2 }
+    expect: { step: 0.2, mhat: 40, sgdStep: 8 }
+
+  - id: adam-code
+    source: 'Hyperparameter notebook, optimizer_step (Adam)'
+    fn: adamCode
+    in: { g: 50, eta: 0.1 }
+    expect: { step: 0.1, m: 5 }
+
+  - id: scale-train
+    source: 'Hyperparameter notebook, Part A data (standardize with training statistics only); toy numbers'
+    fn: scaleCode
+    in: { train: [2, 4, 6, 8], other: [5, 10] }
+    expect: { mu: 5, sd: 2.2361, zOther: [0, 2.2361] }
+    tol: 0.001
+
+  - id: lr-best-val
+    source: 'Hyperparameter notebook, Part B1 table'
+    fn: bestOf
+    in: { table: '@lrruns', col: val_loss }
+    expect: { label: eta 0.03, value: 0.255 }
+
+  - id: lr-best-train
+    source: 'Hyperparameter notebook, Part B1 table'
+    fn: bestOf
+    in: { table: '@lrruns', col: train_loss }
+    expect: { label: eta 0.3, value: 0.112 }
+
+  - id: stop-replay
+    source: Illustrative history, find_stopping_point rule (patience 3, δ = 0.01)
+    fn: earlyStop
+    in: { val: '@valhist.val', patience: 3, minDelta: 0.01 }
+    expect: { bestEpoch: 4, stopEpoch: 7, best: 0.53 }
+
+  - id: stop-walk
+    source: Illustrative history (step-through)
+    fn: stopWalk
+    in: { val: '@valhist.val', patience: 3, minDelta: 0.01 }
+    expect: { stopEpoch: 7, trace.4.vars.wait: 1 }
+
+  - id: stop-code
+    source: 'Hyperparameter notebook, find_stopping_point'
+    fn: stopCode
+    in: { val: '@valhist.val', patience: 3, minDelta: 0.01 }
+    expect: { stopEpoch: 7, bestEpoch: 4 }
+
+  - id: stop-no-delta
+    source: Same history with δ = 0
+    fn: earlyStop
+    in: { val: '@valhist.val', patience: 3, minDelta: 0 }
+    expect: { bestEpoch: 5, stopEpoch: 8 }
+
+  - id: dropout-scale
+    source: 'Hyperparameter notebook, Part D2 (survivors scaled by 1/(1 − p))'
+    fn: dropoutCode
+    in: { a: [1.2, 0, 0.8, 2], mask: [1, 0, 1, 0], p: 0.5 }
+    expect: { out: [2.4, 0, 1.6, 0], scale: 2 }
+
+  - id: best-weight
+    source: 'Hyperparameter notebook, Part D3 (one weight: best w = 3/(1 + λ))'
+    fn: bestWeight
+    in: { lam: 0.5 }
+    expect: { w: 2 }
+
+  - id: best-weight-2
+    source: 'Hyperparameter notebook, Part D3 (λ = 2)'
+    fn: bestWeight
+    in: { lam: 2 }
+    expect: { w: 1 }
+
+  - id: l2-code
+    source: L2 penalty and weight decay on two weights (beyond the notebook)
+    fn: l2Code
+    in: { w: [2, -1], g: [0.5, 0.2], lam: 0.1, eta: 0.1 }
+    expect: { penalty: 0.25, next: [1.93, -1.01] }
+
+  - id: decay-shrink
+    source: 'Hyperparameter notebook, Part D3 ("weight decay")'
+    fn: decayStep
+    in: { w: 2, g: 0.5, lam: 0.1, eta: 0.1 }
+    expect: { shrink: 0.99, next: 1.93, plain: 1.95 }

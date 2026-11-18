@@ -1,0 +1,463 @@
+sections:
+  - id: fade-chain
+    title: Why the error signal fades
+    skills: [long-memory]
+    summary: |
+      [[bptt|BPTT]] sends the error back through every step, multiplying by $w_{hh}$ and a [[tanh]] slope each time.
+      Over $k$ steps the factors compound: below 1 the signal vanishes, above 1 it explodes.
+    keyFormula: '\frac{\partial h_t}{\partial h_{t-k}} = \prod_{i} \tanh''(z_i)\, w_{hh} \approx (w_{hh}\cdot\tanh'')^k'
+    state: { w: 0.9, k: 50, slope: 1 }
+    derive:
+      - { fn: chainFactor, in: { w: '@w', k: '@k', slope: '@slope' }, out: c }
+    live:
+      - id: cf
+        widget: Readout
+        props:
+          items:
+            - { label: 'signal left after k steps', value: '@c.plain', format: 4 }
+            - { label: 'with the tanh slope too', value: '@c.withSlope', format: 4, tone: accent }
+    steps:
+      - tex: |
+          \anchor{init}{s = 1}
+        say: Start with the error signal at the loss.
+      - tex: |
+          \anchor{mult}{s \leftarrow s \cdot w_{hh}\,\tanh'(z_i)}
+        say: Each step back multiplies by the same kind of factor.
+      - tex: |
+          \anchor{out}{s = (w_{hh}\tanh')^k}, \qquad 0.9^{50} = {=c.plain|4}
+        say: Fifty steps back, half a percent of the signal is left.
+    code:
+      lang: python
+      source: |
+        def signal_after(w, k, slope=1.0):
+            """Size of the error signal after going back k steps in a one-unit RNN.
+
+            Args:
+                w: recurrent weight; k: steps back; slope: tanh slope at each step.
+            Returns:
+                The factor the signal is scaled by.
+            Lecture: signal_after(0.9, 50) is about 0.005; signal_after(1.1, 50) about 117
+            """
+            s = 1.0                     # @a:init
+            for _ in range(k):
+                s = s * w * slope       # @a:mult
+            return s                    # @a:out
+    links:
+      - { anchor: init, label: 'Signal at the loss' }
+      - { anchor: mult, label: 'One step back' }
+      - { anchor: out, label: 'After k steps' }
+    trace: { fn: chainCode, in: { w: '@w', k: '@k', slope: '@slope' } }
+    examples: [fade-09, fade-11, chain-code]
+    tryIt: [fade-k, long-memory-mcq]
+    pitfalls:
+      - Multiplying by $k$ instead of raising to the power $k$.
+      - Thinking clipping fixes vanishing; it only caps large gradients.
+    examTip: 'Remember two numbers: $0.9^{50} \approx 0.005$ and $1.1^{50} \approx 117$.'
+
+  - id: lstm-update
+    title: One LSTM step
+    skills: [lstm-design, lstm-step]
+    summary: |
+      The [[forget-gate]] scales the old [[cell-state]], the [[input-gate]] scales the [[candidate]], the two are
+      added, and the [[output-gate]] exposes a squashed copy as the hidden state.
+    keyFormula: 'C_t = f_t C_{t-1} + i_t \tilde C_t, \qquad h_t = o_t \tanh(C_t)'
+    data: [lstmtoy]
+    derive:
+      - { fn: lstmUpdate, in: { cprev: '@lstmtoy.cprev', f: '@lstmtoy.f', i: '@lstmtoy.i', ct: '@lstmtoy.ct', o: '@lstmtoy.o' }, out: r }
+    live:
+      - id: lr
+        widget: Readout
+        props:
+          items:
+            - { label: 'C_{t−1}, f, i, C̃, o', value: '0.8, 0.9, 0.3, 0.5, 0.6' }
+            - { label: 'C_t', value: '@r.C', tone: accent }
+            - { label: 'h_t', value: '@r.h', format: 4, tone: good }
+    steps:
+      - tex: |
+          \anchor{keep}{f_t C_{t-1}}
+        say: Keep part of the old memory.
+      - tex: |
+          \anchor{write}{i_t \tilde C_t}
+        say: Write part of the candidate.
+      - tex: |
+          \anchor{cell}{C_t = f_t C_{t-1} + i_t \tilde C_t}
+        say: Add them. This is the only change to the cell state.
+      - tex: |
+          \anchor{expose}{h_t = o_t \tanh(C_t)} = 0.6 \cdot \tanh(0.87) = {=r.h|4}
+        say: Expose a squashed, gated copy.
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def lstm_update(c_prev, f, i, c_tilde, o):
+            """One LSTM step for one memory element, with gate values given.
+
+            Args:
+                c_prev: old cell state; f, i, o: forget, input, output gates;
+                c_tilde: candidate content.
+            Returns:
+                (c, h): new cell state and new hidden state.
+            Lecture: lstm_update(0.8, 0.9, 0.3, 0.5, 0.6) == (0.87, 0.4208...)
+            """
+            keep = f * c_prev            # @a:keep
+            write = i * c_tilde          # @a:write
+            c = keep + write             # @a:cell
+            h = o * math.tanh(c)         # @a:expose
+            return c, h
+    extraCode:
+      - title: The gates themselves, and nn.LSTM
+        source: |
+          def sigmoid(z):
+              return 1 / (1 + math.exp(-z))
+
+          f = sigmoid(w_f * x + u_f * h_prev + b_f)          # forget
+          i = sigmoid(w_i * x + u_i * h_prev + b_i)          # input
+          c_tilde = math.tanh(w_c * x + u_c * h_prev + b_c)  # candidate
+          o = sigmoid(w_o * x + u_o * h_prev + b_o)          # output
+
+          lstm = nn.LSTM(input_size=3, hidden_size=4, batch_first=True)
+          outputs, (h_n, c_n) = lstm(x)                      # two final states
+    links:
+      - { anchor: keep, label: 'Kept memory', say: The forget gate scales the old cell state. }
+      - { anchor: write, label: 'Written memory', say: The input gate scales the candidate. }
+      - { anchor: cell, label: 'New cell state', say: Only one multiplication and one addition. }
+      - { anchor: expose, label: 'New hidden state' }
+    trace: { fn: lstmCode, in: { cprev: '@lstmtoy.cprev', f: '@lstmtoy.f', i: '@lstmtoy.i', ct: '@lstmtoy.ct', o: '@lstmtoy.o' } }
+    examples: [lstm-toy, lstm-code, lstm-net, lstm-walk]
+    tryIt: [lstm-cell, lstm-hidden, code-lstm]
+    pitfalls:
+      - Swapping the gates, so the forget gate multiplies the candidate.
+      - Forgetting the tanh before the output gate.
+    examTip: Write "keep + write" for $C_t$ and "gate times tanh" for $h_t$.
+
+  - id: gru-update
+    title: One GRU step
+    skills: [gru-step]
+    summary: |
+      The [[update-gate]] keeps a share $z_t$ of the old state and fills the rest with the [[candidate]], whose input
+      from the past the [[reset-gate]] scales.
+    keyFormula: 'h_t = z_t h_{t-1} + (1 - z_t)\tilde h_t'
+    data: [grutoy]
+    derive:
+      - { fn: gruUpdate, in: { z: '@grutoy.z', hprev: '@grutoy.hprev', ht: '@grutoy.ht' }, out: r }
+    live:
+      - id: gr
+        widget: Readout
+        props:
+          items:
+            - { label: 'z, h_{t−1}, h̃', value: '0.7, 0.5, −0.4' }
+            - { label: 'h_t', value: '@r.h', tone: good }
+    steps:
+      - tex: |
+          \anchor{keep}{z_t h_{t-1}}
+        say: Keep the share $z_t$ of the old state.
+      - tex: |
+          \anchor{add}{(1 - z_t)\tilde h_t}
+        say: The candidate fills the rest.
+      - tex: |
+          \anchor{blend}{h_t = 0.35 + (-0.12) = {=r.h}}
+        say: A weighted average of old and new.
+    code:
+      lang: python
+      source: |
+        def gru_update(z, h_prev, h_tilde):
+            """One GRU blend for one element (Cho et al. / PyTorch convention).
+
+            Args:
+                z: update gate (share of the old state kept);
+                h_prev: old state; h_tilde: candidate.
+            Returns:
+                The new hidden state h.
+            Lecture: gru_update(0.7, 0.5, -0.4) == 0.23
+            """
+            keep = z * h_prev              # @a:keep
+            add = (1 - z) * h_tilde        # @a:add
+            return keep + add              # @a:blend
+    extraCode:
+      - title: Reset gate and candidate
+        source: |
+          r = sigmoid(w_r * x + u_r * h_prev + b_r)               # reset
+          z = sigmoid(w_z * x + u_z * h_prev + b_z)               # update
+          h_tilde = math.tanh(w_h * x + u_h * (r * h_prev) + b_h)  # candidate
+          h = gru_update(z, h_prev, h_tilde)
+    links:
+      - { anchor: keep, label: 'Kept old state' }
+      - { anchor: add, label: 'New content' }
+      - { anchor: blend, label: 'New state' }
+    trace: { fn: gruCode, in: { z: '@grutoy.z', hprev: '@grutoy.hprev', ht: '@grutoy.ht' } }
+    examples: [gru-toy, gru-code, gru-net, gru-walk]
+    tryIt: [gru-update, code-gru, gru-hand]
+    pitfalls:
+      - Using the swapped textbook convention, $(1 - z_t)h_{t-1} + z_t\tilde h_t$, with this course's $z_t$.
+      - 'Feeding $h_{t-1}$ instead of $r_t h_{t-1}$ into the candidate.'
+    examTip: Check that the two shares add up to 1.
+
+  - id: gate-retention
+    title: How much a gate keeps
+    skills: [gate-memory]
+    summary: |
+      With a [[gate]] value $g$ and nothing new written, a stored value keeps the share $g^k$ after $k$ steps. Only
+      gates close to 1 hold information for tens of steps.
+    keyFormula: 'm_t = g\,m_{t-1} + (1 - g)\,c_t \;\Rightarrow\; g^k'
+    state: { g: 0.99, k: 50 }
+    derive:
+      - { fn: retain, in: { g: '@g', k: '@k' }, out: r }
+    live:
+      - id: rr
+        widget: Readout
+        props:
+          items:
+            - { label: 'share left', value: '@r.share', format: 3, tone: good }
+    steps:
+      - tex: |
+          \anchor{init}{m_0 = 1}
+        say: Store one value.
+      - tex: |
+          \anchor{keep}{m_t = g\, m_{t-1}}
+        say: With nothing new written, each step keeps the share $g$.
+      - tex: |
+          \anchor{out}{m_k = g^k} = 0.99^{50} = {=r.share|3}
+        say: Even 0.99 loses about 40% over 50 steps.
+    code:
+      lang: python
+      source: |
+        def retention(g, k):
+            """Share of a stored value left after k steps with gate value g.
+
+            Args:
+                g: gate value (share kept per step); k: number of steps.
+            Returns:
+                g to the power k.
+            Lecture: retention(0.9, 10) is about 0.349
+            """
+            share = 1.0                # @a:init
+            for _ in range(k):
+                share = share * g      # @a:keep
+            return share               # @a:out
+    links:
+      - { anchor: init, label: 'Stored value' }
+      - { anchor: keep, label: 'One step' }
+      - { anchor: out, label: 'After k steps' }
+    trace: { fn: retainCode, in: { g: '@g', k: '@k' } }
+    examples: [retain-09, retain-code, gate-demo]
+    tryIt: [retain-k, code-retain]
+    pitfalls:
+      - Computing $g \times k$ or $1 - k(1 - g)$.
+    examTip: '$0.9^{10} \approx 0.35$ and $0.99^{50} \approx 0.6$ are good anchors.'
+
+  - id: gated-params
+    title: Counting parameters
+    skills: [gated-params]
+    summary: |
+      Each [[weight-block]] has $m(d + m)$ weights plus biases. A vanilla RNN has 1 block, an LSTM 4, a GRU 3, so their
+      [[parameter|parameters]] are in the ratio 1 : 4 : 3.
+    keyFormula: '\text{blocks} \times \big(m(d + m) + 2m\big) \quad\text{(PyTorch)}'
+    state: { d: 32, m: 32, kind: lstm }
+    derive:
+      - { fn: paramTable, in: { d: '@d', m: '@m', extra: 320033 }, out: t }
+    live:
+      - { id: pt, widget: Matrix, props: { data: '@t.grid', rowHeader: unit, title: 'd = m = 32; totals include the 320,033 embedding and output parameters' } }
+    steps:
+      - tex: |
+          \anchor{w}{m(d + m)}
+        say: Weights for the input and for the previous state.
+      - tex: |
+          \anchor{b}{+\,2m}
+        say: PyTorch keeps two bias vectors per block. One bias per block gives $m(d + m + 1)$.
+      - tex: |
+          \anchor{blocks}{1 : 4 : 3} \;\Rightarrow\; {=t.rnn},\ {=t.lstm},\ {=t.gru}
+        say: The notebook's printout for $d = m = 32$.
+    code:
+      lang: python
+      source: |
+        BLOCKS = {"rnn": 1, "lstm": 4, "gru": 3}
+
+
+        def recurrent_params(d, m, kind):
+            """Parameters of one recurrent layer, as PyTorch counts them.
+
+            Args:
+                d: input features; m: hidden units; kind: "rnn", "lstm" or "gru".
+            Returns:
+                The parameter count.
+            Lecture: recurrent_params(32, 32, "lstm") == 8448
+            """
+            weights = m * (d + m)                 # @a:w
+            per_block = weights + 2 * m           # @a:b
+            return BLOCKS[kind] * per_block       # @a:blocks
+    links:
+      - { anchor: w, label: 'Weights of one block' }
+      - { anchor: b, label: 'Biases' }
+      - { anchor: blocks, label: 'Number of blocks' }
+    trace: { fn: paramsCode, in: { d: '@d', m: '@m', kind: '@kind' } }
+    examples: [params-d32, params-textbook, params-code]
+    tryIt: [gated-params, params-find-error]
+    pitfalls:
+      - Swapping LSTM (4 blocks) and GRU (3 blocks).
+      - Forgetting the $m \times m$ recurrent weights.
+    examTip: 'LSTM = 4 × the RNN, GRU = 3 × the RNN, for the same sizes.'
+
+  - id: compare-runs
+    title: Reading the comparison
+    skills: [compare]
+    summary: |
+      Same data, settings and seed; only the recurrent layer differs. Compare accuracy gains against the parameter and
+      time ratios, and remember that one run on one [[validation-set]] cannot separate small gaps from noise.
+    keyFormula: '\text{gain} = \text{acc} - \text{acc}_{RNN}, \quad \text{time ratio} = t / t_{RNN}'
+    data: [results]
+    derive:
+      - { fn: tableGrid, in: { table: '@results' }, out: rg }
+      - { fn: compare, in: { table: '@results' }, out: c }
+    live:
+      - { id: res, widget: Matrix, props: { data: '@rg', rowHeader: model, title: 'The notebook''s results (one run, 8 epochs)' } }
+    steps:
+      - tex: |
+          \anchor{base}{\text{RNN}: 0.752,\ 47.8\text{ s}}
+        say: The baseline.
+      - tex: |
+          \anchor{row}{\text{gain} = \text{acc} - 0.752, \quad \text{ratio} = t/47.8}
+        say: 'LSTM +0.052 at about 3.9× the time; GRU +0.078 at about 3.2×.'
+    code:
+      lang: python
+      source: |
+        def compare_runs(rows, base="RNN"):
+            """Accuracy gain and time ratio of each model over a baseline.
+
+            Args:
+                rows: list of (model, accuracy, seconds).
+                base: the model to compare against.
+            Returns:
+                dict model -> (gain, time ratio).
+            Lecture: GRU gains 0.078 over the RNN at about 3.2 times the time
+            """
+            b = [r for r in rows if r[0] == base][0]      # @a:base
+            out = {}
+            for model, acc, secs in rows:
+                if model != base:
+                    out[model] = (acc - b[1], secs / b[2])  # @a:row
+            return out
+    links:
+      - { anchor: base, label: 'Baseline' }
+      - { anchor: row, label: 'Gain and time ratio' }
+    trace: { fn: compareCode, in: { table: '@results' } }
+    examples: [compare-table, compare-code]
+    tryIt: [compare-mcq, compare-case]
+    pitfalls:
+      - Declaring a winner from a 2-point gap in one run.
+      - Comparing raw seconds across computers instead of ratios.
+    examTip: Say "after 8 epochs, one seed" whenever you quote these numbers.
+
+  - id: residual
+    title: The residual shortcut
+    skills: [skip-connections]
+    summary: |
+      A [[skip-connection]] adds the input back, $y = F(x) + x$, so each block's derivative is $F'(x) + 1$. Even when
+      $F'(x)$ is tiny the signal passes back, which fixes the [[degradation]] problem.
+    keyFormula: 'y = F(x) + x, \qquad \frac{\partial y}{\partial x} = F''(x) + 1'
+    state: { dF: 0.05, L: 3 }
+    derive:
+      - { fn: residual, in: { dF: '@dF', L: '@L' }, out: r }
+    live:
+      - id: rres
+        widget: Readout
+        props:
+          items:
+            - { label: 'plain blocks', value: '@r.plain', format: 6, tone: bad }
+            - { label: 'with shortcuts', value: '@r.res', format: 6, tone: good }
+    steps:
+      - tex: |
+          \anchor{slope}{F'(x) = 0.05}
+        say: The block's own layers pass back only a little.
+      - tex: |
+          \anchor{mult}{\prod_{l} \big(F'(x) + 1\big)} = 1.05^3 = {=r.res|4}
+        say: With shortcuts, three blocks still pass the signal back; without them it is $0.05^3$.
+    code:
+      lang: python
+      source: |
+        def through_blocks(dF, L):
+            """Gradient factor through L blocks, without and with skip connections.
+
+            Args:
+                dF: slope of each block's layers; L: number of blocks.
+            Returns:
+                (plain, residual) factors.
+            Lecture: y = F(x) + x has derivative F'(x) + 1
+            """
+            plain, res = 1.0, 1.0        # @a:slope
+            for _ in range(L):
+                plain = plain * dF       # @a:mult
+                res = res * (dF + 1)     # @a:mult
+            return plain, res
+    links:
+      - { anchor: slope, label: 'Slope of the block' }
+      - { anchor: mult, label: 'Blocks multiply' }
+    trace: { fn: residualCode, in: { dF: '@dF', L: '@L' } }
+    examples: [residual-one, residual-code]
+    beyondSlides: true
+    tryIt: [residual-grad, resnet-mcq]
+    pitfalls:
+      - Calling the degradation problem overfitting; the training error itself rises.
+    examTip: The "+ 1" is the whole trick.
+
+  - id: attention
+    title: Self-attention by hand
+    skills: [attention]
+    summary: |
+      [[self-attention|Self-attention]] scores every position with a dot product, turns the scores into
+      [[attention-weight|attention weights]] with a softmax, and outputs the weighted average of the values.
+    keyFormula: 'w_j = \frac{e^{q\cdot k_j}}{\sum_k e^{q\cdot k_k}}, \qquad \text{out} = \sum_j w_j v_j'
+    data: [attn]
+    derive:
+      - { fn: attention, in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V' }, out: a }
+    live:
+      - id: ar
+        widget: Readout
+        props:
+          items:
+            - { label: 'scores (not, very, good)', value: '{=a.scores|list}' }
+            - { label: 'weights', value: '{=a.w|list}' }
+            - { label: 'output for "good"', value: '@a.out.0', format: 3, tone: accent }
+    steps:
+      - tex: |
+          \anchor{score}{s_j = q \cdot k_j}
+        say: Compare the word with every word, itself included.
+      - tex: |
+          \anchor{soft}{w_j = e^{s_j} / \textstyle\sum_k e^{s_k}}
+        say: Positive weights that add up to 1. Real Transformers also divide the score by $\sqrt{d}$.
+      - tex: |
+          \anchor{mix}{\text{out} = \textstyle\sum_j w_j v_j} = {=a.out.0|3}
+        say: '"good" draws most on "not", so its new value turns negative.'
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def attend(q, keys, values):
+            """Self-attention output for one query (no 1/sqrt(d) scaling).
+
+            Args:
+                q: query vector; keys: one vector per position;
+                values: one number per position.
+            Returns:
+                The weighted average of the values.
+            Lecture: "good" in "not very good" gets weights 0.576, 0.212, 0.212
+            """
+            scores = [sum(a * b for a, b in zip(q, k)) for k in keys]   # @a:score
+            exps = [math.exp(s) for s in scores]
+            weights = [e / sum(exps) for e in exps]                     # @a:soft
+            return sum(w * v for w, v in zip(weights, values))          # @a:mix
+    links:
+      - { anchor: score, label: 'Scores' }
+      - { anchor: soft, label: 'Softmax weights' }
+      - { anchor: mix, label: 'Weighted average' }
+    trace: { fn: attnCode, in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V' } }
+    examples: [attn-good, attn-code, attn-walk, path-200]
+    beyondSlides: true
+    tryIt: [attn-weight, code-attn, attn-out]
+    pitfalls:
+      - Dividing raw scores by their sum instead of using the softmax.
+      - Forgetting that attention alone ignores word order.
+    examTip: The weights always add up to 1; check before you average.

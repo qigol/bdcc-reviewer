@@ -1,0 +1,571 @@
+sections:
+  - id: dense-vs-conv
+    title: Dense layer vs convolution
+    skills: [conv-why]
+    summary: |
+      A [[dense-layer]] on a flattened photo needs a weight for every pixel value and every unit. A convolution layer
+      needs only its filters' weights, thanks to [[local-connectivity]] and [[parameter-sharing]].
+    keyFormula: '\text{dense: } (n\cdot n\cdot c + 1)\cdot u \qquad \text{conv: } (m\cdot m\cdot c + 1)\cdot F'
+    state: { n: 150, c: 3, units: 512, filters: 32, m: 3 }
+    derive:
+      - { fn: denseVsConv, in: { n: '@n', c: '@c', units: '@units', filters: '@filters', m: '@m' }, out: d }
+    live:
+      - id: cost
+        widget: Readout
+        props:
+          items:
+            - { label: 'inputs n·n·c', value: '@d.inputs', format: comma }
+            - { label: 'dense parameters', value: '@d.dense', format: comma, tone: bad }
+            - { label: 'conv parameters', value: '@d.conv', format: comma, tone: good }
+    steps:
+      - tex: |
+          \anchor{inputs}{d_{in} = n \cdot n \cdot c}
+        say: Flatten the photo. Every pixel value becomes one input.
+      - tex: |
+          \anchor{dense}{(d_{in} + 1)\cdot u}
+        say: A dense unit has one weight per input plus a bias.
+      - tex: |
+          \anchor{conv}{(m\cdot m\cdot c + 1)\cdot F}
+        say: A filter has $m \times m$ weights per channel plus a bias, reused at every position.
+      - tex: |
+          \anchor{dense}{(67{,}500 + 1)\cdot 512 = {=d.dense|comma0}} \quad\text{vs}\quad \anchor{conv}{(27 + 1)\cdot 32 = {=d.conv}}
+        say: The lesson's 150 × 150 photo. The convolution does not grow with the photo.
+    code:
+      lang: python
+      source: |
+        def dense_vs_conv(n, c, units, filters, m):
+            """Parameters of a dense layer on a flattened image vs one convolution layer.
+
+            Args:
+                n: image side (pixels); c: channels; units: dense units;
+                filters: number of filters; m: filter side.
+            Returns:
+                (dense, conv) parameter counts.
+            Lecture: dense_vs_conv(150, 3, 512, 32, 3) == (34560512, 896)
+            """
+            d_in = n * n * c                      # @a:inputs
+            dense = (d_in + 1) * units            # @a:dense
+            conv = (m * m * c + 1) * filters      # @a:conv
+            return dense, conv
+    links:
+      - { anchor: inputs, label: 'Flattened inputs', say: 'One input per pixel value: 150 · 150 · 3.' }
+      - { anchor: dense, label: 'Dense parameters', say: Grows with the photo. }
+      - { anchor: conv, label: 'Convolution parameters', say: Fixed by the filter size and count. }
+    trace: { fn: denseVsConvCode, in: { n: '@n', c: '@c', units: '@units', filters: '@filters', m: '@m' } }
+    examples: [dense-vs-conv]
+    tryIt: [dense-vs-conv-count, dense-vs-conv-two-tier]
+    pitfalls:
+      - Forgetting that a colour pixel holds 3 numbers.
+      - Forgetting the bias of each unit or filter.
+    examTip: Write both formulas side by side; only the dense one contains the image side $n$.
+
+  - id: conv1d
+    title: One-dimensional convolution
+    skills: [conv1d, cross-correlation]
+    summary: |
+      [[convolution|Convolution]] flips the [[filter]], lays it over the input, multiplies the numbers that line up and
+      adds them. Then it jumps by the [[stride]] and repeats. PyTorch skips the flip ([[cross-correlation]]).
+    keyFormula: 'y[i] = \sum_{k=0}^{m-1} x[\,i\,s + k\,]\; w^r[k]'
+    data: [conv1d]
+    derive:
+      - { fn: conv1d, in: { x: '@conv1d.x', w: '@conv1d.w', p: 0, s: 2 }, out: r }
+      - { fn: conv1dGrid, in: { x: '@conv1d.x', w: '@conv1d.w' }, out: g }
+    live:
+      - { id: xs, widget: Matrix, props: { data: '@g', rowHeader: row, title: 'Input x and the flipped filter (stride 2)' } }
+    steps:
+      - tex: |
+          \anchor{flip}{w^r = [w_{m-1}, \dots, w_0]}
+        say: Flip the filter end to end.
+      - tex: |
+          \anchor{pad}{x^p = [0]^p \,\|\, x \,\|\, [0]^p}, \qquad \anchor{count}{o = \lfloor (n + 2p - m)/s \rfloor + 1}
+        say: Pad if asked, then count the stops.
+      - tex: |
+          \anchor{window}{x[\,i s : i s + m\,]} \;\to\; \anchor{dot}{y[i] = \textstyle\sum_k x[i s + k]\, w^r[k]}
+        say: The window for output $i$ starts at $i \cdot s$; dot it with the flipped filter.
+      - tex: |
+          \anchor{dot}{y = [{=r.y|list}]}
+        say: 'The lesson''s input $[3, 2, 1, 7, 1, 2, 5, 4]$ with $w = [0.5, 0.75, 1, 0.25]$ and $s = 2$.'
+    code:
+      lang: python
+      source: |
+        def conv1d(x, w, p=0, s=1):
+            """Discrete 1D convolution with zero padding p and stride s.
+
+            Args:
+                x: the input values; w: the filter; p: zeros per side; s: stride.
+            Returns:
+                The list of outputs y.
+            Lecture: conv1d([3, 2, 1, 7, 1, 2, 5, 4], [0.5, 0.75, 1, 0.25], 0, 2) == [7, 9, 8]
+            """
+            w_r = w[::-1]                                  # @a:flip
+            x_pad = [0] * p + x + [0] * p                  # @a:pad
+            m = len(w_r)
+            n_out = (len(x_pad) - m) // s + 1              # @a:count
+            y = []
+            for i in range(n_out):
+                window = x_pad[i * s:i * s + m]            # @a:window
+                y.append(sum(a * b for a, b in zip(window, w_r)))  # @a:dot
+            return y
+    extraCode:
+      - title: Cross-correlation (what nn.Conv1d computes)
+        source: |
+          import numpy as np
+          x = [3, 2, 1, 7, 1, 2, 5, 4]
+          w = [0.5, 0.75, 1, 0.25]
+          print(np.correlate(x, w, mode="valid"))        # [5.75 9. 7.25 7.5 8.]
+          print(np.correlate(x, w[::-1], mode="valid"))  # [7. 7.25 9. 6.75 8.] = np.convolve(x, w, "valid")
+    links:
+      - { anchor: flip, label: 'Flip the filter', say: Convolution reverses it; cross-correlation does not. }
+      - { anchor: pad, label: 'Zero padding', say: '$p$ zeros on each side.' }
+      - { anchor: count, label: 'Number of outputs', say: One per stop. }
+      - { anchor: window, label: 'The window', say: 'Starts at $i \cdot s$.' }
+      - { anchor: dot, label: 'One output', say: Sum of the lined-up products. }
+    trace: { fn: conv1dCode, in: { x: '@conv1d.x', w: '@conv1d.w', p: 0, s: 2 } }
+    examples: [conv1d-stride2, conv1d-code, xcorr-first, xcorr-flipped]
+    tryIt: [conv1d-out, xcorr-out, code-conv1d]
+    pitfalls:
+      - Sliding the filter without flipping it when the question asks for convolution.
+      - Starting window $i$ at position $i$ instead of $i \cdot s$.
+    examTip: Write the flipped filter under the input once, then slide that row.
+
+  - id: out-size
+    title: The output-size formula
+    skills: [padding-stride]
+    summary: |
+      The output has one value per stop of the filter. [[padding|Padding]] adds room, a bigger filter takes room, and the
+      [[stride]] divides the room into jumps: the [[output-size-formula]].
+    keyFormula: 'o = \left\lfloor \frac{n + 2p - m}{s} \right\rfloor + 1'
+    state: { n: 10, m: 5, p: 2, s: 1 }
+    derive:
+      - { fn: outSize, in: { n: '@n', m: '@m', p: '@p', s: '@s' }, out: o }
+    live:
+      - id: os
+        widget: Readout
+        props:
+          items:
+            - { label: 'room n + 2p − m', value: '@o.num' }
+            - { label: 'outputs o', value: '@o.o', tone: accent }
+    steps:
+      - tex: |
+          \anchor{num}{n + 2p - m}
+        say: How far the filter can travel after its first stop.
+      - tex: |
+          \anchor{div}{\left\lfloor \frac{n + 2p - m}{s} \right\rfloor}
+        say: How many whole jumps fit. A last jump that would hang over the edge is dropped.
+      - tex: |
+          o = \anchor{div}{\lfloor (n + 2p - m)/s \rfloor} \anchor{plus1}{+\, 1}
+        say: Add the first position.
+      - tex: |
+          o = \lfloor ({=n} + 2\cdot{=p} - {=m})/{=s} \rfloor + 1 = \anchor{plus1}{ {=o.o} }
+        say: The lesson's figure keeps the length at 10.
+    code:
+      lang: python
+      source: |
+        def output_size(n, m, p=0, s=1):
+            """Number of outputs of a convolution (or pooling) along one side.
+
+            Args:
+                n: input length; m: filter length; p: padding per side; s: stride.
+            Returns:
+                The output length o.
+            Lecture: output_size(10, 5, 2, 1) == 10
+            """
+            room = n + 2 * p - m          # @a:num
+            jumps = room // s             # @a:div
+            return jumps + 1              # @a:plus1
+    links:
+      - { anchor: num, label: 'Room to travel', say: 'Padding adds $2p$; the filter uses $m$.' }
+      - { anchor: div, label: 'Whole jumps', say: '`//` rounds down.' }
+      - { anchor: plus1, label: 'Plus the first stop' }
+    trace: { fn: outSizeCode, in: { n: '@n', m: '@m', p: '@p', s: '@s' } }
+    examples: [outsize-figure, outsize-table-2, outsize-table-4, outsize-table-5, outsize-code, pad-modes]
+    tryIt: [out-size, code-outsize, out-size-hard]
+    pitfalls:
+      - Adding $p$ instead of $2p$.
+      - Forgetting the $+1$, or rounding up.
+    examTip: The same formula gives pooled sizes with $m = s = 2$, $p = 0$.
+
+  - id: conv2d
+    title: Two-dimensional convolution
+    skills: [conv2d]
+    summary: |
+      In 2D the [[filter]] is rotated 180°, the input gets a ring of zeros, and the window slides across and down. Each
+      output of the [[feature-map]] is the sum of the products in its window.
+    keyFormula: 'Y[i, j] = \sum_{k_1} \sum_{k_2} X^p[\,i\,s + k_1,\ j\,s + k_2\,]\; W^r[k_1, k_2]'
+    data: [conv2d]
+    derive:
+      - { fn: conv2d, in: { X: '@conv2d.X', W: '@conv2d.W', p: 1, s: 2 }, out: r }
+      - { fn: paddedGrid, in: { X: '@conv2d.X', p: 1 }, out: xg }
+    live:
+      - { id: xp, widget: Matrix, props: { data: '@xg', rowHeader: 'X^p', title: 'The input with one ring of zeros' } }
+    steps:
+      - tex: |
+          \anchor{flip}{W^r = W \text{ rotated } 180^\circ}
+        say: Reverse the rows, then reverse each row.
+      - tex: |
+          \anchor{size}{o_1 = o_2 = \lfloor (3 + 2 - 3)/2 \rfloor + 1 = 2}
+        say: One ring of zeros and a stride of 2 give a 2 × 2 output.
+      - tex: |
+          \anchor{window}{X^p[i s : i s + 3,\ j s : j s + 3]} \;\to\; \anchor{sum}{Y[i,j] = \textstyle\sum W^r \odot \text{window}}
+        say: Multiply cell by cell and add.
+      - tex: |
+          \anchor{sum}{Y = \begin{bmatrix} 4.6 & 1.6 \\ 7.5 & 2.9 \end{bmatrix}}
+        say: The lesson's result. The top-left stop has only three non-zero products.
+    code:
+      lang: python
+      source: |
+        def conv2d(X, W, p=0, s=1):
+            """Discrete 2D convolution with zero padding p and stride s.
+
+            Args:
+                X: input grid (list of rows); W: filter grid; p: padding; s: stride.
+            Returns:
+                The output grid Y.
+            Lecture: conv2d(X_SMALL, W_SMALL, p=1, s=2) == [[4.6, 1.6], [7.5, 2.9]]
+            """
+            W_r = [row[::-1] for row in W[::-1]]                  # @a:flip
+            Xp = pad(X, p)          # ring of p zeros (helper)
+            m = len(W_r)
+            o = (len(Xp) - m) // s + 1                            # @a:size
+            Y = [[0.0] * o for _ in range(o)]
+            for i in range(o):
+                for j in range(o):
+                    total = 0.0
+                    for a in range(m):
+                        for b in range(m):
+                            total += Xp[i * s + a][j * s + b] * W_r[a][b]   # @a:window
+                    Y[i][j] = total                               # @a:sum
+            return Y
+    extraCode:
+      - title: The helper and the framework layer
+        source: |
+          def pad(X, p):
+              """Add a ring of p zeros around a grid."""
+              width = len(X[0]) + 2 * p
+              rows = [[0] * p + list(r) + [0] * p for r in X]
+              return [[0] * width] * p + rows + [[0] * width] * p
+
+          # nn.Conv2d does cross-correlation: give it W rotated 180° to get these numbers
+          conv = nn.Conv2d(1, 1, kernel_size=3, stride=2, padding=1, bias=False)
+    links:
+      - { anchor: flip, label: 'Rotate the filter 180°' }
+      - { anchor: size, label: 'Output size', say: The output-size formula on each side. }
+      - { anchor: window, label: 'Window times filter', say: 'Top-left corner at $(i s, j s)$.' }
+      - { anchor: sum, label: 'One output value' }
+    trace: { fn: conv2dCode, in: { X: '@conv2d.X', W: '@conv2d.W', p: 1, s: 2 } }
+    examples: [conv2d-small, conv2d-code, conv2d-xcorr, conv2d-try, edge-map, kernel-sum-edge]
+    tryIt: [conv2d-cell, conv2d-hand, kernel-sum-mcq]
+    pitfalls:
+      - Rotating only the rows (a flip upside down), not both rows and columns.
+      - Forgetting the zero ring when $p > 0$.
+    examTip: Cross out the padded zeros in each window; only the remaining products matter.
+
+  - id: max-pool
+    title: Max pooling
+    skills: [pooling]
+    summary: |
+      [[max-pooling|Max pooling]] keeps the largest number in each 2 × 2 square, halving height and width. It has no
+      [[parameter|parameters]].
+    keyFormula: 'Y[i, j] = \max_{a, b \in \{0, 1\}} X[2i + a,\ 2j + b]'
+    data: [pool]
+    derive:
+      - { fn: maxPool, in: { X: '@pool.X1' }, out: r }
+      - { fn: matGrid, in: { M: '@pool.X1' }, out: g }
+    live:
+      - { id: pin, widget: Matrix, props: { data: '@g', format: int, rowHeader: X1, title: 'The 6 × 6 map X1 in 2 × 2 squares' } }
+    steps:
+      - tex: |
+          \anchor{size}{o = \lfloor (6 - 2)/2 \rfloor + 1 = 3}
+        say: A 2 × 2 pool with stride 2 halves each side.
+      - tex: |
+          \anchor{max}{Y[i, j] = \max \text{ of the square at } (2i, 2j)}
+        say: Keep the largest of the four numbers.
+      - tex: |
+          \anchor{max}{Y = \begin{bmatrix} 255 & 125 & 170 \\ 255 & 150 & 150 \\ 70 & 200 & 95 \end{bmatrix}}
+        say: X2 gives exactly the same result.
+    code:
+      lang: python
+      source: |
+        def max_pool2d(X, size=2):
+            """Max pooling with a size x size window and stride equal to size.
+
+            Args:
+                X: the feature map (list of rows); size: the square's side.
+            Returns:
+                The pooled map.
+            Lecture: max_pool2d(X1) == max_pool2d(X2)
+            """
+            o = (len(X) - size) // size + 1                     # @a:size
+            out = []
+            for i in range(o):
+                row = []
+                for j in range(o):
+                    square = [X[i * size + a][j * size + b]
+                              for a in range(size) for b in range(size)]
+                    row.append(max(square))                     # @a:max
+                out.append(row)
+            return out
+    links:
+      - { anchor: size, label: 'Output size', say: 'The output-size formula with $m = s = 2$.' }
+      - { anchor: max, label: 'Largest in the square' }
+    trace: { fn: poolCode, in: { X: '@pool.X1' } }
+    examples: [pool-x1, pool-code, pool-same, pool-shift]
+    tryIt: [pool-cell, code-pool]
+    pitfalls:
+      - Averaging the square (that is average pooling).
+      - Letting squares overlap; with stride 2 they tile the map.
+    examTip: Draw the 2 × 2 grid lines on the map first.
+
+  - id: layer-params
+    title: Parameters of a convolution and a dense layer
+    skills: [cnn-shapes]
+    summary: |
+      A filter spans every input [[channel]], so it has $m \cdot m \cdot C_{in}$ weights plus one [[bias]]. A
+      [[dense-layer]] has one weight per input per unit plus a bias per unit.
+    keyFormula: '(m\cdot m\cdot C_{in} + 1)\cdot C_{out} \qquad (d_{in} + 1)\cdot d_{out}'
+    state: { m: 3, cin: 32, cout: 64, din: 576, dout: 64 }
+    derive:
+      - { fn: convParams, in: { m: '@m', cin: '@cin', cout: '@cout' }, out: c }
+      - { fn: denseParams, in: { din: '@din', dout: '@dout' }, out: d }
+    live:
+      - id: pc
+        widget: Readout
+        props:
+          items:
+            - { label: 'per filter', value: '@c.perFilter' }
+            - { label: 'conv layer', value: '@c.params', format: comma, tone: accent }
+            - { label: 'dense layer', value: '@d.params', format: comma, tone: accent }
+    steps:
+      - tex: |
+          \anchor{fw}{m \cdot m \cdot C_{in}} \;\text{weights per filter}
+        say: One $m \times m$ slice per input channel; their products are added into one map.
+      - tex: |
+          \anchor{fb}{m \cdot m \cdot C_{in} + 1}
+        say: Plus that filter's bias.
+      - tex: |
+          \anchor{conv}{(m \cdot m \cdot C_{in} + 1)\cdot C_{out}}
+        say: One filter per output channel.
+      - tex: |
+          \anchor{dense}{(d_{in} + 1)\cdot d_{out}}
+        say: 'The MNIST CNN''s second convolution, $(9\cdot32+1)\cdot64 = 18{,}496$, and its first dense layer, $(576+1)\cdot64 = 36{,}928$.'
+    code:
+      lang: python
+      source: |
+        def layer_params(m, c_in, c_out, d_in, d_out):
+            """Parameters of one convolution layer and one dense layer.
+
+            Args:
+                m: filter side; c_in, c_out: channels in and out;
+                d_in, d_out: dense inputs and units.
+            Returns:
+                (conv, dense) parameter counts.
+            Lecture: layer_params(3, 32, 64, 576, 64) == (18496, 36928)
+            """
+            weights = m * m * c_in                 # @a:fw
+            per_filter = weights + 1               # @a:fb
+            conv = per_filter * c_out              # @a:conv
+            dense = (d_in + 1) * d_out             # @a:dense
+            return conv, dense
+    links:
+      - { anchor: fw, label: 'Weights per filter' }
+      - { anchor: fb, label: 'Plus one bias' }
+      - { anchor: conv, label: 'Convolution layer' }
+      - { anchor: dense, label: 'Dense layer' }
+    trace: { fn: paramsCode, in: { m: '@m', cin: '@cin', cout: '@cout', din: '@din', dout: '@dout' } }
+    examples: [params-code, params-conv-photo]
+    tryIt: [conv-params, params-find-error, code-cnn]
+    pitfalls:
+      - 'Using $m \cdot m$ instead of $m \cdot m \cdot C_{in}$.'
+      - Giving pooling, flatten or dropout layers parameters; they have none.
+    examTip: '$C_{in}$ is the previous layer''s number of filters, not 1.'
+
+  - id: shape-table
+    title: A CNN's shape table
+    skills: [cnn-shapes]
+    summary: |
+      Walk the network layer by layer: convolutions trim the side and set the channels, pools halve the side,
+      [[flatten]] multiplies everything out, and dense layers set the length. Add up the parameters as you go.
+    keyFormula: 'h \to h - m + 1 \to \lfloor (h - 2)/2 \rfloor + 1 \to \dots \to h \cdot w \cdot c'
+    data: [mnist]
+    derive:
+      - { fn: cnnTable, in: { input: '@mnist.input', spec: '@mnist.spec' }, out: t }
+    live:
+      - { id: tbl, widget: Matrix, props: { data: '@t.grid', rowHeader: layer, title: 'The MNIST CNN, layer by layer' } }
+    steps:
+      - tex: |
+          \anchor{start}{(h, w, c) = (28, 28, 1)}, \quad \text{total} = 0
+        say: Start from the input image.
+      - tex: |
+          \anchor{conv}{h \leftarrow h - m + 1,\ c \leftarrow F}, \quad \anchor{pool}{h \leftarrow \lfloor (h-2)/2 \rfloor + 1}
+        say: Convolutions without padding trim $m - 1$; pools halve, rounding down.
+      - tex: |
+          \anchor{flat}{d = h\cdot w\cdot c}, \quad \anchor{dense}{(d + 1)\cdot u}
+        say: Flatten, then dense layers.
+      - tex: |
+          \text{total} = 320 + 18{,}496 + 36{,}928 + 36{,}928 + 650 = {=t.total|comma0}
+        say: The lesson's total.
+    code:
+      lang: python
+      source: |
+        def shape_table(input_shape, spec):
+            """Output shape and parameter count of every layer, and the total.
+
+            Args:
+                input_shape: (h, w, c); spec: list of ("conv", F, m), ("pool", 2),
+                ("flatten",), ("dropout",), ("dense", u).
+            Returns:
+                The total number of parameters.
+            Lecture: shape_table((28, 28, 1), MNIST_SPEC) == 93322
+            """
+            h, w, c = input_shape                                   # @a:start
+            d, total = None, 0
+            for layer in spec:
+                if layer[0] == "conv":
+                    F, m = layer[1], layer[2]
+                    total += (m * m * c + 1) * F                    # @a:conv
+                    h, w, c = h - m + 1, w - m + 1, F               # @a:conv
+                elif layer[0] == "pool":
+                    h, w = (h - 2) // 2 + 1, (w - 2) // 2 + 1        # @a:pool
+                elif layer[0] in ("flatten", "dropout"):
+                    d = h * w * c if d is None else d               # @a:flat
+                else:
+                    total += (d + 1) * layer[1]                     # @a:dense
+                    d = layer[1]                                    # @a:dense
+            return total
+    links:
+      - { anchor: start, label: 'The input shape' }
+      - { anchor: conv, label: 'A convolution layer', say: 'Trims the side, sets channels, adds $(m^2 c + 1)F$.' }
+      - { anchor: pool, label: 'A pooling layer', say: Halves the side; no parameters. }
+      - { anchor: flat, label: 'Flatten (and dropout)', say: No parameters. }
+      - { anchor: dense, label: 'A dense layer' }
+    trace: { fn: shapeCode, in: { input: '@mnist.input', spec: '@mnist.spec' } }
+    examples: [mnist-table, mnist-code, mnist-walk, catsdogs-table]
+    tryIt: [flatten-dense, code-cnn-parsons, shape-case]
+    pitfalls:
+      - Rounding a pooled odd side up (11 → 6 instead of 5).
+      - Flattening before the last pool.
+    examTip: Keep three numbers per row, $h \times w \times c$, and never skip a row.
+
+  - id: best-epoch
+    title: Reading training curves
+    skills: [overfit-augment]
+    summary: |
+      Each [[epoch]] records a training and a [[validation-set|validation]] score. Keep the epoch with the lowest
+      validation loss; a growing gap after it is [[overfitting]].
+    keyFormula: 'e^\star = \arg\min_e \ \text{val\_loss}_e'
+    data: [noaug]
+    derive:
+      - { fn: curves, in: { hist: '@noaug' }, out: c }
+    live:
+      - { id: lc, widget: Chart, props: { kind: line, series: '@c.loss', xLabel: epoch, yLabel: loss, title: 'The illustrative run without augmentation' } }
+    steps:
+      - tex: |
+          \anchor{init}{e^\star = 1}
+        say: Start with the first epoch as the best so far.
+      - tex: |
+          \anchor{test}{\text{val\_loss}_e < \text{val\_loss}_{e^\star}?} \;\Rightarrow\; \anchor{keep}{e^\star = e}
+        say: Keep any epoch that beats the best so far.
+      - tex: |
+          \anchor{gap}{\text{gap} = \text{acc}_{\text{train}} - \text{acc}_{\text{val}}} = {=c.finalTrainAcc} - {=c.finalValAcc} = {=c.finalGap}
+        say: 'Here the best epoch is {=c.bestEpoch}; by the end the gap is wide: overfitting.'
+    code:
+      lang: python
+      source: |
+        def best_epoch(history):
+            """Epoch with the lowest validation loss, and the final train-val gap.
+
+            Args:
+                history: dict with lists "val_loss", "accuracy", "val_accuracy".
+            Returns:
+                (best epoch counted from 1, final accuracy gap).
+            Lecture: summarize_runs prints the lowest validation loss and its epoch.
+            """
+            best = 0                                               # @a:init
+            for e in range(1, len(history["val_loss"])):
+                if history["val_loss"][e] < history["val_loss"][best]:   # @a:test
+                    best = e                                       # @a:keep
+            gap = history["accuracy"][-1] - history["val_accuracy"][-1]  # @a:gap
+            return best + 1, gap
+    links:
+      - { anchor: init, label: 'Best so far' }
+      - { anchor: test, label: 'Compare validation loss' }
+      - { anchor: keep, label: 'New best epoch' }
+      - { anchor: gap, label: 'Final train–validation gap' }
+    trace: { fn: bestEpochCode, in: { hist: '@noaug' } }
+    examples: [noaug-best, aug-best, best-epoch-code]
+    beyondSlides: true
+    tryIt: [best-epoch, curves-mcq]
+    pitfalls:
+      - Picking the epoch with the lowest training loss; it is always the last one.
+    examTip: Read the validation curve; the training curve only tells you the network is learning.
+
+  - id: vgg-transfer
+    title: VGG16 shapes and trainable parameters
+    skills: [transfer]
+    summary: |
+      [[vgg16|VGG16]]'s 13 same-padded convolutions keep the side; its five pools halve it. With the base
+      [[frozen-layer|frozen]], only the new [[classifier-head|classifier]] trains.
+    keyFormula: '(h_5 \cdot h_5 \cdot 512 + 1)\cdot u + (u + 1)'
+    data: [vgg16]
+    derive:
+      - { fn: vgg, in: { input: '@vgg16.input', blocks: '@vgg16.blocks', head: '@vgg16.head' }, out: v }
+    live:
+      - id: vr
+        widget: Readout
+        props:
+          items:
+            - { label: 'sides', value: '{=v.sizesText}' }
+            - { label: 'features', value: '@v.features', format: comma }
+            - { label: 'frozen base', value: '@v.base', format: comma, tone: muted }
+            - { label: 'trainable (feature extraction)', value: '@v.head', format: comma, tone: good }
+            - { label: 'trainable (fine-tune block 5)', value: '@v.fineTuneTrainable', format: comma, tone: warn }
+    steps:
+      - tex: |
+          \anchor{start}{h_0 = 150}
+        say: The notebook's photos are 150 × 150.
+      - tex: |
+          \anchor{block}{h_{b} = \lfloor h_{b-1} / 2 \rfloor}
+        say: 'Each block''s 3 × 3 convolutions use same padding; only its pool shrinks the side.'
+      - tex: |
+          \anchor{flat}{4 \cdot 4 \cdot 512 = 8{,}192}
+        say: The base turns each photo into 8,192 features.
+      - tex: |
+          \anchor{head}{(8{,}192 + 1)\cdot 256 + (256 + 1) = {=v.head|comma0}}
+        say: The only trainable parameters while the base is frozen.
+    code:
+      lang: python
+      source: |
+        def vgg16_head(side, head=256):
+            """Feature count after VGG16's base and the new head's parameters.
+
+            Args:
+                side: input photo side; head: units of the new dense layer.
+            Returns:
+                (features, trainable parameters of the head).
+            Lecture: vgg16_head(150) == (8192, 2097665)
+            """
+            h = side                                   # @a:start
+            for filters in [64, 128, 256, 512, 512]:
+                h = h // 2                             # @a:block
+            features = h * h * 512                     # @a:flat
+            trainable = (features + 1) * head + (head + 1)   # @a:head
+            return features, trainable
+    extraCode:
+      - title: Freezing in PyTorch
+        source: |
+          conv_base = models.vgg16(weights="IMAGENET1K_V1").features
+          for param in conv_base.parameters():
+              param.requires_grad = False          # frozen: never updated
+          model = nn.Sequential(conv_base, nn.Flatten(), head)
+    links:
+      - { anchor: start, label: 'Input side' }
+      - { anchor: block, label: 'One block', say: 'Same-padded convolutions, then a pool.' }
+      - { anchor: flat, label: 'Features per photo' }
+      - { anchor: head, label: 'Trainable head' }
+    trace: { fn: vggCode, in: { input: '@vgg16.input', blocks: '@vgg16.blocks', head: 256 } }
+    examples: [vgg-sizes, vgg-params, vgg-code]
+    tryIt: [vgg-trainable, transfer-order]
+    pitfalls:
+      - Counting the frozen base as trainable.
+      - Trimming the side at each convolution; VGG pads them.
+    examTip: '150 → 75 → 37 → 18 → 9 → 4: only the pools change the side.'

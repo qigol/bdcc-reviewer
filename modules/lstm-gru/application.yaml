@@ -1,0 +1,184 @@
+intro: |
+  Choosing a sequence model is a trade-off between memory, accuracy, cost and evidence. Here a small team must pick a
+  recurrent unit for a real product. You will check a gate step, count parameters, read a comparison honestly and
+  decide when attention is worth it.
+
+case:
+  id: hotline
+  title: Routing messages for a government hotline
+  story: |
+    A provincial hotline receives thousands of text messages a day, in English and Taglish, and wants to route each one
+    to the right office. Messages are short, usually under 60 words, but the key detail ("not about my water bill, it
+    is the flooding") often appears early. The data team has a laptop GPU and must choose between an RNN, an LSTM and a
+    GRU, with a Transformer as the adviser's suggestion.
+  data: [results]
+  derive:
+    - { fn: paramTable, in: { d: 64, m: 64, extra: 0 }, out: pt }
+    - { fn: tableGrid, in: { table: '@results' }, out: rg }
+  cells:
+    - id: early-detail
+      title: Why the plain RNN worries them
+      say: |
+        In a 60-word message, the key detail may sit 50 steps before the final hidden state. Assume each step back
+        scales the error signal by 0.9 in a vanilla RNN.
+      decision:
+        prompt: How much of the error signal from the final state reaches that early word?
+        type: mcq
+        options:
+          - 'About 0.5%: $0.9^{50}$'
+          - 'About 55%: $1 - 50 \times 0.009$'
+          - 'About 45: $0.9 \times 50$'
+          - 'All of it: the state is passed to every step'
+        answer: 0
+        optionFeedback:
+          '1': The losses compound; they do not subtract a fixed amount.
+          '2': Repeated steps multiply; they do not add.
+          '3': Passing the state forward does not mean the gradient comes back intact.
+        model: '$0.9^{50} \approx 0.005$. The early word barely trains the network: a vanishing gradient.'
+
+    - id: gate-check
+      title: Checking one LSTM step
+      say: |
+        The team inspects one memory element after the word "flooding". Old cell state 0.4, forget gate 0.95, input
+        gate 0.8, candidate 0.9, output gate 0.5.
+      decision:
+        prompt: What is the new cell state?
+        type: mcq
+        options:
+          - '1.1: $0.95\cdot0.4 + 0.8\cdot0.9 = 0.38 + 0.72$'
+          - '1.12: $0.4 + 0.8\cdot0.9$, keeping all the old memory'
+          - '0.72: only the written content'
+          - '0.4: the cell state never changes'
+        answer: 0
+        optionFeedback:
+          '1': The forget gate scales the old memory, here by 0.95.
+          '2': The old memory is kept, scaled by the forget gate.
+          '3': The cell state changes by addition at every step.
+        model: '$C_t = 0.38 + 0.72 = 1.1$, and $h_t = 0.5\tanh(1.1) \approx 0.40$. A strong "flooding" signal is now stored.'
+
+    - id: size
+      title: How big are the layers?
+      say: |
+        The team uses 64-dimensional word vectors and 64 hidden units. The table of recurrent parameters for all three
+        units appears once you answer.
+      stage:
+        - { id: pt-tab, widget: Matrix, hidden: true, props: { data: '@pt.grid', rowHeader: unit, title: 'd = m = 64, PyTorch counting' } }
+      decision:
+        prompt: How many parameters does the LSTM layer have, counting PyTorch's two bias vectors per block?
+        type: mcq
+        options:
+          - '33,280: $4 \times (64 \cdot 128 + 128)$'
+          - '24,960: $3 \times (64 \cdot 128 + 128)$'
+          - '8,320: one block'
+          - '32,768: $4 \times 64 \cdot 128$, without biases'
+        answer: 0
+        optionFeedback:
+          '1': That is the GRU, with three blocks.
+          '2': That is a vanilla RNN.
+          '3': Each block has $2 \times 64$ biases in PyTorch.
+        model: 'Each block: $64(64 + 64) + 2\cdot64 = 8{,}320$. LSTM 4 blocks = 33,280; GRU 24,960; RNN 8,320.'
+
+    - id: evidence
+      title: Borrowing the course's evidence
+      say: |
+        Before training, the team reads the course's IMDb comparison: same settings, one run each, 8 epochs.
+      stage:
+        - { id: rg-tab, widget: Matrix, props: { data: '@rg', rowHeader: model, title: 'RNN vs LSTM vs GRU on IMDb' } }
+      decision:
+        prompt: What does this table justify for their choice?
+        type: mcq
+        options:
+          - Start with a gated unit; GRU and LSTM are close, so try both with a few seeds
+          - Use the GRU, because it is proven better than the LSTM
+          - Use the RNN, because it trains almost four times faster
+          - Ignore the table, because IMDb reviews are not hotline messages
+        answer: 0
+        optionFeedback:
+          '1': One run cannot prove a 2.6-point gap.
+          '2': It is 5–8 points less accurate, and the early detail matters here.
+          '3': It is different data, but it is still useful evidence about gated vs plain units.
+        model: Gated units clearly beat the plain RNN; the GRU–LSTM gap needs more seeds. The GRU is cheaper, a sensible first try.
+
+    - id: transformer
+      title: The adviser's suggestion
+      say: |
+        The adviser proposes a small Transformer. Messages are under 60 words, the team has one laptop GPU, and the
+        office wants an answer this month.
+      decision:
+        prompt: What is the strongest argument **for** trying the Transformer?
+        type: mcq
+        options:
+          - Every word is one step from every other, so an early detail reaches the decision directly
+          - It needs no training data
+          - Its cost grows only linearly with message length
+          - It reads words strictly in order, like an RNN
+        answer: 0
+        optionFeedback:
+          '1': It still has to be trained.
+          '2': Attention's cost grows with the square of the length; at 60 words that is only 3,600 comparisons.
+          '3': It processes all positions at once; order comes from added position information.
+        model: Direct paths are attention's advantage; at 60 words its quadratic cost is small. A pre-trained model would be the usual way in.
+
+    - id: report
+      title: Recommend
+      say: Write two or three sentences for the hotline manager.
+      decision:
+        prompt: What do you recommend?
+        type: open
+        model: |
+          Train a GRU first: it handles early details far better than a plain RNN and is cheaper than an LSTM, which
+          performed about the same in the course comparison. Run three seeds and compare on a held-out set of real
+          messages. If misrouted messages still miss early details, try a small pre-trained Transformer.
+
+atScale:
+  title: Sequence models in production
+  body: |
+    In practice, recurrent layers come from the framework (`nn.LSTM`, `nn.GRU`) with several layers stacked and often
+    run in both directions (`bidirectional=True`). Variable-length batches are packed (`pack_padded_sequence`) so no
+    time is spent on padding, and gradients are clipped every step. Recurrent layers cannot use the GPU's parallelism
+    across time steps, which is the main reason most text systems moved to Transformers; but GRUs and LSTMs remain
+    common on streaming data, small devices and short sequences, where their constant per-step cost and small memory
+    are an advantage. Transformers are rarely trained from scratch on small datasets: a pre-trained model is
+    fine-tuned, as with VGG16 for images.
+  code:
+    - title: Swapping the recurrent unit is one line
+      source: |
+        import torch.nn as nn
+
+        class Classifier(nn.Module):
+            def __init__(self, vocab=10_000, d=64, m=64, unit=nn.GRU):
+                super().__init__()
+                self.emb = nn.Embedding(vocab, d, padding_idx=0)
+                self.rnn = unit(d, m, batch_first=True)   # nn.RNN, nn.LSTM or nn.GRU
+                self.out = nn.Linear(m, 1)
+
+            def forward(self, ids, lengths):
+                x = nn.utils.rnn.pack_padded_sequence(self.emb(ids), lengths.cpu(),
+                                                      batch_first=True, enforce_sorted=False)
+                _, h = self.rnn(x)
+                h = h[0] if isinstance(h, tuple) else h   # LSTM returns (h_n, c_n)
+                return self.out(h[-1])
+
+tradeoffs:
+  title: Choosing a sequence architecture
+  columns: [Unit, Memory mechanism, Weight blocks, Parallel over time?, Good fit]
+  rows:
+    - ['Vanilla RNN', 'State rewritten every step', '1×', 'No', 'Short sequences, baselines']
+    - ['LSTM', 'Gated additive cell state', '4×', 'No', 'Longer dependencies, streaming']
+    - ['GRU', 'Gated blend of one state', '3×', 'No', 'Like LSTM, cheaper']
+    - ['Transformer', 'Self-attention, one-step paths', 'many', 'Yes', 'Long text, lots of data or a pre-trained model']
+
+connections:
+  - module: rnn
+    note: The vanilla RNN, BPTT and vanishing gradients this module fixes are built there step by step.
+  - module: cnn
+    note: Residual blocks are the image-network version of the same additive-path idea.
+
+explainBack:
+  prompt: Explain to a classmate why an LSTM or GRU remembers longer than a plain RNN, and why Transformers went further.
+  rubric:
+    - A plain RNN multiplies the error by a similar factor at every step back, so distant inputs barely train it
+    - The LSTM cell state changes only by scaling and addition; the forget gate near 1 keeps information and gradient
+    - The GRU blends old and new state with the update gate, with fewer parameters
+    - Gates are computed from the input, so they can write, hold and overwrite
+    - Self-attention makes every position one step away and trains in parallel, at a quadratic cost

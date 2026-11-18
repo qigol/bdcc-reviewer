@@ -1,0 +1,312 @@
+terms:
+  - id: model
+    term: model
+    short: A recipe with adjustable numbers that turns the facts we know about a case into a guess about what we want to know.
+    related: [training, parameter]
+    skills: [conv-why]
+
+  - id: training
+    term: training
+    aka: [learning, fitting]
+    short: Adjusting a model's numbers using examples with known answers, so its guesses get closer to those answers.
+    related: [model, epoch, training-set]
+    skills: [conv-why, overfit-augment]
+
+  - id: pixel
+    term: pixel
+    aka: [pixels]
+    short: One dot of a digital image, stored as a number for its brightness (0 is black, 255 is white).
+    related: [channel]
+    skills: [conv-why]
+
+  - id: channel
+    term: channel
+    aka: [colour channel, C_in, C_out, depth]
+    short: One grid of numbers stacked in an image or layer output; a colour photo has three, for red, green and blue.
+    long: |
+      A grayscale image has 1 channel. After a convolution layer, each [[filter]] adds one channel: 32 filters give 32
+      [[feature-map|feature maps]], so the output has 32 channels.
+    related: [pixel, feature-map, filter]
+    skills: [conv-why, cnn-shapes]
+
+  - id: dense-layer
+    term: dense layer
+    aka: [fully connected layer, nn.Linear, Dense]
+    short: A layer in which every input is connected to every unit, each connection with its own weight.
+    formula: '(d_{in} + 1)\cdot d_{out} \text{ parameters}'
+    long: |
+      On a flattened 150 × 150 colour photo a dense layer of 512 units needs 34,560,512 [[parameter|parameters]]. A
+      [[cnn]] avoids that with [[local-connectivity]] and [[parameter-sharing]].
+    related: [weight, parameter, classifier-head]
+    skills: [conv-why, cnn-shapes]
+
+  - id: weight
+    term: weight
+    aka: [w, connection weight]
+    short: The number on one connection that says how strongly, and in which direction, an input pushes the unit it feeds.
+    related: [bias, parameter, filter]
+    skills: [conv-why]
+
+  - id: bias
+    term: bias
+    aka: [b, intercept]
+    short: A number added to a unit's sum after the weighted inputs, so the unit can fire earlier or later.
+    long: Every filter of a convolution layer has exactly one bias, however many weights it has.
+    related: [weight, parameter]
+    skills: [conv-why, cnn-shapes]
+
+  - id: parameter
+    term: parameter
+    aka: [trainable parameter, θ, theta]
+    short: A number the model learns during training; in a neural network, every weight and every bias.
+    related: [weight, bias, dense-layer]
+    skills: [conv-why, cnn-shapes]
+
+  - id: local-connectivity
+    term: local connectivity
+    aka: [local receptive field]
+    short: Each output value looks only at a small patch of nearby inputs, because nearby pixels belong together.
+    related: [parameter-sharing, filter]
+    skills: [conv-why]
+
+  - id: filter
+    term: filter
+    aka: [kernel, convolution filter, w]
+    short: A small grid of weights that slides over the input; at each stop it multiplies the overlapping numbers and adds them up.
+    long: |
+      A filter on a colour image has an $m \times m$ slice for each [[channel]], plus one [[bias]]. Training chooses its
+      numbers. Its output is a [[feature-map]].
+    related: [convolution, feature-map, parameter-sharing]
+    skills: [conv-why, conv1d, conv2d]
+
+  - id: parameter-sharing
+    term: parameter sharing
+    aka: [weight sharing]
+    short: The same filter weights are used at every position, so a pattern learned in one place is found everywhere.
+    long: Together with [[local-connectivity]] it makes a convolution layer's size independent of the image size.
+    related: [local-connectivity, filter, cnn]
+    skills: [conv-why]
+
+  - id: cnn
+    term: convolutional network (CNN)
+    aka: [convolution, CNN, ConvNet]
+    short: A network for images that slides one small pattern detector across every position, so the same weights are reused everywhere.
+    long: |
+      It has a [[convolutional-base]] of [[convolution]], [[relu|ReLU]] and [[max-pooling]] stages, then a
+      [[classifier-head]] of [[dense-layer|dense layers]].
+    related: [convolution, convolutional-base, classifier-head]
+    skills: [conv-why, cnn-shapes]
+
+  - id: convolution
+    term: convolution
+    aka: [conv, discrete convolution]
+    short: 'Flip a filter, slide it along the input, and at each stop add up the products of the numbers that line up.'
+    formula: 'y[i] = \sum_{k} x[i s + k]\, w^r[k]'
+    long: |
+      Frameworks skip the flip and do [[cross-correlation]]. The jump between stops is the [[stride]]; zeros added at the
+      ends are [[padding]].
+    related: [filter, stride, cross-correlation, padding]
+    skills: [conv1d, conv2d]
+
+  - id: stride
+    term: stride
+    aka: [s]
+    short: How many cells the filter jumps between one stop and the next.
+    related: [convolution, output-size-formula]
+    skills: [conv1d, padding-stride]
+
+  - id: cross-correlation
+    term: cross-correlation
+    aka: [correlation, no-flip convolution]
+    short: Sliding the filter as written, without flipping it; what PyTorch and Keras layers actually compute.
+    long: It gives different numbers from [[convolution]] with the same filter, but a network learns its filter, so it simply learns the flipped one.
+    related: [convolution, filter]
+    skills: [cross-correlation]
+
+  - id: padding
+    term: padding
+    aka: [zero padding, p]
+    short: Zeros added around the input so the filter can also sit over the edges.
+    related: [valid-padding, same-padding, output-size-formula]
+    skills: [padding-stride]
+
+  - id: valid-padding
+    term: valid padding
+    aka: [no padding, p = 0, padding="valid"]
+    short: No zeros are added, so the filter only sits where it fits and the output is shorter than the input.
+    related: [padding, same-padding]
+    skills: [padding-stride]
+
+  - id: same-padding
+    term: same padding
+    aka: [padding="same", p = (m − 1)/2]
+    short: Just enough zeros that, with stride 1, the output has the same length as the input.
+    formula: 'p = \frac{m - 1}{2}'
+    related: [padding, valid-padding]
+    skills: [padding-stride]
+
+  - id: output-size-formula
+    term: output-size formula
+    aka: [output size, o]
+    short: The count of positions where the filter fits, which is the output length along one side.
+    formula: 'o = \left\lfloor \frac{n + 2p - m}{s} \right\rfloor + 1'
+    long: It also gives the size after [[max-pooling]], with $m$ and $s$ equal to the pool size.
+    related: [padding, stride, max-pooling]
+    skills: [padding-stride, cnn-shapes]
+
+  - id: feature-map
+    term: feature map
+    aka: [activation map]
+    short: The grid a filter produces; it is large wherever the input looks like the filter's pattern.
+    related: [filter, channel, max-pooling]
+    skills: [conv2d]
+
+  - id: max-pooling
+    term: max pooling
+    aka: [MaxPool, nn.MaxPool2d]
+    short: Shrinking a feature map by keeping only the largest number in each small square, usually 2 × 2.
+    long: It halves height and width, has no [[parameter|parameters]], and ignores small changes that leave each square's largest value alone.
+    related: [average-pooling, feature-map, output-size-formula]
+    skills: [pooling]
+
+  - id: average-pooling
+    term: average pooling
+    aka: [AvgPool, mean pooling]
+    short: Shrinking a feature map by keeping the mean of each small square instead of its largest value.
+    related: [max-pooling]
+    skills: [pooling]
+
+  - id: relu
+    term: ReLU
+    aka: [rectified linear unit, 'max(0, z)']
+    short: An activation that keeps positive sums as they are and turns negative sums into 0.
+    related: [convolutional-base]
+    skills: [cnn-shapes]
+
+  - id: convolutional-base
+    term: convolutional base
+    aka: [feature extractor, conv base, features]
+    short: The first part of a CNN, repeated convolution, ReLU and pooling stages that turn an image into feature maps.
+    related: [cnn, classifier-head, relu, feature-extraction]
+    skills: [cnn-shapes, transfer]
+
+  - id: flatten
+    term: flatten
+    aka: [nn.Flatten, Flatten]
+    short: Unrolling the final feature maps into one long list of numbers so dense layers can read them.
+    formula: 'h \cdot w \cdot c'
+    related: [classifier-head, dense-layer]
+    skills: [cnn-shapes]
+
+  - id: classifier-head
+    term: classifier
+    aka: [classifier head, head, top layers]
+    short: The dense layers at the end of a CNN that turn the flattened features into class scores.
+    related: [flatten, convolutional-base, logit]
+    skills: [cnn-shapes, transfer]
+
+  - id: logit
+    term: logit
+    aka: [raw score, logits]
+    short: A raw class score from the last layer, before it is turned into a probability; the loss function does that step.
+    related: [classifier-head]
+    skills: [cnn-shapes]
+
+  - id: dropout
+    term: dropout
+    aka: [nn.Dropout]
+    short: Switching off a random share of a layer's values during training only, so the network cannot lean on any single one.
+    related: [overfitting, classifier-head]
+    skills: [cnn-shapes]
+
+  - id: training-set
+    term: Training set
+    aka: [training data, training split]
+    short: The part of the data the model learns from.
+    related: [validation-set, test-set]
+    skills: [overfit-augment]
+
+  - id: validation-set
+    term: validation set
+    aka: [validation data, val]
+    short: Data held back from training and checked after every epoch, to watch for overfitting and compare models.
+    related: [training-set, test-set, overfitting]
+    skills: [overfit-augment]
+
+  - id: test-set
+    term: Test set
+    aka: [test data, test split]
+    short: Data kept aside and never shown during learning, used at the end to check how well the model really does.
+    related: [validation-set]
+    skills: [overfit-augment]
+
+  - id: epoch
+    term: epoch
+    aka: [epochs]
+    short: One full pass of training through every example in the training set.
+    related: [training, overfitting]
+    skills: [overfit-augment]
+
+  - id: overfitting
+    term: Overfitting
+    aka: [overfit, memorize]
+    short: When a model memorizes the exact examples it learned from instead of the general pattern, so it does worse on new cases.
+    long: |
+      On curves: training accuracy keeps climbing while [[validation-set|validation]] accuracy stalls, and validation
+      loss bottoms out and then rises. [[data-augmentation]] and [[dropout]] fight it.
+    related: [validation-set, data-augmentation, epoch]
+    skills: [overfit-augment]
+
+  - id: data-augmentation
+    term: data augmentation
+    aka: [augmentation]
+    short: Making new training images by randomly rotating, shifting, zooming or mirroring the ones you have, without changing their labels.
+    related: [overfitting, training-set]
+    skills: [overfit-augment]
+
+  - id: pretrained-network
+    term: pre-trained network
+    aka: [pretrained model, pre-trained CNN]
+    short: A network already trained on a huge dataset, whose learned weights you download and reuse.
+    related: [imagenet, transfer-learning, vgg16]
+    skills: [transfer]
+
+  - id: imagenet
+    term: ImageNet
+    short: A dataset of about 1.4 million labelled photos in 1,000 classes, used to pre-train image networks.
+    related: [pretrained-network]
+    skills: [transfer]
+
+  - id: transfer-learning
+    term: transfer learning
+    short: Keeping a pre-trained network's convolutional base, throwing away its old classifier, and training a new classifier for your task.
+    related: [pretrained-network, feature-extraction, fine-tuning]
+    skills: [transfer]
+
+  - id: vgg16
+    term: VGG16
+    aka: [VGG, VGG19]
+    short: A 2014 CNN with 13 convolution layers of 3 × 3 filters in 5 blocks, plus 3 dense layers.
+    long: Blocks have 64, 128, 256, 512 and 512 filters; each ends with a 2 × 2 [[max-pooling|max pool]]. VGG19 has 16 convolution layers.
+    related: [pretrained-network, convolutional-base]
+    skills: [transfer]
+
+  - id: feature-extraction
+    term: feature extraction
+    short: Running every image once through a frozen pre-trained base, storing the outputs, and training only a small new classifier on them.
+    related: [frozen-layer, transfer-learning, fine-tuning]
+    skills: [transfer]
+
+  - id: frozen-layer
+    term: frozen layer
+    aka: [freeze, requires_grad = False, trainable = False]
+    short: A layer whose weights are never updated during training.
+    related: [feature-extraction, fine-tuning]
+    skills: [transfer]
+
+  - id: fine-tuning
+    term: fine-tuning
+    aka: [fine tune]
+    short: After training the new classifier, unfreezing the top block of the base and training it gently with a tiny learning rate.
+    related: [frozen-layer, feature-extraction, transfer-learning]
+    skills: [transfer]

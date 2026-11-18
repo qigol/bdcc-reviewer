@@ -1,0 +1,554 @@
+sections:
+  - id: param-count
+    title: Counting the parameters
+    skills: [params-vs-hyper]
+    summary: |
+      Every layer learns one [[weight]] per input per unit and one [[bias]] per unit. Their sum is how many
+      [[parameter|parameters]] gradient descent must learn; the [[hyperparameter|hyperparameters]] are far fewer.
+    keyFormula: '\sum_{\text{layers}} (n_{in}\cdot n_{out} + n_{out})'
+    data: [net]
+    derive:
+      - { fn: paramGrid, in: { layers: '@net.layers' }, out: pg }
+    live:
+      - { id: tbl, widget: Matrix, props: { data: '@pg', rowHeader: layer, title: 'The 2–64–64–1 network' } }
+    steps:
+      - tex: |
+          \anchor{start}{\text{total} = 0}
+        say: Start the count.
+      - tex: |
+          \anchor{layer}{n_{in}\cdot n_{out} + n_{out}}
+        say: Weights from every input to every unit, plus one bias per unit.
+      - tex: |
+          \anchor{layer}{192 + 4{,}160 + 65 = 4{,}417}
+        say: The notebook's network.
+    code:
+      lang: python
+      source: |
+        def count_params(layers):
+            """Weights plus biases of a fully connected network.
+
+            Args:
+                layers: sizes from input to output, e.g. [2, 64, 64, 1].
+            Returns:
+                The number of trainable parameters.
+            Lecture: count_params([2, 64, 64, 1]) == 4417
+            """
+            total = 0                                        # @a:start
+            for n_in, n_out in zip(layers[:-1], layers[1:]):
+                total += n_in * n_out + n_out                # @a:layer
+            return total
+    links:
+      - { anchor: start, label: 'Running total' }
+      - { anchor: layer, label: 'One layer', say: 'Weight matrix $(n_{in}, n_{out})$ and bias $(1, n_{out})$.' }
+    trace: { fn: paramCode, in: { layers: '@net.layers' } }
+    examples: [net-params, net-params-code]
+    tryIt: [param-count, param-hyper-cloze]
+    pitfalls:
+      - Giving the input layer biases.
+    examTip: Write the W and b shapes per layer, as the notebook's table does.
+
+  - id: gd-step
+    title: One gradient-descent step on the bowl
+    skills: [learning-rate]
+    summary: |
+      [[gradient-descent|Gradient descent]] moves against the [[gradient]] by the [[learning-rate]] times its size. On
+      the bowl $\tfrac12 c\theta^2$ each step multiplies $\theta$ by $1 - \eta c$: small creeps, near 1 settles, below
+      $-1$ is [[divergence]].
+    keyFormula: '\theta \leftarrow \theta - \eta\,\nabla_\theta L'
+    data: [toys]
+    state: { eta: 0.8 }
+    derive:
+      - { fn: bowl, in: { eta: '@eta', theta0: 2, steps: 4 }, out: b }
+    live:
+      - id: br
+        widget: Readout
+        props:
+          items:
+            - { label: 'factor 1 − ηc', value: '@b.factor' }
+            - { label: 'θ after 4 steps', value: '@b.last', format: 4 }
+            - { label: 'verdict', value: '{=b.verdict}' }
+    steps:
+      - tex: |
+          \anchor{start}{\theta_0 = 2}, \quad L = \tfrac12 \theta^2
+        say: The notebook's bowl, lowest at 0.
+      - tex: |
+          \anchor{grad}{\nabla L = c\,\theta}
+        say: The slope tells which way is uphill.
+      - tex: |
+          \anchor{update}{\theta \leftarrow \theta - \eta\, c\,\theta = (1 - \eta c)\,\theta}
+        say: 'With $\eta = 0.8$: $2 \to 0.4 \to 0.08$.'
+    code:
+      lang: python
+      source: |
+        def descend_bowl(lr, c=1.0, theta=2.0, n_steps=4):
+            """Gradient descent on the bowl L = c * theta**2 / 2.
+
+            Args:
+                lr: learning rate; c: curvature; theta: start; n_steps: steps.
+            Returns:
+                The list of theta values visited.
+            Lecture: descend_bowl(0.8)[:3] == [2.0, 0.4, 0.08]
+            """
+            path = [theta]                                   # @a:start
+            for _ in range(n_steps):
+                grad = c * theta                             # @a:grad
+                theta = theta - lr * grad                    # @a:update
+                path.append(theta)
+            return path
+    links:
+      - { anchor: start, label: 'Starting point' }
+      - { anchor: grad, label: 'The gradient' }
+      - { anchor: update, label: 'The update', say: 'Subtract $\eta$ times the gradient.' }
+    trace: { fn: bowlCode, in: { eta: '@eta', theta0: 2, steps: 4 } }
+    examples: [bowl-small, bowl-good, bowl-oscillate, bowl-diverge, bowl-code]
+    tryIt: [bowl-step, bowl-hand]
+    pitfalls:
+      - Adding the gradient instead of subtracting it.
+      - Forgetting to multiply by η.
+    examTip: 'On a bowl, check $|1 - \eta c|$: below 1 converges, above 1 diverges.'
+
+  - id: steps-epoch
+    title: Steps per epoch
+    skills: [batch-size]
+    summary: |
+      One [[update-step|step]] uses one [[training-batch]]; one [[epoch]] uses every example once. So an epoch has $N/B$
+      steps, rounded up for the last, smaller batch.
+    keyFormula: '\text{steps per epoch} = \lceil N / B \rceil'
+    state: { N: 160, B: 16, epochs: 200 }
+    derive:
+      - { fn: steps, in: { N: '@N', B: '@B', epochs: '@epochs' }, out: s }
+    live:
+      - id: sr
+        widget: Readout
+        props:
+          items:
+            - { label: 'steps per epoch', value: '@s.perEpoch', tone: accent }
+            - { label: 'total steps', value: '@s.total', format: comma }
+    steps:
+      - tex: |
+          \anchor{per}{\lceil N / B \rceil}
+        say: Batches per epoch.
+      - tex: |
+          \anchor{last}{N - (\lceil N/B \rceil - 1)\,B}
+        say: The last batch holds the leftover examples.
+      - tex: |
+          \anchor{total}{\lceil N/B \rceil \times \text{epochs}}
+        say: '160 examples: 40, 10 or 1 steps per epoch for B = 4, 16, 160.'
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def count_steps(N, B, epochs):
+            """Updates per epoch and in total for mini-batch training.
+
+            Args:
+                N: training examples; B: batch size; epochs: passes.
+            Returns:
+                (steps per epoch, size of the last batch, total steps).
+            Lecture: count_steps(160, 4, 200) == (40, 4, 8000)
+            """
+            per_epoch = math.ceil(N / B)                     # @a:per
+            last = N - (per_epoch - 1) * B                   # @a:last
+            total = per_epoch * epochs                       # @a:total
+            return per_epoch, last, total
+    links:
+      - { anchor: per, label: 'Steps per epoch' }
+      - { anchor: last, label: 'The last batch' }
+      - { anchor: total, label: 'Total updates' }
+    trace: { fn: stepsCode, in: { N: '@N', B: '@B', epochs: '@epochs' } }
+    examples: [steps-b4, steps-b16, steps-b160]
+    tryIt: [steps-epoch, steps-total, train-loop-order]
+    pitfalls:
+      - Rounding $N/B$ down and losing the last batch.
+    examTip: Full batch is 1 step per epoch; batch size 1 is $N$ steps.
+
+  - id: momentum-update
+    title: The momentum update
+    skills: [momentum]
+    summary: |
+      [[momentum|Momentum]] keeps a velocity $v$: each step keeps $\beta$ of it and adds the new gradient, then moves
+      by $\eta v$. A steady gradient builds speed toward $1/(1-\beta)$ times a plain step.
+    keyFormula: 'v_t = \beta v_{t-1} + g_t, \qquad \theta_t = \theta_{t-1} - \eta v_t'
+    data: [toys]
+    derive:
+      - { fn: momSheet, in: { grads: '@toys.mom.grads', beta: 0.9, eta: 0.1, upTo: 0 }, out: ms }
+    live:
+      - { id: sheet, widget: Matrix, props: { data: '@ms', rowHeader: step, title: 'A steady gradient of 1, β = 0.9, η = 0.1' } }
+    steps:
+      - tex: |
+          \anchor{init}{v_0 = 0}
+        say: No speed yet.
+      - tex: |
+          \anchor{vel}{v_t = \beta v_{t-1} + g_t}
+        say: Keep $\beta$ of the old direction, add the new gradient.
+      - tex: |
+          \anchor{move}{\theta_t = \theta_{t-1} - \eta v_t}
+        say: 'Move by the velocity: 1, 1.9, 2.71, … toward 10.'
+    code:
+      lang: python
+      source: |
+        def momentum_path(grads, beta, lr, theta=0.0):
+            """SGD with momentum, as the notebook's optimizer_step writes it.
+
+            Args:
+                grads: gradient at each step; beta: momentum; lr: learning rate.
+            Returns:
+                (velocities, thetas).
+            Lecture: momentum_path([1]*3, 0.9, 0.1)[0] == [1, 1.9, 2.71]
+            """
+            v = 0.0                                          # @a:init
+            vs, thetas = [], []
+            for g in grads:
+                v = beta * v + g                             # @a:vel
+                theta = theta - lr * v                       # @a:move
+                vs.append(v)
+                thetas.append(theta)
+            return vs, thetas
+    links:
+      - { anchor: init, label: 'Start at rest' }
+      - { anchor: vel, label: 'Velocity update' }
+      - { anchor: move, label: 'Parameter update' }
+    trace: { fn: momCode, in: { grads: '@toys.mom.grads', beta: 0.9, eta: 0.1 } }
+    examples: [momentum-ten, momentum-code]
+    tryIt: [mom-velocity, code-momentum, mom-hand]
+    pitfalls:
+      - Forgetting the old velocity, or adding old gradients without fading them by β.
+    examTip: 'β = 0 is plain SGD; β = 0.9 means up to ten times larger steps along a steady slope.'
+
+  - id: adam-step
+    title: Adam's first step
+    skills: [optimizers]
+    summary: |
+      [[adam|Adam]] keeps an average of gradients $m$ and of squared gradients $s$, corrects both for starting at zero,
+      and steps by $\eta\,\hat m/\sqrt{\hat s}$. Every parameter's first step is about $\eta$, whatever its gradient.
+    keyFormula: '\theta \leftarrow \theta - \eta\,\frac{\hat m}{\sqrt{\hat s} + \epsilon}'
+    state: { g: 40, eta: 0.2 }
+    derive:
+      - { fn: adamStep, in: { g: '@g', eta: '@eta' }, out: a }
+    live:
+      - id: ar
+        widget: Readout
+        props:
+          items:
+            - { label: 'Adam step', value: '@a.step', tone: good }
+            - { label: 'plain SGD step ηg', value: '@a.sgdStep', tone: warn }
+    steps:
+      - tex: |
+          \anchor{m}{m = \beta_1 m + (1-\beta_1)g}, \quad \anchor{s}{s = \beta_2 s + (1-\beta_2)g^2}
+        say: Two running averages, both starting at 0.
+      - tex: |
+          \anchor{hat}{\hat m = \frac{m}{1-\beta_1^t}, \ \hat s = \frac{s}{1-\beta_2^t}}
+        say: Bias correction undoes the pull toward 0 early on.
+      - tex: |
+          \anchor{step}{\eta\,\hat m/\sqrt{\hat s} = \eta\, g/|g| = \pm\eta}
+        say: 'At $t = 1$, the step is $\eta$ for a gradient of 40 or of 0.4.'
+    code:
+      lang: python
+      source: |
+        def adam_first_step(g, lr, beta1=0.9, beta2=0.999, eps=1e-8):
+            """Size of Adam's first update for one parameter (m = s = 0 before).
+
+            Args:
+                g: the gradient; lr: learning rate.
+            Returns:
+                The step that is subtracted from the parameter.
+            Lecture: adam_first_step(40, 0.2) ~= 0.2  (SGD would step 8)
+            """
+            m = beta1 * 0 + (1 - beta1) * g                  # @a:m
+            s = beta2 * 0 + (1 - beta2) * g ** 2             # @a:s
+            m_hat, s_hat = m / (1 - beta1), s / (1 - beta2)  # @a:hat
+            return lr * m_hat / (s_hat ** 0.5 + eps)         # @a:step
+    links:
+      - { anchor: m, label: 'Average gradient (momentum)' }
+      - { anchor: s, label: 'Average squared gradient' }
+      - { anchor: hat, label: 'Bias correction' }
+      - { anchor: step, label: 'The step', say: About η for every parameter at first. }
+    trace: { fn: adamCode, in: { g: '@g', eta: '@eta' } }
+    examples: [adam-first-step, adam-code]
+    tryIt: [adam-mcq, opt-two-tier]
+    pitfalls:
+      - Reusing SGD's learning rate for Adam.
+    examTip: Each optimizer needs its own learning rate.
+
+  - id: split-scale
+    title: Scaling with training statistics only
+    skills: [hp-selection]
+    summary: |
+      The [[training-set]] fits the parameters, the [[validation-set]] picks hyperparameters, the [[test-set]] reports
+      once. [[feature-standardization|Standardization]] uses the training mean and spread for every set, so nothing leaks.
+    keyFormula: 'z = (x - \mu_{\text{train}})/\sigma_{\text{train}}'
+    data: [toys]
+    derive:
+      - { fn: scaleTrain, in: { train: '@toys.scale.train', other: '@toys.scale.other' }, out: sc }
+    live:
+      - id: scr
+        widget: Readout
+        props:
+          items:
+            - { label: 'training mean', value: '@sc.mu' }
+            - { label: 'training std', value: '@sc.sd', format: 3 }
+    steps:
+      - tex: |
+          \anchor{mu}{\mu = \text{mean}(x_{\text{train}})}
+        say: 'Training values 2, 4, 6, 8: mean 5.'
+      - tex: |
+          \anchor{sd}{\sigma = \text{std}(x_{\text{train}})}
+        say: 'Spread about 2.236.'
+      - tex: |
+          \anchor{z}{z = (x - \mu)/\sigma}
+        say: 'Validation 5 and 10 become 0 and 2.24, with the training numbers.'
+    code:
+      lang: python
+      source: |
+        def standardize(train, other):
+            """Scale two sets with the TRAINING mean and standard deviation.
+
+            Args:
+                train: training values; other: validation or test values.
+            Returns:
+                (scaled train, scaled other).
+            Lecture: features are standardized with the training mean and std only.
+            """
+            n = len(train)
+            mu = sum(train) / n                                          # @a:mu
+            sd = (sum((x - mu) ** 2 for x in train) / n) ** 0.5          # @a:sd
+            scale = lambda xs: [(x - mu) / sd for x in xs]               # @a:z
+            return scale(train), scale(other)
+    links:
+      - { anchor: mu, label: 'Training mean' }
+      - { anchor: sd, label: 'Training spread' }
+      - { anchor: z, label: 'Scale every set the same way' }
+    trace: { fn: scaleCode, in: { train: '@toys.scale.train', other: '@toys.scale.other' } }
+    examples: [scale-train, lr-best-val, lr-best-train]
+    tryIt: [code-scale, scale-two-tier, test-locked-mcq]
+    pitfalls:
+      - Computing the mean on all the data, which leaks the validation and test sets.
+    examTip: Fit the scaler on training data, then only apply it.
+
+  - id: diagnose-rule
+    title: Reading the two loss curves
+    skills: [diagnose]
+    summary: |
+      Both losses high is [[underfitting]]; both low and close is a good fit; training falling while validation rises
+      is [[overfitting]]. [[regularization|Regularization]] treats overfitting; too much of it underfits.
+    keyFormula: '\text{gap} = L_{\text{val}} - L_{\text{train}}'
+    state: { kind: overfit }
+    derive:
+      - { fn: shapeCurves, in: { kind: '@kind' }, out: sc }
+    live:
+      - { id: curves, widget: Chart, props: { kind: line, series: '@sc.series', xLabel: epoch, yLabel: loss, title: 'Illustrative curve shapes' } }
+      - id: kind-choice
+        widget: Choice
+        props: { label: run, options: [{ value: underfit, label: underfit }, { value: good, label: good fit }, { value: overfit, label: overfit }, { value: lr-high, label: 'η too large' }, { value: lr-low, label: 'η too small' }] }
+        bind: { value: kind }
+    steps:
+      - tex: |
+          \anchor{high}{L_{\text{train}} \text{ and } L_{\text{val}} \text{ high}} \Rightarrow \text{underfitting}
+        say: The pattern is not learned yet.
+      - tex: |
+          \anchor{rise}{L_{\text{val}} \uparrow \text{ while } L_{\text{train}} \downarrow} \Rightarrow \text{overfitting}
+        say: The model fits noise.
+      - tex: |
+          \anchor{good}{\text{both low, small gap}} \Rightarrow \text{good fit}
+        say: Keep this one.
+    code:
+      lang: python
+      source: |
+        def diagnose(train_end, val_end, val_min, high=0.5):
+            """Name the problem from the final and best losses of a run.
+
+            Args:
+                train_end, val_end: final training and validation loss;
+                val_min: lowest validation loss; high: what counts as high.
+            Returns:
+                "underfitting", "overfitting" or "good fit".
+            Lecture: the diagnosis table of Part D.
+            """
+            if train_end > high and val_end > high:          # @a:high
+                return "underfitting"
+            if val_end > val_min + 0.05:                     # @a:rise
+                return "overfitting"
+            return "good fit"                                # @a:good
+    links:
+      - { anchor: high, label: 'Both high' }
+      - { anchor: rise, label: 'Validation rising' }
+      - { anchor: good, label: 'Both low' }
+    beyondSlides: true
+    tryIt: [diagnose-mcq, val-acc-mcq]
+    pitfalls:
+      - Judging a run by its training loss alone.
+    examTip: Always read the validation curve; training loss nearly always falls.
+
+  - id: early-stop
+    title: The early-stopping rule
+    skills: [early-stopping]
+    summary: |
+      [[early-stopping|Early stopping]] counts epochs without an improvement larger than [[min-delta|δ]], stops when the
+      count reaches the [[patience]], and restores the best epoch's weights.
+    keyFormula: '\text{improve} \iff L_{\text{val}} < L_{\text{best}} - \delta'
+    data: [valhist]
+    derive:
+      - { fn: stopSheet, in: { val: '@valhist.val', patience: 3, minDelta: 0.01, upTo: 99 }, out: ss }
+    live:
+      - { id: sheet, widget: Matrix, props: { data: '@ss', rowHeader: epoch, title: 'Patience 3, δ = 0.01' } }
+    steps:
+      - tex: |
+          \anchor{init}{\text{best} = \infty,\ \text{wait} = 0}
+        say: Nothing seen yet.
+      - tex: |
+          \anchor{test}{L_e < \text{best} - \delta \,?}
+        say: A real improvement must clear δ.
+      - tex: |
+          \anchor{keep}{\text{best} \leftarrow L_e,\ \text{wait} \leftarrow 0} \quad \text{else} \quad \anchor{wait}{\text{wait} \leftarrow \text{wait} + 1}
+        say: Reset or count.
+      - tex: |
+          \anchor{stop}{\text{wait} \ge \text{patience}} \Rightarrow \text{stop; restore best}
+        say: 'Here: best epoch 4, stop at epoch 7. Epoch 5''s 0.525 did not beat 0.53 by more than 0.01.'
+    code:
+      lang: python
+      source: |
+        def find_stopping_point(val_losses, patience, min_delta):
+            """Replay the early-stopping rule on a recorded validation curve.
+
+            Args:
+                val_losses: validation loss per epoch; patience; min_delta.
+            Returns:
+                (epoch to restore, epoch where training stops).
+            Lecture: notebook's find_stopping_point (patience 50, 1e-3).
+            """
+            best_loss, best_epoch, wait = float("inf"), 0, 0          # @a:init
+            for epoch, loss in enumerate(val_losses, start=1):
+                if loss < best_loss - min_delta:                      # @a:test
+                    best_loss, best_epoch, wait = loss, epoch, 0      # @a:keep
+                else:
+                    wait += 1                                         # @a:wait
+                if wait >= patience:
+                    return best_epoch, epoch                          # @a:stop
+            return best_epoch, len(val_losses)
+    links:
+      - { anchor: init, label: 'Start' }
+      - { anchor: test, label: 'Improvement test' }
+      - { anchor: keep, label: 'New best' }
+      - { anchor: wait, label: 'Count a non-improvement' }
+      - { anchor: stop, label: 'Stop and restore' }
+    trace: { fn: stopCode, in: { val: '@valhist.val', patience: 3, minDelta: 0.01 } }
+    examples: [stop-replay, stop-code, stop-no-delta, stop-walk]
+    tryIt: [stop-epoch, code-stop]
+    pitfalls:
+      - Restoring the stopping epoch instead of the best one.
+      - Forgetting δ, so a tiny dip resets the count.
+    examTip: Keep three running values per epoch, best, best epoch and wait.
+
+  - id: dropout-mask
+    title: Inverted dropout
+    skills: [dropout]
+    summary: |
+      During training [[dropout]] zeroes each unit with probability $p$ and divides the survivors by $1 - p$
+      ([[inverted-dropout]]), so the expected signal matches prediction time, when nothing is dropped.
+    keyFormula: 'a_i \leftarrow \frac{m_i\,a_i}{1 - p}, \quad m_i \sim \text{Bernoulli}(1 - p)'
+    data: [toys]
+    derive:
+      - { fn: dropout, in: { a: '@toys.drop.a', mask: '@toys.drop.mask', p: '@toys.drop.p' }, out: d }
+    live:
+      - id: dr
+        widget: Readout
+        props:
+          items:
+            - { label: 'output', value: '{=d.out|list}' }
+            - { label: 'sum in → sum out', value: '{=d.sumIn} → {=d.sumOut}' }
+    steps:
+      - tex: |
+          \anchor{keep}{1 - p}
+        say: The chance a unit survives.
+      - tex: |
+          \anchor{mask}{a_i \leftarrow m_i\,a_i/(1-p)}
+        say: 'Dropped units give 0; survivors are scaled up. With $p = 0.5$: 1.2 → 2.4.'
+      - tex: |
+          \anchor{eval}{\text{prediction: } a_i \text{ unchanged}}
+        say: No mask, no scaling at prediction time.
+    code:
+      lang: python
+      source: |
+        def inverted_dropout(a, mask, p, training=True):
+            """Apply dropout to one layer's values, as the notebook's forward does.
+
+            Args:
+                a: the layer's values; mask: 1 = keep, 0 = drop; p: dropout rate.
+            Returns:
+                The values passed on.
+            Lecture: forward(..., training=True) uses mask / keep_prob.
+            """
+            keep = 1.0 - p                                   # @a:keep
+            if not training:
+                return a                                     # @a:eval
+            return [ai * mi / keep for ai, mi in zip(a, mask)]   # @a:mask
+    links:
+      - { anchor: keep, label: 'Keep probability' }
+      - { anchor: mask, label: 'Drop and rescale' }
+      - { anchor: eval, label: 'Prediction mode' }
+    trace: { fn: dropoutCode, in: { a: '@toys.drop.a', mask: '@toys.drop.mask', p: '@toys.drop.p' } }
+    examples: [dropout-scale]
+    tryIt: [drop-scale, drop-find-error]
+    pitfalls:
+      - Multiplying survivors by $1 - p$ instead of dividing.
+      - Leaving dropout on when predicting.
+    examTip: '`model.train()` turns dropout on, `model.eval()` turns it off.'
+
+  - id: l2-decay
+    title: The L2 penalty and weight decay
+    skills: [l2]
+    summary: |
+      [[l2-regularization|L2]] adds $\tfrac{\lambda}{2}\sum w^2$ to the loss. Its gradient $\lambda w$ pulls every weight
+      toward 0, so with SGD each step first shrinks the weight by $1 - \eta\lambda$: [[weight-decay]].
+    keyFormula: 'w \leftarrow w - \eta(g + \lambda w) = (1 - \eta\lambda)w - \eta g'
+    data: [toys]
+    derive:
+      - { fn: l2, in: { w: '@toys.decay.w', lam: '@toys.decay.lam' }, out: pen }
+    live:
+      - id: lr2
+        widget: Readout
+        props:
+          items:
+            - { label: 'sum of squares', value: '@pen.sumSq' }
+            - { label: 'penalty', value: '@pen.penalty', tone: accent }
+    steps:
+      - tex: |
+          \anchor{pen}{\tfrac{\lambda}{2}\sum w^2}
+        say: 'Weights 2 and −1, λ = 0.1: penalty 0.25.'
+      - tex: |
+          \anchor{grad}{g + \lambda w}
+        say: The penalty adds λw to each weight's gradient.
+      - tex: |
+          \anchor{step}{w - \eta(g + \lambda w)}
+        say: '$2 - 0.1(0.5 + 0.2) = 1.93$, against 1.95 without the penalty.'
+    code:
+      lang: python
+      source: |
+        def l2_step(w, g, lam, lr):
+            """L2 penalty and one SGD step with weight decay.
+
+            Args:
+                w: weights; g: their data gradients; lam: L2 strength; lr: learning rate.
+            Returns:
+                (penalty, new weights).
+            Lecture: L_total = L_data + lam / 2 * sum(w**2); biases are not penalized.
+            """
+            penalty = 0.5 * lam * sum(wi ** 2 for wi in w)          # @a:pen
+            new_w = []
+            for wi, gi in zip(w, g):
+                total_grad = gi + lam * wi                          # @a:grad
+                new_w.append(wi - lr * total_grad)                  # @a:step
+            return penalty, new_w
+    links:
+      - { anchor: pen, label: 'The penalty' }
+      - { anchor: grad, label: 'Gradient with the penalty' }
+      - { anchor: step, label: 'Decayed update' }
+    trace: { fn: l2Code, in: { w: '@toys.decay.w', g: '@toys.decay.g', lam: '@toys.decay.lam', eta: '@toys.decay.eta' } }
+    examples: [l2-code, decay-shrink, best-weight, best-weight-2]
+    tryIt: [l2-penalty, l2-step, code-l2]
+    pitfalls:
+      - Forgetting the ½, or using |w| instead of w².
+      - Subtracting λw from the gradient, which pushes weights away from 0.
+    examTip: With Adam, use decoupled weight decay (AdamW); with SGD the two are the same.

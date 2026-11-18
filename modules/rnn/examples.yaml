@@ -1,0 +1,219 @@
+examples:
+  - id: reviews-same-words
+    source: 'RNN notebook, Part A1 ("Same word counts? True")'
+    fn: bagOfWords
+    in: { a: '@reviews.a', b: '@reviews.b' }
+    expect: { same: true }
+
+  - id: notes-finals
+    source: 'RNN notebook, Part A3 (running summary, carry 0.8)'
+    fn: notesChart
+    in: { a: '@reviews.a', b: '@reviews.b' }
+    expect: { finalA: -0.665, finalB: 0.665 }
+    tol: 0.001
+    note: The notebook plots the two summaries; they end with opposite signs although the word counts are identical.
+
+  - id: same-input
+    source: 'RNN notebook, Part C5'
+    fn: sameInput
+    in: { x: 1, hprevs: [-0.9, 0, 0.9], wxh: 0.5, whh: 0.8, bh: 0.1 }
+    expect: { hs: [-0.1194, 0.537, 0.8668] }
+    tol: 0.0001
+
+  - id: tanh-values
+    source: 'RNN notebook, Part C6 (z = 1)'
+    fn: tanhAt
+    in: { z: 1 }
+    expect: { tanh: 0.7616, slope: 0.42 }
+    tol: 0.0001
+
+  - id: tanh-values-2
+    source: 'RNN notebook, Part C6 (z = 2)'
+    fn: tanhAt
+    in: { z: 2 }
+    expect: { tanh: 0.964, slope: 0.0707 }
+    tol: 0.0001
+
+  - id: tanh-values-3
+    source: 'RNN notebook, Part C6 (z = 3)'
+    fn: tanhAt
+    in: { z: 3 }
+    expect: { tanh: 0.9951, slope: 0.0099 }
+    tol: 0.0001
+
+  - id: forward-c7
+    source: 'RNN notebook, Part C7 table'
+    fn: rnnForward
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why' }
+    expect: { hs: [0.537, 0.4851, 0.2337], zs: [0.6, 0.5296, 0.2381], yhat: 0.4674 }
+    tol: 0.0001
+
+  - id: forward-c7-rows
+    source: 'RNN notebook, Part C7 table (memory terms)'
+    fn: rnnForward
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why' }
+    expect: { rows.1.b: 0.4296, rows.2.b: 0.3881, rows.2.a: -0.25 }
+    tol: 0.0001
+
+  - id: forward-walk
+    source: 'RNN notebook, Part C7 (step-through)'
+    fn: rnnWalk
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh' }
+    expect: { hs: [0.537, 0.4851, 0.2337], trace.2.vars.h: 0.2337 }
+    tol: 0.0001
+
+  - id: forward-code
+    source: 'RNN notebook, Part C7 (NumPy forward pass)'
+    fn: rnnCode
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why' }
+    expect: { yhat: 0.4674, trace.7.vars.y_hat: 0.4674 }
+    tol: 0.0001
+
+  - id: spike-memory
+    source: 'RNN notebook, Part C7 ("How long does the memory last?", w_hh = 1.2 never returns to 0)'
+    fn: spike
+    in: { whh: 1.2 }
+    expect: { last: 0.6589 }
+    tol: 0.001
+
+  - id: params-imdb
+    source: 'RNN notebook, Parts C8 and E2'
+    fn: rnnParams
+    in: { d: 32, m: 32, k: 1, vocab: 10000, emb: 32, torchBias: true }
+    expect: { formula: 2080, rnn: 2112, dense: 33, embedding: 320000, total: 322145 }
+
+  - id: params-code
+    source: 'RNN notebook, Part E2 (layer summary)'
+    fn: paramsCode
+    in: { d: 32, m: 32, k: 1, vocab: 10000, emb: 32 }
+    expect: { total: 322145 }
+
+  - id: params-co2
+    source: 'RNN notebook, Part F5 ("parameters: 321")'
+    fn: rnnParams
+    in: { d: 1, m: 16, k: 1, torchBias: true }
+    expect: { formula: 288, dense: 17, total: 321 }
+
+  - id: bptt-d1
+    source: 'RNN notebook, Part D1'
+    fn: bptt
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', lr: '@toy.lr' }
+    expect:
+      L: 0.2837
+      dh: [-0.9857, -1.6113, -2.1305]
+      g.wxh: 0.3057
+      g.whh: -1.6388
+      g.bh: -3.9477
+      g.why: -0.2489
+    tol: 0.0001
+
+  - id: bptt-d2
+    source: 'RNN notebook, Part D2 (one step back)'
+    fn: bptt
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y' }
+    expect: { factors: [0.6117, 0.7563] }
+    tol: 0.0001
+
+  - id: bptt-d3-pieces
+    source: 'RNN notebook, Part D3 (per-step contributions)'
+    fn: bptt
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y' }
+    expect: { pieces.wxh: [-0.7014, 0, 1.0071], pieces.whh: [0, -0.6617, -0.9771] }
+    tol: 0.0001
+
+  - id: bptt-d3-update
+    source: 'RNN notebook, Part D3 (one gradient-descent step, learning rate 0.02)'
+    fn: bptt
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', lr: '@toy.lr' }
+    expect: { next.wxh: 0.4939, next.whh: 0.8328, next.bh: 0.179, next.why: 2.005, newL: 0.0432 }
+    tol: 0.0001
+
+  - id: bptt-walk
+    source: 'RNN notebook, Part D2 (backward step-through)'
+    fn: bpttWalk
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y' }
+    expect: { trace.2.vars.dL_dh: -0.9857 }
+    tol: 0.0001
+
+  - id: bptt-code
+    source: 'RNN notebook, Part D3'
+    fn: bpttCode
+    in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', lr: '@toy.lr' }
+    expect: { g.whh: -1.6388 }
+    tol: 0.0001
+
+  - id: vanish-table
+    source: 'RNN notebook, Part E4 (w^k table)'
+    fn: vanishTable
+    in: {}
+    expect:
+      values.0.0: 9.54e-7
+      values.1.0: 0.1216
+      values.1.1: 0.00515
+      values.2.0: 6.7275
+      values.2.1: 117.39
+      values.3.0: 3325.26
+    tol: 0.01
+
+  - id: vanish-09
+    source: 'RNN notebook, Part E4 ("only about 0.5% of the signal is left")'
+    fn: vanish
+    in: { w: 0.9, k: 50 }
+    expect: { scale: 0.00515 }
+    tol: 0.00001
+
+  - id: imdb-test-acc
+    source: 'RNN notebook, Part E3 (test accuracy 0.8515)'
+    fn: confusion
+    in: { tn: '@imdbtest.tn', fp: '@imdbtest.fp', fn: '@imdbtest.fn', tp: '@imdbtest.tp' }
+    expect: { acc: 0.8515, n: 25000 }
+    tol: 0.0001
+
+  - id: imdb-best-epoch
+    source: 'RNN notebook, Part E3 ("restored epoch 4: validation accuracy 0.8596")'
+    fn: historyChart
+    in: { table: '@imdbhist' }
+    expect: { best: 4 }
+
+  - id: pad-pre
+    source: 'RNN notebook, Part E1 (padding at the start)'
+    fn: padPre
+    in: { ids: [1, 14, 22, 16], maxLen: 6 }
+    expect: { out: [0, 0, 1, 14, 22, 16] }
+
+  - id: windows-first
+    source: 'RNN notebook, Part F2 (examples 0 and 1)'
+    fn: windows
+    in: { series: '@co2', size: 12 }
+    expect: { count: 2, y: [316.38, 316.98], X.1.11: 316.38 }
+
+  - id: window-code
+    source: 'RNN notebook, Part F2'
+    fn: windowCode
+    in: { series: '@co2', size: 12 }
+    expect: { count: 2 }
+
+  - id: windows-516
+    source: 'RNN notebook, Part F2 ("X: (504, 12)")'
+    fn: windowCount
+    in: { n: 516, size: 12 }
+    expect: { count: 504 }
+
+  - id: windows-changes
+    source: 'RNN notebook, Part F6 ("X_changes: (503, 12, 1) | first target: 1960-02")'
+    fn: windowCount
+    in: { n: 516, size: 12, changes: true }
+    expect: { count: 503, firstTarget: 13 }
+    note: Target index 13 counts from 0, which is February 1960.
+
+  - id: water-naive
+    source: Application case (beyond the notebook)
+    fn: naive
+    in: { series: '@water.series', from: 14 }
+    expect: { mae: 9.5 }
+
+  - id: water-windows
+    source: Application case (beyond the notebook)
+    fn: windows
+    in: { series: '@water.series', size: 6 }
+    expect: { count: 12 }

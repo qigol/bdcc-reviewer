@@ -1,0 +1,206 @@
+intro: |
+  Tuning a network is a sequence of small, evidence-based choices: how many steps an epoch takes, which learning rate,
+  when to stop, how much to regularize, and when to finally open the test set. Here you make each of those choices for
+  a bank that wants to spot customers about to leave.
+
+case:
+  id: churn-bank
+  title: A churn early-warning network for a rural bank
+  story: |
+    A rural bank in Iloilo wants to flag depositors likely to close their accounts next quarter, so staff can call
+    them first. It has 10,000 past customers with 20 features each. The analyst splits them once: 6,000 for training,
+    2,000 for validation and 2,000 for testing, and trains a small network with mini-batches of 64. You review each
+    choice before the model goes live.
+  data: [churn, churnruns, churnreg]
+  derive:
+    - { fn: steps, in: { N: '@churn.N', B: '@churn.B', epochs: 1 }, out: s }
+    - { fn: tableGrid, in: { table: '@churnruns' }, out: lrt }
+    - { fn: tableGrid, in: { table: '@churnreg' }, out: rgt }
+    - { fn: stopChart, in: { val: '@churn.val', patience: '@churn.patience', minDelta: '@churn.minDelta' }, out: sc }
+  cells:
+    - id: steps
+      title: Steps per epoch
+      say: |
+        6,000 training customers, batches of 64. The analyst wants to know how many updates one epoch makes.
+      decision:
+        prompt: How many update steps does one epoch take?
+        type: mcq
+        options:
+          - '94: 6,000 / 64 = 93.75, rounded up for the last batch of 48'
+          - '93: 6,000 / 64 rounded down'
+          - '6,000: one per customer'
+          - '64: one per example in a batch'
+        answer: 0
+        optionFeedback:
+          '1': The 48 leftover customers still form one last batch.
+          '2': That would be batch size 1.
+          '3': The batch size is how many examples per step, not the number of steps.
+        model: '$\lceil 6000/64 \rceil = 94$ steps; the last batch holds $6000 - 93\cdot64 = 48$ customers.'
+
+    - id: lr
+      title: Picking the learning rate
+      say: |
+        The analyst tried four learning rates on a log scale with plain SGD and recorded the final losses.
+      stage:
+        - { id: lr-tab, widget: Matrix, props: { data: '@lrt', rowHeader: run, title: 'Four learning rates' } }
+      decision:
+        prompt: Which learning rate do you keep?
+        type: mcq
+        options:
+          - 'η = 0.01: the lowest validation loss'
+          - 'η = 0.1: the lowest training loss'
+          - 'η = 1.0: the fastest'
+          - 'η = 0.001: the safest'
+        answer: 0
+        optionFeedback:
+          '1': Its gap between training and validation shows overfitting.
+          '2': Both losses stayed high; the steps overshoot.
+          '3': Both losses stayed high; it barely learned.
+        model: Choose on validation loss, 0.43 for η = 0.01. η = 1.0's high losses say it overshoots; η = 0.001 creeps.
+
+    - id: diagnose
+      title: Reading the η = 0.1 run
+      say: |
+        For η = 0.1, training loss fell to 0.21 while validation loss bottomed out around epoch 6 and then climbed to
+        0.47.
+      decision:
+        prompt: What is happening in that run?
+        type: mcq
+        options:
+          - Overfitting; the network memorizes the training customers
+          - Underfitting; it needs more epochs
+          - The learning rate is too small
+          - The validation set is mislabelled
+        answer: 0
+        optionFeedback:
+          '1': Underfitting keeps training loss high too.
+          '2': A tiny rate would keep training loss high.
+          '3': A gap that opens during training points to memorizing.
+        model: A falling training loss with a rising validation loss is overfitting.
+
+    - id: stopping
+      title: Early stopping on the chosen run
+      say: |
+        With η = 0.01 the validation losses per epoch were 0.52, 0.47, 0.44, 0.43, 0.428, 0.432, 0.44, 0.45, 0.43 and
+        0.46. Early stopping uses patience 3 and δ = 0.001. The plot appears once you answer.
+      stage:
+        - { id: stop-plot, widget: Chart, hidden: true, props: { kind: line, series: '@sc.series', xLabel: epoch, yLabel: validation loss } }
+      decision:
+        prompt: When does training stop, and which weights are kept?
+        type: mcq
+        options:
+          - 'Stops at epoch 8, restores epoch 5'
+          - 'Stops at epoch 7, restores epoch 4'
+          - 'Stops at epoch 8, keeps epoch 8'
+          - 'Stops at epoch 10, restores epoch 9'
+        answer: 0
+        optionFeedback:
+          '1': '0.428 beats 0.43 by 0.002, more than δ = 0.001, so epoch 5 is the new best.'
+          '2': The epochs after the best are not improvements; restore the best.
+          '3': Epoch 9's 0.43 does not beat 0.428, and training has already stopped at 8.
+        model: 'Best 0.428 at epoch 5; epochs 6, 7 and 8 do not improve, so the wait reaches 3 at epoch 8. Restore epoch 5.'
+
+    - id: regularize
+      title: Adding regularization
+      say: |
+        Without regularization, a long run still ended at validation loss 0.49. The analyst tried three remedies at
+        η = 0.01.
+      stage:
+        - { id: reg-tab, widget: Matrix, props: { data: '@rgt', rowHeader: run, title: 'Regularization runs' } }
+      decision:
+        prompt: Which setting do you choose, and what is wrong with dropout 0.8?
+        type: mcq
+        options:
+          - 'Dropout 0.3 (lowest validation loss); 0.8 underfits, with both losses high'
+          - 'No regularization, because its training loss is lowest; 0.8 overfits'
+          - 'Dropout 0.8, because it closes the gap best'
+          - 'L2 0.01, because L2 is always better than dropout'
+        answer: 0
+        optionFeedback:
+          '1': A low training loss with a high validation loss is the problem, not the goal.
+          '2': A small gap with both losses high is underfitting.
+          '3': L2 was a close second here; neither method always wins.
+        model: Dropout 0.3 gives validation loss 0.40. Dropout 0.8 removes too much and underfits. L2 at 0.01 is a close alternative.
+
+    - id: report
+      title: Opening the test set
+      say: |
+        The final model is chosen: η = 0.01, dropout 0.3, early stopping. The manager asks for one number to report.
+      decision:
+        prompt: What do you report?
+        type: mcq
+        options:
+          - The test-set result of the chosen model, computed once
+          - The best validation score among all the runs
+          - The training accuracy of the final model
+          - The average of the validation and test scores
+        answer: 0
+        optionFeedback:
+          '1': The best of many validation scores is optimistic; it was used to choose.
+          '2': Training accuracy says how well it memorized.
+          '3': Mixing in validation brings back the selection bias.
+        model: The test set played no part in any choice, so its single score is the honest estimate.
+
+atScale:
+  title: Tuning at scale
+  body: |
+    Real projects automate this loop. A search tool (Optuna, Ray Tune or a cloud tuner) proposes configurations,
+    trains each on the training set, scores it on validation data and keeps the best, often stopping weak runs early.
+    Learning rates and λ are searched on a log scale; batch size is set by GPU memory and then η is retuned. PyTorch
+    supplies the pieces: `torch.optim.SGD(params, lr, momentum=0.9, weight_decay=λ)`, `torch.optim.AdamW` for
+    decoupled weight decay, `nn.Dropout(p)` switched by `model.train()` and `model.eval()`, and a few lines of
+    early-stopping logic around the epoch loop. The test set stays locked until a single final evaluation.
+  code:
+    - title: The same choices in PyTorch
+      source: |
+        model = nn.Sequential(nn.Linear(20, 64), nn.ReLU(), nn.Dropout(0.3),
+                              nn.Linear(64, 64), nn.ReLU(), nn.Dropout(0.3),
+                              nn.Linear(64, 1))
+        opt = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0)
+        best, wait = float("inf"), 0
+        for epoch in range(200):
+            model.train()
+            for xb, yb in train_loader:          # batches of 64
+                opt.zero_grad()
+                loss = loss_fn(model(xb), yb)
+                loss.backward()
+                opt.step()
+            model.eval()
+            with torch.no_grad():
+                val = loss_fn(model(X_val), y_val).item()
+            if val < best - 1e-3:
+                best, wait = val, 0
+                torch.save(model.state_dict(), "best.pt")
+            else:
+                wait += 1
+                if wait >= 3:
+                    break
+        model.load_state_dict(torch.load("best.pt"))   # restore the best epoch
+
+tradeoffs:
+  title: Hyperparameters at a glance
+  columns: [Setting, Too small, Too large, Watch]
+  rows:
+    - ['Learning rate η', 'Very slow progress', 'Spiky loss, divergence', 'Training loss shape']
+    - ['Batch size B', 'Noisy steps, slow hardware use', 'Few steps per epoch', 'Retune η when B changes']
+    - ['Epochs', Underfitting, Overfitting, 'Validation loss curve']
+    - ['Momentum β', 'Slow along gentle slopes', Overshooting, 'Zig-zag or sluggish curves']
+    - ['Early-stopping patience', 'Stops on a plateau', 'Wasted epochs', 'Epoch of lowest validation loss']
+    - ['Dropout rate p', 'Little effect on overfitting', Underfitting, 'Train–validation gap']
+    - ['L2 strength λ', 'Little effect on overfitting', Underfitting, 'Validation loss, weight size']
+
+connections:
+  - module: neural-networks
+    note: Every setting here steers the same forward pass, backpropagation and gradient-descent update.
+  - module: cnn
+    note: The CNN notebook's training loop, train()/eval(), dropout and its best-validation-epoch choice are the same ideas.
+
+explainBack:
+  prompt: Explain to a classmate how you would tune the churn network, from the first learning-rate search to the number you report.
+  rubric:
+    - Parameters are learned; hyperparameters are chosen on validation data
+    - Learning rates are tried on a log scale and judged on validation loss
+    - Diverging or flat curves point at the learning rate; a rising validation curve is overfitting
+    - Early stopping with patience and δ restores the best epoch
+    - Dropout or L2 are added and checked on validation; too much underfits
+    - The test set is used once, for the final model

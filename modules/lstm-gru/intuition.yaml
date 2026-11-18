@@ -1,0 +1,553 @@
+scenes:
+  # ------------------------------------------------------------------ 1
+  - id: fading-signal
+    title: Why a plain recurrent network forgets
+    goal: Why does a network that reads one word at a time learn so little from words far back?
+    skills: [long-memory]
+    state: { w: 0.9 }
+    derive:
+      - { fn: chainFactor, in: { w: '@w', k: 50 }, out: fade }
+    stage:
+      - id: f
+        widget: Formula
+        region: top
+        props:
+          size: md
+          tex: 'h_t = \tanh(\anchor{wx}{W_{xh} x_t} + \anchor{wh}{W_{hh} h_{t-1}} + b_h)'
+      - id: plot
+        widget: FunctionPlot
+        hidden: true
+        props: { fn: fadeCurve, args: { w: '@w' }, domain: [0, 50], xLabel: 'steps back k', yLabel: 'signal left' }
+      - id: w-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'factor per step w', min: 0.5, max: 1.2, step: 0.01, format: 2 }
+        bind: { value: w }
+      - id: left50
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'signal left after 50 steps', value: '@fade.plain', format: 4, tone: accent }
+    beats:
+      - say: |
+          A **model** is a recipe with adjustable numbers that turns facts into a guess. **Training** adjusts those
+          numbers from examples whose answers we know.
+        define: [model, training]
+      - say: |
+          A movie review is a **sequence**: its words come in an order that matters. A **recurrent network (RNN)** reads
+          it one word at a time and keeps a **hidden state**, its running summary, which feeds into the next step.
+        define: [sequence, rnn, hidden-state]
+      - say: |
+          At every step the whole state is multiplied by $W_{hh}$ and squashed by **tanh** into $(-1, 1)$. Training uses
+          **Backpropagation Through Time (BPTT)**: the error travels back through every step, picking up a factor of
+          about $w_{hh}$ times a tanh slope at each one.
+        define: [tanh, bptt]
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:wh', tone: accent } }
+        gate:
+          type: predict
+          question: 'With a factor of 0.9 per step, about how much of the error signal is left 50 steps back?'
+          options: ['About 0.5%', 'About 55%', 'About 10%', 'About 90%']
+          answer: 0
+          optionFeedback:
+            '1': That is $1 - 0.45$, as if each step lost a fixed 0.9%. The losses compound.
+            '2': That is roughly $0.9^{20}$; 50 steps compound further.
+            '3': That is one step's worth.
+          explain: '$0.9^{50} \approx 0.005$: half a percent.'
+      - say: |
+          Factors below 1 make the signal shrink toward zero, a **vanishing gradient**. Factors above 1 make it blow up,
+          an **exploding gradient**: $1.1^{50} \approx 117$.
+        define: [vanishing-gradient, exploding-gradient]
+        show: [plot, w-slider, left50]
+      - say: Find the factor that keeps at least half of the signal over 50 steps.
+        gate:
+          type: when
+          prompt: Drag the factor until at least 0.5 of the signal is left after 50 steps.
+          when: 'fade.plain >= 0.5 and w <= 1'
+          hint: It has to be very close to 1, about 0.99.
+      - say: |
+          Only factors within a hair of 1 survive, and tanh slopes are usually below 1. **Gradient clipping** caps
+          explosions, but nothing here helps vanishing. So a **long-range dependency**, like a verdict in the first
+          sentence, gets almost no training signal.
+        set: { w: 0.99 }
+        define: [gradient-clipping, long-range-dependency]
+        gate:
+          type: practice
+          template: fade-k
+    takeaway: Going back k steps multiplies the error by roughly w^k, so distant inputs barely teach a plain RNN anything.
+
+  # ------------------------------------------------------------------ 2
+  - id: lstm-why
+    title: Designing a memory that does not fade
+    goal: How could a network keep a fact for a hundred steps without rewriting it every step?
+    skills: [lstm-design]
+    stage:
+      - id: f
+        widget: Formula
+        region: top
+        hidden: true
+        props:
+          size: lg
+          tex: 'C_t = \anchor{f}{f_t} \odot C_{t-1} + \anchor{i}{i_t} \odot \tilde C_t'
+      - id: bins
+        widget: DropBins
+        props:
+          chips:
+            - { id: decay, label: 'Error signals decay when the state is rewritten every step' }
+            - { id: noise, label: 'Irrelevant inputs disturb stored content' }
+            - { id: interfere, label: 'Stored content interferes when it is not needed' }
+            - { id: clear, label: 'Memory grows without limit and cannot clear old content' }
+          bins:
+            - { id: cell, label: 'A separate memory changed only by addition' }
+            - { id: ing, label: 'A gate on what is written' }
+            - { id: outg, label: 'A gate on what is shown' }
+            - { id: fg, label: 'A gate that scales the old memory' }
+          solution: { decay: cell, noise: ing, interfere: outg, clear: fg }
+          check: instant
+    beats:
+      - say: |
+          In 1997 Hochreiter and Schmidhuber answered with the **LSTM** (long short-term memory). Its core is a separate
+          **cell state**: a memory path carried from step to step and changed only by addition, never multiplied by
+          $W_{hh}$ or squashed by tanh.
+        define: [lstm, cell-state]
+      - say: |
+          The cell is controlled by **gates**. A gate is a small layer ending in a **sigmoid**, which squashes its sum
+          into 0 to 1: 0 blocks, 1 passes. Each gate reads the current input and the previous hidden state.
+        define: [sigmoid, gate]
+      - say: Each problem got its own part. Match them.
+        gate:
+          type: event
+          prompt: Place every problem on the part that solves it.
+          target: bins
+          event: solved
+          hint: The memory path itself fixes decay; the three gates control writing, showing and clearing.
+      - say: |
+          One of those parts was **not** in the 1997 design. With pure addition the cell could grow forever on long
+          input and never clear outdated content.
+        gate:
+          type: predict
+          question: Which part was added later, in 2000?
+          options: ['The gate that scales the old memory', 'The gate on what is written', 'The gate on what is shown', 'The cell state itself']
+          answer: 0
+          optionFeedback:
+            '1': The input gate was there from the start.
+            '2': The output gate was original too.
+            '3': The cell state was the whole idea.
+          explain: Gers, Schmidhuber and Cummins added the forget gate in 2000.
+      - say: |
+          That later part is the **forget gate** $f_t$. Along the cell path, going back one step multiplies the gradient
+          by just $f_t$. When the network learns $f_t \approx 1$, information and its gradient cross many steps intact.
+        define: [forget-gate]
+        show: [f]
+        gate:
+          type: reflect
+          prompt: Why does an additive memory path keep long-range gradients alive where a plain RNN's does not?
+          model: |
+            In a plain RNN every step multiplies the state by the recurrent weights and a tanh slope, so the gradient
+            shrinks at each step back. The cell state is only scaled by the forget gate and added to, so going back one
+            step multiplies the gradient by the forget gate alone. With that gate near 1 the signal crosses many steps
+            almost unchanged, and remembering becomes the default.
+    takeaway: The LSTM adds a cell state changed only by addition, guarded by input, output and (since 2000) forget gates.
+
+  # ------------------------------------------------------------------ 3
+  - id: lstm-step
+    title: One LSTM step, number by number
+    goal: What exactly happens inside an LSTM cell when one new word arrives?
+    skills: [lstm-step]
+    data: [lstmtoy, lstmnet]
+    state: { lstmWalk: 0, fstep: 0 }
+    derive:
+      - { fn: lstmSheet, in: { net: '@lstmnet', walk: '@lstmWalk' }, out: sh }
+    stage:
+      - id: f
+        widget: Formula
+        region: top
+        props:
+          size: md
+          steps:
+            - 'C_t = f_t C_{t-1} + i_t \tilde C_t = 0.9\cdot0.8 + 0.3\cdot0.5'
+            - 'C_t = 0.72 + 0.15 = 0.87, \qquad h_t = o_t \tanh(C_t) = 0.6\cdot\tanh(0.87)'
+            - 'h_t = 0.6 \cdot 0.7014 = 0.4208'
+          step: '@fstep'
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { data: '@sh', rowHeader: row, title: 'One LSTM step from weights: x = 1, h_prev = 0.5, C_prev = 0.8' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: lstmWalk, in: { net: '@lstmnet' }, roles: { sheet: sheet }, speed: 0.6 }
+    beats:
+      - say: |
+          Follow one memory element. The old cell state is $C_{t-1} = 0.8$. A tanh layer proposes **candidate** content
+          $\tilde C_t = 0.5$, and the **input gate** $i_t = 0.3$ decides how much of it to write. The forget gate is
+          $f_t = 0.9$.
+        define: [input-gate, candidate]
+        gate:
+          type: predict
+          question: What is the new cell state $C_t$?
+          answer: { value: 0.87, tol: 0.005 }
+          explain: '$0.9 \cdot 0.8 + 0.3 \cdot 0.5 = 0.72 + 0.15 = 0.87$.'
+      - say: |
+          Every product here is an **element-wise multiplication**: each gate value scales only its own element. Then the
+          **output gate** $o_t = 0.6$ decides how much of the squashed memory to show as the hidden state.
+        define: [output-gate, element-wise]
+        set: { fstep: 1 }
+        gate:
+          type: predict
+          question: 'What is $h_t = 0.6 \cdot \tanh(0.87)$? (tanh(0.87) ≈ 0.7014)'
+          answer: { value: 0.4208, tol: 0.002 }
+          explain: '$0.6 \times 0.7014 = 0.4208$. Note $h_t$ is not $C_t$: the cell keeps 0.87, the network shows 0.42.'
+      - say: |
+          In a real cell the gate values come from the input and the previous state. Play a full step from weights:
+          four layers, then keep, write, add and expose.
+        set: { fstep: 2 }
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: Now one with new numbers.
+        gate:
+          type: practice
+          template: lstm-cell
+    takeaway: 'Keep f·C, write i·C̃, add them, then show o·tanh(C): the cell changes only by scaling and addition.'
+
+  # ------------------------------------------------------------------ 4
+  - id: gru-step
+    title: The GRU's one-dial memory
+    goal: Can one state and fewer controls do the same job?
+    skills: [gru-step]
+    data: [grutoy, grunet]
+    state: { gruWalk: 0 }
+    derive:
+      - { fn: gruSheet, in: { net: '@grunet', walk: '@gruWalk' }, out: sh }
+    stage:
+      - id: f
+        widget: Formula
+        region: top
+        props:
+          size: lg
+          tex: 'h_t = \anchor{z}{z_t}\, h_{t-1} + (1 - \anchor{z}{z_t})\, \tilde h_t'
+      - id: sheet
+        widget: Matrix
+        hidden: true
+        props: { data: '@sh', rowHeader: row, title: 'One GRU step from weights: x = 1, h_prev = 0.5' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: gruWalk, in: { net: '@grunet' }, roles: { sheet: sheet }, speed: 0.6 }
+    beats:
+      - say: |
+          Cho et al. (2014) built the **GRU** (gated recurrent unit) for translation. It drops the separate cell state:
+          the hidden state itself is the memory. It has no output gate and only two gates.
+        define: [gru]
+      - say: |
+          The **update gate** $z_t$ sets the share of the old state kept; the candidate $\tilde h_t$ fills the rest.
+          Take $h_{t-1} = 0.5$, $z_t = 0.7$ and $\tilde h_t = -0.4$.
+        define: [update-gate]
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:z', tone: accent } }
+        gate:
+          type: predict
+          question: What is the new state $h_t$?
+          answer: { value: 0.23, tol: 0.005 }
+          explain: '$0.7 \cdot 0.5 + 0.3 \cdot (-0.4) = 0.35 - 0.12 = 0.23$.'
+      - say: |
+          Some textbooks swap the roles of $z_t$ and $1 - z_t$; with that reading you would get $-0.13$. This course
+          follows Cho et al. and PyTorch. The **reset gate** $r_t$ sets how much of $h_{t-1}$ the candidate may use, so
+          the unit can start fresh.
+        define: [reset-gate]
+        show: [sheet, player]
+        gate:
+          type: event
+          prompt: Play a full GRU step from weights.
+          target: player
+          event: done
+      - say: Your turn.
+        gate:
+          type: practice
+          template: gru-update
+    takeaway: A GRU keeps the share z of its old state and fills the rest with a candidate; the reset gate shapes that candidate.
+
+  # ------------------------------------------------------------------ 5
+  - id: gate-memory
+    title: A gate is a memory dial
+    goal: How long does a gated memory actually keep something, and why must the gate change with the input?
+    skills: [gate-memory]
+    data: [gatedemo]
+    state: { g: 0.9 }
+    derive:
+      - { fn: retain, in: { g: '@g', k: 20 }, out: r }
+      - { fn: gateDemo, in: { c: '@gatedemo.c', gates: '@gatedemo.gates' }, out: demo }
+    stage:
+      - id: plot
+        widget: FunctionPlot
+        props: { fn: retainCurve, args: { g: '@g' }, domain: [0, 50], xLabel: 'steps k', yLabel: 'share kept' }
+      - id: g-slider
+        widget: Slider
+        region: side
+        hidden: true
+        props: { label: 'gate value g', min: 0.5, max: 0.999, step: 0.001, format: 3 }
+        bind: { value: g }
+      - id: kept
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'share kept after 20 steps', value: '@r.share', format: 3, tone: accent }
+      - id: demo-chart
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@demo.series', xLabel: step, yLabel: memory, title: 'A key value at step 2, noise, then a new key value at step 8 (gates chosen by hand)' }
+    beats:
+      - say: |
+          Strip a gated memory to one element: $m_t = g\,m_{t-1} + (1 - g)\,c_t$. With nothing new written, each step
+          keeps the share $g$ of what is left.
+        gate:
+          type: predict
+          question: 'With $g = 0.9$, what share of a stored value is left after 10 steps?'
+          answer: { value: 0.349, tol: 0.01 }
+          explain: '$0.9^{10} \approx 0.349$: about a third.'
+      - say: Retention is now set by a number the network learns. Make the memory keep most of a value for 20 steps.
+        show: [g-slider, kept]
+        gate:
+          type: when
+          prompt: Set the gate so that at least 0.8 of the value is kept after 20 steps.
+          when: 'r.share >= 0.8'
+          hint: 'You need $g^{20} \ge 0.8$, so $g$ about 0.99.'
+      - say: |
+          But a gate stuck near 1 never takes anything in. Here a key value arrives at step 2, noise follows, and a new
+          key value arrives at step 8.
+        set: { g: 0.99 }
+        gate:
+          type: predict
+          question: Which memory ends up tracking the key values while ignoring the noise?
+          options: ['A gate that drops near 0 at key inputs and stays near 1 otherwise', 'A gate fixed at 0.5', 'A gate fixed at 0.99', 'Any fixed gate, if it is large enough']
+          answer: 0
+          optionFeedback:
+            '1': 0.5 follows every noisy input.
+            '2': 0.99 barely takes in the key value at all.
+            '3': No single fixed value can both write and hold.
+          explain: Write, hold, overwrite needs a gate that changes with the input.
+      - say: |
+          The input-dependent gate writes 0.855 at step 2, holds it near 0.8 through the noise, and overwrites it with
+          about −0.72 at step 8. That is why gates are computed from $[h_{t-1}, x_t]$ every step.
+        show: [demo-chart]
+        gate:
+          type: reflect
+          prompt: Why can't a gate with one fixed value both store a key input and hold it through many unimportant steps?
+          model: |
+            Storing a new value needs the gate near 0 at that moment, so the new content replaces the old. Holding needs
+            the gate near 1, so little changes. A fixed gate is one or the other: 0.5 lets noise wash the value out, and
+            0.99 barely lets it in. A gate computed from the current input can drop at the key input and stay high after.
+      - say: Practise the retention formula.
+        gate:
+          type: practice
+          template: retain-k
+    takeaway: A gate g keeps g^k after k steps; gates that change with the input can write, hold and overwrite.
+
+  # ------------------------------------------------------------------ 6
+  - id: compare-units
+    title: Was the extra machinery worth it?
+    goal: On real movie reviews, how much better do gated units do, and at what cost?
+    skills: [gated-params, compare]
+    data: [results, valacc]
+    state: { d: 32, m: 32 }
+    derive:
+      - { fn: paramTable, in: { d: '@d', m: '@m', extra: 320033 }, out: pt }
+      - { fn: tableGrid, in: { table: '@results' }, out: rg }
+      - { fn: curves, in: { table: '@valacc' }, out: cv }
+    stage:
+      - id: params
+        widget: Matrix
+        hidden: true
+        props: { data: '@pt.grid', rowHeader: unit, title: 'Recurrent and total parameters (d = m = 32)' }
+      - id: acc
+        widget: Chart
+        hidden: true
+        props: { kind: line, series: '@cv.series', xLabel: epoch, yLabel: validation accuracy, title: 'Validation accuracy, one run each' }
+      - id: res
+        widget: Matrix
+        region: bottom
+        hidden: true
+        props: { data: '@rg', rowHeader: model, title: 'The results table' }
+    beats:
+      - say: |
+          Every learned number is a **parameter**. Inside a recurrent unit each small layer is a **weight block**: weights
+          for the input, weights for the previous state, and biases. A vanilla RNN has 1 block, a GRU 3, an LSTM 4.
+        define: [parameter, weight-block]
+        gate:
+          type: predict
+          question: 'With $d = m = 32$, one RNN block has 2,112 parameters in PyTorch. How many does the LSTM layer have?'
+          answer: { value: 8448, tol: 0 }
+          explain: '$4 \times 2{,}112 = 8{,}448$; the GRU has $3 \times 2{,}112 = 6{,}336$.'
+      - say: |
+          The task is **many-to-one**: a review in, one sentiment out. Each word id first picks a row of an
+          **embedding**, a 10,000 × 32 table of word vectors shared by all three models.
+        define: [many-to-one, embedding]
+        show: [params]
+      - say: |
+          Reviews are padded to a common length, and a **packed sequence** tells the layer where each review really
+          ends, so the final state never describes padding. Accuracy is measured on a **validation set** of 2,000
+          reviews never used to update weights.
+        define: [packed-sequence, validation-set]
+        gate:
+          type: predict
+          question: Which model do you expect to end with the highest validation accuracy?
+          options: ['A gated unit (LSTM or GRU)', 'The vanilla RNN', 'All three about equal', 'Impossible to train any of them']
+          answer: 0
+          optionFeedback:
+            '1': It learned, but more slowly and less well.
+            '2': There was a clear gap between gated and plain.
+            '3': All three learned something.
+          explain: GRU 0.830, LSTM 0.804, RNN 0.752, after 8 epochs.
+      - say: |
+          The GRU ended highest, with fewer parameters than the LSTM. But it was one run, one seed, still improving at
+          epoch 8, and the LSTM took about 3.9 times the RNN's training time.
+        show: [acc, res]
+        gate:
+          type: reflect
+          prompt: Did the extra complexity of LSTM and GRU pay off here? What would you need before trusting the GRU–LSTM gap?
+          model: |
+            Both gated units clearly beat the RNN, by 5 to 8 points, at 3 to 4 times the training time and 3 to 4 times
+            the recurrent parameters; the totals barely differ because the embedding dominates. The GRU–LSTM gap is 2–3
+            points from a single seed while all models were still improving, so I would rerun with several seeds and
+            longer training before calling a winner.
+      - say: Count one yourself.
+        gate:
+          type: practice
+          template: gated-params
+    takeaway: Gated units beat the RNN here at 3–4× the cost; a 2-point GRU–LSTM gap from one run is not a verdict.
+
+  # ------------------------------------------------------------------ 7
+  - id: skip-connections
+    title: The same trick across depth
+    goal: Why did very deep image networks stop learning, and what fixed it?
+    skills: [skip-connections]
+    state: { dF: 0.05, L: 3 }
+    derive:
+      - { fn: residual, in: { dF: '@dF', L: '@L' }, out: r }
+    stage:
+      - id: f
+        widget: Formula
+        region: top
+        props:
+          size: lg
+          tex: 'y = \anchor{F}{F(x)} + \anchor{x}{x}, \qquad \frac{\partial y}{\partial x} = F''(x) + 1'
+      - id: rr
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'three plain blocks', value: '@r.plain', format: 6, tone: bad }
+            - { label: 'three residual blocks', value: '@r.res', format: 4, tone: good }
+    beats:
+      - say: |
+          He et al. (2016) saw that adding layers to a deep plain CNN raised its **training** error. Not overfitting:
+          the network was harder to optimize. This is the **degradation problem**.
+        define: [degradation]
+      - say: |
+          Their fix: a **skip connection** that adds the block's input back to its output, $y = F(x) + x$. A network of
+          such residual blocks is a **ResNet**. The layers only learn a correction $F(x)$.
+        define: [skip-connection, resnet]
+        do:
+          - { target: f, cmd: highlight, args: { sel: 'term:x', tone: accent } }
+        gate:
+          type: predict
+          question: 'If one block''s layers have slope $F''(x) = 0.05$, what is $\partial y/\partial x$ for the block?'
+          answer: { value: 1.05, tol: 0.001 }
+          explain: '$0.05 + 1 = 1.05$: the shortcut passes the signal back even when $F$ passes almost nothing.'
+      - say: |
+          Over three blocks: plain layers give $0.05^3 = 0.000125$; residual blocks give $1.05^3 \approx 1.158$. The same
+          lesson as the LSTM cell state: an additive path keeps gradients alive, here across layers instead of steps.
+        show: [rr]
+        gate:
+          type: predict
+          question: Which statement about a residual block is true?
+          options: ['It adds no parameters; the shortcut is a plain copy', 'It needs a forget gate', 'It only works on sequences', 'It doubles the number of weights']
+          answer: 0
+          optionFeedback:
+            '1': Gates belong to recurrent units; a ResNet has none.
+            '2': ResNets were built for images.
+            '3': The copy $x$ has no weights.
+          explain: The shortcut is $+\,x$, a copy with nothing to learn.
+      - say: Now count through several blocks yourself.
+        gate:
+          type: practice
+          template: residual-grad
+    takeaway: 'y = F(x) + x gives every block a derivative of F′(x) + 1, so depth stops killing the gradient.'
+
+  # ------------------------------------------------------------------ 8
+  - id: self-attention
+    title: Every word one step from every other
+    goal: What if a word could look straight at any other word instead of waiting for it to pass through a chain?
+    skills: [attention]
+    data: [attn]
+    state: { attnWalk: 0 }
+    derive:
+      - { fn: attnSheet, in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V', words: '@attn.words', walk: '@attnWalk' }, out: sh }
+      - { fn: attention, in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V' }, out: a }
+    stage:
+      - id: sheet
+        widget: Matrix
+        props: { data: '@sh', rowHeader: word, title: 'How much "good" attends to each word of "not very good"' }
+      - id: player
+        widget: StepPlayer
+        region: bottom
+        hidden: true
+        props: { fn: attnWalk, in: { Q: '@attn.Q', K: '@attn.K', V: '@attn.V', words: '@attn.words' }, roles: { sheet: sheet }, speed: 0.6 }
+      - id: outv
+        widget: Readout
+        region: side
+        hidden: true
+        props:
+          items:
+            - { label: 'new value of "good"', value: '@a.out.0', format: 3, tone: accent }
+    beats:
+      - say: |
+          LSTM and GRU still read one step at a time, and everything must squeeze into one fixed-size vector. In
+          **self-attention**, every position builds its new value as a weighted average of **all** positions.
+        define: [self-attention]
+        gate:
+          type: predict
+          question: 'In a 200-word review, how many steps apart are word 1 and word 200 for self-attention?'
+          options: ['1', '199', '200', '14']
+          answer: 0
+          optionFeedback:
+            '1': That is the recurrent chain's distance.
+            '2': Attention connects the two directly.
+            '3': There is no logarithmic tree here.
+          explain: Every pair of positions is directly connected; an RNN needs 199 steps.
+      - say: |
+          Each **attention weight** comes from a comparison score, a dot product, passed through a softmax, so the
+          weights are positive and add up to 1. Watch "good" in "not very good" score every word.
+        define: [attention-weight]
+        show: [player]
+        gate:
+          type: event
+          prompt: Play to the end.
+          target: player
+          event: done
+      - say: |
+          "good" draws 0.576 of its new value from "not". With sentiments $-1$, $0.5$ and $1$, its new value is
+          negative. The **Transformer** is built from such layers, each wrapped as $x + \text{Sublayer}(x)$, the skip
+          connection again.
+        define: [transformer]
+        show: [outv]
+      - say: |
+          The price: $T$ positions make $T^2$ comparisons, and attention alone ignores order, so
+          **position information** must be added to each word's vector.
+        define: [positional-encoding]
+        gate:
+          type: practice
+          template: attn-weight
+    takeaway: Self-attention makes every position one step from every other and trains in parallel, at a T² cost.

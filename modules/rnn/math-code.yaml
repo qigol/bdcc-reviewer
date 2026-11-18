@@ -1,0 +1,537 @@
+sections:
+  - id: running-summary
+    title: A running summary of a sequence
+    skills: [seq-order, seq-categories]
+    summary: |
+      A [[bag-of-words]] view loses order. A running summary does not: each word updates a [[hidden-state]] that
+      remembers, with fading weight, everything read before it.
+    keyFormula: 'h_t = \tanh(0.8\,h_{t-1} + x_t), \quad h_0 = 0'
+    data: [reviews]
+    derive:
+      - { fn: notesChart, in: { a: '@reviews.a', b: '@reviews.b' }, out: nc }
+    live:
+      - { id: notes-chart, widget: Chart, props: { kind: line, series: '@nc.series', xLabel: word, yLabel: summary h } }
+    steps:
+      - tex: |
+          \anchor{score}{x_t = +1 \text{ (good)},\ -1 \text{ (bad)},\ 0 \text{ otherwise}}
+        say: Each word gets a hand-made score.
+      - tex: |
+          \anchor{update}{h_t = \tanh(0.8\,h_{t-1} + x_t)}
+        say: The new summary mixes what is new with 0.8 of the old summary.
+      - tex: |
+          \anchor{update}{h_{10}} = {=nc.finalA} \quad\text{vs}\quad {=nc.finalB}
+        say: Same words, opposite final summaries.
+    code:
+      lang: python
+      source: |
+        import math
+
+        SCORES = {"good": 1.0, "bad": -1.0}
+
+
+        def running_summary(text, carry=0.8):
+            """Update h_t = tanh(carry * h_(t-1) + x_t) word by word.
+
+            Args:
+                text: the review; carry: how much of the old summary is kept.
+            Returns:
+                The list of summaries after each word.
+            Lecture: the two reviews end with opposite signs.
+            """
+            h, states = 0.0, []
+            for word in text.split():
+                x = SCORES.get(word, 0.0)          # @a:score
+                h = math.tanh(carry * h + x)       # @a:update
+                states.append(h)
+            return states
+    links:
+      - { anchor: score, label: 'The input score x_t' }
+      - { anchor: update, label: 'The summary update' }
+    examples: [reviews-same-words, notes-finals]
+    tryIt: [order-mcq, order-two-tier]
+    pitfalls:
+      - Treating a review as a bag of words when the order changes the meaning.
+    examTip: Recent words weigh more; old ones fade by the carry factor at every step.
+
+  - id: rnn-step
+    title: One RNN step
+    skills: [rnn-cell]
+    summary: |
+      One step of an [[rnn]] adds what is new, $w_{xh}x_t$, what is remembered, $w_{hh}h_{t-1}$, and the [[bias]],
+      then squashes the total with [[tanh]]. The same input gives different states after different pasts.
+    keyFormula: 'h_t = \tanh(W_{xh}x_t + W_{hh}h_{t-1} + b_h)'
+    data: [sameinput]
+    derive:
+      - { fn: sameInput, in: { x: '@sameinput.x', hprevs: '@sameinput.hprevs', wxh: '@sameinput.wxh', whh: '@sameinput.whh', bh: '@sameinput.bh' }, out: si }
+    live:
+      - { id: sheet, widget: Matrix, props: { data: '@si.grid', rowHeader: case, title: 'x = 1, w_xh = 0.5, w_hh = 0.8, b_h = 0.1' } }
+    steps:
+      - tex: |
+          \anchor{h0}{h_{t-1}} \text{ given}
+        say: Start from the previous state.
+      - tex: |
+          \anchor{z}{z_t = w_{xh}x_t + w_{hh}h_{t-1} + b_h}
+        say: New, remembered, baseline.
+      - tex: |
+          \anchor{h}{h_t = \tanh(z_t)}, \qquad \anchor{out}{\hat y_t = w_{hy}h_t + b_y}
+        say: Squash; an output layer reads the state only when a prediction is needed.
+      - tex: |
+          h_{t-1} = 0.9 \;\Rightarrow\; \anchor{z}{z = 0.5 + 0.72 + 0.1 = 1.32}, \ \anchor{h}{h_t = {=si.hs.2|4}}
+        say: The third case of the lesson's table.
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def rnn_step(x_t, h_prev, w_xh, w_hh, b_h, w_hy=1.0, b_y=0.0):
+            """One step of a one-unit RNN, plus its optional output.
+
+            Args:
+                x_t: the new input; h_prev: the previous hidden state;
+                w_xh, w_hh, b_h: shared cell weights; w_hy, b_y: output layer.
+            Returns:
+                (h_t, y_hat_t).
+            Lecture: rnn_step(1.0, 0.9, 0.5, 0.8, 0.1)[0] == 0.8668 (4 dp)
+            """
+            h = h_prev                                  # @a:h0
+            z = w_xh * x_t + w_hh * h + b_h             # @a:z
+            h_t = math.tanh(z)                          # @a:h
+            y_hat = w_hy * h_t + b_y                    # @a:out
+            return h_t, y_hat
+    links:
+      - { anchor: h0, label: 'Previous state' }
+      - { anchor: z, label: 'New + remembered + bias' }
+      - { anchor: h, label: 'The new hidden state' }
+      - { anchor: out, label: 'Optional output' }
+    trace: { fn: rnnCode, in: { x: [1], wxh: 0.5, whh: 0.8, bh: 0.1, h0: 0.9, why: 1 } }
+    examples: [same-input]
+    tryIt: [code-rnn-step, hidden-not-output]
+    pitfalls:
+      - Feeding back the prediction instead of the hidden state.
+    examTip: Write $z$ as three terms before taking tanh.
+
+  - id: forward-pass
+    title: The forward pass through time
+    skills: [rnn-forward]
+    summary: |
+      Run the step once per input, carrying each [[hidden-state]] into the next step. In a many-to-one task the output
+      layer reads only the final state.
+    keyFormula: 'h_t = \tanh(w_{xh}x_t + w_{hh}h_{t-1} + b_h), \quad \hat y = w_{hy}h_T + b_y'
+    data: [toy]
+    derive:
+      - { fn: rnnForward, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why' }, out: f }
+      - { fn: rnnSheet, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh' }, out: sh }
+    live:
+      - { id: sheet, widget: Matrix, props: { data: '@sh', rowHeader: step, title: 'x = (1, 0, −0.5), w_xh 0.5, w_hh 0.8, b_h 0.1' } }
+    steps:
+      - tex: |
+          \anchor{h0}{h_0 = 0}
+        say: Nothing seen yet.
+      - tex: |
+          \anchor{z}{z_t = w_{xh}x_t + w_{hh}h_{t-1} + b_h}, \quad \anchor{h}{h_t = \tanh(z_t)}
+        say: Repeat for $t = 1, 2, 3$ with the same weights.
+      - tex: |
+          \anchor{h}{h = ({=f.hs|list})}, \quad \anchor{out}{\hat y = 2 \cdot 0.2337 = {=f.yhat|4}}
+        say: The prediction and the final state are different numbers.
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def rnn_forward(xs, w_xh, w_hh, b_h, w_hy, b_y=0.0, h0=0.0):
+            """Many-to-one forward pass of a one-unit RNN.
+
+            Args:
+                xs: the input sequence; w_xh, w_hh, b_h: shared cell weights;
+                w_hy, b_y: output layer; h0: the starting state.
+            Returns:
+                (hidden states, prediction from the last state).
+            Lecture: rnn_forward([1.0, 0.0, -0.5], 0.5, 0.8, 0.1, 2.0) gives
+                h = [0.5370, 0.4851, 0.2337], y_hat = 0.4674
+            """
+            h, states = h0, []                         # @a:h0
+            for x_t in xs:
+                z = w_xh * x_t + w_hh * h + b_h        # @a:z
+                h = math.tanh(z)                       # @a:h
+                states.append(h)
+            y_hat = w_hy * h + b_y                     # @a:out
+            return states, y_hat
+    links:
+      - { anchor: h0, label: 'Starting state' }
+      - { anchor: z, label: 'Pre-activation at step t' }
+      - { anchor: h, label: 'Hidden state at step t' }
+      - { anchor: out, label: 'One prediction, from h_T' }
+    trace: { fn: rnnCode, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why' } }
+    examples: [forward-c7, forward-c7-rows, forward-code]
+    tryIt: [forward-h, forward-yhat, forward-find-error]
+    pitfalls:
+      - Dropping the memory term $w_{hh}h_{t-1}$ at later steps.
+      - Reporting $h_T$ as the prediction.
+    examTip: A table with columns $x_t$, $w_{xh}x_t$, $w_{hh}h_{t-1}$, $z_t$, $h_t$ keeps every step honest.
+
+  - id: tanh
+    title: tanh, its slope, and memory length
+    skills: [tanh-memory]
+    summary: |
+      [[tanh]] keeps the state in $(-1, 1)$ and is centred on 0. Its slope $1 - \tanh^2 z$ is 1 at 0 and nearly 0 when
+      the unit is in [[saturation]]. The recurrent weight sets how long a spike is remembered.
+    keyFormula: '\tanh''(z) = 1 - \tanh^2(z)'
+    state: { z: 1 }
+    derive:
+      - { fn: tanhAt, in: { z: '@z' }, out: t }
+    live:
+      - { id: tplot, widget: FunctionPlot, props: { fn: tanhCurve, domain: [-4, 4], x: '@z', showTangent: true, xLabel: z, yLabel: '\tanh z' } }
+      - id: tvals
+        widget: Readout
+        props:
+          items:
+            - { label: 'tanh(z)', value: '@t.tanh', format: 4 }
+            - { label: 'slope', value: '@t.slope', format: 4 }
+    steps:
+      - tex: |
+          \anchor{val}{\tanh(z) = \frac{e^z - e^{-z}}{e^z + e^{-z}} = 2\sigma(2z) - 1}
+        say: An S-curve like the sigmoid, stretched to $(-1, 1)$.
+      - tex: |
+          \anchor{slope}{\tanh'(z) = 1 - \tanh^2(z)}
+        say: The slope you multiply by when the error goes back.
+      - tex: |
+          \anchor{val}{\tanh({=z}) = {=t.tanh|4}}, \quad \anchor{slope}{\text{slope} = {=t.slope|4}}
+        say: At $z = 3$ the slope is under 0.01.
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def tanh_and_slope(z):
+            """tanh of z and its derivative.
+
+            Args:
+                z: the pre-activation.
+            Returns:
+                (tanh(z), 1 - tanh(z) ** 2).
+            Lecture: tanh_and_slope(1.0) == (0.7616, 0.4200) (4 dp)
+            """
+            t = math.tanh(z)          # @a:val
+            slope = 1 - t ** 2        # @a:slope
+            return t, slope
+    links:
+      - { anchor: val, label: 'tanh value' }
+      - { anchor: slope, label: 'tanh slope' }
+    examples: [tanh-values, tanh-values-2, tanh-values-3, spike-memory]
+    tryIt: [tanh-mcq, saturation-multi]
+    pitfalls:
+      - Using $h_t$ instead of $1 - h_t^2$ as the slope.
+    examTip: 'Remember 0.76 / 0.42 at $z = 1$ and 0.96 / 0.07 at $z = 2$.'
+
+  - id: rnn-params
+    title: Counting parameters
+    skills: [rnn-params]
+    summary: |
+      An RNN layer has $W_{xh}$, $W_{hh}$ and $b_h$ once, whatever the sequence length: $m(d + m + 1)$ [[parameter|parameters]].
+      In a sentiment model the [[embedding]] table holds almost all of them.
+    keyFormula: 'm\,(d + m + 1)'
+    state: { d: 32, m: 32, k: 1, vocab: 10000 }
+    derive:
+      - { fn: rnnParams, in: { d: '@d', m: '@m', k: '@k', vocab: '@vocab', emb: '@d', torchBias: true }, out: r }
+    live:
+      - id: pcount
+        widget: Readout
+        props:
+          items:
+            - { label: 'embedding', value: '@r.embedding', format: comma }
+            - { label: 'RNN m(d + m + 1)', value: '@r.formula', format: comma }
+            - { label: 'RNN in PyTorch (+m bias)', value: '@r.rnn', format: comma }
+            - { label: 'dense', value: '@r.dense' }
+            - { label: 'total', value: '@r.total', format: comma, tone: accent }
+    steps:
+      - tex: |
+          \anchor{emb}{V \cdot d}
+        say: One row of $d$ numbers per vocabulary word.
+      - tex: |
+          \anchor{rnn}{m d + m m + m = m(d + m + 1)}
+        say: Input weights, recurrent weights, bias. PyTorch adds a second bias vector of $m$.
+      - tex: |
+          \anchor{dense}{(m + 1)\cdot k}
+        say: The output layer.
+      - tex: |
+          320{,}000 + 2{,}112 + 33 = {=r.total|comma0}
+        say: The lesson's sentiment model.
+    code:
+      lang: python
+      source: |
+        def model_params(vocab, d, m, k=1, torch_bias=True):
+            """Parameters of embedding -> RNN -> dense.
+
+            Args:
+                vocab: vocabulary size; d: vector size; m: hidden units; k: outputs;
+                torch_bias: count PyTorch's second bias vector.
+            Returns:
+                The total number of parameters.
+            Lecture: model_params(10000, 32, 32) == 322145
+            """
+            embedding = vocab * d                       # @a:emb
+            rnn = m * (d + m + 1)                       # @a:rnn
+            if torch_bias:
+                rnn = rnn + m                           # @a:rnn
+            dense = (m + 1) * k                         # @a:dense
+            return embedding + rnn + dense
+    links:
+      - { anchor: emb, label: 'Embedding table' }
+      - { anchor: rnn, label: 'Recurrent layer' }
+      - { anchor: dense, label: 'Output layer' }
+    trace: { fn: paramsCode, in: { d: 32, m: 32, k: 1, vocab: 10000, emb: 32 } }
+    examples: [params-imdb, params-code, params-co2]
+    tryIt: [rnn-params-count, code-params, rnn-params-total]
+    pitfalls:
+      - Multiplying by the sequence length.
+      - Forgetting $W_{hh}$.
+    examTip: '$d$ is features per step, not the number of steps.'
+
+  - id: bptt
+    title: Backpropagation Through Time
+    skills: [bptt]
+    summary: |
+      [[bptt|BPTT]] runs backward through the unfolded network. Each step back multiplies the signal by
+      $w_{hh}(1 - h_t^2)$, and each shared weight collects one piece per step; the pieces are added before one update.
+    keyFormula: '\frac{\partial L}{\partial w_{hh}} = \sum_t \frac{\partial L}{\partial h_t}(1 - h_t^2)\,h_{t-1}'
+    data: [toy]
+    derive:
+      - { fn: bptt, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', lr: '@toy.lr' }, out: b }
+      - { fn: bpttSheet, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', upTo: 3 }, out: bs }
+    live:
+      - { id: bsheet, widget: Matrix, props: { data: '@bs', rowHeader: step, title: 'Backward, from the last step' } }
+    steps:
+      - tex: |
+          \anchor{fwd}{L = (\hat y - y)^2}
+        say: Run forward and score.
+      - tex: |
+          \anchor{start}{\frac{\partial L}{\partial h_T} = 2(\hat y - y)\,w_{hy}}
+        say: The signal starts at the last state.
+      - tex: |
+          \anchor{acc}{g_{w_{hh}} \mathrel{+}= \frac{\partial L}{\partial h_t}(1 - h_t^2)\,h_{t-1}}, \quad \anchor{back}{\frac{\partial L}{\partial h_{t-1}} = \frac{\partial L}{\partial h_t}\,w_{hh}(1 - h_t^2)}
+        say: Collect this step's piece, then step back.
+      - tex: |
+          \anchor{update}{w_{hh} \leftarrow 0.8 - 0.02\cdot({=b.g.whh|4}) = {=b.next.whh|4}}
+        say: 'One update; the loss falls from {=b.L|4} to {=b.newL|4}.'
+    code:
+      lang: python
+      source: |
+        import math
+
+
+        def bptt(xs, w_xh, w_hh, b_h, w_hy, y, lr=0.02):
+            """Gradients of L = (y_hat - y)^2 for a one-unit RNN, and one update of w_hh.
+
+            Args:
+                xs: inputs; w_xh, w_hh, b_h, w_hy: weights; y: target; lr: learning rate.
+            Returns:
+                (dL/dw_xh, dL/dw_hh, new w_hh).
+            Lecture: bptt([1, 0, -0.5], 0.5, 0.8, 0.1, 2.0, 1.0) gives 0.3057, -1.6388, 0.8328
+            """
+            h = [0.0]
+            for x in xs:
+                h.append(math.tanh(w_xh * x + w_hh * h[-1] + b_h))
+            loss = (w_hy * h[-1] - y) ** 2                          # @a:fwd
+            dh = 2 * (w_hy * h[-1] - y) * w_hy                      # @a:start
+            g_wxh = g_whh = 0.0
+            for t in range(len(xs), 0, -1):
+                dz = dh * (1 - h[t] ** 2)
+                g_wxh += dz * xs[t - 1]                             # @a:acc
+                g_whh += dz * h[t - 1]                              # @a:acc
+                dh = dz * w_hh                                      # @a:back
+            return g_wxh, g_whh, w_hh - lr * g_whh                  # @a:update
+    links:
+      - { anchor: fwd, label: 'Forward pass and loss' }
+      - { anchor: start, label: 'Signal at the last state' }
+      - { anchor: acc, label: 'Per-step pieces, added' }
+      - { anchor: back, label: 'One step back' }
+      - { anchor: update, label: 'Gradient-descent update' }
+    trace: { fn: bpttCode, in: { x: '@toy.x', wxh: '@toy.wxh', whh: '@toy.whh', bh: '@toy.bh', why: '@toy.why', y: '@toy.y', lr: '@toy.lr' } }
+    examples: [bptt-d1, bptt-d2, bptt-d3-pieces, bptt-d3-update, bptt-code]
+    tryIt: [back-step, shared-sum, code-bptt]
+    pitfalls:
+      - Updating a shared weight after each step instead of once with the summed gradient.
+      - Using $h_t$ instead of $1 - h_t^2$ in the factor.
+    examTip: 'Step 1 adds nothing to $w_{hh}$ because $h_0 = 0$.'
+
+  - id: vanishing
+    title: Vanishing and exploding gradients
+    skills: [vanishing]
+    summary: |
+      Over $k$ steps back the factors multiply. With a fixed factor $w$, the signal is scaled by $w^k$:
+      a [[vanishing-gradient]] when $|w| < 1$, an [[exploding-gradient]] when $|w| > 1$.
+    keyFormula: '\text{signal after } k \text{ steps} \approx w^k'
+    derive:
+      - { fn: vanishTable, in: {}, out: vt }
+    live:
+      - { id: vtab, widget: Matrix, props: { data: '@vt.grid', rowHeader: factor, title: 'w^k after 20 and 50 steps' } }
+    steps:
+      - tex: |
+          \anchor{factor}{w_{hh}(1 - h_t^2)} \approx w
+        say: Picture every step's factor as the same number $w$.
+      - tex: |
+          \anchor{power}{w \cdot w \cdots w = w^k}
+        say: '$0.9^{50} \approx 0.005$; $1.5^{50} \approx 6 \times 10^8$.'
+    code:
+      lang: python
+      source: |
+        def signal_left(w, k):
+            """What multiple of the error signal survives k steps back.
+
+            Args:
+                w: the per-step factor; k: number of steps.
+            Returns:
+                w ** k, computed as a loop.
+            Lecture: signal_left(0.9, 50) is about 0.00515
+            """
+            s = 1.0
+            for _ in range(k):
+                s = s * w            # @a:factor
+            return s                 # @a:power
+    links:
+      - { anchor: factor, label: 'One step back' }
+      - { anchor: power, label: 'k steps back' }
+    examples: [vanish-table, vanish-09]
+    tryIt: [vanish-num, vanish-mcq]
+    pitfalls:
+      - Thinking gradient clipping fixes vanishing gradients; it only caps large ones.
+    examTip: Clipping for exploding, gated cells (LSTM, GRU) for vanishing.
+
+  - id: pad-pre
+    title: Preparing reviews
+    skills: [sentiment]
+    summary: |
+      Reviews become lists of word ids with a start marker, are cut or padded to one length ([[sequence-padding]]) at
+      the start, then each id selects a row of the [[embedding]].
+    keyFormula: '[0, \dots, 0, 1, w_1, \dots, w_n] \text{ of length } 200'
+    steps:
+      - tex: |
+          \anchor{cut}{\text{keep the last } L \text{ ids}}
+        say: Long reviews lose their first words.
+      - tex: |
+          \anchor{pad}{\text{prepend } L - n \text{ zeros}}
+        say: Short reviews get zeros in front.
+    code:
+      lang: python
+      source: |
+        def pad_pre(ids, max_len):
+            """Cut or pad a list of word ids at the start, as Keras' default does.
+
+            Args:
+                ids: word ids (1 = start, 2 = unknown, 0 = padding); max_len: length.
+            Returns:
+                A list of exactly max_len ids.
+            Lecture: pad_pre([1, 14, 22, 16], 6) == [0, 0, 1, 14, 22, 16]
+            """
+            if len(ids) >= max_len:
+                return ids[len(ids) - max_len:]           # @a:cut
+            return [0] * (max_len - len(ids)) + ids       # @a:pad
+    links:
+      - { anchor: cut, label: 'Truncate at the start' }
+      - { anchor: pad, label: 'Pad at the start' }
+    examples: [pad-pre, imdb-test-acc, imdb-best-epoch]
+    tryIt: [pad-mcq, sentiment-order]
+    pitfalls:
+      - Padding at the end, so the RNN reads many zeros after the last word.
+    examTip: '"pre" keeps the end of a long review.'
+
+  - id: windows
+    title: Sliding windows
+    skills: [seq-forecast]
+    summary: |
+      A [[sliding-window]] turns a series into examples: $L$ past values in order, then the next value as the target.
+      $n$ values give $n - L$ examples, each of shape $(L, 1)$.
+    keyFormula: 'X_i = (y_{i}, \dots, y_{i+L-1}), \quad \text{target } y_{i+L}'
+    data: [co2]
+    derive:
+      - { fn: windowGrid, in: { series: '@co2', size: 12, show: 2 }, out: wg }
+    live:
+      - { id: win, widget: Matrix, props: { data: '@wg', rowHeader: example, title: 'The first two CO₂ windows' } }
+    steps:
+      - tex: |
+          \anchor{loop}{t = L, L+1, \dots, n-1}
+        say: Every position with $L$ values before it is a target.
+      - tex: |
+          \anchor{take}{(y_{t-L}, \dots, y_{t-1}) \to y_t}
+        say: In order; position 12 of each window is `lag_1`.
+      - tex: |
+          \anchor{count}{n - L = 516 - 12 = 504}
+        say: The notebook's 504 windows.
+    code:
+      lang: python
+      source: |
+        def make_windows(series, L):
+            """Cut a series into (window, target) pairs.
+
+            Args:
+                series: values in time order; L: window length.
+            Returns:
+                (X, y): lists of windows and their targets.
+            Lecture: 516 monthly values with L = 12 give 504 windows.
+            """
+            X, y = [], []
+            for t in range(L, len(series)):              # @a:loop
+                X.append(series[t - L:t])                # @a:take
+                y.append(series[t])                      # @a:take
+            return X, y                                  # @a:count
+    links:
+      - { anchor: loop, label: 'Every target position' }
+      - { anchor: take, label: 'Window and target' }
+      - { anchor: count, label: 'n − L examples' }
+    trace: { fn: windowCode, in: { series: '@co2', size: 12 } }
+    examples: [windows-first, window-code, windows-516, windows-changes]
+    tryIt: [window-count, window-count-changes]
+    pitfalls:
+      - Shuffling before splitting, or fitting the scaler on all months.
+    examTip: 'On changes, one value is lost first, so there are $n - 1 - L$ pairs.'
+
+  - id: naive-baseline
+    title: The naive baseline and forecasting changes
+    skills: [seq-forecast]
+    summary: |
+      Any forecaster must beat the [[naive-forecast]] on the same test months. Forecasting the change and adding it to
+      last month's value keeps an RNN inside the range it was trained on.
+    keyFormula: '\hat y_t = y_{t-1} \quad\text{(naive)}, \qquad \hat y_t = y_{t-1} + \hat\Delta_t \quad\text{(changes)}'
+    data: [co2test]
+    derive:
+      - { fn: tableGrid, in: { table: '@co2test' }, out: tg }
+    live:
+      - { id: ttab, widget: Matrix, props: { data: '@tg', rowHeader: model, title: 'Test scores on the same 48 months' } }
+    steps:
+      - tex: |
+          \anchor{naive}{\hat y_t = y_{t-1}}
+        say: Copy last month.
+      - tex: |
+          \anchor{mae}{\text{MAE} = \tfrac1n \sum |y_t - \hat y_t|}
+        say: Average the absolute misses.
+      - tex: |
+          \anchor{naive}{\hat y_t = y_{t-1}} \anchor{mae}{+\ \hat\Delta_t}
+        say: The changes model reached MAE 0.258 against 1.080.
+    code:
+      lang: python
+      source: |
+        def naive_mae(series, start):
+            """MAE of the naive forecast from position start to the end.
+
+            Args:
+                series: values in time order; start: first forecast position.
+            Returns:
+                The mean absolute error.
+            Lecture: the naive forecast scores MAE 1.080 on the 48 test months.
+            """
+            total = 0.0
+            for t in range(start, len(series)):
+                forecast = series[t - 1]                 # @a:naive
+                total += abs(series[t] - forecast)       # @a:mae
+            return total / (len(series) - start)
+    links:
+      - { anchor: naive, label: 'Last month (plus a change)' }
+      - { anchor: mae, label: 'Mean absolute error' }
+    examples: [water-naive]
+    tryIt: [naive-mae, change-forecast, scaling-mcq]
+    pitfalls:
+      - Averaging signed errors so misses cancel.
+    examTip: Always state the naive MAE next to a model's MAE.

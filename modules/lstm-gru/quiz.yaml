@@ -1,0 +1,942 @@
+templates:
+  # ------------------------------------------------------------ why plain RNNs forget
+  - id: fade-k
+    type: numeric
+    skills: [long-memory]
+    difficulty: 1
+    tags: [math]
+    generator: chainQ
+    lessonRef: { tab: math-code, id: fade-chain }
+    prompt: |
+      A one-unit [[rnn]] has recurrent weight $w = {=w}$, and the [[tanh]] slope at every step is ${=slope}$. Going back
+      $k = {=k}$ steps, by what factor is the error signal scaled? (3 significant figures are enough.)
+    answer: { var: v, tol: 0.001, relTol: 0.01 }
+    estimate:
+      prompt: Before computing, does the signal shrink or grow?
+      options: ['It shrinks (vanishes)', 'It grows (explodes)']
+      answer: '@kindIdx'
+    hints:
+      - Each step back multiplies by $w$ times the tanh slope.
+      - 'Over $k$ steps: $(w \cdot \text{slope})^k$.'
+    explanation: |
+      $({=w}\cdot{=slope})^{{=k}} = ({=factor})^{{=k}} = {=v}$.
+
+  - id: long-memory-mcq
+    type: mcq
+    skills: [long-memory]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: fading-signal }
+    prompt: Why does a vanilla RNN learn little about inputs many steps before the loss?
+    options:
+      - Training multiplies the error by a similar factor at every step back, so after many steps it is tiny
+      - The hidden state is erased to zero after a fixed number of steps
+      - The network only reads the last few inputs of each sequence
+      - Old inputs are stored with smaller weights than new inputs
+    answer: 0
+    optionFeedback:
+      '1': The state is never erased; it is rewritten, and the gradient shrinks on the way back.
+      '2': It reads every input; the problem is the learning signal, not the reading.
+      '3': The same weights are used at every step; there are no per-position weights.
+    explanation: '[[bptt|BPTT]] multiplies by $w_{hh}$ and a tanh slope at each step; factors below 1 make the gradient vanish.'
+    variants:
+      - prompt: 'A team clips gradients to a maximum size of 1.0. Which problem does this fix?'
+        options:
+          - Exploding gradients, by capping huge updates
+          - Vanishing gradients, by enlarging tiny updates
+          - Both, by keeping every gradient near 1
+          - Neither; clipping only speeds up training
+        answer: 0
+        optionFeedback:
+          '1': Clipping only shrinks large gradients; it never enlarges small ones.
+          '2': A tiny gradient is left as it is.
+          '3': It changes the update size when the gradient is too large.
+        explanation: '[[gradient-clipping|Clipping]] caps explosions. Vanishing needs a different design: gates and additive paths.'
+      - prompt: 'With $w = 1.1$ and tanh slopes near 1, what happens to the error signal 50 steps back?'
+        options:
+          - It grows by about 117 times, so updates become unstable
+          - It shrinks to about 0.5% of its size
+          - It stays the same, because 1.1 is close to 1
+          - It becomes negative
+        answer: 0
+        optionFeedback:
+          '1': That is $0.9^{50}$, the vanishing case.
+          '2': Small differences from 1 compound over 50 steps.
+          '3': A positive factor keeps the sign.
+        explanation: '$1.1^{50} \approx 117$: an [[exploding-gradient|exploding gradient]].'
+
+  - id: fade-two-tier
+    type: two-tier
+    skills: [long-memory, lstm-design]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: fading-signal }
+    prompt: 'Could we keep long-range signals alive in a vanilla RNN just by setting $w_{hh}$ exactly to 1?'
+    options: ['No, not reliably', 'Yes, that solves it', 'Yes, but only with ReLU']
+    answer: 0
+    reasonPrompt: Why?
+    reasons:
+      - The tanh slopes, each at most 1, still shrink the signal, and the state is still rewritten at every step
+      - Weights of exactly 1 cannot be trained by gradient descent
+      - The hidden state would then always be zero
+    reasonAnswer: 0
+    optionFeedback:
+      '1': Every step also multiplies by a tanh slope below 1.
+      '2': The notebook's RNN uses tanh; the question is about its repeated rewriting.
+    reasonFeedback:
+      '1': A weight of 1 is an ordinary number for gradient descent.
+      '2': The state still changes with the inputs.
+    explanation: The LSTM's answer was a separate path changed only by scaling and addition, the [[cell-state]].
+
+  # ------------------------------------------------------------ LSTM design
+  - id: lstm-design-match
+    type: match
+    skills: [lstm-design]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: lstm-why }
+    prompt: Match each problem to the LSTM part designed for it.
+    pairs:
+      - ['Error signals decay when the state is rewritten every step', 'Cell state changed only by addition']
+      - ['Irrelevant inputs disturb stored content', 'Input gate']
+      - ['Stored content interferes when it is not needed', 'Output gate']
+      - ['The cell state cannot clear outdated content', 'Forget gate']
+    explanation: 'The cell state, input and output gates are from 1997; the forget gate was added in 2000.'
+
+  - id: forget-history
+    type: mcq
+    skills: [lstm-design]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lstm-why }
+    prompt: Which LSTM part was **not** in Hochreiter and Schmidhuber's original 1997 design?
+    options:
+      - The forget gate
+      - The input gate
+      - The output gate
+      - The cell state
+    answer: 0
+    optionFeedback:
+      '1': The input gate was there from the start, to protect memory from irrelevant inputs.
+      '2': The output gate was also original.
+      '3': The cell state, with a fixed self-connection of 1, was the core idea.
+    explanation: Gers, Schmidhuber and Cummins added the [[forget-gate]] in 2000, so the cell could reset instead of growing without limit.
+    variants:
+      - prompt: 'Along the LSTM cell-state path, going back one step multiplies the gradient by what?'
+        options:
+          - 'The forget gate value $f_t$'
+          - '$w_{hh}$ times a tanh slope'
+          - 'The output gate value $o_t$'
+          - 'Always exactly 1'
+        answer: 0
+        optionFeedback:
+          '1': That is the vanilla RNN path the cell state avoids.
+          '2': The output gate acts on what is shown, not on the cell path.
+          '3': That was the 1997 design, before the forget gate.
+        explanation: '$\partial C_t / \partial C_{t-1} = f_t$. With $f_t \approx 1$ the gradient crosses many steps intact.'
+      - prompt: Why is remembering the "default" in an LSTM?
+        options:
+          - New content is added to the old cell state instead of overwriting it
+          - The output gate is always 1
+          - The hidden state is never updated
+          - The input gate is always 0
+        answer: 0
+        optionFeedback:
+          '1': The output gate is learned, not fixed.
+          '2': The hidden state changes every step.
+          '3': Then nothing new would ever be written.
+        explanation: '$C_t = f_t C_{t-1} + i_t \tilde C_t$: forgetting must be learned through $f_t$.'
+
+  - id: lstm-order
+    type: order
+    skills: [lstm-design, lstm-step]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: lstm-step }
+    prompt: Put one LSTM step in its conceptual order (the gates are computed together; the order explains the logic). One line does not belong.
+    items:
+      - 'Receive $x_t$, $h_{t-1}$ and $C_{t-1}$'
+      - The forget gate scales the old cell state
+      - A tanh layer proposes candidate content
+      - The input gate decides how much of it to write, and it is added
+      - 'The output gate exposes $h_t = o_t \tanh(C_t)$'
+      - 'Pass both $C_t$ and $h_t$ to the next step'
+    distractors:
+      - 'Multiply the whole cell state by $W_{hh}$'
+    hints: ['The cell state is only scaled and added to; it never meets $W_{hh}$.']
+    explanation: Receive, forget, propose, write, expose, pass on. Multiplying by $W_{hh}$ is what the vanilla RNN does.
+
+  # ------------------------------------------------------------ LSTM step
+  - id: lstm-cell
+    type: numeric
+    skills: [lstm-step]
+    difficulty: 1
+    tags: [math]
+    generator: lstmQ
+    lessonRef: { tab: math-code, id: lstm-update }
+    prompt: |
+      One memory element of an [[lstm|LSTM]]: old cell state $C_{t-1} = {=cprev}$, forget gate $f_t = {=f}$, input gate
+      $i_t = {=i}$, candidate $\tilde C_t = {=ct}$. What is the new [[cell-state]] $C_t$?
+    answer: { var: C, tol: 0.005 }
+    hints:
+      - Scale the old memory by the forget gate.
+      - Add the candidate scaled by the input gate.
+    explanation: |
+      $C_t = {=f}\cdot({=cprev}) + {=i}\cdot({=ct}) = {=keep} + ({=write}) = {=C}$.
+
+  - id: lstm-hidden
+    type: numeric
+    skills: [lstm-step]
+    difficulty: 2
+    tags: [math]
+    generator: lstmQ
+    lessonRef: { tab: math-code, id: lstm-update }
+    prompt: |
+      Same element: $C_{t-1} = {=cprev}$, $f_t = {=f}$, $i_t = {=i}$, $\tilde C_t = {=ct}$, and output gate
+      $o_t = {=o}$. What is the new hidden state $h_t$ (3 decimal places)?
+    answer: { var: h, tol: 0.002 }
+    calculator: true
+    hints:
+      - First find $C_t$.
+      - '$h_t = o_t \tanh(C_t)$.'
+    explanation: |
+      $C_t = {=C}$, $\tanh({=C}) = {=tanhC|4}$, so $h_t = {=o}\cdot{=tanhC|4} = {=h|4}$.
+
+  - id: lstm-find-error
+    type: find-error
+    skills: [lstm-step]
+    difficulty: 2
+    tags: [math]
+    generator: lstmQ
+    lessonRef: { tab: math-code, id: lstm-update }
+    prompt: |
+      A classmate runs one LSTM step with $C_{t-1} = {=cprev}$, $f_t = {=f}$, $i_t = {=i}$, $\tilde C_t = {=ct}$,
+      $o_t = {=o}$. **One step is wrong.** Click it and give the correct value (3 decimal places).
+    steps: '@errSteps'
+    wrong: 3
+    fix: { var: h, tol: 0.002 }
+    fixPrompt: What is the correct $h_t$?
+    misconceptions:
+      - { var: noTanh, feedback: 'Still no tanh: $h_t = o_t \tanh(C_t)$.' }
+    hints:
+      - The output gate scales a squashed version of the cell state.
+    explanation: '$h_t = {=o}\cdot\tanh({=C}) = {=h|4}$, not ${=o}\cdot{=C}$.'
+
+  - id: lstm-hand
+    type: hand-calc
+    skills: [lstm-step]
+    difficulty: 2
+    tags: [math]
+    generator: lstmQ
+    lessonRef: { tab: intuition, id: lstm-step }
+    prompt: |
+      Work one LSTM step like the lesson: $C_{t-1} = {=cprev}$, $f_t = {=f}$, $i_t = {=i}$, $\tilde C_t = {=ct}$,
+      $o_t = {=o}$.
+    steps:
+      - prompt: 'Kept memory $f_t C_{t-1}$'
+        answer: { var: keep, tol: 0.005 }
+        hint: Multiply the forget gate by the old cell state.
+      - prompt: 'Written memory $i_t \tilde C_t$'
+        answer: { var: write, tol: 0.005 }
+        hint: Multiply the input gate by the candidate.
+      - prompt: '$C_t$'
+        answer: { var: C, tol: 0.005 }
+        misconceptions:
+          - { var: noForget, feedback: 'Use the kept memory, not the whole old state.' }
+      - prompt: '$h_t$ (3 decimal places)'
+        answer: { var: h, tol: 0.002 }
+        misconceptions:
+          - { var: noTanh, feedback: 'Squash $C_t$ with tanh before the output gate scales it.' }
+    hints:
+      - Keep, write, add, expose.
+    calculator: true
+    explanation: |
+      Keep {=keep}, write {=write}, $C_t = {=C}$, $h_t = {=o}\tanh({=C}) = {=h|4}$.
+
+  - id: code-lstm
+    type: code-fill
+    skills: [lstm-step]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: lstm-update }
+    prompt: Complete the LSTM update for one memory element.
+    code: |
+      import math
+
+      def lstm_update(c_prev, f, i, c_tilde, o):
+          c = __BLANK_1__
+          h = __BLANK_2__
+          return c, h
+    blanks:
+      '1': { accept: ['f * c_prev + i * c_tilde', 'f*c_prev+i*c_tilde', 'c_prev * f + i * c_tilde', 'i * c_tilde + f * c_prev'] }
+      '2': { accept: ['o * math.tanh(c)', 'o*math.tanh(c)', 'math.tanh(c) * o'] }
+    hints:
+      - Keep part of the old memory, add part of the candidate.
+    explanation: '`c = f * c_prev + i * c_tilde` and `h = o * math.tanh(c)`.'
+
+  # ------------------------------------------------------------ GRU step
+  - id: gru-update
+    type: numeric
+    skills: [gru-step]
+    difficulty: 1
+    tags: [math]
+    generator: gruQ
+    lessonRef: { tab: math-code, id: gru-update }
+    prompt: |
+      A [[gru|GRU]] unit has previous state $h_{t-1} = {=hprev}$, [[update-gate]] $z_t = {=z}$ and candidate
+      $\tilde h_t = {=ht}$. Using $h_t = z_t h_{t-1} + (1 - z_t)\tilde h_t$, what is $h_t$?
+    answer: { var: h, tol: 0.005 }
+    hints:
+      - '$z_t$ is the share of the old state kept.'
+      - The candidate gets the remaining share $1 - z_t$.
+    explanation: |
+      $h_t = {=z}\cdot({=hprev}) + {=oneMinus}\cdot({=ht}) = {=keep} + ({=add}) = {=h}$.
+
+  - id: gru-hand
+    type: hand-calc
+    skills: [gru-step]
+    difficulty: 3
+    tags: [math]
+    generator: gruQ
+    lessonRef: { tab: intuition, id: gru-step }
+    prompt: |
+      One GRU step from weights: input $x_t = {=x}$, previous state $h_{t-1} = {=hprev}$. Each row gives the weight on
+      $x_t$, the weight on the past and the bias. The candidate reads the reset-scaled past $r_t h_{t-1}$.
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: layer } }
+    steps:
+      - prompt: 'Reset gate $r_t = \sigma(\cdot)$ (3 decimals)'
+        answer: { var: r, tol: 0.002 }
+        hint: 'Sum $= {=zr}$; $\sigma(z) = 1/(1 + e^{-z})$.'
+      - prompt: 'Update gate $z_t$ (3 decimals)'
+        answer: { var: z, tol: 0.002 }
+        hint: 'Sum $= {=zz}$.'
+      - prompt: 'Candidate $\tilde h_t = \tanh(\cdot)$ (3 decimals)'
+        answer: { var: ht, tol: 0.003 }
+        misconceptions:
+          - { var: noReset, feedback: 'Use $r_t h_{t-1}$ inside the candidate, not $h_{t-1}$.' }
+      - prompt: '$h_t$ (3 decimals)'
+        answer: { var: h, tol: 0.004 }
+        misconceptions:
+          - { var: swapped, feedback: '$z_t$ multiplies the old state $h_{t-1}$; $1 - z_t$ multiplies the candidate.' }
+    hints:
+      - Gates first, then the candidate, then the blend.
+    calculator: true
+    explanation: |
+      $r_t = {=r|3}$, $z_t = {=z|3}$, $\tilde h_t = \tanh({=zh|4}) = {=ht|3}$, $h_t = {=keep|4} + ({=add|4}) = {=h|3}$.
+
+  - id: gru-convention
+    type: mcq
+    skills: [gru-step]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: gru-step }
+    prompt: 'In this course''s GRU, $h_t = z_t h_{t-1} + (1 - z_t)\tilde h_t$. What does $z_t \approx 1$ do?'
+    options:
+      - Copies the old state forward almost unchanged
+      - Replaces the old state with the candidate
+      - Erases the state to zero
+      - Makes the candidate ignore the past
+    answer: 0
+    optionFeedback:
+      '1': That is $z_t \approx 0$ in this convention (some textbooks swap the roles).
+      '2': The state becomes a blend; with $z \approx 1$ the old state dominates.
+      '3': That is the reset gate's job, $r_t \approx 0$.
+    explanation: With $z_t \approx 1$ the state and its gradient pass through, like an LSTM forget gate near 1.
+    variants:
+      - prompt: What does the reset gate $r_t \approx 0$ do?
+        options:
+          - The candidate ignores the past, so the unit can start fresh
+          - The state is copied forward unchanged
+          - The whole state is set to zero immediately
+          - The output is hidden from the next layer
+        answer: 0
+        optionFeedback:
+          '1': That is the update gate near 1.
+          '2': The state still blends old and new through $z_t$.
+          '3': A GRU has no output gate; the whole state is exposed.
+        explanation: '$r_t$ scales $h_{t-1}$ only inside the candidate.'
+      - prompt: Which statement about the GRU is true?
+        options:
+          - It has no separate cell state and no output gate
+          - It has three gates, like the LSTM
+          - It passes two states to the next step
+          - It has more parameters than an LSTM of the same size
+        answer: 0
+        optionFeedback:
+          '1': Two gates, update and reset.
+          '2': One state, the hidden state.
+          '3': Three weight blocks to the LSTM's four, so fewer.
+        explanation: Cho et al. (2014) merged forgetting and writing into one update gate.
+
+  - id: code-gru
+    type: code-fill
+    skills: [gru-step]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: gru-update }
+    prompt: Complete the GRU blend.
+    code: |
+      def gru_update(z, h_prev, h_tilde):
+          return z * h_prev + __BLANK_1__ * h_tilde
+    blanks:
+      '1': { accept: ['(1 - z)', '(1-z)'] }
+    hints:
+      - The two shares add up to 1.
+    explanation: '`(1 - z) * h_tilde`: the candidate fills whatever share is not kept.'
+
+  - id: gru-order
+    type: order
+    skills: [gru-step]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: gru-step }
+    prompt: Put one GRU step in its conceptual order. One line does not belong.
+    items:
+      - 'Receive $x_t$ and $h_{t-1}$'
+      - The update gate sets the share of old memory to keep
+      - The reset gate sets how much of the past the candidate may use
+      - 'A tanh layer proposes the candidate $\tilde h_t$'
+      - 'Blend: $h_t = z_t h_{t-1} + (1 - z_t)\tilde h_t$'
+      - Pass the new hidden state to the next step
+    distractors:
+      - The output gate exposes part of the cell state
+    hints: [A GRU has one state and no output gate.]
+    explanation: Receive, retain?, reset?, propose, combine, pass on. The output gate belongs to the LSTM.
+
+  # ------------------------------------------------------------ gates as memory
+  - id: code-retain
+    type: code-fill
+    skills: [gate-memory]
+    difficulty: 1
+    tags: [code]
+    lessonRef: { tab: math-code, id: gate-retention }
+    prompt: Complete the loop that tracks what share of a stored value is left.
+    code: |
+      def retention(g, k):
+          share = 1.0
+          for t in range(k):
+              share = __BLANK_1__
+          return share
+    blanks:
+      '1': { accept: ['share * g', 'g * share', 'share*g', 'g*share'] }
+    hints:
+      - Each step keeps the share g of what is left.
+    explanation: '`share = share * g`, so after k steps the share is $g^k$.'
+
+  - id: gate-transfer
+    type: mcq
+    skills: [gate-memory]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: gate-memory }
+    prompt: 'A logistics firm reads a truck''s daily sensor log. A "brake warning" on day 3 matters for a failure on day 40, with ordinary days in between. What must a gated unit learn?'
+    options:
+      - A gate that lets the warning in on day 3 and then stays near 1 for the ordinary days
+      - A gate fixed at 0.5, so every day counts equally
+      - A gate that stays near 0 on every day, to read each new day fully
+      - No gate; a larger hidden state is enough
+    answer: 0
+    optionFeedback:
+      '1': '$0.5^{37}$ is essentially zero: the warning would be gone by day 40.'
+      '2': Then each day overwrites the last, and the warning is lost.
+      '3': A bigger vanilla state is still rewritten every step.
+    explanation: 'Write the key input, then hold it: with $g = 0.99$, $0.99^{37} \approx 0.69$ of it is still there.'
+
+  - id: code-attn
+    type: code-fill
+    skills: [attention]
+    difficulty: 2
+    tags: [code]
+    lessonRef: { tab: math-code, id: attention }
+    prompt: Complete the softmax attention weights.
+    code: |
+      import math
+
+      def attention_weights(q, keys):
+          scores = [sum(a * b for a, b in zip(q, k)) for k in keys]
+          exps = [__BLANK_1__ for s in scores]
+          total = sum(exps)
+          return [e / __BLANK_2__ for e in exps]
+    blanks:
+      '1': { accept: ['math.exp(s)'] }
+      '2': { accept: ['total'] }
+    hints:
+      - Exponentiate each score, then divide by the sum.
+    explanation: '`math.exp(s)`, then divide by `total`, so the weights are positive and add up to 1.'
+
+  - id: retain-k
+    type: numeric
+    skills: [gate-memory]
+    difficulty: 1
+    tags: [math]
+    generator: retainQ
+    lessonRef: { tab: math-code, id: gate-retention }
+    prompt: |
+      A [[gate]] holds the value $g = {=g}$ at every step and nothing new is written. What share of a stored value is
+      left after $k = {=k}$ steps (as a decimal, 3 significant figures)?
+    answer: { var: share, tol: 0.001, relTol: 0.01 }
+    hints:
+      - Each step keeps the share $g$ of what is left.
+      - 'After $k$ steps: $g^k$.'
+    explanation: '${=g}^{{=k}} = {=share}$, so about {=sharePct|1}% remains.'
+
+  - id: write-hold
+    type: mcq
+    skills: [gate-memory]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: gate-memory }
+    prompt: 'A memory element follows $m_t = g\,m_{t-1} + (1 - g)\,c_t$ with the gate **fixed** at 0.99. A key value arrives once, then noise. What happens?'
+    options:
+      - It barely takes in the key value, because it keeps 99% of the old memory each step
+      - It stores the key value and holds it perfectly through the noise
+      - It follows every noisy input closely
+      - It forgets everything after one step
+    answer: 0
+    optionFeedback:
+      '1': Holding needs $g$ near 1, but writing needs $g$ near 0 at that moment. A fixed gate cannot do both.
+      '2': That is a fixed gate near 0.5 or below.
+      '3': 0.99 keeps almost everything.
+    explanation: Gates are computed from $[h_{t-1}, x_t]$ at every step so they can write, hold and overwrite.
+    variants:
+      - prompt: The same memory has its gate fixed at 0.5. What happens?
+        options:
+          - It follows every noisy input, so the key value is lost within a few steps
+          - It holds the key value through the noise
+          - It never takes in any input
+          - It doubles the key value
+        answer: 0
+        optionFeedback:
+          '1': Half the memory is replaced every step; noise washes it out.
+          '2': 0.5 lets in half of each new input.
+          '3': A weighted average cannot double a value.
+        explanation: '$0.5^5 \approx 0.03$: after five noisy steps only 3% of the key value is left.'
+      - prompt: An input-dependent gate drops to 0.05 when a key word arrives and stays at 0.98 otherwise. What does it do?
+        options:
+          - Writes the key word, holds it through filler, and overwrites it at the next key word
+          - Ignores the key word and follows the filler
+          - Holds the first value forever, whatever comes next
+          - Averages all words equally
+        answer: 0
+        optionFeedback:
+          '1': At 0.05 the new content takes 95% of the memory.
+          '2': It drops to 0.05 again at the next key word and overwrites.
+          '3': The weights change with the input.
+        explanation: Write, hold, overwrite. A trained network has to learn these gate values.
+
+  - id: gate-explain
+    type: explain
+    skills: [gate-memory, lstm-design]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: gate-memory }
+    prompt: Explain how a gate lets a recurrent unit keep information for many steps, and why the gate must depend on the input.
+    model: |
+      A gate is a number between 0 and 1 for each memory element. Each step the memory keeps the share $g$ of its old
+      value and takes the rest from new content, so a value survives $k$ steps as $g^k$; only gates close to 1 keep
+      it for tens of steps, and the gradient travels back along the same path. Because the gate is computed from the
+      current input and previous state, it can drop to let a key input in, stay near 1 to hold it, and drop again to
+      overwrite it.
+    checklist:
+      - The memory keeps a share g of its old value each step
+      - After k steps the share left is g to the power k; g near 1 keeps it long
+      - The gradient follows the same additive path
+      - An input-dependent gate can write, hold and overwrite
+    hints: [What does g = 0.99 do to a value over 50 steps, and what if g never changed?]
+    explanation: Retention is a learned dial, not a fixed product of weights and tanh slopes.
+
+  # ------------------------------------------------------------ parameters
+  - id: gated-params
+    type: numeric
+    skills: [gated-params]
+    difficulty: 1
+    tags: [math]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: gated-params }
+    prompt: |
+      An {=kind} layer reads $d = {=d}$ input features and has $m = {=m}$ hidden units. Counting **one** bias vector
+      per [[weight-block]], how many parameters does it have?
+    answer: { var: params, tol: 0 }
+    hints:
+      - 'One block: $m(d + m + 1)$.'
+      - LSTM has 4 blocks, GRU 3.
+    explanation: |
+      One block: ${=m}({=d} + {=m} + 1) = {=perBlock}$. {=kind} has {=blocks} blocks: {=params}. (PyTorch keeps two bias
+      vectors per block, giving {=torchParams}.)
+
+  - id: params-find-error
+    type: find-error
+    skills: [gated-params]
+    difficulty: 2
+    tags: [math]
+    generator: paramQ
+    lessonRef: { tab: math-code, id: gated-params }
+    prompt: |
+      A classmate counts an {=kind} layer with $d = {=d}$ and $m = {=m}$ (one bias per block). **One step is wrong.**
+      Click it and give the correct total.
+    steps: '@errSteps'
+    wrong: 1
+    fix: { var: params, tol: 0 }
+    fixPrompt: What is the correct number of parameters?
+    hints:
+      - 'Count the layers inside the unit: forget, input, candidate, output for an LSTM; reset, update, candidate for a GRU.'
+    explanation: '{=kind} has {=blocks} blocks: ${=blocks}\cdot{=perBlock} = {=params}$.'
+
+  - id: params-ratio
+    type: mcq
+    skills: [gated-params]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: compare-units }
+    prompt: For the same input and hidden sizes, how do the recurrent parameters of RNN, LSTM and GRU compare?
+    options:
+      - 'In the ratio 1 : 4 : 3'
+      - 'In the ratio 1 : 3 : 4'
+      - 'In the ratio 1 : 2 : 2'
+      - All three are equal, because the hidden size is equal
+    answer: 0
+    optionFeedback:
+      '1': That swaps LSTM and GRU. The LSTM has four blocks.
+      '2': Count the layers inside each unit.
+      '3': The hidden size sets each block's size; the unit sets how many blocks.
+    explanation: 'RNN 1 block, LSTM 4 (f, i, C̃, o), GRU 3 (r, z, h̃): 2,112, 8,448 and 6,336 for $d = m = 32$.'
+    variants:
+      - prompt: 'The three IMDb models have recurrent layers of 2,112, 8,448 and 6,336 parameters, but totals of 322,145, 328,481 and 326,369. Why are the totals so close?'
+        options:
+          - The shared 320,000-weight embedding table dominates every total
+          - The dense output layer is much larger for the RNN
+          - PyTorch hides the extra gate parameters from the total
+          - The LSTM and GRU share weights between their gates
+        answer: 0
+        optionFeedback:
+          '1': The dense layer has 33 parameters in all three.
+          '2': The totals include every gate.
+          '3': Each gate has its own weights.
+        explanation: '$10{,}000 \times 32 = 320{,}000$ word-vector numbers, identical by design.'
+      - prompt: '`nn.LSTM(input_size=3, hidden_size=4)` has `weight_ih_l0` of shape (16, 3). Why 16 rows?'
+        options:
+          - 'Four stacked blocks (input, forget, candidate, output) of 4 rows each'
+          - 'Four hidden units times four time steps'
+          - 'The input size squared plus seven'
+          - 'Sixteen gates, one per weight'
+        answer: 0
+        optionFeedback:
+          '1': Weights do not depend on the number of time steps.
+          '2': The row count is 4 × hidden size.
+          '3': There are four layers, each with 4 units.
+        explanation: A GRU stacks three blocks instead, so its `weight_ih_l0` is (12, 3).
+
+  # ------------------------------------------------------------ the comparison
+  - id: compare-mcq
+    type: mcq
+    skills: [compare]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: compare-units }
+    prompt: 'On IMDb the GRU reached 0.830 validation accuracy, the LSTM 0.804 and the RNN 0.752, each from one run of 8 epochs. Which conclusion is justified?'
+    options:
+      - Gated units clearly beat the RNN here, but the GRU–LSTM gap could come from the random seed alone
+      - The GRU is always better than the LSTM
+      - The LSTM is wasted effort because it has more parameters
+      - The RNN would win with a larger learning rate
+    answer: 0
+    optionFeedback:
+      '1': One run, one task, one seed cannot show "always".
+      '2': It still clearly beat the RNN; the question is the GRU–LSTM difference.
+      '3': Nothing in the results tests that.
+    explanation: Rerun with other seeds before trusting a 2–3 point gap; all three were still improving at epoch 8.
+    variants:
+      - prompt: 'All three models had their best validation accuracy at the last epoch, 8. What does that mean for the comparison?'
+        options:
+          - It compares them at a fixed training budget, not at their best possible accuracy
+          - All three had finished learning
+          - The models overfit after epoch 8
+          - The validation set was too small to measure anything
+        answer: 0
+        optionFeedback:
+          '1': Still improving at the end means more epochs might help.
+          '2': There is no evidence about epochs after 8.
+          '3': 2,000 reviews is enough to see a 5-point gap.
+        explanation: A fair statement is "after 8 epochs", not "the best this model can do".
+      - prompt: 'Why did the notebook use `pack_padded_sequence`?'
+        options:
+          - So the recurrent layer stops at each review's last real word instead of reading padding zeros
+          - To make every review exactly 200 words long
+          - To shuffle the reviews before each epoch
+          - To remove rare words from the vocabulary
+        answer: 0
+        optionFeedback:
+          '1': Padding and cutting make the batch rectangular; packing tells the layer where each review really ends.
+          '2': Shuffling is the data loader's job.
+          '3': Rare words were mapped to "unknown" when the data was loaded.
+        explanation: Otherwise the final hidden state would partly describe padding.
+
+  - id: compare-case
+    type: case
+    skills: [compare, gated-params]
+    difficulty: 3
+    tags: [application]
+    lessonRef: { tab: math-code, id: compare-runs }
+    prompt: |
+      **A call-centre intent model.** A bank compares three recurrent layers on 6,000 chat messages (one run each, same
+      settings, $d = 64$, $m = 64$). Validation accuracy: RNN 0.71, LSTM 0.78, GRU 0.77. Training time: RNN 60 s,
+      LSTM 240 s, GRU 190 s.
+    parts:
+      - type: numeric
+        prompt: Recurrent parameters of the GRU, with PyTorch's two biases per block
+        answer: { value: 24960, tol: 0 }
+        explanation: '$3\cdot(64(64 + 64) + 2\cdot64) = 3\cdot8{,}320 = 24{,}960$.'
+      - type: numeric
+        prompt: How many times longer than the RNN did the LSTM take to train?
+        answer: { value: 4, tol: 0.01 }
+        explanation: '$240 / 60 = 4$.'
+      - type: numeric
+        prompt: LSTM accuracy gain over the RNN, in percentage points
+        answer: { value: 7, tol: 0.01 }
+        explanation: '$78 - 71 = 7$ points.'
+      - type: two-tier
+        prompt: Should the bank pick the LSTM over the GRU?
+        options: ['Not on this evidence', 'Yes, it scored higher', 'No, the RNN is best value']
+        answer: 0
+        reasons:
+          - A one-point gap from one run can come from the seed, and the GRU is faster and smaller
+          - The higher number always wins
+          - The RNN trains fastest, so it is always the better choice
+        reasonAnswer: 0
+        reasonFeedback:
+          '1': One run and one seed cannot separate a one-point gap from noise.
+          '2': It is 6–7 points worse; speed alone does not decide.
+        explanation: Rerun with several seeds; on equal accuracy the GRU's lower cost wins.
+    hints:
+      - Blocks times $m(d + m) + 2m$.
+      - Compare ratios, not raw seconds.
+    explanation: GRU 24,960 parameters; LSTM 4× slower for +7 points over the RNN; LSTM vs GRU is too close to call from one run.
+
+  - id: compare-explain-two-tier
+    type: two-tier
+    skills: [compare]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: compare-units }
+    prompt: The notebook's IMDb task keeps only the last 200 words of each review. Does a gated unit's better score prove it was using long-range memory?
+    options: ['No', 'Yes', 'Only for the LSTM']
+    answer: 0
+    reasons:
+      - Sentiment is often carried by single words, so the gain may come from easier training rather than long memory
+      - Any accuracy gain on text must come from long-range memory
+      - Gated units cannot use short-range patterns
+    reasonAnswer: 0
+    optionFeedback:
+      '1': A higher score shows the gated model learned better; it does not say what it learned.
+      '2': The same reasoning applies to the GRU and the LSTM.
+    reasonFeedback:
+      '1': Short-range word patterns can raise accuracy too.
+      '2': They use short-range patterns as well.
+    explanation: The notebook warns that this task "does not necessarily demand long-range memory".
+
+  # ------------------------------------------------------------ skip connections
+  - id: residual-grad
+    type: numeric
+    skills: [skip-connections]
+    difficulty: 2
+    tags: [math]
+    generator: residualQ
+    lessonRef: { tab: math-code, id: residual }
+    prompt: |
+      Each of {=L} residual blocks $y = F(x) + x$ has layers whose slope is $F'(x) = {=dF}$. By what factor is the
+      gradient scaled going back through all {=L} blocks (6 decimal places if needed)?
+    answer: { var: res, tol: 0.0001 }
+    hints:
+      - 'One block: $F''(x) + 1$.'
+      - Blocks in a row multiply.
+    explanation: '$({=dF} + 1)^{{=L}} = {=res}$, against ${=plain}$ without the shortcuts.'
+
+  - id: resnet-mcq
+    type: mcq
+    skills: [skip-connections]
+    difficulty: 1
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: skip-connections }
+    prompt: He et al. found that adding layers to a deep plain network **raised its training error**. What was the cause?
+    options:
+      - The deeper network was harder to optimize, because the gradient had to pass back through every layer
+      - The deeper network overfit the training data
+      - The extra layers had no weights
+      - The images were too small for so many layers
+    answer: 0
+    optionFeedback:
+      '1': Overfitting lowers training error and raises validation error; here training error itself rose.
+      '2': They were ordinary layers with weights.
+      '3': The problem was optimization, not input size.
+    explanation: That is the [[degradation]] problem; [[skip-connection|skip connections]] fixed it.
+    variants:
+      - prompt: 'How is a residual block like the LSTM cell state?'
+        options:
+          - Both add an unchanged copy to a learned change, giving the gradient a direct path
+          - Both use a forget gate
+          - Both process sequences one step at a time
+          - Both double the number of parameters
+        answer: 0
+        optionFeedback:
+          '1': A ResNet has no gates.
+          '2': ResNets are not sequence models.
+          '3': The shortcut adds no parameters.
+        explanation: Additive paths keep gradients alive, across time (LSTM) or across depth (ResNet).
+
+  # ------------------------------------------------------------ self-attention
+  - id: attn-weight
+    type: numeric
+    skills: [attention]
+    difficulty: 2
+    tags: [math]
+    generator: attnQ
+    lessonRef: { tab: math-code, id: attention }
+    prompt: |
+      A query $q = ({=q|list})$ is compared with three keys (rows w1–w3, columns `k_1`, `k_2`) by the dot product
+      $s_j = q\cdot k_j$, and the scores go through a softmax. What [[attention-weight]] does position {=jName} get
+      (3 decimal places)?
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: word } }
+    answer: { var: w, tol: 0.002 }
+    calculator: true
+    hints:
+      - Compute the three scores first.
+      - 'Softmax: $e^{s_j} / (e^{s_1} + e^{s_2} + e^{s_3})$.'
+    explanation: |
+      Scores {=scores|list}; softmax weights {=wAll|list}. Position {=jName}: {=w|3}.
+
+  - id: attn-out
+    type: numeric
+    skills: [attention]
+    difficulty: 3
+    tags: [math]
+    generator: attnQ
+    lessonRef: { tab: math-code, id: attention }
+    prompt: |
+      Same setup: query $q = ({=q|list})$, keys and one-number values $v$ in the table. What is the attention output,
+      the weighted average of the values (3 decimal places)?
+    show:
+      - { id: g, widget: Matrix, props: { data: '@grid', rowHeader: word } }
+    answer: { var: out, tol: 0.003 }
+    calculator: true
+    hints:
+      - Find the softmax weights first.
+      - 'Output $= \sum_j w_j v_j$.'
+    explanation: |
+      Weights {=wAll|list}; output $= {=out|3}$ (a plain average would give {=meanV|3}).
+
+  - id: attn-pairs
+    type: numeric
+    skills: [attention]
+    difficulty: 1
+    tags: [math]
+    generator: pathQ
+    lessonRef: { tab: intuition, id: self-attention }
+    prompt: |
+      A [[transformer|Transformer]] layer applies self-attention to a sequence of $T = {=T}$ tokens. How many
+      position-to-position comparisons does it make?
+    answer: { var: pairs, tol: 0 }
+    hints:
+      - Every position compares itself with every position.
+    explanation: '$T^2 = {=pairs}$. A recurrent network instead needs {=rnnSteps} steps to carry the first token to the last.'
+    misconceptions:
+      - { var: rnnSteps, feedback: 'That is how many steps an RNN needs between the first and last token, not the number of comparisons.' }
+
+  - id: arch-match
+    type: match
+    skills: [attention, skip-connections]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: self-attention }
+    prompt: Match each architecture to the problem it addresses.
+    pairs:
+      - ['Vanilla RNN', 'Modelling ordered data with shared weights']
+      - ['LSTM', 'Vanishing gradients, with a gated additive cell state']
+      - ['GRU', 'The same, with one state and two gates']
+      - ['ResNet', 'Optimizing very deep networks']
+      - ['Transformer', 'Sequences without recurrence']
+    explanation: Additive paths keep gradients alive in all of the last four.
+
+  - id: attn-cloze
+    type: code-fill
+    lang: text
+    skills: [attention]
+    difficulty: 1
+    tags: [term]
+    lessonRef: { tab: intuition, id: self-attention }
+    prompt: Fill in the missing words.
+    code: |
+      In self-attention every position is a weighted __BLANK_1__ of all positions, so any two positions are one step
+      apart. Its cost grows with the __BLANK_2__ of the sequence length, and because attention ignores order,
+      __BLANK_3__ information must be added.
+    blanks:
+      '1': { accept: [average, mean, sum], hint: 'a…' }
+      '2': { accept: [square], hint: 's…' }
+      '3': { accept: [position, positional], hint: 'p…' }
+    hints: [Think of T × T comparisons.]
+    explanation: Weighted average, square, position.
+
+  - id: limits-multi
+    type: multi
+    skills: [attention]
+    difficulty: 2
+    tags: [intuition]
+    lessonRef: { tab: intuition, id: self-attention }
+    prompt: Which limits of LSTM and GRU does the notebook list, which self-attention was built to address?
+    options:
+      - Steps of one sequence cannot run in parallel
+      - All the past must fit in one fixed-size vector
+      - Information from thousands of steps back is still hard to use
+      - They cannot be trained with backpropagation
+      - They cannot read sequences of different lengths
+    answer: [0, 1, 2]
+    optionFeedback:
+      '3': They are trained with BPTT, which is backpropagation.
+      '4': Shared weights let them read any length.
+    hints: [Think about computing speed and memory size.]
+    explanation: Sequential computation, a fixed-size memory and very long ranges; self-attention gives one-step paths and parallel training.
+
+  - id: arch-choose
+    type: mcq
+    skills: [attention, compare]
+    difficulty: 2
+    tags: [application]
+    lessonRef: { tab: intuition, id: self-attention }
+    prompt: 'A legal-tech startup classifies 20-page contracts, where a clause on page 1 changes the meaning of one on page 18. It has many GPUs. Which family fits best?'
+    options:
+      - A Transformer, since attention links distant clauses in one step and trains in parallel
+      - A vanilla RNN, since it reads every word in order
+      - A GRU with a smaller hidden state, to train faster
+      - A CNN with 3 × 3 filters
+    answer: 0
+    optionFeedback:
+      '1': Its gradients vanish over thousands of steps.
+      '2': A GRU still passes information through thousands of gated steps and one fixed-size vector.
+      '3': Small filters only see nearby words.
+    explanation: Very long dependencies and plenty of parallel hardware favour self-attention.
+    variants:
+      - prompt: 'A sensor on a small farm pump streams one reading a minute to a cheap microcontroller that must flag anomalies over the last 30 minutes. Which fits best?'
+        options:
+          - A small GRU, cheap per step and able to update its state one reading at a time
+          - A large Transformer re-reading the whole history at every reading
+          - A ResNet image classifier
+          - A vanilla RNN with 1,000 hidden units
+        answer: 0
+        optionFeedback:
+          '1': Quadratic attention over a growing history is expensive on a microcontroller.
+          '2': The data is a sequence of numbers, not images.
+          '3': Larger and still prone to vanishing gradients.
+        explanation: Short horizons, streaming input and small hardware favour a small gated recurrent unit.
+      - prompt: 'A team''s 60-layer plain CNN has higher training error than its 20-layer version. What should they add?'
+        options:
+          - Skip connections, making residual blocks
+          - More dropout, to stop overfitting
+          - A forget gate in every layer
+          - Self-attention between pixels
+        answer: 0
+        optionFeedback:
+          '1': Higher training error is not overfitting.
+          '2': Forget gates belong to recurrent units.
+          '3': The problem is optimization across depth.
+        explanation: That is the degradation problem ResNets solved.
