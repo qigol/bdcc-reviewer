@@ -4,13 +4,16 @@ import { useCourses } from '../modules/courses';
 import { useSetting } from '../storage/progress';
 import { parseLocalDate } from '../plan/studyPlan';
 import { cn } from '../lib/util';
-import { calendarExams, calendarWeeks } from './calendar';
+import { calendarExams, calendarWeeks, type CalendarExam } from './calendar';
+import { DEADLINES } from './deadlines';
 import { useSeasonStatus } from './useSeason';
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const fmt = (d: string, o: Intl.DateTimeFormatOptions) => parseLocalDate(d).toLocaleDateString(undefined, o);
+const describe = (e: CalendarExam) => [e.name, e.time, e.note].filter(Boolean).join(', ');
+const origin = (e: CalendarExam) => (e.mine ? 'from your Settings' : e.source === 'deadline' ? 'deadline' : 'syllabus date');
 
-/** Hell Week, day by day: every exam in the season (syllabus dates plus your own from Settings) on its date. */
+/** Hell Week, day by day: every exam and deadline in the season (syllabus dates, the fixed deadline list, your own from Settings). */
 export function HellWeekCalendar() {
   const status = useSeasonStatus();
   const { courses } = useCourses();
@@ -18,14 +21,14 @@ export function HellWeekCalendar() {
   if (status?.season !== 'hellweek' || !status.range) return null;
   const { start, end } = status.range;
   const today = status.today;
-  const exams = calendarExams(courses, mine).filter((e) => e.date >= start && e.date <= end);
+  const exams = calendarExams(courses, mine, DEADLINES).filter((e) => e.date >= start && e.date <= end);
   const weeks = calendarWeeks(start, end, exams);
   const next = exams.find((e) => e.date >= today);
   return (
     <section className="card mb-6 p-4" aria-label="Hell Week calendar" data-testid="hellweek-calendar">
       <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="flex items-center gap-2 font-semibold"><CalendarDays size={17} className="text-accent" /> Hell Week</h2>
-        <span className="text-sm text-muted">{fmt(start, { month: 'short', day: 'numeric' })} – {fmt(end, { month: 'short', day: 'numeric' })} · {exams.length} exam{exams.length === 1 ? '' : 's'}</span>
+        <span className="text-sm text-muted">{fmt(start, { month: 'short', day: 'numeric' })} – {fmt(end, { month: 'short', day: 'numeric' })} · {exams.length} deadline{exams.length === 1 ? '' : 's'}</span>
         {next && <span className="text-sm">Next: <b>{next.name}</b>, {next.date === today ? 'today' : fmt(next.date, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}
         <Link to="/settings" className="ml-auto text-xs text-muted underline">Edit your exams</Link>
       </div>
@@ -39,7 +42,7 @@ export function HellWeekCalendar() {
               const past = day.date < today;
               const isToday = day.date === today;
               const dayNum = parseLocalDate(day.date).getDate();
-              const label = `${fmt(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}${day.exams.length ? `: ${day.exams.map((e) => e.name).join(', ')}` : ''}`;
+              const label = `${fmt(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}${day.exams.length ? `: ${day.exams.map(describe).join('; ')}` : ''}`;
               return (
                 <div key={day.date} role="cell" aria-label={day.inRange ? label : undefined}
                   className={cn('flex min-h-[3.75rem] min-w-0 flex-col gap-0.5 rounded-md border p-1',
@@ -51,7 +54,7 @@ export function HellWeekCalendar() {
                     {day.exams.length > 0 && <Flame size={12} className="text-accent" aria-hidden />}
                   </span>
                   {day.exams.map((e) => (
-                    <span key={e.key} className="truncate rounded bg-accent px-0.5 py-px text-[9px] font-semibold leading-tight tracking-tight text-white sm:px-1 sm:text-[10px] sm:tracking-normal" title={`${e.name}${e.mine ? ' (from your Settings)' : ' (syllabus date)'}`}>
+                    <span key={e.key} className="truncate rounded bg-accent px-0.5 py-px text-[9px] font-semibold leading-tight tracking-tight text-white sm:px-1 sm:text-[10px] sm:tracking-normal" title={`${describe(e)} (${origin(e)})`}>
                       {e.course}<span className="hidden font-normal sm:inline"> {e.name.slice(e.course.length).trim()}</span>
                     </span>
                   ))}
