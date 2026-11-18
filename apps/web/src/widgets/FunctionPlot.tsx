@@ -81,7 +81,7 @@ export default function FunctionPlot({ props, cmds, marks, ctx, bind, emit, isBo
   const tangent = props.showTangent && yAt && typeof x === 'number' ? (() => { const dx = (b - a) * 0.18; return [x - dx, yAt.y - yAt.slope * dx, x + dx, yAt.y + yAt.slope * dx]; })() : null;
   return (
     <div className="card p-3">
-      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="w-full touch-none select-none" onPointerMove={onMove} onPointerUp={() => setDrag(false)} onPointerLeave={() => setDrag(false)} role={props.draggable ? 'group' : 'img'} aria-label={name}>
+      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="mx-auto w-full max-w-[640px] touch-none select-none" onPointerMove={onMove} onPointerUp={() => setDrag(false)} onPointerLeave={() => setDrag(false)} role={props.draggable ? 'group' : 'img'} aria-label={name}>
         <line x1={L} x2={W - R} y1={H - B} y2={H - B} stroke="rgb(var(--muted))" />
         <line x1={L} x2={L} y1={T} y2={H - B} stroke="rgb(var(--muted))" />
         {[0, 0.25, 0.5, 0.75, 1].map((t) => { const v = yMin + t * (yMax - yMin); return <text key={t} x={L - 6} y={sy(v) + 4} textAnchor="end" fontSize={10} fill="rgb(var(--muted))">{fmtNum(v, 1)}</text>; })}

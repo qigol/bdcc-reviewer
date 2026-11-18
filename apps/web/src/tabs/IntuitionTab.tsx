@@ -63,14 +63,15 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
   const nav = useNavigate();
   const [narration, setNarration] = useSetting('narration');
   const reducedMotion = useReducedMotion();
-  // the narration card sticks over the bottom of the screen; widgets are told how tall it is (the card is re-keyed each beat)
+  // on phones the narration card sticks over the bottom of the screen; widgets are told how much it covers (0 once it
+  // flows below the stage from sm up). The card is re-keyed each beat.
   const [coverBottom, setCoverBottom] = useState(0);
   const roRef = useRef<ResizeObserver | null>(null);
   const cardRef = useCallback((el: HTMLDivElement | null) => {
     roRef.current?.disconnect();
     roRef.current = null;
     if (!el) { setCoverBottom(0); return; }
-    const measure = () => setCoverBottom(Math.ceil(el.getBoundingClientRect().height + 12));
+    const measure = () => setCoverBottom(getComputedStyle(el).position === 'sticky' ? Math.ceil(el.getBoundingClientRect().height + 12) : 0);
     measure();
     if (typeof ResizeObserver !== 'undefined') { roRef.current = new ResizeObserver(measure); roRef.current.observe(el); }
   }, []);
@@ -189,8 +190,9 @@ function ScenePlayer({ scene, index, total, next }: { scene: Scene; index: numbe
             <AnimatePresence mode="wait">
               {!finished ? (
                 <motion.div key={`beat-${beat}`} ref={cardRef} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reducedMotion ? 0.1 : 0.25 }}
-                  className="card sticky bottom-3 z-10 flex max-h-[40vh] flex-col gap-3 p-3 shadow-lg sm:max-h-none sm:p-4">
-                  {/* on phones the card is capped so the stage stays visible; its text scrolls, the Back/Next row stays put */}
+                  className="card sticky bottom-3 z-10 flex max-h-[40vh] flex-col gap-3 p-3 shadow-lg sm:static sm:max-h-none sm:p-4 sm:shadow-none">
+                  {/* on phones the card sticks to the bottom, capped so the stage stays visible; its text scrolls, the Back/Next row stays put.
+                      From sm up it sits below the stage and the page scrolls, so it never covers a widget */}
                   <div className={cn('scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto sm:overflow-visible', folded && 'hidden sm:flex')}>
                     <Markdown text={cur.say} className="text-[15px]" />
                     {cur.define?.length ? <DefinitionCards ids={cur.define} terms={mod.parsed.glossary} /> : null}
