@@ -26,6 +26,18 @@ describe('Hell Week calendar', () => {
     expect(got.filter((e) => e.mine).map((e) => e.date)).toEqual(['2026-11-13', '2026-11-20', '2026-12-05']);
   });
 
+  it('adds fixed deadlines, which a learner exam of the same name replaces', () => {
+    const deadlines = [
+      { course: 'MIS', name: 'MIS Quiz #11', date: '2026-11-22', time: '1:59 PM' },
+      { course: 'BDCC', name: 'BDCC Assignment 2', date: '2026-11-21', time: '11:59 PM' },
+    ];
+    const got = calendarExams(courses, [{ id: 'q', name: 'MIS quiz #11', course: 'MIS', date: '2026-11-23' }], deadlines);
+    const a2 = got.find((e) => e.name === 'BDCC Assignment 2')!;
+    expect(a2).toMatchObject({ date: '2026-11-21', source: 'deadline', time: '11:59 PM', mine: false });
+    expect(a2.name.startsWith(`${a2.course} `)).toBe(true);
+    expect(got.filter((e) => e.course === 'MIS').map((e) => `${e.date} ${e.source}`)).toEqual(['2026-11-23 mine']);
+  });
+
   it('lays the season out in whole Monday-to-Sunday weeks', () => {
     const exams = calendarExams(courses, []);
     const weeks = calendarWeeks('2026-11-10', '2026-12-07', exams);

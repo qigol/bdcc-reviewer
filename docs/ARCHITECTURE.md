@@ -68,7 +68,7 @@ zip I/O · `jsonSchema.ts` JSON Schema export.
 | `plan/` | Exam study plan: `studyPlan.ts` (pure scheduler), `usePlan.ts`, `stepStatus.ts` (shared with PathTab) |
 | `glossary/` | `notes.ts` (one note per term id across modules), `ForceGraph.tsx` |
 | `christmas/` | `ChristmasPage`, `useChristmas.ts`, `banner.ts`, `Decorations.tsx` |
-| `season/` | `useSeason.ts` (fetch + `<html data-season>`), `SeasonDecor.tsx` (Hell Week fire, brimstone and devil; Marian crown and lilies), `SeasonGreeting.tsx` (dashboard title with rotating quotes or verses), `HellWeekCalendar.tsx` + `calendar.ts` (the season's exams day by day: manifest `assessmentDate`s, overridden by the learner's Settings exams) |
+| `season/` | `useSeason.ts` (fetch + `<html data-season>`), `SeasonDecor.tsx` (Hell Week fire, brimstone and devil; Marian crown and lilies), `SeasonGreeting.tsx` (dashboard title with rotating quotes or verses), `HellWeekCalendar.tsx` + `calendar.ts` (the season's exams and deadlines day by day: manifest `assessmentDate`s plus the fixed list in `deadlines.ts` for presentations, quizzes and projects no module carries, overridden by the learner's Settings exams) |
 | `admin/` | `AdminPage`, `ImportPanel` (zip/folder/paste), `ReportView`, `token.ts` (admin token in `sessionStorage`, never IndexedDB) |
 | `lib/` | `api.ts` (every server call + response types), `md.tsx`, `calc.ts`, shared UI bits |
 
